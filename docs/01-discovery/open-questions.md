@@ -70,6 +70,19 @@ Agents add questions here. The Owner answers directly under each one and changes
 | Q-065 | Contradiction: Q-015 (admin must see chat history) vs Q-040 (drop legacy conversations tables). Exactly which chat history is migrated? (details below) | orchestrator (Phase 2 plan) | answered |
 | Q-066 | Renewal reminder (Q-019): default days before the charge (2 or 3)? Email only, or also in-app/push? | orchestrator (Phase 2 plan) | answered |
 | Q-067 | Auto-release (Q-051): does it apply to gig orders, project payments AND custom offers? Does the freelancer "unblock request" remain when auto-release is ON? (details below) | orchestrator (Phase 2 plan) | answered |
+| Q-068 | Launch values of legacy settings whose production values are unknown (moderation auto-approve, email verification, reCAPTCHA, withdrawal minimum/period, top-up min/max, upload limits), and whether custom offers are ON at launch (details below) | product-analyst (P2-A1) | answered |
+| Q-069 | Premium entitlements "Appearance in top offers" and "Ability to contact project authors": what exactly should they do, and should the server enforce them? (details below) | product-analyst (P2-A1) | answered |
+| Q-070 | BOG card surcharge: legacy adds a hard-coded 2.5% on top of the configured BOG gateway fee. Is the total exactly 2.5%, and on which payments? (details below) | product-analyst (P2-A1) | answered |
+| Q-071 | Auto-release timer after a pause (revision request, refund, dispute): does a fresh 72h start, or does the remaining time continue? (details below) | product-analyst (P2-A1) | answered |
+| Q-072 | Global email-2FA toggle: launch value, and what happens to users who turned 2FA on if the admin switches it OFF? (details below) | product-analyst (P2-A1) | answered |
+| Q-073 | Primary button colour: the live teal `#35A29F` fails contrast with white text (3.08:1). Use the darker logo teal (`#0D696C`, 6.45:1) for filled buttons and links, keeping `#35A29F` as an accent? | ui-ux-designer (P2-C1) | answered |
+| Q-074 | Drop the admin-editable brand/hero colour setting in favour of fixed design tokens? The mobile app cannot pick up colours changed at runtime. | ui-ux-designer (P2-C1) | answered |
+| Q-075 | Is there a vector (SVG/AI/PDF) master of the MYTASK logo, and a square icon mark? The favicon is currently the full wordmark (unreadable at 16 px), and the apps need a 1024×1024 icon. If none exists, may the designer derive a simple "M" mark for your approval? | ui-ux-designer (P2-C1) | answered |
+| Q-076 | Transactional emails still use the older purple/teal "MY TASK" logo. Switch emails to the current logo? | ui-ux-designer (P2-C1) | answered |
+| Q-077 | The 7 category images (3D renders) and icons (pink-purple gradient) were uploaded through the admin. Is their licence known? Keep them, or recolour/replace them to match the teal brand? (Not blocking.) | ui-ux-designer (P2-C1) | answered |
+| Q-078 | The sky blue `#2EBFF6` (2.12:1 with white) is used on the Premium buy button and the "Invite and earn points" banner. Move both to the brand palette (teal, or orange with dark text)? | ui-ux-designer (P2-C1) | answered |
+| Q-079 | The `lock.svg` illustration is Freepik artwork and requires attribution. Replace it with our own empty-state art? | ui-ux-designer (P2-C1) | answered |
+| Q-080 | The dashboards, chat and checkout were audited from source code only (no login). Could you add a few screenshots of those logged-in screens to `docs/05-design/screenshots/`, or review those audit sections yourself? | ui-ux-designer (P2-C1) | answered |
 
 ## Answers
 Owner answers received 2026-09-28 (given in one batch in the chat, recorded here verbatim in substance). "Admin-configurable" means the value is editable in the new Admin Panel, never hard-coded. Items marked NEW are new requirements, not legacy behaviour.
@@ -312,3 +325,90 @@ Q-019 says "2–3 days before auto-renewal". (a) Default: 2 or 3 days (admin-con
 (b) With auto-release ON, does the freelancer's "unblock request" to the admin still exist (e.g. as a fallback), or is it only used when auto-release is switched OFF?
 (c) We assume that an open refund request or dispute pauses auto-release until it is resolved. Correct?
 **Answer (Owner, 2026-09-28):** (a) Yes. The 72h auto-release applies equally to gig orders, projects and custom offers. (c) Any active refund request or dispute immediately pauses the timer. (b) The unblock-request fallback was not addressed; the spec proposes it for Owner approval.
+
+## Phase 2 spec questions (product-analyst, P2-A1, 2026-09-28) — answered by Owner 2026-09-28
+Raised while writing `docs/02-specs/00-platform-rules.md`. Each question says which spec it blocks. The unaddressed sub-points of Q-060d, Q-061a/c/d, Q-063b and Q-067b are not repeated here; they are the PROPOSED items P-1…P-6 in `00-platform-rules.md` ("Open questions") and need your approval there.
+
+### Q-068 — Launch values of settings with unknown production values (blocks: 00 approval; specs 01, 04, 05, 10, 11, 12, 14)
+Q-002 gave the fee values only. For the settings below, the production values are unknown. The spec's rule is: **copy the production value during migration; if that is not possible, use the legacy seed value** shown here. Please (a) confirm this rule, and (b) correct any value you know is different in production:
+- Auto-approve without admin review: gigs OFF, portfolio OFF, projects ON, proposals ON, blog comments ON.
+- Email verification at registration: required OFF; method "admin" (manual approval) vs "email" (link); link valid 60 min; password-reset link 60 min.
+- reCAPTCHA: OFF (we recommend ON, because user logins have no throttling today, R-043).
+- Withdrawals: minimum 10 GEL; one withdrawal per day (daily / weekly / monthly).
+- Wallet top-up: minimum 1 GEL, maximum 900,000 GEL.
+- Upload limits: gig images 10 × 5 MB, 2 documents × 10 MB, 5 tags, video ON; requirements files 50 MB (jpg, jpeg, pdf, zip); delivered work 50 MB (allowed types unknown); portfolio 10 images × 5 MB; appeal files 2 × 5 MB (types unknown); chat attachments 20 MB; custom-offer attachments 10 × 50 MB.
+- (c) Custom offers (Q-027): should the new flow be switched **ON at launch** (recommended, once spec 12 passes QA), or stay OFF until you switch it on?
+Recommendation: (a) yes; (c) ON at launch.
+**Answer (Owner, 2026-09-28):** Recommendation accepted. (a) Rule confirmed: copy the production value during migration, else use the legacy seed value listed. (b) No corrections given. (c) Custom offers ON at launch, once spec 12 passes QA.
+
+### Q-069 — Premium entitlements "top offers" and "contact project authors" (blocks: specs 03, 08, 10)
+The plan texts (`SubscriptionPlanSeeder.php`) promise Premium users "Appearance in top offers" and "Ability to contact project authors". In the code we found only (1) a yellow border on Premium users' gig cards (`cards/gig.blade.php:1`) and (2) a Premium check on the "contact author" button in the project page view only; chat itself is open to everyone (BR-120).
+(a) "Top offers": keep it as the highlight border only (legacy), or also rank Premium gigs first in search/category lists or in a "top offers" block? If ranking, how?
+(b) "Contact project authors": should the server refuse a Standard user starting a chat from a project page (strict), or keep legacy behaviour (button hidden for Standard users, chat open to all)?
+Recommendation: (a) keep legacy (border only) at launch, and describe any ranking boost later as a NEW item; (b) enforce server-side for chats started from a project page, and leave normal chat open to all.
+**Answer (Owner, 2026-09-28):** Differs from the recommendation. (a) "Top offers" means Premium users' gigs get a "Featured/Top" badge AND higher priority ranking in search and category lists (NEW; the ranking rule is specified in spec 03). (b) "Contact project authors" means Premium users have the exclusive ability to submit proposals/bids on buyer projects (same as Q-020). Implication: there is no separate Premium gate on starting a chat; normal chat stays open to all.
+
+### Q-070 — BOG card surcharge total and scope (blocks: spec 05)
+Legacy adds a hard-coded 2.5% for BOG payments **on top of** the BOG gateway fee configured in the admin (the seed configures another 2.5% for gig orders), so gig buyers may have paid 5% if production kept the seed value (`UnifiedCheckoutComponent.php:255-262`, `BogSeeder.php:27`). In the code, the 2.5% applies to gig orders, project payments, custom offers and wallet top-ups, and not to subscription payments.
+(a) In the rebuild, is the total card surcharge exactly 2.5% (one setting)?
+(b) Scope: gig orders, project payments, custom offers and wallet top-ups: yes; subscription payments: no surcharge (as legacy). Correct?
+Recommendation: (a) yes, one surcharge of 2.5%; (b) yes, as legacy.
+**Answer (Owner, 2026-09-28):** Recommendation accepted. (a) One total card surcharge of exactly 2.5% (one admin setting). (b) It applies to gig orders, project payments, custom offers and wallet top-ups; subscription payments have no surcharge.
+
+### Q-071 — Auto-release timer after a pause (blocks: specs 06, 11, 12, 13)
+Your answer to Q-061(b) was "Yes" (the timer stops, and a new 72h starts at the next delivery), with the words "PAUSES ... until the freelancer re-delivers". "Pause" can also mean the remaining time continues.
+(a) After a revision request, when the freelancer re-delivers: a **fresh full 72h** (our reading of "Yes"), or only the time that was left?
+(b) After a refund request ends without money moving (the buyer closes it, or it is rejected by the seller and the buyer does not dispute): a fresh 72h from that moment, or the remaining time?
+(c) After a dispute, the admin decides where the money goes, so no timer restarts. Correct?
+Recommendation: (a) fresh 72h from re-delivery; (b) fresh 72h from the moment the refund request ends; (c) yes.
+**Answer (Owner, 2026-09-28):** (a) After a revision/pause is resolved and new work is delivered, the 72h timer RESTARTS from the beginning (a fresh 72 hours). (b), (c) Recommendation accepted: a fresh 72h from the moment a refund request ends without money moving; after a dispute the admin decides and no timer restarts.
+
+### Q-072 — Global email-2FA toggle (blocks: spec 01)
+Q-063: 2FA is optional per user, with an admin global toggle.
+(a) At launch, is the global toggle ON (users can turn on 2FA in their settings) or OFF (the option is hidden)?
+(b) If the admin switches the toggle OFF later, do users who turned 2FA on stop being asked for a code (2FA suspended for everyone), or do they keep it?
+Recommendation: (a) ON; (b) the toggle OFF suspends 2FA for all users (their choice is remembered and applies again when the toggle is switched ON). Staff 2FA is not affected (see P-4 in `00-platform-rules.md`).
+**Answer (Owner, 2026-09-28):** Recommendation accepted. (a) Global toggle ON at launch. (b) Switching it OFF suspends 2FA for all users; their choice is remembered and applies again when it is switched back ON. Staff 2FA is not affected.
+
+## Design questions (ui-ux-designer, P2-C1, 2026-09-28) — answered by Owner 2026-09-28
+Copied by the main session from docs/handoffs/2026-09-28-ui-ux-designer-to-orchestrator-p2-c1.md. Details and evidence are in docs/05-design/audit.md.
+
+### Q-073
+Primary button colour: the live teal `#35A29F` fails contrast with white text (3.08:1). Use the darker logo teal (`#0D696C`, 6.45:1) for filled buttons and links, keeping `#35A29F` as an accent?
+Recommendation: Yes. The darker teal is already in the logo.
+**Answer (Owner, 2026-09-28):** Recommendation accepted.
+
+### Q-074
+Drop the admin-editable brand/hero colour setting in favour of fixed design tokens? The mobile app cannot pick up colours changed at runtime.
+Recommendation: Drop it.
+**Answer (Owner, 2026-09-28):** Recommendation accepted.
+
+### Q-075
+Is there a vector (SVG/AI/PDF) master of the MYTASK logo, and a square icon mark? The favicon is currently the full wordmark (unreadable at 16 px), and the apps need a 1024×1024 icon. If none exists, may the designer derive a simple "M" mark for your approval?
+Recommendation: If there is no vector, derive an "M" mark for your approval.
+**Answer (Owner, 2026-09-28):** Recommendation accepted.
+
+### Q-076
+Transactional emails still use the older purple/teal "MY TASK" logo. Switch emails to the current logo?
+Recommendation: Yes.
+**Answer (Owner, 2026-09-28):** Recommendation accepted.
+
+### Q-077
+The 7 category images (3D renders) and icons (pink-purple gradient) were uploaded through the admin. Is their licence known? Keep them, or recolour/replace them to match the teal brand? (Not blocking.)
+Recommendation: Keep for now; recolour later if the licence allows.
+**Answer (Owner, 2026-09-28):** Recommendation accepted.
+
+### Q-078
+The sky blue `#2EBFF6` (2.12:1 with white) is used on the Premium buy button and the "Invite and earn points" banner. Move both to the brand palette (teal, or orange with dark text)?
+Recommendation: Yes.
+**Answer (Owner, 2026-09-28):** Recommendation accepted.
+
+### Q-079
+The `lock.svg` illustration is Freepik artwork and requires attribution. Replace it with our own empty-state art?
+Recommendation: Yes.
+**Answer (Owner, 2026-09-28):** Recommendation accepted.
+
+### Q-080
+The dashboards, chat and checkout were audited from source code only (no login). Could you add a few screenshots of those logged-in screens to `docs/05-design/screenshots/`, or review those audit sections yourself?
+Recommendation: Screenshots before P2-C4 (key screen layouts).
+**Answer (Owner, 2026-09-28):** Recommendation accepted.

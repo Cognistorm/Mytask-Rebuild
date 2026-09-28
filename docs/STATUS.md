@@ -30,9 +30,9 @@ Phase: 2 — Blueprint (planned, not started) | Gate: not ready | Phase 1 gate: 
 - Known, accepted: no production schema dump (mapping built from migrations/models)
 
 ## Next up (Step 1 of phase-2-plan.md; the two tasks can run in parallel)
-- P2-A1 product-analyst: docs/02-specs/README.md (spec list 00–17 + build order) + 00-platform-rules.md (settings register, plans/limits, removed features)
-- P2-C1 ui-ux-designer: docs/05-design/audit.md + packages/assets/ + SOURCES.md
+- P2-A1 product-analyst: DONE 2026-09-28. Specs: docs/02-specs/README.md (00–17 in build order) + 00-platform-rules.md = **ready for Owner** (settings register 122 rows, PROPOSED P-1…P-13, new questions Q-068…Q-072 open). 01–17 not started. Handoff: docs/handoffs/2026-09-28-product-analyst-to-orchestrator-p2-a1.md
+- P2-C1 ui-ux-designer: DONE 2026-09-28. docs/05-design/audit.md = **ready for Owner** (live public screens + Blade-only audit of dashboards/chat/checkout/proposal modal; real values with evidence; 13 modernisation principles). Assets in packages/assets/ with SOURCES.md. 8 design questions for the Owner are in the handoff (e.g. accessible dark-teal buttons, admin-editable brand colour, logo SVG/app icon): docs/handoffs/2026-09-28-ui-ux-designer-to-orchestrator-p2-c1.md. Next: P2-C2 tokens + components
 - Then Step 2: P2-A2 specs 01–04 || P2-B1 architecture.md + ADR-001…013
 
 ## Decisions waiting for Owner
-- Approve starting Phase 2 Step 1 per docs/03-architecture/phase-2-plan.md
+- Q-068…Q-080 answered 2026-09-28 (Q-069 top offers = badge + ranking boost; Q-071 fresh 72h after re-delivery). Still to review: PROPOSED P-1…P-13 in docs/02-specs/00-platform-rules.md, then mark 00 `approved`
