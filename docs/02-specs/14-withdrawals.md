@@ -1,5 +1,5 @@
 # 14 — Withdrawals
-Status: ready for Owner
+Status: **approved** (Owner 2026-09-28; P-38…P-65 accepted)
 Author: product-analyst (P2-A3) | Date: 2026-09-28
 Legacy reference: `docs/01-discovery/features.md` BR-101; `routes-and-pages.md` (`/seller/withdrawals`, `/seller/withdrawals/create`, `/seller/withdrawals/settings`, admin `/dashboard/withdrawals`); `notifications.md` (withdrawal rows); `integrations.md` (payouts); `risks-and-debt.md` R-017. Owner decisions: Q-002, Q-004, Q-006, Q-029, Q-039, Q-048, Q-068. Platform rules: `00-platform-rules.md` §3 (Withdrawn, withdrawal fee), R-3.6, R-3.8, §4.2 (S-010, S-011), §4.6 (S-031…S-033), §4.18 (one pending withdrawal), EC-6, EC-7, AC-16, X-07. Specs: 02 AC-33 (account deletion), 05 (balances, transactions, R-P8), 09 (plan). ADR-003, ADR-004 §1 (`PayoutProvider`), ADR-005.
 
@@ -32,9 +32,9 @@ Let freelancers move their Available balance to their bank account: they request
 ## Acceptance criteria
 
 ### Payout details (Q-029)
-- AC-1 Given a user opens Payout settings (`/seller/withdrawals/settings`; mobile Selling → Withdrawals → Payout details), When they save the account holder's full name (required, 3–100 chars) and an IBAN, Then the IBAN is accepted only if it is a valid Georgian IBAN (starts with `GE`, 22 characters, correct check digits; spaces ignored) and the details are stored for payouts. The hint `t_payouts_detail_pl` is shown (holder name must match the user's name). (CHANGE, PROPOSED P-62; legacy free text)
-- AC-2 Given a migrated user whose legacy details are free text, When they open Payout settings, Then the old text is shown read-only as "Previous details" and stays usable for manual payouts until the user saves structured details. (PROPOSED P-62)
-- AC-3 Given a user saves new or changed payout details, When they confirm with their current password (not asked for accounts without a password, spec 02 AC-29), Then the details are saved and the user gets the email `PayoutDetailsChanged` (to the account email) and an in-app notice. (NEW, PROPOSED P-63)
+- AC-1 Given a user opens Payout settings (`/seller/withdrawals/settings`; mobile Selling → Withdrawals → Payout details), When they save the account holder's full name (required, 3–100 chars) and an IBAN, Then the IBAN is accepted only if it is a valid Georgian IBAN (starts with `GE`, 22 characters, correct check digits; spaces ignored) and the details are stored for payouts. The hint `t_payouts_detail_pl` is shown (holder name must match the user's name). (CHANGE, ACCEPTED P-62; legacy free text)
+- AC-2 Given a migrated user whose legacy details are free text, When they open Payout settings, Then the old text is shown read-only as "Previous details" and stays usable for manual payouts until the user saves structured details. (ACCEPTED P-62)
+- AC-3 Given a user saves new or changed payout details, When they confirm with their current password (not asked for accounts without a password, spec 02 AC-29), Then the details are saved and the user gets the email `PayoutDetailsChanged` (to the account email) and an in-app notice. (NEW, ACCEPTED P-63)
 - AC-4 Given a user without payout details, When they open "Withdraw", Then they are sent to Payout settings with `t_add_payout_details_first`. (LEGACY `CreateComponent.php:580-588`)
 
 ### Requesting a withdrawal (BR-101, Q-004)
@@ -50,7 +50,7 @@ Let freelancers move their Available balance to their bank account: they request
 ### Staff processing — manual payout (S-033 = manual, Q-004, Q-029)
 - AC-13 Given staff with the withdrawals permission open Withdrawals in the admin panel, When the list loads, Then pending requests come first (oldest first) with user, amount requested, fee, payout amount, plan at request, payout details (holder, IBAN or previous text), date and status; filters by status and date; each row opens a detail with the user's recent transactions. (LEGACY list; details NEW)
 - AC-14 Given a pending request, When staff transfer the money by bank and press "Mark as paid" (optional bank reference and payout date), Then the status becomes **paid**, the ledger records the payout, the action is audit-logged, and the user gets `PaymentApproved` (email) and `t_withdrawal_amount_paid` (in-app + push). (LEGACY `WithdrawalsComponent.php:67-108`; MM-14-02)
-- AC-15 Given a pending request, When staff press "Reject" and enter a reason (required, ≤ 500 chars), Then the status becomes **rejected**, the full amount A (including the fee) returns to the user's Available balance, Withdrawn decreases by A, the action is audit-logged, and the user gets `PaymentRejected` (email, with the reason) and `t_withdrawal_amount_rejected` (in-app + push, with the reason). (LEGACY refund amount + fee `:118-164`; reason PROPOSED P-64; MM-14-03)
+- AC-15 Given a pending request, When staff press "Reject" and enter a reason (required, ≤ 500 chars), Then the status becomes **rejected**, the full amount A (including the fee) returns to the user's Available balance, Withdrawn decreases by A, the action is audit-logged, and the user gets `PaymentRejected` (email, with the reason) and `t_withdrawal_amount_rejected` (in-app + push, with the reason). (LEGACY refund amount + fee `:118-164`; reason ACCEPTED P-64; MM-14-03)
 - AC-16 Given two staff members act on the same request at the same moment, When both press a button, Then only the first action applies; the second gets `t_withdrawal_already_processed`. (CHANGE, compare-and-set)
 
 ### BOG Payout readiness (Q-029) — NEW, not active at launch
@@ -59,7 +59,7 @@ Let freelancers move their Available balance to their bank account: they request
 ### History (user side)
 - AC-18 Given a user opens Withdrawals (`/seller/withdrawals`; mobile Selling → Withdrawals), When it loads, Then it shows a "Withdraw" button and the history, newest first: date, amount requested, fee, payout amount, status (Pending, Processing, Paid, Rejected), the rejection reason, and the paid date/reference when paid. Empty: `t_no_withdrawals_yet`. (LEGACY history; columns NEW)
 - AC-19 Given any withdrawal event, When the user opens Transactions (spec 05 AC-31), Then "Withdrawal requested", "Withdrawal paid" and "Withdrawal rejected, money returned" appear with their amounts. (spec 05)
-- AC-20 Given a user with a pending or processing withdrawal, When they choose "Delete account", Then it is refused with `t_cannot_delete_account_pending_withdrawal`. (PROPOSED P-65; adds to spec 02 AC-32/AC-33)
+- AC-20 Given a user with a pending or processing withdrawal, When they choose "Delete account", Then it is refused with `t_cannot_delete_account_pending_withdrawal`. (ACCEPTED P-65; adds to spec 02 AC-32/AC-33)
 
 ---
 
@@ -103,7 +103,7 @@ Accessibility: the fee and payout lines are text with labels; the IBAN field acc
 | `User/Seller/PendingWithdrawal` (`t_subject_seller_pending_withdrawal`) | email | user | request created (AC-7) | LEGACY |
 | `User/Everyone/PaymentApproved` (`t_subject_everyone_payment_approved`) + `t_withdrawal_amount_paid` | email + in-app + push | user | marked paid / provider paid (AC-14, AC-17) | LEGACY (push NEW) |
 | `User/Everyone/PaymentRejected` (`t_subject_everyone_payment_rejected`) + `t_withdrawal_amount_rejected` | email + in-app + push | user | rejected / provider failed (AC-15, AC-17) | LEGACY; reason added (P-64) |
-| `PayoutDetailsChanged` (`t_subject_payout_details_changed`) + `t_payout_details_changed` | email + in-app | user | payout details saved or changed (AC-3) | **NEW, PROPOSED P-63** |
+| `PayoutDetailsChanged` (`t_subject_payout_details_changed`) + `t_payout_details_changed` | email + in-app | user | payout details saved or changed (AC-3) | **NEW, ACCEPTED P-63** |
 
 ## Texts (i18n key | en | ka)
 Legacy keys reused (values unchanged):

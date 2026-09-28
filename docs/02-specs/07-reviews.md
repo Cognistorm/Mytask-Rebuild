@@ -1,5 +1,5 @@
 # 07 — Reviews
-Status: ready for Owner
+Status: **approved** (Owner 2026-09-28; P-38…P-65 accepted)
 Author: product-analyst (P2-A3) | Date: 2026-09-28
 Legacy reference: `docs/01-discovery/features.md` BR-040, BR-042; `routes-and-pages.md` (`/account/reviews/*`, `/seller/reviews/*`, `/reviews/{id}`); `notifications.md` (`ReviewReceived`, `t_u_have_received_new_rating`); `data-model.md` (`reviews`). Owner decisions: Q-014, Q-046, Q-062. Platform rules: `00-platform-rules.md` R-1.5, §4.18 (review: rating 1–5, message ≤ 800, one per completed item per side). Specs: 02 AC-10 (two rating blocks), 02 P-21 ("Deleted user"), 03 AC-9/AC-13/R-S4 (rating filter and "Best rating" sort), 04 AC-26 (gig page Reviews tab), 06 AC-30/AC-33 (completion), 11 (project completion), 12 (custom offers).
 
@@ -37,14 +37,14 @@ Let both sides of every completed job rate each other with 1–5 stars and a sho
 ### Who can review, and when (Q-046, Q-062)
 - AC-1 Given a gig order item that is **completed** (by the buyer, by auto-release, or by an admin decision that paid the freelancer), When its buyer or its freelancer opens it, Then each of them sees "Leave a review" until they have written one. Items that are canceled or refunded, or not yet completed, cannot be reviewed; the API refuses with `t_review_not_allowed`. (LEGACY buyer side `CreateComponent.php:39-55`; CHANGE Q-062 freelancer side; auto-release NEW spec 06 AC-33)
 - AC-2 Given a project whose payment was completed (released to the freelancer, spec 11), When the client or the awarded freelancer opens it, Then each of them can review the other once. (NEW Q-046, Q-062)
-- AC-3 Given a completed custom offer (spec 12), When the buyer or the freelancer opens it, Then each of them can review the other once. (PROPOSED P-54)
+- AC-3 Given a completed custom offer (spec 12), When the buyer or the freelancer opens it, Then each of them can review the other once. (ACCEPTED P-54)
 - AC-4 Given a user who is not the buyer/client or the freelancer of that item, When they try to review it (screen or API), Then the answer is 404. Nobody can review themselves (00 R-1.3). (LEGACY ownership check; API NEW)
 - AC-5 Given the buyer completes a gig order (spec 06 AC-30), When the completion succeeds, Then the buyer is taken straight to the review form. The freelancer's order page and both dashboards show the item under "To review". (LEGACY redirect `FilesComponent.php:345`; "To review" NEW)
 
 ### Writing and editing (00 §4.18)
 - AC-6 Given the review form, When the author submits a star rating (whole number 1–5, required) and a text (required, 1–800 characters, plain text), Then the review is published at once with `t_review_submitted`. A missing rating or text, or text over 800, is refused with the field message. (LEGACY `CreateValidator.php:26-28`)
 - AC-7 Given the author already reviewed this item, When they open "Leave a review" again, Then the edit form of their review opens instead. The API refuses a second review for the same item and side with `t_review_already_exists`. (LEGACY `CreateComponent.php:59-70`; one per side Q-062)
-- AC-8 Given the author edits their review (rating and/or text, same rules as AC-6), When they save, Then the review is updated, shows "edited" with the date, and all affected averages are recalculated (`t_review_updated_succes`). Authors cannot delete their reviews. (LEGACY edit `EditComponent.php:126-170`; "edited" label and rules PROPOSED P-55)
+- AC-8 Given the author edits their review (rating and/or text, same rules as AC-6), When they save, Then the review is updated, shows "edited" with the date, and all affected averages are recalculated (`t_review_updated_succes`). Authors cannot delete their reviews. (LEGACY edit `EditComponent.php:126-170`; "edited" label and rules ACCEPTED P-55)
 
 ### Notifications
 - AC-9 Given a new review is published, When it is saved, Then the person reviewed gets `ReviewReceived` (email) and `t_u_have_received_new_rating` (in-app + push) with a link to the review — the freelancer when a buyer/client wrote it, the buyer/client when a freelancer wrote it. Edits send nothing. (LEGACY to the seller; CHANGE Q-062 both directions)
@@ -54,7 +54,7 @@ Let both sides of every completed job rate each other with 1–5 stars and a sho
 - AC-11 Given a user's profile, When the "As a freelancer" block is built (spec 02 AC-10), Then it uses all visible reviews written about this user by buyers/clients, from gig orders, custom offers and projects: average, count, and the number of 5-, 4-, 3-, 2- and 1-star reviews. Reviews on gigs that were later deleted still count. (LEGACY breakdown; CHANGE: projects and offers added Q-046; shown for every user Q-013)
 - AC-12 Given a user's profile, When the "As a client" block is built, Then it uses all visible reviews written about this user by freelancers, from the same three sources, with the same figures. (NEW Q-062)
 - AC-13 Given a review is created, edited, hidden or unhidden, When the change is saved, Then every affected figure (gig rating, both user blocks) is updated at once, and the same numbers are returned on web and mobile. (CHANGE: legacy averages included hidden reviews, `User.php:233-243`)
-- AC-14 Given example data — a freelancer with visible buyer reviews 5, 4 and 4 on one gig and one hidden 1-star review — When the figures are calculated, Then the gig rating is 4.33 (shown as 4.3), the count is 3, the breakdown is 5★ 1, 4★ 2, 3★ 0, 2★ 0, 1★ 0, and the hidden review is not counted anywhere. (display rounding PROPOSED P-56)
+- AC-14 Given example data — a freelancer with visible buyer reviews 5, 4 and 4 on one gig and one hidden 1-star review — When the figures are calculated, Then the gig rating is 4.33 (shown as 4.3), the count is 3, the breakdown is 5★ 1, 4★ 2, 3★ 0, 2★ 0, 1★ 0, and the hidden review is not counted anywhere. (display rounding ACCEPTED P-56)
 
 ### Where reviews are shown
 - AC-15 Given a gig page, When the Reviews tab opens (spec 04 AC-26), Then it shows the newest visible buyer→freelancer reviews of that gig (reviewer avatar and username, stars, text, date, "edited" mark) and "See all reviews", which opens `/reviews/{gig}` with 30 per page and a filter by star (5…1). (LEGACY `Main/Reviews/ReviewsComponent.php:135-154`)
@@ -63,7 +63,7 @@ Let both sides of every completed job rate each other with 1–5 stars and a sho
 - AC-18 Given the reviewer's account was deleted, When a review is shown, Then the name reads "Deleted user" without a profile link, and the review stays visible and counted. Given the reviewed gig was deleted, Then the gig title is shown without a link. (spec 02 P-21)
 
 ### Moderation (spec 16)
-- AC-19 Given a staff member with the review-moderation permission, When they hide a review with an internal reason, Then it disappears from gig pages, profiles, `/reviews/{gig}` and every average; the reviewed person no longer sees it; the author sees it in "Written" with `t_review_hidden_by_moderator`; and the action is audit-logged. "Unhide" restores it and the averages. (CHANGE: legacy deleted reviews, `Admin/Reviews/ReviewsComponent.php:65-96`; hide replaces delete, PROPOSED P-55)
+- AC-19 Given a staff member with the review-moderation permission, When they hide a review with an internal reason, Then it disappears from gig pages, profiles, `/reviews/{gig}` and every average; the reviewed person no longer sees it; the author sees it in "Written" with `t_review_hidden_by_moderator`; and the action is audit-logged. "Unhide" restores it and the averages. (CHANGE: legacy deleted reviews, `Admin/Reviews/ReviewsComponent.php:65-96`; hide replaces delete, ACCEPTED P-55)
 - AC-20 Given the admin reviews list, When it opens, Then staff can filter by rating, status (visible/hidden), direction (about freelancer / about client) and source (gig, project, offer), and search by user or gig. (LEGACY list; filters NEW)
 
 ### Migration

@@ -13,7 +13,7 @@ Live files were downloaded with read-only HTTP GET requests. Legacy files were c
 ## Favicon
 No separate favicon exists. The live favicon URL serves the full wordmark PNG (see above), which is unreadable at 16–32 px. A square icon / app icon is needed for web and the mobile apps (question to the Owner in the handoff).
 
-## Brand mark: PROPOSAL, derived work, awaiting Owner approval (Q-075)
+## Brand mark: derived work, APPROVED by the Owner 2026-09-28 (Q-075, Q-090). Files keep the `proposal-` prefix until Phase 3 renames them for production use
 The Owner confirmed no vector logo or square mark is known and allowed the designer to derive a simple "M" mark (Q-075). These files are **derived work**, not original brand files: the "M" of the current wordmark (a stencil M whose middle forms a Y, i.e. "MY") was measured on `logo/mytask-logo-wordmark-trimmed.png` (letter box 248×248 px: outer stems 72 px, centre stem 56 px, diagonals at 0.7 px/px, 12 px cuts) and redrawn as clean vector geometry. Colour `#0D696C` (logo teal = `brand.700`). The `proposal-` prefix stays until the Owner approves; then the files are renamed and this section updated. Not for production use before approval.
 | File | Source | Date | Notes |
 |---|---|---|---|

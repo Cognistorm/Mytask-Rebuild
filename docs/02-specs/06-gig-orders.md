@@ -1,5 +1,5 @@
 # 06 — Gig orders
-Status: ready for Owner
+Status: **approved** (Owner 2026-09-28; P-38…P-65 accepted)
 Author: product-analyst (P2-A3) | Date: 2026-09-28
 Legacy reference: `docs/01-discovery/features.md` BR-030…BR-041, BR-080, BR-086, BR-122; `routes-and-pages.md` (`/cart`, `/checkout`, `/account/orders/*`, `/seller/orders/*`); `notifications.md` (order rows); `risks-and-debt.md` R-004, R-005, R-014, R-016, R-017, R-031, R-036. Owner decisions: Q-008, Q-009, Q-010, Q-011, Q-038, Q-045, Q-051, Q-056, Q-061, Q-065, Q-067, Q-071, Q-084. Platform rules: `00-platform-rules.md` §3, §4.4 (S-025…S-029), §4.8 (S-041), §4.13 (S-084…S-087), §4.18, AC-13, AC-14, AC-18, AC-19, EC-2, EC-3, X-16; P-1, P-2, P-5. Specs: 04 (gig data, R-G6, R-G8, R-G9), 05 (payments, MM-05-xx), 07 (reviews), 13 (refunds, disputes, unblock requests). ADR-003, ADR-004, ADR-008, ADR-009.
 
@@ -39,10 +39,10 @@ Take a buyer from "Add to cart" to a completed gig order in a way that is safe f
 ## Acceptance criteria
 
 ### Cart (BR-030)
-- AC-1 Given a gig page (spec 04 AC-26), When a guest or logged-in user presses "Add to cart" with any upgrades ticked, Then the gig is added with quantity 1 and the chosen upgrades (`t_gig_added_to_ur_cart`), and the header cart count updates. Adding the same gig again replaces its line (new upgrade choice). (LEGACY `ServiceComponent.php:359-418`; quantity 1 PROPOSED P-46)
+- AC-1 Given a gig page (spec 04 AC-26), When a guest or logged-in user presses "Add to cart" with any upgrades ticked, Then the gig is added with quantity 1 and the chosen upgrades (`t_gig_added_to_ur_cart`), and the header cart count updates. Adding the same gig again replaces its line (new upgrade choice). (LEGACY `ServiceComponent.php:359-418`; quantity 1 ACCEPTED P-46)
 - AC-2 Given the seller is unavailable or restricted, or the viewer owns the gig, When "Add to cart" is pressed, Then it is refused (spec 04 AC-29, AC-30). (LEGACY)
 - AC-3 Given the cart page (`/cart`; mobile cart screen), When it opens, Then each line shows thumbnail, gig title (link), seller, base price, each chosen upgrade with its price and "+ N days", line total, and "Remove"; below: subtotal and "Checkout". An empty cart shows `t_ur_cart_is_empty` with "Continue shopping". (LEGACY `CartComponent.php`)
-- AC-4 Given a logged-in user, When they add to cart on web, Then the same cart is visible on mobile (and back). A guest's cart is kept on the device and merged into the account cart at login (same gig: the newer line wins). (PROPOSED P-47; legacy session cart)
+- AC-4 Given a logged-in user, When they add to cart on web, Then the same cart is visible on mobile (and back). A guest's cart is kept on the device and merged into the account cart at login (same gig: the newer line wins). (ACCEPTED P-47; legacy session cart)
 - AC-5 Given a guest presses "Checkout", When they are not logged in, Then they are sent to login/registration and come back to checkout afterwards. (LEGACY `routes/web.php:177`)
 - AC-6 Given the checkout opens or is confirmed, When the API validates the cart, Then each line is re-checked against current data: the gig is active and listable (spec 03 R-S1), the owner is available and not restricted, the buyer is not the owner, each upgrade still exists. A failing gig line is removed with `t_an_item_in_your_cart_doesnot_exist`, a missing upgrade with `t_an_upgrade_in_item_in_cart_not_found`, and the buyer sees the updated total. Prices and delivery times always come from current gig data, never from the cart. (LEGACY checks `CartComponent.php:342-513`; CHANGE: price re-read, legacy used the session price)
 
@@ -55,9 +55,9 @@ Take a buyer from "Add to cart" to a completed gig order in a way that is safe f
 - AC-12 Given an order awaiting payment, When the buyer or anyone tries to cancel it through the cancel action, Then there is nothing to refund: the only action is "Delete" (AC-11). No wallet credit is ever created for an unpaid order. (CHANGE, fixes R-005)
 
 ### Order details (requirements, BR-036)
-- AC-13 Given a paid item waiting for order details, When the buyer opens it, Then a prominent "Send order details" box asks for the information the freelancer needs: formatted text (bold, italic, lists, links), required, 1–5,000 characters, sanitised. After saving, the item shows the details to both sides. (LEGACY free-text modal `OrdersComponent.php:121-199`; limits and required PROPOSED P-48)
+- AC-13 Given a paid item waiting for order details, When the buyer opens it, Then a prominent "Send order details" box asks for the information the freelancer needs: formatted text (bold, italic, lists, links), required, 1–5,000 characters, sanitised. After saving, the item shows the details to both sides. (LEGACY free-text modal `OrdersComponent.php:121-199`; limits and required ACCEPTED P-48)
 - AC-14 Given order details were sent, When the freelancer has not started yet, Then the buyer can edit them; after the start they are read-only. (LEGACY: editable while `pending`)
-- AC-15 Given the buyer sends (or edits) order details, When they are saved, Then the freelancer gets `t_buyer_sent_order_details` (in-app + push). (NEW, PROPOSED P-48; legacy sent nothing)
+- AC-15 Given the buyer sends (or edits) order details, When they are saved, Then the freelancer gets `t_buyer_sent_order_details` (in-app + push). (NEW, ACCEPTED P-48; legacy sent nothing)
 
 ### Start (BR-037)
 - AC-16 Given a paid item without order details, When the freelancer presses "Start", Then it is refused with `t_buyer_didnt_send_requirements_yet_continue`. (LEGACY `Seller/Orders/OrdersComponent.php:289-297`)
@@ -83,7 +83,7 @@ Take a buyer from "Add to cart" to a completed gig order in a way that is safe f
 
 ### Completion by the buyer (BR-040)
 - AC-30 Given a delivered item, When the buyer presses "Complete order" and confirms (`t_complete_order_confirm`), Then in one step: status **completed**, the item's HOLD is released to the freelancer's Available balance, the gig's queue −1 and sales +1, an open refund request is closed, the freelancer gets `User/Seller/OrderItemCompleted` (email) and `t_order_id_completed` (in-app + push), the buyer gets `User/Buyer/OrderItemCompleted` (email), and the buyer is taken to the review form (spec 07). (LEGACY `FilesComponent.php:266-347`; MM-06-03)
-- AC-31 Given a dispute is open on the item (spec 13), When the buyer presses "Complete order", Then it is refused with `t_cannot_complete_during_dispute`; the admin decides. (PROPOSED P-51)
+- AC-31 Given a dispute is open on the item (spec 13), When the buyer presses "Complete order", Then it is refused with `t_cannot_complete_during_dispute`; the admin decides. (ACCEPTED P-51)
 - AC-32 Given an item with a revision requested (not yet re-delivered), When the buyer looks for "Complete order", Then it is not offered until the next delivery. (LEGACY: completion only when `delivered`)
 
 ### Automatic release (Q-051, Q-067, Q-071, Q-084; S-025, S-026)
@@ -112,7 +112,7 @@ Take a buyer from "Add to cart" to a completed gig order in a way that is safe f
 ## Business rules
 - R-O1 **Statuses** (item level): `awaiting_payment` (order not paid) → `paid` ("waiting for order details" until sent) → `in_progress` → `delivered` ⇄ `revision_requested` → `completed`; `paid` → `canceled` (before start); any paid, unfinished status → `refunded` (spec 13). Flags: `refund_open`, `dispute_open`. Legacy `proceeded` = `in_progress`; legacy `delivered` + `is_finished` = `completed`.
 - R-O2 **Snapshot** (spec 04 R-G6, R-G9): price, upgrades, delivery time, revisions allowed, fees and fee versions are copied at order creation; later gig edits or setting changes do not change placed orders (00 AC-9, EC-2).
-- R-O3 **Quantity**: always 1 per gig line (PROPOSED P-46). One order item = one delivery flow = one review per side (Q-045).
+- R-O3 **Quantity**: always 1 per gig line (ACCEPTED P-46). One order item = one delivery flow = one review per side (Q-045).
 - R-O4 **Money** (00 R-3.1…R-3.5): buyer charged at payment; HOLD = P′ per item; completion, auto-release or admin release move exactly the escrow balance to the freelancer; cancel before start and accepted refunds return P to the buyer's Available (Q-010, Q-011). Unpaid orders hold nothing.
 - R-O5 **Revisions** (Q-056, P-1, P-2): allowed = snapshot (0…S-041); a request counts when made; no request when used = allowed; a request stops the timer; re-delivery restarts a full period (Q-071a).
 - R-O6 **Auto-release** (ADR-008): deadline = delivery time + S-026 (stored hours), cleared by a revision request, refund request or dispute, reset to now + S-026 when a refund request ends without money moving, never reset after a dispute; the sweeper acts only while S-025 is ON; switching ON again gives overdue items a fresh period (Q-084).
@@ -156,7 +156,7 @@ Key screen for design P2-C4: checkout and order detail. Accessibility: status ch
 | `User/Seller/PendingOrder` (`t_subject_seller_pending_order`) + `t_u_received_new_order_seller` | email + in-app + push | freelancer | item paid (AC-10) | LEGACY; in-app key unified (legacy BOG path used `t_notification_buyer_order_placed`, merged) |
 | `User/Buyer/OrderPlaced` (`t_subject_buyer_order_has_placed`) | email | buyer | order paid by any method (AC-10) | LEGACY (wallet only), CHANGE P-52 all methods |
 | `Admin/NewPayment` (`t_new_online_payment`) | email | all S-100 | card payment verified (AC-10) | LEGACY, CHANGE timing P-52 and recipients Q-026 |
-| `t_buyer_sent_order_details` | in-app + push | freelancer | order details sent or edited (AC-15) | **NEW, PROPOSED P-48** |
+| `t_buyer_sent_order_details` | in-app + push | freelancer | order details sent or edited (AC-15) | **NEW, ACCEPTED P-48** |
 | `User/Buyer/OrderItemInProgress` (`t_subject_buyer_order_item_in_progress`) + `t_seller_has_started_ur_order` | email + in-app + push | buyer | start (AC-17) | LEGACY |
 | `User/Buyer/OrderItemCanceled` (`t_subject_buyer_order_canceled`) + `t_seller_has_canceled_ur_order` | email + in-app + push | buyer | freelancer cancels (AC-19) | LEGACY |
 | `User/Seller/OrderItemCanceled` (`t_subject_seller_order_item_canceled`) + `t_buyer_has_canceled_order` | email + in-app + push | freelancer | buyer cancels (AC-18) | LEGACY |
@@ -164,9 +164,9 @@ Key screen for design P2-C4: checkout and order detail. Accessibility: status ch
 | `RevisionRequested` (`t_subject_seller_revision_requested`) + `t_buyer_requested_revision` | email + in-app + push | freelancer | revision requested (AC-26) | **NEW** (Q-056) |
 | `User/Seller/OrderItemCompleted` (`t_subject_seller_order_item_completed`) + `t_order_id_completed` | email + in-app + push | freelancer | buyer completes (AC-30) | LEGACY |
 | `User/Buyer/OrderItemCompleted` (`t_subject_buyer_order_item_completed_thanks`) | email | buyer | buyer completes (AC-30) | LEGACY |
-| `t_order_auto_completed_seller` / `t_order_auto_completed_buyer` (email subjects `t_subject_order_auto_completed`) | email + in-app + push | freelancer / buyer | auto-release (AC-33) | **NEW** (Q-051), PROPOSED P-52 |
+| `t_order_auto_completed_seller` / `t_order_auto_completed_buyer` (email subjects `t_subject_order_auto_completed`) | email + in-app + push | freelancer / buyer | auto-release (AC-33) | **NEW** (Q-051), ACCEPTED P-52 |
 | `User/Seller/DeliveredWorkNewMessage` (`t_subject_seller_delivered_work_new_msg`) + `t_buyer_sent_u_message_about_delivered_files` | email + in-app + push | freelancer | buyer thread message (AC-40) | LEGACY |
-| `t_seller_sent_u_message_about_order` | in-app + push | buyer | freelancer thread message (AC-40) | **NEW, PROPOSED P-52** |
+| `t_seller_sent_u_message_about_order` | in-app + push | buyer | freelancer thread message (AC-40) | **NEW, ACCEPTED P-52** |
 
 Refund, dispute and unblock notifications are in spec 13; review notifications in spec 07; bank-transfer notifications in spec 05.
 
@@ -250,7 +250,7 @@ NEW keys (English first, Georgian alongside, Q-058):
 - EC-6 A gig with 0 revisions: "Request a revision" never appears (AC-27).
 - EC-7 The buyer requests a revision one minute before the auto-release: the request stops the timer; if the sweeper already locked the row, the revision request gets `t_order_status_changed` and the order is completed (compare-and-set decides).
 - EC-8 The expected delivery date passes while the item is in progress: the list shows "Late"; the buyer may open a refund request (spec 13, BR-080). Nothing happens automatically.
-- EC-9 A migrated legacy item that is `delivered` and not finished: it gets an auto-release deadline of go-live + S-026 (fresh period; same principle as Q-084), unless a refund is open. Legacy `proceeded` items migrate as in progress. (PROPOSED P-53b)
+- EC-9 A migrated legacy item that is `delivered` and not finished: it gets an auto-release deadline of go-live + S-026 (fresh period; same principle as Q-084), unless a refund is open. Legacy `proceeded` items migrate as in progress. (ACCEPTED P-53b)
 - EC-10 Auto-release is OFF, then ON: an item delivered 5 days ago gets 72 fresh hours from the switch (AC-37).
 - EC-11 A buyer's account is banned while an order is delivered: the timer continues and auto-release pays the freelancer (the buyer can no longer act). Staff may pause via a dispute (spec 13).
 

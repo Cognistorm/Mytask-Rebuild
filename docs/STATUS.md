@@ -23,7 +23,7 @@ Phase: 2 — Blueprint (planned, not started) | Gate: not ready | Phase 1 gate: 
 - Security: all keys in .env; strict web-root isolation (logs/config never web-reachable); keep restrictions, appeals, IP banning, KYC
 
 ## In progress (agent → task)
-- none. Steps 1 and 2 of phase-2-plan.md are done; Step 3 (P2-A3 money specs || P2-C2 tokens + components) is ready to start
+- Step 4 (started 2026-09-28): P2-A4 product-analyst specs 08, 10, 11, 12, 13 || P2-B2 solution-architect data model + P2-B3 url-map + ADR revisions (002, 004, 008, 013, 016)
 
 ## Blocked (reason, who must act)
 - none
@@ -38,11 +38,9 @@ Phase: 2 — Blueprint (planned, not started) | Gate: not ready | Phase 1 gate: 
 - P2-B1: docs/03-architecture/architecture.md + ADR-001…016 = proposed. Q-081, Q-082, Q-086…Q-089 answered. **ADR-016 must be revised by the architect**: Premium is sold by BOG in the mobile app too (Q-081; store-billing risk to document). ADR-002 to reflect S-124; ADR-004 to follow Q-087 (standard BOG structure with clean interfaces, lead developer finalizes); ADR-008 to reflect Q-084 (fresh 72h on re-enable); ADR-013 to reflect Q-085
 
 ## Next up
-- Step 3: P2-A3 product-analyst specs 05 payments/wallet, 06 gig orders, 07 reviews, 09 subscriptions/points/promo, 14 withdrawals || P2-C2 ui-ux-designer tokens + components
-- Step 4: P2-A4 specs 08, 10–13 || P2-B2 data model (+ P2-B3 url-map); the architect also revises ADR-016/002/004 then
+- Step 5: P2-A5 specs 15, 16, 17 || P2-C3 design preview page
+- Step 6: P2-A6 QA parity master || P2-C4 key screen layouts; then B4 openapi.yaml, B5 security review, Owner gate
 
 ## Decisions waiting for Owner
-- Q-083…Q-085 answered 2026-09-28 (Terms & Privacy clause on staff chat review; fresh 72h when auto-release is switched back ON; S-110 kept, Super-admin only, public pages only)
-- Approve ADR-001…016 and the design audit at the Phase 2 gate
-- P2-A3 money specs 05, 06, 07, 09, 14: accept/correct PROPOSED P-38…P-65 and mark approved. P-46 corrects approved spec 04 AC-26 (quantity always 1); S-125/S-126 would be added to approved spec 00
-- P2-C2 design system: answer Q-090…Q-094 (M-mark, Featured orange, Buying/Selling colours, System theme, header 72 px); tokens + components are approved with the P2-C3 preview
+- Approve ADR-001…016 (as revised in Step 4), the design audit, tokens and components (with the P2-C3 preview) at the Phase 2 gate
+- Done 2026-09-28: Q-083…Q-085 and Q-090…Q-094 answered; money specs 05, 06, 07, 09, 14 **approved** (P-38…P-65 accepted; P-46 set spec 04 to quantity always 1; S-125, S-126 added to spec 00, register now 126 rows); "M" mark approved
