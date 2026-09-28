@@ -463,7 +463,7 @@ NEW keys (English first, Georgian alongside, Q-058):
 ## Edge cases
 - EC-1 A toggle is switched OFF while items are in progress (for example custom offers or bank transfer): new items are blocked; items already paid continue to completion, refund or dispute, and their money flows keep working. (ACCEPTED P-13 / AC-11)
 - EC-2 A timer setting is changed while items are running (e.g. auto-release 72h → 48h): items already delivered keep the deadline computed at delivery; new deliveries use the new value. (ACCEPTED P-13, same pattern as AC-9)
-- EC-3 Auto-release is switched OFF while timers are running: no automatic releases happen from that moment; buyers complete manually, and the unblock request becomes available (P-5).
+- EC-3 Auto-release is switched OFF while timers are running: no automatic releases happen from that moment; buyers complete manually, and the unblock request becomes available (P-5). When auto-release is switched back ON, every delivery that is already past its deadline gets a fresh S-026 period (72h) from that moment; nothing is released at the next check (Q-084).
 - EC-4 A Standard user above the gig limit (e.g. Premium expired, or limit lowered): existing gigs remain; new gig creation is blocked (R-2.3, R-2.5).
 - EC-5 Premium expires between drafting and submitting a proposal: the server checks at submit and refuses (Q-020).
 - EC-6 A user's plan changes between creating a withdrawal request and payout: the fee is fixed when the request is created (PROPOSED; confirmed in spec 14).

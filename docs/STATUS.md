@@ -33,12 +33,12 @@ Phase: 2 — Blueprint (planned, not started) | Gate: not ready | Phase 1 gate: 
 - P2-A1: 00-platform-rules.md **approved** (Owner 2026-09-28). Register now 124 rows (S-123 linked accounts, P-25; S-124 2FA trigger, Q-082)
 - P2-C1: docs/05-design/audit.md + packages/assets/ (Q-073…Q-080 answered; audit itself awaits Owner review at the gate)
 - P2-A2: specs 01-auth, 02-profiles-and-dashboards, 03-categories-and-search, 04-gigs **approved** (Owner 2026-09-28; P-14…P-37 accepted, P-15 adjusted by Q-082)
-- P2-B1: docs/03-architecture/architecture.md + ADR-001…016 = proposed. Q-081, Q-082, Q-086…Q-089 answered. **ADR-016 must be revised by the architect**: Premium is sold by BOG in the mobile app too (Q-081; store-billing risk to document). ADR-002 to reflect S-124; ADR-004 to follow Q-087 (standard BOG structure with clean interfaces, lead developer finalizes)
+- P2-B1: docs/03-architecture/architecture.md + ADR-001…016 = proposed. Q-081, Q-082, Q-086…Q-089 answered. **ADR-016 must be revised by the architect**: Premium is sold by BOG in the mobile app too (Q-081; store-billing risk to document). ADR-002 to reflect S-124; ADR-004 to follow Q-087 (standard BOG structure with clean interfaces, lead developer finalizes); ADR-008 to reflect Q-084 (fresh 72h on re-enable); ADR-013 to reflect Q-085
 
 ## Next up
 - Step 3: P2-A3 product-analyst specs 05 payments/wallet, 06 gig orders, 07 reviews, 09 subscriptions/points/promo, 14 withdrawals || P2-C2 ui-ux-designer tokens + components
 - Step 4: P2-A4 specs 08, 10–13 || P2-B2 data model (+ P2-B3 url-map); the architect also revises ADR-016/002/004 then
 
 ## Decisions waiting for Owner
-- Q-083 (disclose staff chat access in terms/privacy), Q-084 (auto-release switched back ON: release overdue items or fresh 72h), Q-085 (keep S-110 custom HTML/JS restricted, or drop): not yet answered
+- none open. Q-083…Q-085 answered 2026-09-28 (Terms & Privacy clause on staff chat review; fresh 72h when auto-release is switched back ON; S-110 kept, Super-admin only, public pages only)
 - Approve ADR-001…016 and the design audit at the Phase 2 gate

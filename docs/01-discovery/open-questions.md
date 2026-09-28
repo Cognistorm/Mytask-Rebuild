@@ -85,9 +85,9 @@ Agents add questions here. The Owner answers directly under each one and changes
 | Q-080 | The dashboards, chat and checkout were audited from source code only (no login). Could you add a few screenshots of those logged-in screens to `docs/05-design/screenshots/`, or review those audit sections yourself? | ui-ux-designer (P2-C1) | answered |
 | Q-081 | Premium in the mobile apps (ADR-016): Apple and Google require their own in-app billing for subscriptions sold inside apps. At launch, sell Premium for money on the web only, while the app allows buying Premium with points? Or add Apple/Google in-app purchase later? | solution-architect (P2-B1) | answered |
 | Q-082 | Email 2FA trigger (ADR-002; same as P-15 in spec 01): ask for a code on a NEW or expired device only, not on an IP change alone (phones change IP often)? Q-063 said "new devices/IPs". | solution-architect (P2-B1) | answered |
-| Q-083 | Staff reading chats (Q-015) must be disclosed to users in the terms/privacy text. Confirm, and approve the wording when it is drafted. | solution-architect (P2-B1) | open |
-| Q-084 | When auto-release is switched back ON after being OFF: release items that are already past 72h at the next check, or start a fresh 72h for them from that moment? | solution-architect (P2-B1) | open |
-| Q-085 | S-110 custom HTML/JS in head/footer (legacy parity) weakens the site's script protection (CSP). Keep it for the Super-admin only, on public pages only, with approved script hosts, or drop it? | solution-architect (P2-B1) | open |
+| Q-083 | Staff reading chats (Q-015) must be disclosed to users in the terms/privacy text. Confirm, and approve the wording when it is drafted. | solution-architect (P2-B1) | answered |
+| Q-084 | When auto-release is switched back ON after being OFF: release items that are already past 72h at the next check, or start a fresh 72h for them from that moment? | solution-architect (P2-B1) | answered |
+| Q-085 | S-110 custom HTML/JS in head/footer (legacy parity) weakens the site's script protection (CSP). Keep it for the Super-admin only, on public pages only, with approved script hosts, or drop it? | solution-architect (P2-B1) | answered |
 | Q-086 | Leaked keys: who rotates the BOG secret, revokes the Binance, Pusher and findip keys, and changes the database password shown in `error_log`, and when? Doing it now also protects the live site. | solution-architect (P2-B1) | answered |
 | Q-087 | BOG merchant account: does it support signed callbacks, and is there a BOG test (sandbox) environment? Without one, staging needs real 0.01 GEL payments, each with your approval. | solution-architect (P2-B1) | answered |
 | Q-088 | Is the `admin.mytask.ge` subdomain OK for the separate admin panel? | solution-architect (P2-B1) | answered |
@@ -422,7 +422,7 @@ The dashboards, chat and checkout were audited from source code only (no login).
 Recommendation: Screenshots before P2-C4 (key screen layouts).
 **Answer (Owner, 2026-09-28):** Recommendation accepted.
 
-## Architecture questions (solution-architect, P2-B1, 2026-09-28) — open
+## Architecture questions (solution-architect, P2-B1, 2026-09-28) — answered by Owner 2026-09-28
 Copied by the main session from docs/handoffs/2026-09-28-solution-architect-to-orchestrator-p2-b1.md. Details are in the ADRs named.
 
 ### Q-081
@@ -438,17 +438,17 @@ Recommendation: New or expired device only.
 ### Q-083
 Staff reading chats (Q-015) must be disclosed to users in the terms/privacy text. Confirm, and approve the wording when it is drafted.
 Recommendation: Yes, disclose it in the terms and privacy text.
-**Answer:**
+**Answer (Owner, 2026-09-28):** Yes. The Terms & Privacy text must contain a clear clause stating that staff/admins may review chats for security and dispute resolution.
 
 ### Q-084
 When auto-release is switched back ON after being OFF: release items that are already past 72h at the next check, or start a fresh 72h for them from that moment?
 Recommendation: No recommendation from the architect; the design supports either (release at the next check is the default design).
-**Answer:**
+**Answer (Owner, 2026-09-28):** When auto-release is switched back ON globally, overdue deliveries get a fresh 72 hours (the S-026 period) from that moment before automatic completion. They are NOT released at the next check.
 
 ### Q-085
 S-110 custom HTML/JS in head/footer (legacy parity) weakens the site's script protection (CSP). Keep it for the Super-admin only, on public pages only, with approved script hosts, or drop it?
 Recommendation: Keep, restricted as described.
-**Answer:**
+**Answer (Owner, 2026-09-28):** Keep the custom HTML/JS setting (S-110) in the Admin Panel, restricted strictly to the Super-admin and to public pages (e.g. analytics tracking scripts).
 
 ### Q-086
 Leaked keys: who rotates the BOG secret, revokes the Binance, Pusher and findip keys, and changes the database password shown in `error_log`, and when? Doing it now also protects the live site.
