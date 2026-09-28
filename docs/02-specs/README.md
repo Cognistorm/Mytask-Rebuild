@@ -7,7 +7,7 @@ Source of the list: `docs/03-architecture/phase-2-plan.md` ยง1 (spec list) and ย
 
 | Build step | # | Feature | File | Wave | Status |
 |---|---|---|---|---|---|
-| Phase 3 (platform core) | 00 | Platform rules: dual role, plans and limits, settings register, money glossary, content i18n, removed features | [00-platform-rules.md](00-platform-rules.md) | P2-A1 | ready for Owner |
+| Phase 3 (platform core) | 00 | Platform rules: dual role, plans and limits, settings register, money glossary, content i18n, removed features | [00-platform-rules.md](00-platform-rules.md) | P2-A1 | approved (Owner 2026-09-28) |
 | Phase 3 (first slice) | 01 | Auth and accounts: register, login, legacy passwords, verification, reset, reCAPTCHA, social login, email 2FA, throttling, restrictions/appeals/IP bans | 01-auth.md | P2-A2 | not started |
 | Slice 1 | 02 | Profiles and dashboards: public profile, dual-dashboard switcher, settings, availability, online status, portfolio, KYC stub | 02-profiles-and-dashboards.md | P2-A2 | not started |
 | Slice 2 | 03 | Categories and search: 3-level gig categories, project categories + skills, `/search`, `/hire/{keyword}`, `/sellers` | 03-categories-and-search.md | P2-A2 | not started |

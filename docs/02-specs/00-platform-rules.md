@@ -1,5 +1,5 @@
 # 00 — Platform rules (cross-cutting)
-Status: ready for Owner (to become `approved`, the Owner accepts or corrects P-1…P-13 and answers Q-068…Q-072; see "Open questions")
+Status: **approved** (Owner 2026-09-28). P-1…P-13 accepted, with adjustments to P-4 and P-5; Q-068…Q-072 answered.
 Author: product-analyst (P2-A1) | Date: 2026-09-28
 Legacy reference: `docs/01-discovery/features.md` (BR-001…BR-122), `data-model.md` §1 "Settings singletons", `roles-and-permissions.md`, `integrations.md`, `i18n.md`, `risks-and-debt.md`; Owner decisions in `docs/01-discovery/open-questions.md` (Answers, Follow-up answers, Q-058…Q-067).
 
@@ -60,7 +60,7 @@ Money
 
 Timers
 - AC-18 Given an item was delivered and the buyer does nothing, When `escrow.auto_release.hours` (default 72) pass with no revision request, refund request or dispute open, Then the funds are released to the freelancer automatically, for gig orders, project payments and custom offers alike. (Q-051, Q-067a)
-- AC-19 Given the buyer requests a revision, or opens a refund request or dispute, When this happens, Then the auto-release timer stops immediately and does not release while it is stopped. (Q-061b, Q-067c) (Restart rule: see Q-071.)
+- AC-19 Given the buyer requests a revision, or opens a refund request or dispute, When this happens, Then the auto-release timer stops immediately and does not release while it is stopped. (Q-061b, Q-067c) (Q-071: after re-delivery, and after a refund request ends without money moving, a fresh full 72h starts. After a dispute, the admin decides and no timer restarts.)
 - AC-20 Given a project bid was awarded, When the freelancer has not accepted within `projects.award_acceptance_hours` (default 48), Then the award is removed automatically. (Q-005)
 - AC-21 Given a refund request gets no seller answer, When `refunds.seller_response_days` (default 2) pass, Then it becomes "rejected by seller" and the buyer can raise a dispute. (Q-012, BR-082)
 
@@ -94,17 +94,17 @@ Removed features
 | Custom offers | `plans.standard.custom_offer_limit` = unlimited | unlimited | only if `custom_offers.count_toward_plan_limit` = ON | Q-021, Q-060e |
 | Direct chat with users | yes | yes | – | BR-110, BR-120 |
 | Gig card highlight (yellow border) | no | yes | – | BR-023 |
-| "Appearance in top offers" | no | yes | **see Q-069** (no ranking code found in legacy) | BR-110 |
+| "Appearance in top offers" | no | yes | NEW (Q-069): "Featured/Top" badge on Premium users' gigs AND higher ranking priority in search and category lists; ranking rule in spec 03 | BR-110 |
 | Send proposals on projects | **no** | yes | **yes (CHANGE: legacy UI-only, R-019)** | Q-020 |
 | View other proposals on a project | no (owner sees own project's proposals) | yes | yes | BR-057 |
 | See unmasked client username on project | no (masked) | yes | yes | BR-015 |
-| Contact project authors | no | yes | **see Q-069** (legacy UI-only gate) | BR-110, BR-120 |
+| Contact project authors | no | yes | Q-069: means the exclusive ability to submit proposals/bids on projects (same as Q-020, enforced server-side). Starting a chat is NOT Premium-gated | BR-110, BR-120 |
 | Buy Premium with points | – | 100 points = 1 month (monthly only) | yes | Q-052, BR-114 |
 
 - R-2.1 "Premium" = subscription not canceled and `ends_at` in the future. (LEGACY BR-113)
 - R-2.2 A limit value of "unlimited" is stored as empty (null). A limit of 0 means "not allowed". (NEW, Q-021)
-- R-2.3 Lowering a limit never deletes or hides existing items. It only blocks creating new ones until the user is under the limit. (PROPOSED, see P-9)
-- R-2.4 What each limit counts: gigs = all non-deleted gigs, including pending and rejected ones (LEGACY BR-021). Projects and custom offers: **PROPOSED P-9**.
+- R-2.3 Lowering a limit never deletes or hides existing items. It only blocks creating new ones until the user is under the limit. (ACCEPTED P-9)
+- R-2.4 What each limit counts: gigs = all non-deleted gigs, including pending and rejected ones (LEGACY BR-021). Projects and custom offers: ACCEPTED P-9.
 - R-2.5 When Premium ends, existing gigs above the Standard limit stay published (LEGACY: the check runs only at creation, `CreateComponent.php:661-667`). New gigs are blocked until under the limit.
 - R-2.6 Plan names, descriptions and feature lists are editable content in ka/en (LEGACY `plans` JSON, edited in `/console`).
 
@@ -129,7 +129,7 @@ Money rules:
 - R-3.4 Today the platform takes no commission on gigs, projects or custom offers and charges no tax. The only platform fee is the withdrawal fee. The card surcharge covers card costs. (Q-002, Q-006, Q-007)
 - R-3.5 With no commission, the freelancer's HOLD amount = the item price (gross = net). If a commission is later enabled in the Commission & Fee module, the freelancer's amount = price − freelancer commission, stored on the transaction when it is created. (Q-037, Q-006)
 - R-3.6 Balances migrate as-is, including negative values. The new platform never creates a negative balance by itself: a movement that would make Available negative is refused. (Q-039; invariant for P2-B2)
-- R-3.7 Staff never type a balance. Corrections are ledger adjustments with a reason, visible in the audit log. **PROPOSED P-12** (CHANGE from legacy direct edit, `Admin/Users/Options/EditComponent.php:228`).
+- R-3.7 Staff never type a balance. Corrections are ledger adjustments with a reason, visible in the audit log. ACCEPTED P-12 (CHANGE from legacy direct edit, `Admin/Users/Options/EditComponent.php:228`).
 - R-3.8 Percentage amounts are rounded to the nearest tetri, half up. (LEGACY `number_format(..., 2)` behaviour, e.g. `DepositComponent.php:189`)
 - R-3.9 Promo codes discount only platform services (today: the Premium subscription; later: other platform services the admin marks as promo-eligible). They never discount commissions/fees (withdrawal fee, card surcharge) or freelancer prices (gigs, custom offers, project payments). (Q-053, Q-064a)
 
@@ -160,13 +160,13 @@ Each fee rule has: `enabled` (bool), `type` (percent | fixed GEL), `value`, `pay
 |---|---|---|---|---|---|---|
 | S-010 | `fees.withdrawal.standard` | Withdrawal fee for Standard users | percent | ON, 10% | Q-004, Q-002 | CHANGE (legacy: one global fee, no plan difference, BR-101) |
 | S-011 | `fees.withdrawal.premium` | Withdrawal fee for Premium users | percent | ON, 0% | Q-004 | CHANGE |
-| S-012 | `fees.card_surcharge.bog` | Surcharge added to the buyer's total for BOG card payments of gig orders, project payments, custom offers and wallet top-ups. Not added to subscription payments (LEGACY: plan price only) | percent | ON, 2.5% | Q-007, BR-032; `UnifiedCheckoutComponent.php:257-262`, `DepositComponent.php:50-52`; scope to confirm: **Q-070** | CHANGE (legacy hard-coded) |
+| S-012 | `fees.card_surcharge.bog` | Surcharge added to the buyer's total for BOG card payments of gig orders, project payments, custom offers and wallet top-ups. Not added to subscription payments (LEGACY: plan price only) | percent | ON, 2.5% | Q-007, BR-032; `UnifiedCheckoutComponent.php:257-262`, `DepositComponent.php:50-52`; total and scope confirmed: **Q-070** (one 2.5% surcharge; none on subscriptions) | CHANGE (legacy hard-coded) |
 | S-013 | `fees.gig_order.commission` | Platform commission on gig orders | percent / fixed; payer freelancer | OFF, 0 | Q-002, Q-006 | NEW (legacy `settings_commission`, production has none) |
 | S-014 | `fees.project.client_commission` | Commission paid by the client on a project payment | percent / fixed | OFF, 0 | Q-006 | NEW |
 | S-015 | `fees.project.freelancer_commission` | Commission taken from the freelancer's project amount | percent / fixed | OFF, 0 | Q-006 | NEW |
 | S-016 | `fees.project.posting_fee` | Fee to post a project (Owner's example of a future fee) | fixed GEL / percent | OFF, 0 | Q-006 | NEW |
-| S-017 | `fees.custom_offer.buyer_fee` | Fee paid by the buyer on a custom offer | percent / fixed | OFF, 0 | Q-060d | **PROPOSED P-6** |
-| S-018 | `fees.custom_offer.freelancer_fee` | Fee taken from the freelancer on a custom offer | percent / fixed | OFF, 0 | Q-060d | **PROPOSED P-6** |
+| S-017 | `fees.custom_offer.buyer_fee` | Fee paid by the buyer on a custom offer | percent / fixed | OFF, 0 | Q-060d | ACCEPTED P-6 |
+| S-018 | `fees.custom_offer.freelancer_fee` | Fee taken from the freelancer on a custom offer | percent / fixed | OFF, 0 | Q-060d | ACCEPTED P-6 |
 
 Tax: removed (the 2% tax is not used in production). There is no tax setting. (Q-007)
 
@@ -184,10 +184,10 @@ Tax: removed (the 2% tax is not used in production). There is no tax setting. (Q
 | # | Key | Meaning | Type / unit | Default | Source | Tag |
 |---|---|---|---|---|---|---|
 | S-025 | `escrow.auto_release.enabled` | Release funds automatically after buyer silence following a delivery | boolean | **ON** | Q-051, Q-009 | CHANGE (legacy: no scheduled auto-complete, R-031) |
-| S-026 | `escrow.auto_release.hours` | Hours of buyer silence after delivery before auto-release. Applies to gig orders, project payments and custom offers. Paused by a revision request (until re-delivery) and by any open refund request or dispute | hours, ≥ 1 | 72 | Q-051, Q-067a, Q-061b, Q-067c | CHANGE |
+| S-026 | `escrow.auto_release.hours` | Hours of buyer silence after delivery before auto-release. Applies to gig orders, project payments and custom offers. Stopped by a revision request and by any open refund request or dispute; a fresh full period starts at re-delivery, or when a refund request ends without money moving (Q-071) | hours, ≥ 1 | 72 | Q-051, Q-067a, Q-061b, Q-067c | CHANGE |
 | S-027 | `projects.award_acceptance_hours` | Time the awarded freelancer has to accept before the award is removed | hours, ≥ 1 | 48 | Q-005, BR-060 | CHANGE (legacy code 24h, R-032) |
 | S-028 | `escrow.unblock_request.wait_hours` | Hours after the latest delivery before a freelancer may ask the admin to release funds | hours | 72 | BR-086 | LEGACY; availability depends on S-029 |
-| S-029 | `escrow.unblock_request.available_when_auto_release_on` | Whether the freelancer "unblock request" exists while S-025 is ON | boolean | OFF | Q-067b | **PROPOSED P-5** |
+| S-029 | `escrow.unblock_request.available_when_auto_release_on` | Whether the freelancer "unblock request" exists while S-025 is ON | boolean | OFF (unblock request hidden while auto-release is ON) | Q-067b | ACCEPTED P-5 |
 
 #### 4.5 Refunds and disputes
 | # | Key | Meaning | Type / unit | Default | Source | Tag |
@@ -205,7 +205,7 @@ Fees: S-010, S-011. One pending request per user at a time (LEGACY BR-101, fixed
 #### 4.7 Custom offers (spec 12)
 | # | Key | Meaning | Type / unit | Default | Source | Tag |
 |---|---|---|---|---|---|---|
-| S-034 | `custom_offers.enabled` | Custom-offer feature ON/OFF (freelancer creates offers, e.g. from chat; buyer can request an offer) | boolean | OFF until spec 12 passes QA; launch value: **Q-068** | Q-027, Q-060a | NEW flow, toggle |
+| S-034 | `custom_offers.enabled` | Custom-offer feature ON/OFF (freelancer creates offers, e.g. from chat; buyer can request an offer) | boolean | ON at launch once spec 12 passes QA (Q-068c) | Q-027, Q-060a | NEW flow, toggle |
 | S-035 | `custom_offers.require_admin_approval` | Offers need admin approval before the buyer sees them | boolean | OFF | Q-060b | LEGACY option, default CHANGE |
 | S-036 | `custom_offers.expiry_days` | Days before an unanswered offer expires | days, ≥ 1 | 3 | Q-060c | LEGACY option |
 | S-037 | `custom_offers.attachments.enabled` | Attachments on offers | boolean | prod → ON | `SettingsPublishTableSeeder.php` | LEGACY |
@@ -217,7 +217,7 @@ Plan limit: S-005 to S-007. Fees: S-017, S-018.
 #### 4.8 Revisions (Q-056 NEW)
 | # | Key | Meaning | Type / unit | Default | Source | Tag |
 |---|---|---|---|---|---|---|
-| S-041 | `revisions.max_allowed` | Highest "number of revisions" a freelancer may choose on a gig, proposal or custom offer (the lowest is 0) | integer ≥ 0 | 10 | Q-056, Q-061a | **PROPOSED P-1** |
+| S-041 | `revisions.max_allowed` | Highest "number of revisions" a freelancer may choose on a gig, proposal or custom offer (the lowest is 0) | integer ≥ 0 | 10 | Q-056, Q-061a | ACCEPTED P-1 |
 
 #### 4.9 Subscriptions, points, referrals, promo codes (spec 09)
 | # | Key | Meaning | Type / unit | Default | Source | Tag |
@@ -234,7 +234,7 @@ Per-code fields (set on each promo code when the admin creates it; not global se
 | S-047 | `promo_code.discount` | Discount type and value | percent or fixed GEL | – (required) | Q-053 | NEW |
 | S-048 | `promo_code.applies_to` | Which platform services it discounts | set: Premium monthly, Premium yearly, (future services) | Premium monthly + yearly | Q-053, Q-064a | NEW |
 | S-049 | `promo_code.max_uses_per_user` | Uses per user | integer | 1 | Q-064b | NEW |
-| S-050 | `promo_code.max_total_redemptions` | Total redemption cap for the code | integer ≥ 1 | – (required, admin enters) | Q-064b | NEW; "required" is **PROPOSED P-10** |
+| S-050 | `promo_code.max_total_redemptions` | Total redemption cap for the code | integer ≥ 1 | – (required, admin enters) | Q-064b | NEW; "required" is ACCEPTED P-10 |
 | S-051 | `referral_code_benefit.premium_months` | Free Premium months granted by a referral-benefit code (legacy "referral_code_benefits") | integer | – (per code) | BR-115, Q-018 | LEGACY |
 
 #### 4.10 Authentication and security (spec 01)
@@ -244,14 +244,14 @@ Per-code fields (set on each promo code when the admin creates it; not global se
 | S-053 | `auth.email_verification.method` | Verification by email link, or manual admin approval | enum email / admin | prod → admin | BR-003 | LEGACY |
 | S-054 | `auth.email_verification.link_expiry_minutes` | Validity of the verification link | minutes | prod → 60 | BR-003 | LEGACY |
 | S-055 | `auth.password_reset.link_expiry_minutes` | Validity of the password-reset link | minutes | prod → 60 | BR-007 | LEGACY |
-| S-056 | `auth.two_factor.enabled` | Global email-2FA switch. ON = users may turn 2FA on for their own account in settings (optional per user). OFF = 2FA option hidden | boolean | ON (recommended), **Q-072** | Q-043, Q-063 | NEW |
-| S-057 | `auth.two_factor.code_ttl_minutes` | Validity of the emailed code | minutes | 10 | Q-063 | NEW, **PROPOSED P-7** |
-| S-058 | `auth.two_factor.max_attempts` | Wrong codes allowed before the code is invalidated | integer | 5 | Q-063 | NEW, **PROPOSED P-7** |
-| S-059 | `auth.two_factor.trusted_device_days` | How long a device/IP stays "known" after a successful 2FA login (code asked again after this, or from a new device/IP) | days | 30 | Q-063 | NEW, **PROPOSED P-7** |
-| S-060 | `auth.two_factor.staff_required` | Email 2FA mandatory for all staff logins, whatever S-056 says | boolean | ON | Q-063b | NEW, **PROPOSED P-4** |
+| S-056 | `auth.two_factor.enabled` | Global email-2FA switch. ON = users may turn 2FA on for their own account in settings (optional per user). OFF = 2FA option hidden | boolean | ON (Q-072). Switching it OFF suspends 2FA for all users; their choice is remembered and applies again when switched back ON | Q-043, Q-063 | NEW |
+| S-057 | `auth.two_factor.code_ttl_minutes` | Validity of the emailed code | minutes | 10 | Q-063 | NEW, ACCEPTED P-7 |
+| S-058 | `auth.two_factor.max_attempts` | Wrong codes allowed before the code is invalidated | integer | 5 | Q-063 | NEW, ACCEPTED P-7 |
+| S-059 | `auth.two_factor.trusted_device_days` | How long a device/IP stays "known" after a successful 2FA login (code asked again after this, or from a new device/IP) | days | 30 | Q-063 | NEW, ACCEPTED P-7 |
+| S-060 | `auth.two_factor.staff_required` | Email 2FA required for staff/admin logins, whatever S-056 says. Admin Panel toggle, never hard-coded (Owner adjustment to P-4) | boolean | ON | Q-063b, P-4 | NEW, ACCEPTED P-4 (adjusted) |
 | S-061 | `auth.recaptcha.enabled` | reCAPTCHA on register, login, contact (keys in `.env`) | boolean | prod → OFF (recommend ON, R-043) | BR-001, `settings_security` | LEGACY |
-| S-062 | `auth.login_throttle.max_attempts` | Failed user logins (per account + IP) within the window before a temporary lock | integer | 5 per 15 minutes | R-043 | NEW, **PROPOSED P-8** |
-| S-063 | `auth.login_throttle.lock_minutes` | Lock duration after S-062 is reached | minutes | 15 | R-043 | NEW, **PROPOSED P-8** |
+| S-062 | `auth.login_throttle.max_attempts` | Failed user logins (per account + IP) within the window before a temporary lock | integer | 5 per 15 minutes | R-043 | NEW, ACCEPTED P-8 |
+| S-063 | `auth.login_throttle.lock_minutes` | Lock duration after S-062 is reached | minutes | 15 | R-043 | NEW, ACCEPTED P-8 |
 | S-064 | `security.staff_login.ip_ban_threshold` | Failed staff logins from one IP before the IP is banned from the staff login | integer | 3 | BR-004, `isIpBanned.php:26`, Q-057 | LEGACY |
 | S-065 | `auth.social.google` | Google login: enabled + client ID + client secret (write-only) | boolean + keys | OFF until keys are entered | Q-032, BR-006 | LEGACY architecture, keys in Admin |
 | S-066 | `auth.social.facebook` | Facebook login, same fields | boolean + keys | OFF until keys | Q-032 | LEGACY |
@@ -311,7 +311,7 @@ Admin chat visibility (Q-015) is a staff permission (spec 16), not a toggle.
 | # | Key | Meaning | Type / unit | Default | Source | Tag |
 |---|---|---|---|---|---|---|
 | S-100 | `notifications.admin_recipients` | Email addresses that receive every admin notification (legacy sent all to the first admin) | list of emails, ≥ 1 | `ir.gvazava@gmail.com` | Q-026 | NEW (multiple recipients) |
-| S-101 | `notifications.push.enabled` | Mobile push notifications | boolean | ON | vision (mobile app), plan spec 15 | NEW, **PROPOSED P-11** |
+| S-101 | `notifications.push.enabled` | Mobile push notifications | boolean | ON | vision (mobile app), plan spec 15 | NEW, ACCEPTED P-11 |
 | S-102 | `notifications.sms.enabled` | SMS channel (interface ready, no provider today) | boolean | OFF | vision "SMS: none", Q-043 | NEW (ready, OFF) |
 
 #### 4.16 Content, languages, appearance, SEO (spec 17 unless noted)
@@ -342,7 +342,7 @@ Admin chat visibility (Q-015) is a staff permission (spec 16), not a toggle.
 |---|---|---|---|---|---|---|
 | S-122 | `kyc.provider` | ID verification (selfie + ID front/back): manual admin review now, external service later | enum manual / (future provider) | manual | Q-048 | LEGACY, integration-ready |
 
-**Register count:** 122 rows = 117 global settings (S-001…S-046, S-052…S-122) + 5 per-code promo/referral fields (S-047…S-051). 12 rows carry a **PROPOSED** default or definition (S-017, S-018, S-029, S-041, S-050, S-057…S-060, S-062, S-063, S-101). 2 rows have a launch value waiting for a new question (S-034 → Q-068, S-056 → Q-072). 55 rows use "prod → fallback" (listed for confirmation in Q-068).
+**Register count:** 122 rows = 117 global settings (S-001…S-046, S-052…S-122) + 5 per-code promo/referral fields (S-047…S-051). 12 rows carry a default or definition accepted by the Owner through P-1…P-13 (S-017, S-018, S-029, S-041, S-050, S-057…S-060, S-062, S-063, S-101). Launch values of S-034 (Q-068) and S-056 (Q-072) are answered. 55 rows use "prod → fallback" (rule confirmed in Q-068).
 
 #### 4.18 Fixed rules (not configurable; listed so nobody makes them settings by accident)
 Legacy values kept as fixed rules unless a spec proposes otherwise:
@@ -354,7 +354,7 @@ Legacy values kept as fixed rules unless a spec proposes otherwise:
 - One pending withdrawal per user (BR-101). One pending refund per item (BR-080). One pending unblock request per item (BR-086).
 - Points buy the monthly Premium plan only; the server computes the points needed (fixes R-006) (BR-114).
 - Project budget type: fixed only (Q-035). Multi-milestones: none (Q-036).
-- Currency: GEL only; no exchange rates (**PROPOSED P-13**).
+- Currency: GEL only; no exchange rates (ACCEPTED P-13).
 - Proposals require Premium (Q-020).
 
 #### 4.19 Legacy settings not carried over (reason)
@@ -368,8 +368,8 @@ Legacy values kept as fixed rules unless a spec proposes otherwise:
 | `settings_auth.default_buyer_level_id`, `default_seller_level_id`, `levels` | Levels removed | Q-014 |
 | `automatic_payment_gateways` (except BOG), ~18 `<gateway>_settings` tables | Foreign gateways removed | Q-016 |
 | BOG gateway `fixed_fee` / `percentage_fee` JSON | Replaced by S-012 (one surcharge) | Q-007, Q-070 |
-| `settings_currency` (name, code, exchange rate) | GEL only | **PROPOSED P-13** |
-| `settings_appearance.colors`, `sizes`, `font_link`, `font_family`, `is_dark_mode` | Visual values come from the design tokens (`packages/tokens`), changed only through the design system | **PROPOSED P-13** |
+| `settings_currency` (name, code, exchange rate) | GEL only | ACCEPTED P-13 |
+| `settings_appearance.colors`, `sizes`, `font_link`, `font_family`, `is_dark_mode` | Visual values come from the design tokens (`packages/tokens`), changed only through the design system | ACCEPTED P-13 |
 | `settings_media.default_storage_driver`, SMTP settings, `services/cloud`, `findip` key | Infrastructure and keys live in `.env` | Q-042, Q-055 |
 | `live_chat_settings.default_provider` | Realtime provider chosen in ADR-007 | plan P2-B1 |
 
@@ -406,7 +406,7 @@ Legacy values kept as fixed rules unless a spec proposes otherwise:
 | X-16 | Unlimited delivery resubmits / unlimited revisions (replaced by the freelancer's "number of revisions") | BR-039 | Q-045, Q-056 |
 | X-17 | Duplicate admin panels (`/dashboard` + Filament `/console`) merged into one Admin Panel with staff RBAC | R-034 | vision (RBAC), plan spec 16 |
 | X-18 | Single "first admin" inbox for admin emails (replaced by S-100) | roles-and-permissions.md | Q-026 |
-| X-19 | Direct balance editing by admin (replaced by ledger adjustments) | `Admin/Users/Options/EditComponent.php:228` | **PROPOSED P-12** |
+| X-19 | Direct balance editing by admin (replaced by ledger adjustments) | `Admin/Users/Options/EditComponent.php:228` | ACCEPTED P-12 |
 | X-20 | Technical dead/unsafe code with no user feature: public `/update` self-updater, `/tasks/queue` and `/tasks/schedule` HTTP cron, `/te` debug route, installer, Envato licensing page, log viewer reachable from the web root (logs stay viewable inside the Admin Panel only) | R-010, R-011, inventory.md | Q-054 (web-root isolation); others: security fixes, listed for gate approval |
 
 Not removed (kept, sometimes switched off): bank transfer (coded, OFF, Q-016); custom offers (rebuilt, toggle, Q-027); blog (kept, Q-025); KYC (kept, integration-ready, Q-048); restrictions/appeals/IP banning (Q-057); unblock requests (kept; availability P-5); wallet top-up (Q-030); dark mode (Q-059); the `Welcome` email stays unsent, as in legacy (notifications.md).
@@ -459,8 +459,8 @@ NEW keys (English first, Georgian alongside, Q-058):
 | `t_paid` (check legacy for an existing key before adding) | Paid | გადახდილია |
 
 ## Edge cases
-- EC-1 A toggle is switched OFF while items are in progress (for example custom offers or bank transfer): new items are blocked; items already paid continue to completion, refund or dispute, and their money flows keep working. (PROPOSED as part of P-13 / AC-11)
-- EC-2 A timer setting is changed while items are running (e.g. auto-release 72h → 48h): items already delivered keep the deadline computed at delivery; new deliveries use the new value. (PROPOSED, same pattern as AC-9)
+- EC-1 A toggle is switched OFF while items are in progress (for example custom offers or bank transfer): new items are blocked; items already paid continue to completion, refund or dispute, and their money flows keep working. (ACCEPTED P-13 / AC-11)
+- EC-2 A timer setting is changed while items are running (e.g. auto-release 72h → 48h): items already delivered keep the deadline computed at delivery; new deliveries use the new value. (ACCEPTED P-13, same pattern as AC-9)
 - EC-3 Auto-release is switched OFF while timers are running: no automatic releases happen from that moment; buyers complete manually, and the unblock request becomes available (P-5).
 - EC-4 A Standard user above the gig limit (e.g. Premium expired, or limit lowered): existing gigs remain; new gig creation is blocked (R-2.3, R-2.5).
 - EC-5 Premium expires between drafting and submitting a proposal: the server checks at submit and refuses (Q-020).
@@ -478,12 +478,12 @@ NEW keys (English first, Georgian alongside, Q-058):
 - Hourly and milestone payments (removed now; the data model stays extensible, Q-035, Q-036).
 
 ## Open questions
-PROPOSED items (Owner has not decided; each needs approval before the dependent spec can be `approved`):
+Owner decisions on the proposed items (Owner 2026-09-28): all of P-1…P-13 ACCEPTED, with adjustments to P-4 and P-5 as noted.
 - **P-1 (Q-061a) Revision range.** Recommendation: whole number from 0 to `revisions.max_allowed` (default 10). 0 is allowed and means "no revisions". No "unlimited" option, because the Owner ruled out unlimited revisions (Q-045). Required field on gigs, proposals and custom offers (Q-056).
 - **P-2 (Q-061c) When all revisions are used.** Recommendation: yes. The buyer can only accept the delivery or open a refund request / dispute (chat stays open). The "request revision" action is hidden and refused by the API. The auto-release timer keeps running from the last delivery.
 - **P-3 (Q-061d) Custom offers.** Recommendation: yes. The same mandatory "number of revisions" field is set by the freelancer when creating a custom offer, with the same range and rules.
-- **P-4 (Q-063b) Staff 2FA.** Recommendation: email 2FA is always mandatory for all staff accounts (S-060 = ON), whatever the global user toggle says, and a code is required on every login from a new device/IP (same rule as users). Reason: staff can move money and see personal data.
-- **P-5 (Q-067b) Unblock request with auto-release ON.** Recommendation: the freelancer "unblock request" is available only when auto-release is OFF (S-029 = OFF). With auto-release ON the timer does the release, and a paused item is in a refund/dispute where the admin decides anyway. Staff keep a manual "release funds" action in the Admin Panel for exceptional cases. The feature stays in code (legacy parity) so the Owner can turn it back on.
+- **P-4 (Q-063b) Staff 2FA. ACCEPTED, ADJUSTED by the Owner:** staff/admin email 2FA is NOT hard-coded. It is an Admin Panel toggle (S-060, default ON). While it is ON, a code is required on every staff login from a new device/IP (same rule as users).
+- **P-5 (Q-067b) Unblock request with auto-release ON. ACCEPTED (Owner confirmed):** while the 72h auto-release is ON (the default), the freelancer's "unblock request" button is hidden. It becomes available only if auto-release is switched OFF globally in the Admin Panel (S-025/S-029). Staff keep a manual "release funds" action for exceptional cases. The feature stays in code.
 - **P-6 (Q-060d) Custom-offer fees.** Recommendation: buyer fee and freelancer fee exist in the Commission & Fee module, OFF with value 0 (consistent with "no commission", Q-002/Q-006). Legacy seed values (1.5% / 2.5%) are not used.
 - **P-7 2FA parameters.** 6-digit code, valid 10 minutes, 5 wrong attempts invalidate it, a device/IP stays known for 30 days (S-057…S-059).
 - **P-8 User login throttling (fixes R-043).** 5 failed logins per account + IP in 15 minutes, then a 15-minute lock (S-062, S-063). Staff IP ban stays as legacy (S-064).
@@ -493,4 +493,4 @@ PROPOSED items (Owner has not decided; each needs approval before the dependent 
 - **P-12 Balance corrections.** Staff cannot type balances. They post a ledger adjustment with a reason, recorded in the audit log (replaces the legacy direct edit).
 - **P-13 Settings not carried over / toggle behaviour.** GEL-only (no currency/exchange-rate settings); appearance colours/fonts come from design tokens, not admin settings; switching a feature OFF blocks new items but lets in-progress items finish (EC-1, EC-2).
 
-New questions raised by this spec (in `docs/01-discovery/open-questions.md`): **Q-068** (launch values of legacy settings whose production values are unknown, incl. custom offers ON at launch), **Q-069** (Premium "top offers" and "contact project authors"), **Q-070** (BOG surcharge total and scope), **Q-071** (auto-release timer after a pause: fresh 72h or remaining time), **Q-072** (launch value of the global 2FA toggle and what happens when it is switched OFF).
+New questions raised by this spec (in `docs/01-discovery/open-questions.md`): **Q-068** (launch values of legacy settings whose production values are unknown, incl. custom offers ON at launch), **Q-069** (Premium "top offers" and "contact project authors"), **Q-070** (BOG surcharge total and scope), **Q-071** (auto-release timer after a pause), **Q-072** (global 2FA toggle). All answered by the Owner on 2026-09-28.
