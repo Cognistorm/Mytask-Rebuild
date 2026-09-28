@@ -1,0 +1,20 @@
+<?php
+
+namespace App\Filament\Resources\ProjectResource\Pages;
+
+use App\Filament\Resources\ProjectResource;
+use CactusGalaxy\FilamentAstrotomic\Resources\Pages\Record\EditTranslatable;
+use Filament\Resources\Pages\EditRecord;
+
+class EditProject extends EditRecord
+{
+    use EditTranslatable;
+    protected static string $resource = ProjectResource::class;
+
+    protected function getHeaderActions(): array
+    {
+        return [
+//            Actions\DeleteAction::make(),
+        ];
+    }
+}

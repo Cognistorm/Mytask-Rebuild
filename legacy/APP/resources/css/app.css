@@ -1,0 +1,47 @@
+@import "filepond/dist/filepond.min.css";
+@import "flatpickr/dist/flatpickr.min.css";
+@import "quill/dist/quill.snow.css";
+@import "../../vendor/rawilk/laravel-form-components/resources/css/index.css";
+@import "../../public/css/style.css";
+@import "./bpg-font.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer utilities {
+    .masonry {
+        column-gap: 1.5em;
+        column-count: 1;
+    }
+    .masonry-sm {
+        column-gap: 1.5em;
+        column-count: 2;
+    }
+    .masonry-md {
+        column-gap: 1.5em;
+        column-count: 3;
+    }
+    .break-inside {
+        break-inside: avoid;
+    }
+}
+
+@layer base {
+    input[type="number"]::-webkit-inner-spin-button,
+    input[type="number"]::-webkit-outer-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+    }
+    [type='file'] {
+        height: 37px;
+        line-height: 17px;
+    }
+}
+
+.text-sm\+ {
+    font-size: 15px;
+}
+.text-xs\+ {
+    font-size: 13px;
+}
