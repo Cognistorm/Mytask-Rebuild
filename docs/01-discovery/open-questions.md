@@ -60,6 +60,16 @@ Agents add questions here. The Owner answers directly under each one and changes
 | Q-055 | Admin analytics currently sends every visitor IP to findip.net and ip-api.com for geolocation. Keep these providers, replace them with a local GeoIP database, or drop visitor geo analytics? | orchestrator (main session) | answered |
 | Q-056 | "1 order = 1 delivery = 1 review": after delivery, can the buyer only accept or open a refund/dispute (no revision requests at all)? Or is exactly one revision allowed? | orchestrator (main session) | answered |
 | Q-057 | (Q-047 repeated) Keep user restrictions + appeal flow and admin-login IP banning? | orchestrator (main session) | answered |
+| Q-058 | Contradiction: for NEW UI strings, vision says "generate them in English" plus a Georgian translation for review; CLAUDE.md says fill Georgian and leave English `""`. Which rule applies to new keys? (Legacy English values are kept either way, Q-031.) | orchestrator (Phase 2 plan) | answered |
+| Q-059 | Live site has a dark theme (`/?theme=dark`). Keep dark mode at launch on web and mobile? | orchestrator (Phase 2 plan) | answered |
+| Q-060 | Custom offers (new full flow, Q-027): who sends offers, admin approval default, expiry, fees, and what the per-plan "custom-offer limit" counts? (details below) | orchestrator (Phase 2 plan) | answered |
+| Q-061 | Revisions (Q-056): allowed values, and how revision requests interact with the 72h auto-release timer? (details below) | orchestrator (Phase 2 plan) | answered |
+| Q-062 | Reviews (Q-046): only the client reviews the freelancer, or do both sides review each other (gigs and projects)? | orchestrator (Phase 2 plan) | answered |
+| Q-063 | Email 2FA (Q-043): what exactly does the admin ON/OFF toggle do? (details below) | orchestrator (Phase 2 plan) | answered |
+| Q-064 | Admin promo codes (Q-053): which fees count as "platform service fees" today, and what usage limits are needed? (details below) | orchestrator (Phase 2 plan) | answered |
+| Q-065 | Contradiction: Q-015 (admin must see chat history) vs Q-040 (drop legacy conversations tables). Exactly which chat history is migrated? (details below) | orchestrator (Phase 2 plan) | answered |
+| Q-066 | Renewal reminder (Q-019): default days before the charge (2 or 3)? Email only, or also in-app/push? | orchestrator (Phase 2 plan) | answered |
+| Q-067 | Auto-release (Q-051): does it apply to gig orders, project payments AND custom offers? Does the freelancer "unblock request" remain when auto-release is ON? (details below) | orchestrator (Phase 2 plan) | answered |
 
 ## Answers
 Owner answers received 2026-09-28 (given in one batch in the chat, recorded here verbatim in substance). "Admin-configurable" means the value is editable in the new Admin Panel, never hard-coded. Items marked NEW are new requirements, not legacy behaviour.
@@ -157,7 +167,7 @@ Keep manual bank-transfer withdrawals for now (BOG-side limitations). Design the
 Yes. Keep card wallet top-up.
 
 ### Q-031
-Keep all existing English translations. New UI strings can be translated manually until AI translation is connected. (Working rule: migrated legacy English values are kept; new keys follow CLAUDE.md, with Georgian filled and English "" for the Owner to translate.)
+Keep all existing English translations. New UI strings can be translated manually until AI translation is connected. (New keys: see Q-058. English first, Georgian alongside.)
 
 ### Q-032
 Keep the social login architecture (Google etc.) ready, with API keys configurable in the Admin Panel.
@@ -184,7 +194,7 @@ Card-paid gig orders must deduct from the buyer and hold the funds in the freela
 If negative balances exist during migration, migrate them as-is.
 
 ### Q-040
-Drop all unused/orphan legacy tables (sliders, companies, jazzcash_transactions, legacy conversations tables, etc.). The legacy chat history question is in Q-015.
+Drop all unused/orphan legacy tables (Owner's words: "sliders, companies, jazzcash_transactions, etc."). The Owner did not name the legacy `conversations` tables, although the question listed them; see Q-015 and Q-065.
 
 ### Q-041
 Remove the Binance bot and its keys completely.
@@ -239,3 +249,66 @@ Revisions are agreed in advance. NEW: a mandatory "Number of revisions" field, s
 
 ### Q-057
 Yes. Keep user restrictions, the appeal flow, and IP banning.
+
+## Phase 2 planning questions (orchestrator, 2026-09-28) — answered by Owner 2026-09-28
+Each question says which spec/design item it blocks. Please answer directly under each one.
+
+### Q-058 — i18n rule for NEW strings (blocks: text tables in every spec)
+`docs/00-vision.md` ("Languages") says new strings should be generated in English, with a Georgian translation that you review. `CLAUDE.md` ("Languages (i18n)") says: fill the Georgian value and leave the English value `""` for you to translate. Which rule should agents follow for new keys?
+(a) CLAUDE.md: Georgian filled, English `""`; (b) vision: both English and Georgian filled by agents, you review both; (c) other.
+Until answered, agents follow CLAUDE.md (project rules). Only you can change CLAUDE.md.
+**Answer (Owner, 2026-09-28):** Option (b), variant: write every NEW string in English first (matching the codebase format), with the Georgian translation filled alongside it. The Owner refines the language files by hand as needed. CLAUDE.md "Languages (i18n)" updated accordingly; legacy English values are kept (Q-031).
+
+### Q-059 — Dark mode (blocks: design tokens P2-C2)
+The live site supports `/?theme=dark`. Should the new web and mobile apps ship with dark mode at launch (parity), or light only for now?
+**Answer (Owner, 2026-09-28):** Yes, keep dark mode on web and mobile. Light (white) theme is the DEFAULT.
+
+### Q-060 — Custom offer flow (blocks: spec 12)
+Legacy: the CLIENT sends an offer from a freelancer's profile; optional admin approval; offer expires after N days; separate buyer fee and freelancer fee settings. For the new flow:
+(a) Who can send a custom offer: client → freelancer (legacy), freelancer → client (e.g. from chat), or both?
+(b) Admin approval required by default: yes or no? (It stays configurable.)
+(c) Default expiry in days?
+(d) Buyer/freelancer fees: default 0 (consistent with "no commission" in Q-002) and configurable in the Commission & Fee module?
+(e) Q-021 mentions per-plan "custom-offer limits". What is limited: offers sent per month, active offers at a time, or something else? And for whom (sender or receiver)?
+**Answer (Owner, 2026-09-28):** (a) Freelancers create custom offers, e.g. from chat; buyers can request an offer. (b) Admin approval is NOT required. (c) Expiry: 3 days. (e) Offers count toward plan listing limits only if the admin specifies so (admin-configurable). (d) Not addressed. Working assumption per Q-002/Q-006 (no commission today): fees default to 0, configurable in the Commission & Fee module.
+
+### Q-061 — Number of revisions (blocks: specs 04, 06, 11, 12)
+(a) Allowed values for the freelancer's "number of revisions": is 0 allowed? A maximum? An "unlimited" option?
+(b) When the buyer requests a revision, does the 72h auto-release timer stop, and does a new 72h start at the next delivery?
+(c) When all revisions are used, the buyer can only accept or request a refund/dispute. Correct?
+(d) Does the same field apply to custom offers?
+**Answer (Owner, 2026-09-28):** (b) Yes. A revision request strictly PAUSES the 72h auto-release timer until the freelancer re-delivers. (a), (c), (d) not addressed. The product-analyst proposes them in the specs (per Q-056 the freelancer sets the number) for Owner approval.
+
+### Q-062 — Who reviews whom (blocks: spec 07)
+Legacy: only the buyer reviews a completed gig order (rating 1–5 + text). For the rebuild (gigs and now projects):
+(a) client reviews freelancer only (legacy style), or (b) both sides review each other, with the freelancer's review of the client shown on the client profile?
+**Answer (Owner, 2026-09-28):** (b) Both parties review each other: the buyer reviews the freelancer AND the freelancer reviews the buyer.
+
+### Q-063 — Email 2FA toggle (blocks: spec 01)
+(a) When the admin turns 2FA ON, is it mandatory for all users, or does it only let each user switch 2FA on for their own account?
+(b) Is 2FA always required for admin/staff logins, whatever the toggle says?
+(c) Is a code asked for on every login, or only from a new device/browser?
+**Answer (Owner, 2026-09-28):** 2FA is OPTIONAL per user (switched on in account settings), with an admin global toggle. When enabled, a code is required on login from a new device/IP. (b) staff/admin 2FA not addressed; the spec proposes it for Owner approval.
+
+### Q-064 — Promo code scope (blocks: specs 05, 09)
+Promo codes may discount "platform service fees" and Premium (Q-053). Today the only fees are the withdrawal fee (Standard 10%) and the BOG card surcharge (2.5%).
+(a) Which of these may a promo code discount: the withdrawal fee, the card surcharge, both, or only future fees (e.g. a project posting fee)?
+(b) Usage limits needed: total uses, uses per user, start/end date, first purchase only? (We plan to make these admin-configurable, if you agree.)
+**Answer (Owner, 2026-09-28):** (a) Promo codes apply ONLY to platform services: currently the Premium subscription, plus future platform services. NEVER to platform commissions/fees (withdrawal fee, card surcharge) or freelancer prices. (b) Admin-configurable usage limits: 1 use per user, and a maximum total redemption cap.
+
+### Q-065 — Chat history migration (blocks: data-model mapping P2-B2, spec 08)
+Q-015 says the admin must be able to see chat history between users. Q-040 drops unused legacy tables; the question listed the old `conversations` tables, but the Owner's answer did not name them explicitly (an earlier transcription wrongly added them). Please confirm:
+(a) Migrate the live Chatify (`/inbox`) messages and attachments: yes?
+(b) Drop the OLD `conversations` chat tables WITHOUT migrating their messages: yes, or migrate them too so the history is complete?
+(c) Migrate order-delivery, project-delivery and refund conversation threads (useful as dispute evidence): yes?
+**Answer (Owner, 2026-09-28):** Migrate only the active Inbox (Chatify) threads and the delivery/refund order message threads. Ignore (do not migrate) the orphan legacy `conversations` tables.
+
+### Q-066 — Renewal reminder (blocks: spec 09)
+Q-019 says "2–3 days before auto-renewal". (a) Default: 2 or 3 days (admin-configurable)? (b) Email only, or also in-app notification and mobile push?
+**Answer (Owner, 2026-09-28):** 3 days before the charge, via BOTH email and in-app notification.
+
+### Q-067 — Auto-release scope (blocks: specs 06, 11, 12, 13)
+(a) Does the 72h auto-release (Q-051) apply to gig orders, project payments AND custom offers?
+(b) With auto-release ON, does the freelancer's "unblock request" to the admin still exist (e.g. as a fallback), or is it only used when auto-release is switched OFF?
+(c) We assume that an open refund request or dispute pauses auto-release until it is resolved. Correct?
+**Answer (Owner, 2026-09-28):** (a) Yes. The 72h auto-release applies equally to gig orders, projects and custom offers. (c) Any active refund request or dispute immediately pauses the timer. (b) The unblock-request fallback was not addressed; the spec proposes it for Owner approval.
