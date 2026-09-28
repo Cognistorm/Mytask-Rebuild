@@ -1,5 +1,5 @@
 # Feature specs — build order
-Maintained by: product-analyst | Last update: 2026-09-28 (P2-A3)
+Maintained by: product-analyst | Last update: 2026-09-28 (P2-A4)
 Source of the list: `docs/03-architecture/phase-2-plan.md` §1 (spec list) and §6 (Phase 4 slice order).
 
 ## Specs in build order
@@ -15,12 +15,12 @@ Source of the list: `docs/03-architecture/phase-2-plan.md` §1 (spec list) and �
 | Slice 4 | 05 | Payments and wallet: BOG card flow (server-confirmed), wallet, top-up, 2.5% surcharge, bank transfer (OFF), balances, transaction history, saved cards, billing, Commission & Fee rules, promo scope, staff balance/points adjustments | [05-payments-and-wallet.md](05-payments-and-wallet.md) | P2-A3 | approved (Owner 2026-09-28; accepted P-38…P-45; S-125 added to 00) |
 | Slice 5 | 06 | Gig orders: cart, checkout, order details, start, deliver, revisions, complete, auto-release, cancel, delivery thread | [06-gig-orders.md](06-gig-orders.md) | P2-A3 | approved (Owner 2026-09-28; accepted P-46…P-53; P-46 corrects approved spec 04 AC-26) |
 | Slice 6 | 07 | Reviews: mutual reviews for gig orders, projects (and custom offers, P-54), rating averages, moderation | [07-reviews.md](07-reviews.md) | P2-A3 | approved (Owner 2026-09-28; accepted P-54…P-56) |
-| Slice 7 | 08 | Messaging: `/inbox` chat, attachments, offline email, order/project/refund threads, admin chat visibility | 08-messaging.md | P2-A4 | not started |
+| Slice 7 | 08 | Messaging: `/inbox` chat (realtime), attachments, read state, online status, favourites, search, delete/hide, offline email + push, offers in chat, staff read-only access with audit log, Terms & Privacy clause | [08-messaging.md](08-messaging.md) | P2-A4 | ready for Owner (PROPOSED P-66…P-72) |
 | Slice 8 | 09 | Subscriptions, points, referrals, promo codes: Premium monthly/yearly by card (web + mobile) or points, auto-renew, renewal reminder, cancel/resume, points ledger, referral codes and benefits, admin promo codes, gift/cancel | [09-subscriptions-points-referrals.md](09-subscriptions-points-referrals.md) | P2-A3 | approved (Owner 2026-09-28; accepted P-57…P-61; S-126 added to 00) |
-| Slice 9 | 10 | Projects: post (fixed budget), moderation, browse, project page, notify category sellers | 10-projects.md | P2-A4 | not started |
-| Slice 10 | 11 | Proposals and hiring: Premium-only proposals, award, 48h acceptance, one escrow payment, delivery, completion, auto-release | 11-proposals-and-hiring.md | P2-A4 | not started |
-| Slice 11 | 12 | Custom offers: full flow, admin toggle | 12-custom-offers.md | P2-A4 | not started |
-| Slice 12 | 13 | Refunds, disputes, unblock requests (all order types) | 13-refunds-disputes-unblock.md | P2-A4 | not started |
+| Slice 9 | 10 | Projects: post (fixed budget, Latin allowed, skills), moderation with auto-approve, project page (masking, English fallback), edit, close/delete/hide, reporting, plan limit, category emails | [10-projects.md](10-projects.md) | P2-A4 | ready for Owner (PROPOSED P-73…P-79) |
+| Slice 10 | 11 | Proposals and hiring: Premium-only proposals (server-side) with revisions, visibility, edit/withdraw, award/revoke, 48h acceptance, one escrow payment, delivery, revisions, completion, 72h auto-release, project thread | [11-proposals-and-hiring.md](11-proposals-and-hiring.md) | P2-A4 | ready for Owner (PROPOSED P-80…P-89) |
+| Slice 11 | 12 | Custom offers: NEW flow — freelancer offers (from chat), buyer requests, 3-day expiry, pay = accept, HOLD, delivery, revisions, auto-release, cancel; toggle S-034 | [12-custom-offers.md](12-custom-offers.md) | P2-A4 | ready for Owner (PROPOSED P-90…P-97) |
+| Slice 12 | 13 | Refunds, disputes, unblock requests (gig orders, projects, offers), 2-day auto-reject, staff decisions and release/refund tools, refund threads | [13-refunds-disputes-unblock.md](13-refunds-disputes-unblock.md) | P2-A4 | ready for Owner (PROPOSED P-98…P-105) |
 | Slice 13 | 14 | Withdrawals: payout details, fee by plan fixed at request, minimum and period, manual payout, reject with refund, BOG-Payout-ready | [14-withdrawals.md](14-withdrawals.md) | P2-A3 | approved (Owner 2026-09-28; accepted P-62…P-65) |
 | Slice 14 | 15 | Notifications: every email/in-app notification mapped, push (NEW), SMS-ready, admin recipients | 15-notifications.md | P2-A5 | not started |
 | Slice 15 | 16 | Admin panel: staff RBAC, moderation queues, users, Commission & Fee UI, settings register UI, translations, analytics, logs | 16-admin-panel.md | P2-A5 | not started |

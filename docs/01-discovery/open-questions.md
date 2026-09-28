@@ -97,6 +97,16 @@ Agents add questions here. The Owner answers directly under each one and changes
 | Q-092 | Dashboard switcher colours: keep Buying = blue and Selling = green (now WCAG AA compliant, as the live site), or use teal for both? | ui-ux-designer (P2-C2) | answered |
 | Q-093 | Offer a "System" theme option (follow the device setting) next to Light and Dark? Light stays the default (Q-059). | ui-ux-designer (P2-C2) | answered |
 | Q-094 | Shrink the desktop header height from 80 px to 72 px? The logo is sized by its real height; placement is unchanged. | ui-ux-designer (P2-C2) | answered |
+| Q-095 | Migrated gigs, proposals and in-flight orders have no "number of revisions". Default them to 0 and ask freelancers to set it on their next edit, or leave it empty? | solution-architect (P2-B2/B3) | open |
+| Q-096 | Non-zero "legacy hold" residuals (legacy pending balance that cannot be matched to an open item): should staff review each one and release it or write it off with an audited adjustment, or release all of them at go-live? | solution-architect (P2-B2/B3) | open |
+| Q-097 | Which legacy admin accounts are migrated to the new admin panel, and with which roles? | solution-architect (P2-B2/B3) | open |
+| Q-098 | Legacy orders and top-ups whose payment is still pending at cutover: migrate them as "awaiting payment", or drop them? | solution-architect (P2-B2/B3) | open |
+| Q-099 | Can you provide a BOG transaction statement, so card payments that legacy may never have recorded (Q-038) can be matched during migration? | solution-architect (P2-B2/B3) | open |
+| Q-100 | In-app notifications: migrate all of them, or only the last 12 months? | solution-architect (P2-B2/B3) | open |
+| Q-101 | Analytics: import only the daily aggregates and drop raw visitor data, including IP addresses? | solution-architect (P2-B2/B3) | open |
+| Q-102 | Social login keys: re-enter them in the new admin panel instead of copying them from the legacy database? | solution-architect (P2-B2/B3) | open |
+| Q-103 | Confirm the SEO choices: `/search` pages are noindex; English pages that fall back to Georgian have the Georgian page as canonical (noindex until English text exists); `/ka/gita` redirects to `/gita` (important if `/ka/gita` is printed on marketing material or QR codes). | solution-architect (P2-B2/B3) | open |
+| Q-104 | Old usernames: add a 301 from an old username to the new profile URL when a user changes their username? (Not a blocker.) | solution-architect (P2-B2/B3) | open |
 
 ## Answers
 Owner answers received 2026-09-28 (given in one batch in the chat, recorded here verbatim in substance). "Admin-configurable" means the value is editable in the new Admin Panel, never hard-coded. Items marked NEW are new requirements, not legacy behaviour.
@@ -502,3 +512,56 @@ Recommendation: Yes, as an extra option; default stays Light.
 Shrink the desktop header height from 80 px to 72 px? The logo is sized by its real height; placement is unchanged.
 Recommendation: Proposed by the designer; flagged only because it is a visible dimension change.
 **Answer (Owner, 2026-09-28):** Yes: desktop header 72 px.
+
+## Data model / URL map questions (solution-architect, P2-B2/B3, 2026-09-29) — open
+Copied by the main session from docs/handoffs/2026-09-28-solution-architect-to-orchestrator-p2-b2-b3.md. Details in docs/03-architecture/data-model.md and url-map.md.
+
+### Q-095
+Migrated gigs, proposals and in-flight orders have no "number of revisions". Default them to 0 and ask freelancers to set it on their next edit, or leave it empty?
+Recommendation: Default 0; ask freelancers to set it on the next edit.
+**Answer:**
+
+### Q-096
+Non-zero "legacy hold" residuals (legacy pending balance that cannot be matched to an open item): should staff review each one and release it or write it off with an audited adjustment, or release all of them at go-live?
+Recommendation: Staff review each one (release or write off with an adjustment).
+**Answer:**
+
+### Q-097
+Which legacy admin accounts are migrated to the new admin panel, and with which roles?
+Recommendation: Needs your list.
+**Answer:**
+
+### Q-098
+Legacy orders and top-ups whose payment is still pending at cutover: migrate them as "awaiting payment", or drop them?
+Recommendation: Migrate as awaiting payment.
+**Answer:**
+
+### Q-099
+Can you provide a BOG transaction statement, so card payments that legacy may never have recorded (Q-038) can be matched during migration?
+Recommendation: Please provide it before Phase 5.
+**Answer:**
+
+### Q-100
+In-app notifications: migrate all of them, or only the last 12 months?
+Recommendation: Only the last 12 months.
+**Answer:**
+
+### Q-101
+Analytics: import only the daily aggregates and drop raw visitor data, including IP addresses?
+Recommendation: Yes, aggregates only.
+**Answer:**
+
+### Q-102
+Social login keys: re-enter them in the new admin panel instead of copying them from the legacy database?
+Recommendation: Re-enter them.
+**Answer:**
+
+### Q-103
+Confirm the SEO choices: `/search` pages are noindex; English pages that fall back to Georgian have the Georgian page as canonical (noindex until English text exists); `/ka/gita` redirects to `/gita` (important if `/ka/gita` is printed on marketing material or QR codes).
+Recommendation: No recommendation given; please confirm or change.
+**Answer:**
+
+### Q-104
+Old usernames: add a 301 from an old username to the new profile URL when a user changes their username? (Not a blocker.)
+Recommendation: No recommendation given; not a blocker.
+**Answer:**

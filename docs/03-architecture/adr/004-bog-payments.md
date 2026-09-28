@@ -1,39 +1,59 @@
-# ADR-004: Bank of Georgia payments — server-side verification, callbacks, idempotency, saved cards, payout-ready
+# ADR-004: Bank of Georgia payments — standard BOG structure with clean provider interfaces
 Date: 2026-09-28 | Status: proposed
 
+> **Revised 2026-09-28** to match Owner decision Q-087: "Implement the standard BOG structure based on the available legacy code, without over-engineering payments. Provide clean interfaces and hooks so the lead developer can finalize the integration against the official BOG documentation." The signed-callback check and the sandbox question are left to the lead developer. Changed: Context, Decision (simplified to the legacy BOG flow plus the minimum needed to fix R-004/R-041), Consequences. Also reflects spec 05 (approved), spec 09 P-57 (renewal at the current price) and Q-081 (Premium sold by card in the mobile apps, ADR-016). Tables: `data-model.md` §3.J.
+
 ## Context
-- BOG is the only card gateway (Q-016): gig orders, project payments, custom offers, wallet top-ups (with the 2.5% surcharge S-012, Q-070) and subscriptions (no surcharge), plus saved-card auto-renewal (BR-111, BR-112).
-- Legacy defects: OAuth credentials hard-coded (R-001); `/success` return handler unauthenticated, trusts `key`/`type` query parameters, never asks BOG for the status and is not idempotent — a user can top up without paying (R-004); `callback_url` points to a route that does not exist (`BogPayment.php:14`); subscription activation depends on the browser session (R-041); broken column in the gig success path (R-016); junk payload fields (`BogPayment.php:23-33`).
-- BOG's Online Payments API (`api.bog.ge/payments/v1`) uses OAuth 2.0 client credentials, creates an order that returns a redirect URL, sends a **POST callback** with body `{event: "order_payment", zoned_request_time, body}` and an optional `Callback-Signature` header (SHA256withRSA over the raw body, verified with BOG's published public key), and offers a **Get Payment Details** endpoint; BOG's own documentation tells merchants to use that endpoint when a callback is not received. Saved cards, recurring/automatic payments and refunds are documented features. (Source: api.bog.ge/docs, Payments → callback, introduction; exact field names are confirmed in Phase 4 slice 05.)
-- Withdrawals are manual now; BOG Payout must be pluggable later (Q-029).
+- BOG is the only card gateway (Q-016): gig orders, project payments, custom offers, wallet top-ups (with the 2.5% surcharge S-012, Q-070), Premium subscriptions (no surcharge) on web **and in the mobile apps** (Q-081), and saved-card auto-renewal (BR-111, BR-112).
+- **The legacy code already uses the standard BOG Online Payments flow** (`legacy/APP/config/bog.php:5-13`, `app/Services/Bog/BogPayment.php`): OAuth client-credentials token (`oauth2.bog.ge/.../token`), create order (`POST api.bog.ge/payments/v1/ecommerce/orders`, returns the hosted-page link), receipt / payment details (`GET /payments/v1/receipt/:order_id`), save card for recurring (`PUT /payments/v1/orders/:order_id/subscriptions`), charge the saved card (`POST /payments/v1/ecommerce/orders/:parent_order_id/subscribe`). The rebuild keeps this structure.
+- What was wrong in legacy is around the flow, not the flow itself: credentials hard-coded (R-001); the `/success` return trusted query parameters and was not idempotent, so a top-up could be credited without payment (R-004); `callback_url` pointed to a route that did not exist (`BogPayment.php:14`); subscription activation depended on the browser session (R-041); junk payload values (`BogPayment.php:23-33`); a 0.01 GEL test switch (`config/bog.php:9`).
+- The Owner does not want over-engineering and leaves the BOG specifics (signature header, sandbox, exact saved-card endpoint for a changed amount, card deletion) to the lead developer, who works from the official BOG documentation.
+- Withdrawals are manual; BOG Payout must be pluggable later (Q-029).
 
 ## Decision
-1. **Provider interfaces** in `apps/api/src/modules/payments`:
-   - `PaymentProvider`: `createPayment(intent)`, `getPaymentDetails(providerOrderId)`, `chargeSavedCard(parentOrderId, intent)`, `deleteSavedCard()`, `refund()` (not used today: refunds go to the wallet, Q-010, but the method exists).
-   - `PayoutProvider`: `manual` (default, S-033) and later `bog_payout`.
-   - Implementations: `BogProvider` (live/test) and `tools/bog-mock` (a small local HTTP server that imitates BOG: OAuth, create order, hosted page with "pay / fail" buttons, signed callback using a local test key pair, payment details). Local development and CI never call BOG.
-2. **Payment intent.** Every payment starts as a `payment_intent` row created by the API from a server-side quote: purpose (gig_order, project_payment, custom_offer, topup, subscription, subscription_renewal), payer, amount breakdown in tetri (price, surcharge, fees, discount) and fee-rule versions, status (`created → pending → paid | failed | expired | canceled`), BOG order id. The amount sent to BOG is always the intent total computed by the API; clients never send an amount.
-3. **Only verified information changes state.**
-   - Callback endpoint `POST /api/v1/webhooks/bog` (public, no auth, raw body kept): verify `Callback-Signature` with the BOG public key from configuration. If BOG does not send a signature for our merchant, treat the callback only as a **hint**.
-   - In both cases, the API calls **Get Payment Details** server-side and requires: BOG order id known, our intent id matches (external order id), amount and currency equal the intent, status final-successful. Only then, in one DB transaction: intent `paid` (compare-and-set from `pending`), ledger journal with `idempotency_ref = bog:{bogOrderId}:paid` (ADR-003), business effect (order/offer/project payment paid and escrow funded, wallet credited, subscription activated or extended).
-   - The callback always answers 200 after it has durably recorded the raw event (a `payment_events` table), so BOG does not retry forever; processing is idempotent.
-   - **Return URLs** (`/payments/{intentId}/result` on web, a deep link on mobile) only display the status by polling `GET /api/v1/payments/{intentId}`. They never change state (R-004).
-4. **Reconciliation.** A worker job every few minutes asks BOG for the details of intents still `pending` after N minutes (e.g. 5) and applies the same verified path; intents older than the BOG order lifetime become `expired`. This also covers the "missing callback route" legacy failure.
-5. **Idempotency.** `POST /payments` requires `Idempotency-Key`; one intent per checkout; if BOG supports an idempotency header on create-order we send the intent id there too. Repeated callbacks or reconciliations post once (unique `idempotency_ref`).
-6. **Saved cards and renewals.** Subscriptions are paid with BOG's "save card" option; the resulting parent order id and masked card metadata are stored (`user_payment_methods`, no card numbers). Renewal (worker, ADR-008) creates a `subscription_renewal` intent and calls `chargeSavedCard`; the result is verified exactly like any payment; success extends the subscription, failure cancels (BR-112). Activation never depends on a browser session (R-041).
-7. **Surcharge and fees** are computed by ADR-005 and shown in the quote. S-012 applies to gig orders, project payments, custom offers and top-ups; not to subscriptions (Q-070). No second BOG gateway fee exists (the legacy double 2.5% is gone).
-8. **Credentials.** `BOG_CLIENT_ID`, `BOG_CLIENT_SECRET`, `BOG_API_BASE_URL`, `BOG_CALLBACK_PUBLIC_KEY` and the public callback URL come from `.env` only (ADR-013). The leaked legacy credentials (R-001) must be rotated by the Owner with BOG before go-live.
-9. **Payload hygiene.** The create-order payload contains only real data (our intent id, amount, currency GEL, basket lines with real item names, locale, callback and redirect URLs). The legacy dummy basket/discount/delivery values are not carried over.
-10. **Admin visibility.** Staff with `payments.read` see intents, raw callback events and reconciliation results; staff with `payments.offline.approve` confirm bank-transfer intents when S-021 is ON.
+1. **Two small interfaces** in `apps/api/src/modules/payments` (the "hooks"). Business code depends only on these; everything BOG-specific lives in one adapter.
+   ```ts
+   interface PaymentProvider {
+     createPayment(input: { paymentId; amountTetri; currency: 'GEL'; lines; locale; returnUrl; callbackUrl; saveCard: boolean }): Promise<{ providerOrderId; redirectUrl; expiresAt? }>;
+     getPaymentDetails(providerOrderId): Promise<{ status: 'paid' | 'pending' | 'failed' | 'expired'; amountTetri; currency; externalOrderId; card?: { brand; mask; expiry } }>;
+     verifyCallback(rawBody: Buffer, headers): { providerOrderId; trusted: boolean }; // hook: signature check if BOG sends one, else trusted = false
+     chargeSavedCard(input: { parentOrderId; paymentId; amountTetri; callbackUrl }): Promise<{ providerOrderId }>;
+     deleteSavedCard(parentOrderId): Promise<void>;
+   }
+   interface PayoutProvider { requestPayout(withdrawal): Promise<{ reference }>; getPayoutStatus(reference): Promise<'processing' | 'paid' | 'failed'> } // 'manual' now, 'bog_payout' later (S-033)
+   ```
+   Implementations: `BogPaymentProvider` (built from the legacy calls listed above; OAuth token cached until expiry) and `tools/bog-mock` (a small local server with the same HTTP shapes, a hosted page with "pay / fail" buttons and callbacks) so local development and CI never call BOG. `ManualPayoutProvider` marks nothing by itself: staff mark requests paid (spec 14).
+2. **Payment record first, amount from the server.** Every payment starts as a `payments` row built from the server-side quote (purpose, payer, lines, fees with fee-rule versions, surcharge, discount, total; `data-model.md` §3.J). The amount sent to BOG is always `payments.total_tetri`; clients never send an amount. The create-order payload contains only real data (our payment id as the external order id, total, GEL, basket lines with real names, locale, callback URL, redirect URLs; no dummy discount/delivery/basket values, no 0.01 GEL switch in production builds).
+3. **One rule that fixes R-004 and R-041: only a server-side check changes state.**
+   - Callback endpoint `POST /api/v1/webhooks/bog` (public, raw body kept). It stores the raw event in `payment_events`, answers 200, and processes it asynchronously.
+   - Processing always calls `getPaymentDetails` and applies the payment only if BOG reports it successful for the **same order, amount and currency**. `verifyCallback` is a hook: if the lead developer confirms that our merchant receives a signed callback, the signature is checked there too; if not, the callback is only a trigger for the details check. Either way the result is the same verified path.
+   - The verified path, in one database transaction: payment `pending → paid` (compare-and-set), the ledger journal with `idempotency_ref = bog:{bogOrderId}:paid` (ADR-003), the business effect (item paid and HOLD funded, wallet credited, or subscription activated/extended). A payment that can no longer be applied is credited to the buyer's wallet instead (`paid_unapplied`, spec 05 P-40).
+   - **Return URLs** (web `/payments/{id}/result`, mobile deep link, `url-map.md` §7) only display the status by polling `GET /api/v1/payments/{id}`. Opening or forging them changes nothing.
+4. **Missed callbacks.** A worker job every 5 minutes calls `getPaymentDetails` for card payments still `pending` after 5 minutes and applies the same verified path; payments past their BOG lifetime become `expired`. This also covers the legacy "callback route missing" failure. No other reconciliation machinery is built at launch.
+5. **Idempotency.** `POST /payments` requires an `Idempotency-Key` (one payment per checkout attempt). Journals are unique per BOG order id, so repeated callbacks, reconciliations and double clicks post once.
+6. **Saved cards and renewals** (spec 09). A subscription purchase asks BOG to save the card (legacy "save card" call, made **after** the order exists, not before as in legacy); the parent order id and the masked card come from the verified payment details (`user_payment_methods`). The renewal job creates a `subscription_renewal` payment for the **current** price (P-57) and calls `chargeSavedCard`; the result goes through the same verified path; success extends, failure ends Premium at its end date (BR-112, AC-11). **Lead-developer item:** the legacy call `…/orders/:parent_order_id/subscribe` repeats the original amount (`BogPayment.php:59-84`); the adapter must use the BOG saved-card charge that accepts the current amount. If BOG cannot charge a different amount, the Owner must be told before slice 09 (handoff risk).
+7. **Surcharge and fees** come from ADR-005 and are shown in the quote. S-012 applies to gig orders, project payments, custom offers and top-ups, never to subscriptions (Q-070). There is only one 2.5% surcharge (the legacy double fee is gone).
+8. **Mobile apps.** The same BOG hosted page is opened in the in-app browser for services, top-ups and (Q-081) Premium; the app returns through `mytask://payments/{id}/result` and polls the API (`url-map.md` §7, ADR-016).
+9. **Credentials** only from `.env`: `BOG_CLIENT_ID`, `BOG_CLIENT_SECRET`, `BOG_API_BASE_URL`, `BOG_OAUTH_URL`, `BOG_CALLBACK_URL`, optional `BOG_CALLBACK_PUBLIC_KEY` (used only if signatures are confirmed). The leaked legacy credentials (R-001) are rotated at the final production deployment (Q-086).
+10. **Admin visibility.** Staff with `payments.read` see payments, raw events and reconciliation results; staff with `payments.offline.approve` confirm or reject bank transfers when S-021 is ON (spec 05 AC-25/26).
+
+### Items the lead developer finalises against the official BOG documentation (Q-087)
+| Item | Default in this design |
+|---|---|
+| Does our merchant receive a signed callback, and with which header/key? | `verifyCallback` returns `trusted = false`; every callback is confirmed by `getPaymentDetails` |
+| Sandbox / test environment | `tools/bog-mock` locally and in CI; staging uses a BOG test environment if available, otherwise real minimum-amount payments only with Owner approval (spec 05 AC-17) |
+| Exact field names of create order, details and callback bodies | mapped inside `BogPaymentProvider` only |
+| Saved-card charge with a changed amount (P-57) | adapter method `chargeSavedCard(amountTetri)`; confirm the endpoint |
+| Deleting a saved card at BOG (spec 05 AC-35) | adapter method `deleteSavedCard`; if BOG has no such call, the card is deleted locally and never charged again |
+| BOG order lifetime (for `expired`) | configurable constant in the adapter |
 
 ## Alternatives considered
-- **Trust the return URL with a signed token** — still depends on the user's browser returning; a user who closes the tab would be charged but not credited. Rejected; return is display only.
-- **Callback only, without Get Payment Details** — fine when signatures are always present and verified, but a double check is cheap and protects against a misconfigured or unsigned callback. Kept both.
-- **Polling only (no callback)** — slower confirmation for users. Callback + reconciliation is the standard.
-- **Pay via BOG iframe/SDK inside our page** — tighter UX, but more PCI scope and more mobile complexity. The hosted page is kept (legacy behaviour).
+- **A generic multi-gateway payment framework** — legacy had 28 gateways and used one; the Owner asked for no over-engineering. Rejected; the interface allows a second provider later.
+- **Trust the return URL with a signed token** — a user who closes the tab would be charged but not credited, and it repeats R-004's weakness. Rejected.
+- **Callback only, without the details check** — depends on a signature we cannot confirm yet. Rejected; the details check is one extra call.
+- **BOG iframe / SDK inside our pages** — more PCI scope and mobile complexity. The hosted page is kept (legacy behaviour).
 
 ## Consequences
-- Easier: free top-ups and double credits become impossible; lost callbacks are healed automatically; local development needs no bank.
-- Harder: the payment status page must poll; BOG test credentials or a very small real test is needed in staging (Owner approval, real money).
-- Must change: spec 05 describes statuses and messages for pending/failed/expired payments; openapi.yaml defines `/checkout/quote`, `/payments`, `/payments/{id}`, `/webhooks/bog`; data-model.md adds `payment_intents`, `payment_events`, `user_payment_methods`.
-- Risk: BOG API details (signature presence for our merchant contract, saved-card endpoint names) are confirmed against the merchant's current BOG documentation during slice 05; this ADR does not depend on the exact names.
+- Easier: the integration is the legacy BOG flow with safe edges; free top-ups and double credits are impossible; lost callbacks heal automatically; developers work locally with `bog-mock`.
+- Harder: the result page must poll; the lead developer must confirm the items in the table before slice 05 ships.
+- Must change: openapi.yaml (P2-B4) defines `/checkout/quote`, `/payments`, `/payments/{id}`, `/webhooks/bog`; `data-model.md` defines `payments`, `payment_lines`, `payment_events`, `user_payment_methods` (done).
