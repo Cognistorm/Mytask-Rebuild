@@ -16,7 +16,7 @@ Be skeptical. A feature is broken until evidence says otherwise.
 2. **Run** the automated tests (`pnpm test`, Playwright, mobile flows). Add missing tests.
 3. **Parity check:** compare the same scenario on the old live site vs the new local platform. Differences → bug, or confirmed intentional CHANGE in the spec.
 4. **Cross-client check:** create data on web → verify on mobile, and the reverse. This is the whole point of the rebuild.
-5. **i18n check:** no hard-coded strings, Georgian present, English keys exist (value `""` is correct).
+5. **i18n check:** no hard-coded strings, English and Georgian values both present for every new key (Q-058).
 6. **Report** → `docs/06-qa/reports/NN-feature-YYYY-MM-DD.md`: PASS/FAIL per test case, bugs with steps to reproduce, severity (blocker/major/minor), and verdict.
 
 ## Rules

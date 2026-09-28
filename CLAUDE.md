@@ -37,7 +37,7 @@ improve visual polish, spacing, consistency, accessibility and mobile behavior.
 ## Languages (i18n)
 - Two languages: **Georgian (`ka`, default)** and **English (`en`)**.
 - All user-facing text goes through translation keys — never hard-coded strings.
-- Fill the Georgian value. **Leave the English value as an empty string `""`** — the owner translates English himself. Same convention as the old code.
+- For every NEW key, write the **English value first**, matching the codebase format, and fill the **Georgian translation alongside it**. The Owner refines both language files by hand as needed. Existing legacy English values are kept. (Owner decision Q-058, 2026-09-28.)
 - Translation files live in `packages/i18n/ka.json` and `packages/i18n/en.json` and are shared by web and mobile.
 - Fonts must fully support Georgian script (Mkhedruli).
 
@@ -59,7 +59,7 @@ Keep every notification the old code sends (inventory in `docs/01-discovery/noti
 - [ ] Endpoint(s) match `openapi.yaml`, with tests passing
 - [ ] Web screen(s) built with `packages/ui` components and design tokens only
 - [ ] Mobile screen(s) built with the same tokens and i18n keys
-- [ ] Georgian texts filled, English `""`
+- [ ] English and Georgian texts filled for every new key
 - [ ] QA parity report: behaves like the old platform (or deviations listed and approved)
 - [ ] Security review passed (if it touches auth, money, personal data, uploads or permissions)
 - [ ] `docs/STATUS.md` updated
