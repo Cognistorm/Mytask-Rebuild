@@ -1,5 +1,5 @@
 # Feature specs — build order
-Maintained by: product-analyst | Last update: 2026-09-28 (P2-A1)
+Maintained by: product-analyst | Last update: 2026-09-28 (P2-A2)
 Source of the list: `docs/03-architecture/phase-2-plan.md` §1 (spec list) and §6 (Phase 4 slice order).
 
 ## Specs in build order
@@ -8,10 +8,10 @@ Source of the list: `docs/03-architecture/phase-2-plan.md` §1 (spec list) and �
 | Build step | # | Feature | File | Wave | Status |
 |---|---|---|---|---|---|
 | Phase 3 (platform core) | 00 | Platform rules: dual role, plans and limits, settings register, money glossary, content i18n, removed features | [00-platform-rules.md](00-platform-rules.md) | P2-A1 | approved (Owner 2026-09-28) |
-| Phase 3 (first slice) | 01 | Auth and accounts: register, login, legacy passwords, verification, reset, reCAPTCHA, social login, email 2FA, throttling, restrictions/appeals/IP bans | 01-auth.md | P2-A2 | not started |
-| Slice 1 | 02 | Profiles and dashboards: public profile, dual-dashboard switcher, settings, availability, online status, portfolio, KYC stub | 02-profiles-and-dashboards.md | P2-A2 | not started |
-| Slice 2 | 03 | Categories and search: 3-level gig categories, project categories + skills, `/search`, `/hire/{keyword}`, `/sellers` | 03-categories-and-search.md | P2-A2 | not started |
-| Slice 3 | 04 | Gigs: create/edit wizard, upgrades, number of revisions, moderation, plan limit, gig page, Premium highlight | 04-gigs.md | P2-A2 | not started |
+| Phase 3 (first slice) | 01 | Auth and accounts: register, login, legacy passwords, verification, reset, reCAPTCHA, social login, email 2FA, throttling, restrictions/appeals/IP bans | [01-auth.md](01-auth.md) | P2-A2 | ready for Owner (2026-09-28; PROPOSED P-14…P-17, P-19, P-20) |
+| Slice 1 | 02 | Profiles and dashboards: public profile, dual-dashboard switcher, settings, availability, online status, portfolio, KYC stub | [02-profiles-and-dashboards.md](02-profiles-and-dashboards.md) | P2-A2 | ready for Owner (2026-09-28; PROPOSED P-18, P-21…P-25) |
+| Slice 2 | 03 | Categories and search: 3-level gig categories, project categories + skills, `/search`, `/hire/{keyword}`, `/sellers`, Premium "Featured" badge and ranking | [03-categories-and-search.md](03-categories-and-search.md) | P2-A2 | ready for Owner (2026-09-28; PROPOSED P-26…P-31) |
+| Slice 3 | 04 | Gigs: create/edit wizard, upgrades, number of revisions, moderation, plan limit, gig page, favourites, reports | [04-gigs.md](04-gigs.md) | P2-A2 | ready for Owner (2026-09-28; PROPOSED P-32…P-37) |
 | Slice 4 | 05 | Payments and wallet: BOG card, wallet, top-up, surcharge, bank transfer (OFF), HOLD model, refunds to wallet, invoices, promo codes, Commission & Fee rules | 05-payments-wallet.md | P2-A3 | not started |
 | Slice 5 | 06 | Gig orders: cart, checkout, requirements, start, deliver, revisions, complete, auto-release, cancel | 06-gig-orders.md | P2-A3 | not started |
 | Slice 6 | 07 | Reviews: mutual reviews for gigs and projects, rating averages | 07-reviews.md | P2-A3 | not started |
