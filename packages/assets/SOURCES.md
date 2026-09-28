@@ -13,12 +13,25 @@ Live files were downloaded with read-only HTTP GET requests. Legacy files were c
 ## Favicon
 No separate favicon exists. The live favicon URL serves the full wordmark PNG (see above), which is unreadable at 16–32 px. A square icon / app icon is needed for web and the mobile apps (question to the Owner in the handoff).
 
+## Brand mark: PROPOSAL, derived work, awaiting Owner approval (Q-075)
+The Owner confirmed no vector logo or square mark is known and allowed the designer to derive a simple "M" mark (Q-075). These files are **derived work**, not original brand files: the "M" of the current wordmark (a stencil M whose middle forms a Y, i.e. "MY") was measured on `logo/mytask-logo-wordmark-trimmed.png` (letter box 248×248 px: outer stems 72 px, centre stem 56 px, diagonals at 0.7 px/px, 12 px cuts) and redrawn as clean vector geometry. Colour `#0D696C` (logo teal = `brand.700`). The `proposal-` prefix stays until the Owner approves; then the files are renamed and this section updated. Not for production use before approval.
+| File | Source | Date | Notes |
+|---|---|---|---|
+| `brand/proposal-m-mark.svg` | Derived from `logo/mytask-logo-wordmark-trimmed.png` (letter "M") by ui-ux-designer, P2-C2 | 2026-09-28 | Mark only, teal `#0D696C`, 248×248 viewBox |
+| `brand/proposal-m-mark-white.svg` | Same | 2026-09-28 | White mark for dark backgrounds / hero |
+| `brand/proposal-app-icon-1024.svg` | Same | 2026-09-28 | iOS/Android store icon master: full-bleed teal square (the stores apply the corner mask), white mark 560 px wide, centred |
+| `brand/proposal-adaptive-foreground-432.svg` | Same | 2026-09-28 | Android adaptive-icon foreground (108 dp grid at 4×), white mark inside the 66 % safe zone; background layer = `#0D696C` |
+| `brand/proposal-favicon.svg` | Same | 2026-09-28 | 32×32 rounded teal tile with the white mark; cuts widened to 24 units so they stay visible at 16–32 px. PNG/ICO sizes (16, 32, 180 apple-touch, 192, 512) are exported from this in Phase 3 after approval |
+No trademark search was done. The Owner owns the wordmark; the derived mark carries no third-party material.
+
 ## Fonts
 | File | Source | Date | Notes |
 |---|---|---|---|
 | `fonts/FiraGO-Regular.otf` | `legacy/APP/resources/fonts/FiraGO-Regular.otf` | 2026-09-28 | FiraGO 1.001, weight 400. Font actually rendered on live (`resources/css/bpg-font.css`). Mkhedruli 43/43, Mtavruli 0/43, Lari ₾ yes |
 | `fonts/FiraGO-Bold.otf` | `legacy/APP/resources/fonts/FiraGO-Bold.otf` | 2026-09-28 | FiraGO 1.001, weight 700. Same coverage |
-| `fonts/FiraGO-OFL.txt` | https://raw.githubusercontent.com/bBoxType/FiraGO/master/OFL.txt | 2026-09-28 | SIL Open Font License 1.1. It must ship with the font files. P2-C2 will add the missing weights (500/600) and woff2 builds from the official FiraGO release |
+| `fonts/FiraGO-OFL.txt` | https://raw.githubusercontent.com/bBoxType/FiraGO/master/OFL.txt | 2026-09-28 | SIL Open Font License 1.1. It must ship with the font files |
+| `fonts/woff2/FiraGO-Regular.woff2`, `-Medium.woff2`, `-SemiBold.woff2`, `-Bold.woff2` | https://github.com/bBoxType/FiraGO `Fonts/FiraGO_WEB_1001/Roman/` (raw.githubusercontent.com, master) | 2026-09-28 | Official FiraGO 1.001 web builds, weights 400/500/600/700, for `@font-face` on web/admin (P2-C2). OFL 1.1 |
+| `fonts/ttf/FiraGO-Regular.ttf`, `-Medium.ttf`, `-SemiBold.ttf`, `-Bold.ttf` | https://github.com/bBoxType/FiraGO `Fonts/FiraGO_TTF_1001/Roman/` | 2026-09-28 | Official FiraGO 1.001 TTF, weights 400/500/600/700, for the mobile app (`expo-font`, names in `packages/tokens/tokens.json` `font.native.family`). Checked with fontTools: every weight has Mkhedruli 43/43, Mtavruli 0/43, Lari ₾, `tnum`. The official `FiraGO_OTF_1001/Roman/FiraGO-Regular.otf` is byte-identical (MD5 `cf3f75826bdc7008b5b753fe75b2cb91`) to the legacy file above, so the legacy font is the unmodified official release. OFL 1.1 |
 Not kept: `BPG Nino Mtavruli Bold`. It is referenced by the Tailwind config and admin settings, but `https://mytask.ge/fonts/bpg_nino_mtavruli_bold.ttf` returns HTTP 404 and the font is not in `/legacy`.
 
 ## Category artwork (admin-uploaded site content, not user content)

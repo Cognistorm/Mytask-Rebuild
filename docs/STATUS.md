@@ -32,7 +32,9 @@ Phase: 2 — Blueprint (planned, not started) | Gate: not ready | Phase 1 gate: 
 ## Done in Phase 2
 - P2-A1: 00-platform-rules.md **approved** (Owner 2026-09-28). Register now 124 rows (S-123 linked accounts, P-25; S-124 2FA trigger, Q-082)
 - P2-C1: docs/05-design/audit.md + packages/assets/ (Q-073…Q-080 answered; audit itself awaits Owner review at the gate)
+- P2-C2: packages/tokens (tokens.json + build/contrast scripts + dist, 162 contrast checks 0 failures) + docs/05-design/tokens.md + components.md (58 components, Phosphor icons) + M-mark proposal in packages/assets/brand/ = proposal, awaiting Owner (with P2-C3 preview). Handoff: docs/handoffs/2026-09-28-ui-ux-designer-to-orchestrator-p2-c2.md (5 questions)
 - P2-A2: specs 01-auth, 02-profiles-and-dashboards, 03-categories-and-search, 04-gigs **approved** (Owner 2026-09-28; P-14…P-37 accepted, P-15 adjusted by Q-082)
+- P2-A3: specs 05-payments-and-wallet (43 ACs), 06-gig-orders (45), 07-reviews (21), 09-subscriptions-points-referrals (37), 14-withdrawals (20) = **ready for Owner**. Every money movement mapped as ledger rows (MM-/PM-xx) for P2-B2. No new Q-IDs; PROPOSED P-38…P-65; proposed register rows S-125 (bank-transfer instructions), S-126 (mobile Premium card purchase switch). Handoff: docs/handoffs/2026-09-28-product-analyst-to-orchestrator-p2-a3.md
 - P2-B1: docs/03-architecture/architecture.md + ADR-001…016 = proposed. Q-081, Q-082, Q-086…Q-089 answered. **ADR-016 must be revised by the architect**: Premium is sold by BOG in the mobile app too (Q-081; store-billing risk to document). ADR-002 to reflect S-124; ADR-004 to follow Q-087 (standard BOG structure with clean interfaces, lead developer finalizes); ADR-008 to reflect Q-084 (fresh 72h on re-enable); ADR-013 to reflect Q-085
 
 ## Next up
@@ -40,5 +42,7 @@ Phase: 2 — Blueprint (planned, not started) | Gate: not ready | Phase 1 gate: 
 - Step 4: P2-A4 specs 08, 10–13 || P2-B2 data model (+ P2-B3 url-map); the architect also revises ADR-016/002/004 then
 
 ## Decisions waiting for Owner
-- none open. Q-083…Q-085 answered 2026-09-28 (Terms & Privacy clause on staff chat review; fresh 72h when auto-release is switched back ON; S-110 kept, Super-admin only, public pages only)
+- Q-083…Q-085 answered 2026-09-28 (Terms & Privacy clause on staff chat review; fresh 72h when auto-release is switched back ON; S-110 kept, Super-admin only, public pages only)
 - Approve ADR-001…016 and the design audit at the Phase 2 gate
+- P2-A3 money specs 05, 06, 07, 09, 14: accept/correct PROPOSED P-38…P-65 and mark approved. P-46 corrects approved spec 04 AC-26 (quantity always 1); S-125/S-126 would be added to approved spec 00
+- P2-C2 design system: answer Q-090…Q-094 (M-mark, Featured orange, Buying/Selling colours, System theme, header 72 px); tokens + components are approved with the P2-C3 preview

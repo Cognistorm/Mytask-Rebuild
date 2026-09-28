@@ -92,6 +92,11 @@ Agents add questions here. The Owner answers directly under each one and changes
 | Q-087 | BOG merchant account: does it support signed callbacks, and is there a BOG test (sandbox) environment? Without one, staging needs real 0.01 GEL payments, each with your approval. | solution-architect (P2-B1) | answered |
 | Q-088 | Is the `admin.mytask.ge` subdomain OK for the separate admin panel? | solution-architect (P2-B1) | answered |
 | Q-089 | Hosting budget (needed only before Phase 6): about €15–35/month for one VPS plus about €5/month for S3-compatible storage, with the Cloudflare free plan. Acceptable for planning? | solution-architect (P2-B1) | answered |
+| Q-090 | Brand "M" mark (Q-075): approve the derived M-mark proposal in `packages/assets/brand/proposal-*.svg` (favicon, 1024 app icon, Android adaptive icon), ask for changes, or wait for a professional logo file? | ui-ux-designer (P2-C2) | open |
+| Q-091 | Premium "Featured/Top" frame and badge (Q-069): use the logo orange `#F48438` with dark text (7.07:1) instead of the legacy yellow border? | ui-ux-designer (P2-C2) | open |
+| Q-092 | Dashboard switcher colours: keep Buying = blue and Selling = green (now WCAG AA compliant, as the live site), or use teal for both? | ui-ux-designer (P2-C2) | open |
+| Q-093 | Offer a "System" theme option (follow the device setting) next to Light and Dark? Light stays the default (Q-059). | ui-ux-designer (P2-C2) | open |
+| Q-094 | Shrink the desktop header height from 80 px to 72 px? The logo is sized by its real height; placement is unchanged. | ui-ux-designer (P2-C2) | open |
 
 ## Answers
 Owner answers received 2026-09-28 (given in one batch in the chat, recorded here verbatim in substance). "Admin-configurable" means the value is editable in the new Admin Panel, never hard-coded. Items marked NEW are new requirements, not legacy behaviour.
@@ -469,3 +474,31 @@ Recommendation: Yes.
 Hosting budget (needed only before Phase 6): about €15–35/month for one VPS plus about €5/month for S3-compatible storage, with the Cloudflare free plan. Acceptable for planning?
 Recommendation: Yes, for planning.
 **Answer (Owner, 2026-09-28):** Accepted for planning: one VPS (about €15–35/month), S3-compatible storage (about €5/month), Cloudflare free plan.
+
+## Design system questions (ui-ux-designer, P2-C2, 2026-09-28) — open
+Copied by the main session from docs/handoffs/2026-09-28-ui-ux-designer-to-orchestrator-p2-c2.md. Details in docs/05-design/tokens.md and components.md.
+
+### Q-090
+Brand "M" mark (Q-075): approve the derived M-mark proposal in `packages/assets/brand/proposal-*.svg` (favicon, 1024 app icon, Android adaptive icon), ask for changes, or wait for a professional logo file?
+Recommendation: No recommendation from the designer. Until approved, the files keep the `proposal-` prefix and are not used in production.
+**Answer:**
+
+### Q-091
+Premium "Featured/Top" frame and badge (Q-069): use the logo orange `#F48438` with dark text (7.07:1) instead of the legacy yellow border?
+Recommendation: Yes, logo orange.
+**Answer:**
+
+### Q-092
+Dashboard switcher colours: keep Buying = blue and Selling = green (now WCAG AA compliant, as the live site), or use teal for both?
+Recommendation: Keep blue/green (continuity with the live site).
+**Answer:**
+
+### Q-093
+Offer a "System" theme option (follow the device setting) next to Light and Dark? Light stays the default (Q-059).
+Recommendation: Yes, as an extra option; default stays Light.
+**Answer:**
+
+### Q-094
+Shrink the desktop header height from 80 px to 72 px? The logo is sized by its real height; placement is unchanged.
+Recommendation: Proposed by the designer; flagged only because it is a visible dimension change.
+**Answer:**
