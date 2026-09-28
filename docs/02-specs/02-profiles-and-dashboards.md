@@ -1,5 +1,5 @@
 # 02 — Profiles and dashboards
-Status: **ready for Owner**
+Status: **approved** (Owner 2026-09-28; P-14…P-37 accepted)
 Author: product-analyst (P2-A2) | Date: 2026-09-28
 Legacy reference: `docs/01-discovery/features.md` BR-010…BR-015, BR-042; `roles-and-permissions.md`; `routes-and-pages.md` (`/profile/*`, `/account/*`, `/seller/*`); `notifications.md` (portfolio, verification, profile report rows); `risks-and-debt.md` R-037, R-039; `docs/05-design/audit.md` §3.6, §3.9, §3.10. Owner decisions: Q-013, Q-014, Q-046, Q-048, Q-059, Q-060, Q-062. Platform rules: `00-platform-rules.md` (R-1.1…R-1.5, §4.18 fixed rules, settings S-071, S-089, S-090, S-100, S-122, balances glossary §3).
 
@@ -41,7 +41,7 @@ Give every user one account with two dashboards (Buying and Selling) and one swi
 ### Dual role and dashboard switcher (Q-013; vision priority 4)
 - AC-1 Given any logged-in user (new or migrated, whatever their legacy `account_type`), When they open the account menu on web or the Account tab on mobile, Then both "Buying" (client) and "Selling" (freelancer) dashboards are reachable. There is no "Become a seller" entry anywhere. (00 AC-1, AC-2, AC-3)
 - AC-2 Given a user on one dashboard, When they use the switcher (web: segmented control in the dashboard top bar and a link in the account menu; mobile: segmented "Buying / Selling" control at the top of the Account tab), Then the other dashboard opens with no new login. (00 AC-4)
-- AC-3 Given a user chose a dashboard, When they come back later on web or mobile, Then the last chosen dashboard opens. The choice is stored on the account, so web and mobile share it. A user who never chose gets the Buying dashboard. (00 AC-4; storage and default PROPOSED P-22)
+- AC-3 Given a user chose a dashboard, When they come back later on web or mobile, Then the last chosen dashboard opens. The choice is stored on the account, so web and mobile share it. A user who never chose gets the Buying dashboard. (00 AC-4; storage and default ACCEPTED P-22)
 - AC-4 Given the Selling dashboard, When it opens, Then its navigation is: Home, Orders, Gigs, Projects (awarded + my proposals), Offers (only if S-034 is ON), Reviews, Refunds, Unblock requests (only when available under S-025/S-029, P-5), Portfolio, Earnings, Withdrawals. (LEGACY `seller-app.blade.php`; X-05 levels removed)
 - AC-5 Given the Buying dashboard, When it opens, Then its navigation is: Projects, Orders ("Buy services"), Offers (only if S-034 is ON), My reviews, Refunds, Favourites. (LEGACY `buyer-app.blade.php`)
 - AC-6 Given the Selling Home, When it loads, Then it shows: a welcome line with verified badge and member-since date; buttons "Switch to buying" and "Create a new gig"; KPI tiles for earnings (all money released to the user from gig orders, project payments and custom offers, from the ledger), Available balance, HOLD/Pending balance (with the `t_pending_balance_hint`), total reach (gig impressions), total gigs, awarded projects (accepted awards), completed orders, pending orders (paid, not started), orders in progress (started or delivered, not finished) and canceled orders; up to 6 contacts with unread messages; the latest 7 paid orders; and, if S-075 is ON, the latest 7 awarded projects. (LEGACY `Seller/Home/HomeComponent.php:62-241`; balance tiles per 00 §3)
@@ -56,9 +56,9 @@ Give every user one account with two dashboards (Buying and Selling) and one swi
 - AC-13 Given the viewer owns the profile, When it loads, Then "Edit profile" is shown instead of "Contact me" and "Report user".
 - AC-14 Given a logged-in user on another user's profile, When they report it with a reason (required, ≤ 1,500 chars), Then the report is saved (a second report by the same person replaces the first) and `Admin/ProfileReported` goes to every address in S-100. Guests see `t_u_must_login_to_report_this_profile`. Reporting yourself is not possible. (LEGACY `ProfileComponent.php:275-352`; CHANGE recipients Q-026)
 
-### Profile editing (`/account/profile`) — PROPOSED P-23 (restores a legacy screen that is unreachable today)
+### Profile editing (`/account/profile`) — ACCEPTED P-23 (restores a legacy screen that is unreachable today)
 - AC-15 Given a logged-in user, When they open "Edit profile" (web account menu; mobile Account → Profile), Then they can edit avatar, headline, About me, skills, languages, availability and (if S-123 is ON) linked accounts. Each part saves on its own and shows its own success message.
-- AC-16 Given an avatar upload, When the file is JPG, JPEG, PNG or WEBP and ≤ 2 MB, Then it replaces the old avatar (resized to 100 px square for display, old file deleted). Other types (including SVG) are refused. The user can also remove the avatar, and then initials are shown. Mobile offers camera or photo library. (LEGACY `SidebarComponent.php:34-104`; file types PROPOSED P-24)
+- AC-16 Given an avatar upload, When the file is JPG, JPEG, PNG or WEBP and ≤ 2 MB, Then it replaces the old avatar (resized to 100 px square for display, old file deleted). Other types (including SVG) are refused. The user can also remove the avatar, and then initials are shown. Mobile offers camera or photo library. (LEGACY `SidebarComponent.php:34-104`; file types ACCEPTED P-24)
 - AC-17 Given the headline field, When a value of 1–100 chars is saved, Then it shows under the name on the profile and cards. Empty is refused (`t_validator_required`). (LEGACY `HeadlineValidator.php:26`)
 - AC-18 Given the About me field, When 1–1,500 chars are saved, Then it shows in the About me block with "More/Less" folding. (LEGACY `DescriptionValidator.php:26`)
 - AC-19 Given the skills editor, When the user adds a skill with a name (≤ 30 chars) and an experience level (Beginner / Intermediate / Expert), Then it is added. The same name twice is refused with `t_add_skill_already_exists`. Skills can be edited and deleted. The skill slug (for `/hire/{slug}`) is made from the name. (LEGACY `ProfileComponent.php:439-715`; stored values `beginner|intermediate|pro`)
@@ -78,10 +78,10 @@ Give every user one account with two dashboards (Buying and Selling) and one swi
 
 ### Account settings (`/account/settings`)
 - AC-29 Given a logged-in user, When they save username (same rules as registration, spec 01 AC-1/AC-2), email (valid, unique), full name (required, ≤ 60), country (optional, from the active country list) and city (required, ≤ 60) and enter their current password (not asked for accounts without a password), Then the changes are saved with `t_ur_account_settings_updated`. A wrong password shows `t_ur_current_pass_does_not_match`. (LEGACY `SettingsComponent.php:156-223`, `EditValidator.php:26-38`)
-- AC-30 Given a user changes their email in settings, When they save, Then the email does not change yet: a confirmation link valid for S-054 minutes is sent to the new address (`t_email_change_pending`) and a notice is sent to the old address. The new email becomes active only when the link is opened. (PROPOSED P-18; legacy changed the email at once with no check)
+- AC-30 Given a user changes their email in settings, When they save, Then the email does not change yet: a confirmation link valid for S-054 minutes is sent to the new address (`t_email_change_pending`) and a notice is sent to the old address. The new email becomes active only when the link is opened. (ACCEPTED P-18; legacy changed the email at once with no check)
 - AC-31 Given a user changes their username, When saved, Then their profile moves to `/profile/{new-username}`. (LEGACY; see EC-4)
 - AC-32 Given a user with an active order or project (as buyer or freelancer: order items pending/started/delivered and not finished; projects active, awaiting payment, in development or awaiting final review), When they choose "Delete account", Then it is refused with `t_cannot_delete_account_active_orders_projects`. (LEGACY `SettingsComponent.php:253-305`)
-- AC-33 Given a user whose Available or HOLD/Pending balance is not 0, When they choose "Delete account", Then it is refused with `t_cannot_delete_account_balance`. (PROPOSED P-21; legacy only warned in `t_delete_account_warning`)
+- AC-33 Given a user whose Available or HOLD/Pending balance is not 0, When they choose "Delete account", Then it is refused with `t_cannot_delete_account_balance`. (ACCEPTED P-21; legacy only warned in `t_delete_account_warning`)
 - AC-34 Given a user with no active items and a zero balance, When they confirm deletion (dialog with `t_delete_account_warning`), Then the account is soft-deleted, all sessions end, their profile and gigs disappear from public pages, and their email and username stay reserved. (LEGACY `:324-353`)
 - AC-35 Given the account area (web settings sidebar; mobile Account tab), When it opens, Then it links to: Settings, Edit profile, Password and security (spec 01), Billing and Payment methods (spec 05), My subscription and Referrals (spec 09), Verification centre, Sessions (spec 01), Logout; and on web a theme switch (light/dark, S-105, S-106 default light, Q-059). (LEGACY `components/main/account/sidebar.blade.php`)
 
@@ -106,7 +106,7 @@ Give every user one account with two dashboards (Buying and Selling) and one swi
 - R-P6 **Portfolio moderation** (LEGACY): S-071; edit sends the item back to pending when S-071 is OFF. Titles and descriptions have one field (not ka/en). Latin and Georgian are both allowed (Q-022).
 - R-P7 **Dashboard KPIs** come from the ledger and order data (00 §3). "Earnings" = total released to the user's Available balance from gig orders, project payments and custom offers (legacy formula `HomeComponent.php:62-93`, now from ledger entries).
 - R-P8 **KYC** (Q-048): not required for anything. One active verification per user. Files private (R-039 fix).
-- R-P9 **Account deletion** (LEGACY + PROPOSED P-21): soft delete; blocked by active items; blocked by a non-zero balance (P-21). Reviews the user wrote or received stay visible, with the name shown as "Deleted user" (PROPOSED P-21).
+- R-P9 **Account deletion** (LEGACY + ACCEPTED P-21): soft delete; blocked by active items; blocked by a non-zero balance (P-21). Reviews the user wrote or received stay visible, with the name shown as "Deleted user" (ACCEPTED P-21).
 - R-P10 **Settings** used: S-034 (offers menu), S-025/S-029 (unblock menu, P-5), S-054 (email-change link validity, P-18), S-071, S-075, S-089, S-090, S-100, S-105, S-106, S-122; proposed new row **S-123** `profile.linked_accounts.enabled` (P-25).
 
 ---
@@ -136,7 +136,7 @@ Accessibility: switcher items have `aria-current` and text labels on all sizes (
 | `PortfolioPublished` (`t_subject_seller_portfolio_published`) + in-app `t_ur_portfolio_title_has_been_published` | email + in-app + push (P-11) | owner | AC-26 | LEGACY (push NEW) |
 | `Admin/NewIdVerificationPending` (`t_verification_center`) | email | all S-100 recipients | AC-36 | LEGACY, CHANGE recipients |
 | `VerificationApproved` / `VerificationDeclined` + in-app `t_ur_account_has_verified` / `t_verification_files_declined` | email + in-app + push | user | AC-37 | LEGACY (push NEW) |
-| Email-change confirmation (to new address) + notice (to old address) | email | user | AC-30 | **NEW, PROPOSED P-18** |
+| Email-change confirmation (to new address) + notice (to old address) | email | user | AC-30 | **NEW, ACCEPTED P-18** |
 | `YouBecameSeller` / `t_u_became_a_seller` | – | – | dropped (Q-013, X-06) | removed |
 
 ## Texts (i18n key | en | ka)

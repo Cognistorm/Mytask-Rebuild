@@ -23,19 +23,22 @@ Phase: 2 — Blueprint (planned, not started) | Gate: not ready | Phase 1 gate: 
 - Security: all keys in .env; strict web-root isolation (logs/config never web-reachable); keep restrictions, appeals, IP banning, KYC
 
 ## In progress (agent → task)
-- none (Phase 2 plan waiting for the Owner to start Step 1)
+- none. Steps 1 and 2 of phase-2-plan.md are done; Step 3 (P2-A3 money specs || P2-C2 tokens + components) is ready to start
 
 ## Blocked (reason, who must act)
-- none. Q-058…Q-067 answered 2026-09-28. Sub-points not addressed (specs propose, Owner approves at the gate): revision count range (Q-061a/c/d), staff 2FA (Q-063b), unblock-request fallback with auto-release ON (Q-067b), custom-offer fee defaults (Q-060d, assumed 0)
+- none
 - Known, accepted: no production schema dump (mapping built from migrations/models)
 
-## Next up (Step 1 of phase-2-plan.md; the two tasks can run in parallel)
-- P2-A1 product-analyst: DONE 2026-09-28. Specs: docs/02-specs/README.md (00–17 in build order) + 00-platform-rules.md = **approved by Owner 2026-09-28** (settings register 122 rows; P-1…P-13 accepted, P-4 staff 2FA = admin toggle, P-5 unblock request hidden while auto-release ON). 01–17 not started. Handoff: docs/handoffs/2026-09-28-product-analyst-to-orchestrator-p2-a1.md
-- P2-C1 ui-ux-designer: DONE 2026-09-28. docs/05-design/audit.md = **ready for Owner** (live public screens + Blade-only audit of dashboards/chat/checkout/proposal modal; real values with evidence; 13 modernisation principles). Assets in packages/assets/ with SOURCES.md. 8 design questions for the Owner are in the handoff (e.g. accessible dark-teal buttons, admin-editable brand colour, logo SVG/app icon): docs/handoffs/2026-09-28-ui-ux-designer-to-orchestrator-p2-c1.md. Next: P2-C2 tokens + components
-- Then Step 2: P2-A2 specs 01–04 || P2-B1 architecture.md + ADR-001…013
-- P2-B1 solution-architect: DONE 2026-09-28. docs/03-architecture/architecture.md + ADR-001…016 in docs/03-architecture/adr/ = **proposed, ready for Owner** (stack confirmed: NestJS + PostgreSQL 17/Prisma + Redis/BullMQ, Next.js web + separate admin app, Expo mobile, pnpm + Turborepo; extra ADRs 014 contract-first OpenAPI, 015 environments/hosting/observability, 016 mobile Premium vs store billing). 9 Owner questions are in the handoff: docs/handoffs/2026-09-28-solution-architect-to-orchestrator-p2-b1.md. Next: P2-B2 data-model + P2-B3 url-map (Step 4)
-- P2-A2 product-analyst: DONE 2026-09-28. Specs 01-auth (52 ACs), 02-profiles-and-dashboards (41), 03-categories-and-search (37), 04-gigs (39) = **ready for Owner**. No new questions; 24 PROPOSED items P-14…P-37 for Owner decision (biggest: P-32 gig wizard blocks, P-26 Premium ranking rule, P-23 restore the unreachable edit-profile screen, P-15 2FA device-only = same as ADR-002 question 2). Handoff: docs/handoffs/2026-09-28-product-analyst-to-orchestrator-p2-a2.md. Next: P2-A3 money specs 05, 06, 07, 09, 14
+## Done in Phase 2
+- P2-A1: 00-platform-rules.md **approved** (Owner 2026-09-28). Register now 124 rows (S-123 linked accounts, P-25; S-124 2FA trigger, Q-082)
+- P2-C1: docs/05-design/audit.md + packages/assets/ (Q-073…Q-080 answered; audit itself awaits Owner review at the gate)
+- P2-A2: specs 01-auth, 02-profiles-and-dashboards, 03-categories-and-search, 04-gigs **approved** (Owner 2026-09-28; P-14…P-37 accepted, P-15 adjusted by Q-082)
+- P2-B1: docs/03-architecture/architecture.md + ADR-001…016 = proposed. Q-081, Q-082, Q-086…Q-089 answered. **ADR-016 must be revised by the architect**: Premium is sold by BOG in the mobile app too (Q-081; store-billing risk to document). ADR-002 to reflect S-124; ADR-004 to follow Q-087 (standard BOG structure with clean interfaces, lead developer finalizes)
+
+## Next up
+- Step 3: P2-A3 product-analyst specs 05 payments/wallet, 06 gig orders, 07 reviews, 09 subscriptions/points/promo, 14 withdrawals || P2-C2 ui-ux-designer tokens + components
+- Step 4: P2-A4 specs 08, 10–13 || P2-B2 data model (+ P2-B3 url-map); the architect also revises ADR-016/002/004 then
 
 ## Decisions waiting for Owner
-- P2-B1 (architect): review architecture.md + ADR-001…016 (O-4). Answer Q-081…Q-089 in open-questions.md (copied from the P2-B1 handoff). The key ones: Premium sold on web only at launch because of App Store / Google Play billing rules (ADR-016); the 2FA trigger is based on a new device, not a new IP; wording that tells users staff may read chats; rotation of the leaked legacy keys (R-001…R-003)
-- P2-A2 (product-analyst): review specs 01–04 (O-2), decide PROPOSED P-14…P-37 (listed at the end of each spec), then mark each spec `approved`. P-25 would add settings row S-123 to the approved 00 spec
+- Q-083 (disclose staff chat access in terms/privacy), Q-084 (auto-release switched back ON: release overdue items or fresh 72h), Q-085 (keep S-110 custom HTML/JS restricted, or drop): not yet answered
+- Approve ADR-001…016 and the design audit at the Phase 2 gate

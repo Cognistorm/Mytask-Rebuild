@@ -341,8 +341,10 @@ Admin chat visibility (Q-015) is a staff permission (spec 16), not a toggle.
 | # | Key | Meaning | Type / unit | Default | Source | Tag |
 |---|---|---|---|---|---|---|
 | S-122 | `kyc.provider` | ID verification (selfie + ID front/back): manual admin review now, external service later | enum manual / (future provider) | manual | Q-048 | LEGACY, integration-ready |
+| S-123 | `profile.linked_accounts.enabled` | Linked social profile URLs (Facebook, X, Dribbble, GitHub, …) editor and profile block | boolean | prod → OFF | P-25 (spec 02); legacy `settings_security.is_social_media_accounts` | LEGACY, added Owner 2026-09-28 |
+| S-124 | `auth.two_factor.trigger` | When a 2FA code is asked for a user (or staff member) with 2FA ON: `new_device` = new or expired device only; `new_device_or_ip` = also on every new IP | enum | `new_device` | Q-082, P-15 | NEW, added Owner 2026-09-28 |
 
-**Register count:** 122 rows = 117 global settings (S-001…S-046, S-052…S-122) + 5 per-code promo/referral fields (S-047…S-051). 12 rows carry a default or definition accepted by the Owner through P-1…P-13 (S-017, S-018, S-029, S-041, S-050, S-057…S-060, S-062, S-063, S-101). Launch values of S-034 (Q-068) and S-056 (Q-072) are answered. 55 rows use "prod → fallback" (rule confirmed in Q-068).
+**Register count:** 124 rows = 119 global settings (S-001…S-046, S-052…S-124; S-123 and S-124 added Owner 2026-09-28) + 5 per-code promo/referral fields (S-047…S-051). 12 rows carry a default or definition accepted by the Owner through P-1…P-13 (S-017, S-018, S-029, S-041, S-050, S-057…S-060, S-062, S-063, S-101). Launch values of S-034 (Q-068) and S-056 (Q-072) are answered. 55 rows use "prod → fallback" (rule confirmed in Q-068).
 
 #### 4.18 Fixed rules (not configurable; listed so nobody makes them settings by accident)
 Legacy values kept as fixed rules unless a spec proposes otherwise:

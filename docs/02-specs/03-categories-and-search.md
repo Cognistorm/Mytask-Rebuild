@@ -1,5 +1,5 @@
 # 03 — Categories and search
-Status: **ready for Owner**
+Status: **approved** (Owner 2026-09-28; P-14…P-37 accepted)
 Author: product-analyst (P2-A2) | Date: 2026-09-28
 Legacy reference: `docs/01-discovery/features.md` §L, BR-015, BR-023, BR-053; `routes-and-pages.md` (`/search`, `/categories/*`, `/hire/{keyword}`, `/sellers`, `/explore/projects/*`); `i18n.md`; `docs/05-design/audit.md` §3.1–3.3, §3.5. Owner decisions: Q-013, Q-014, Q-022, Q-023, Q-024, Q-069. Platform rules: `00-platform-rules.md` (§2 Premium entitlements, R-2.1, R-5.5, R-5.6, R-5.8; settings S-075, S-076, S-103, S-107, S-108).
 
@@ -43,20 +43,20 @@ Help buyers find the right gig or freelancer fast: the 3-level gig category tree
 - AC-5 Given staff set a top-level category's `is_visible` to OFF, When the home page loads, Then that category gets no row on the home page. It still appears in the header, its pages still work, and gigs in it still appear in search. (LEGACY `HomeComponent.php:129`)
 
 ### Gig lists: what is listed (search, category pages, home rows, `/hire` does not list gigs)
-- AC-6 Given any public gig list, When it is built, Then it contains only gigs with status active, whose owner is active or verified and is not banned, restricted or deleted. (LEGACY gig status; owner rule PROPOSED P-29)
+- AC-6 Given any public gig list, When it is built, Then it contains only gigs with status active, whose owner is active or verified and is not banned, restricted or deleted. (LEGACY gig status; owner rule ACCEPTED P-29)
 - AC-7 Given the English site (`/en/…`), When a gig list is built, Then it includes gigs without English text too; their cards show the Georgian title. (CHANGE Q-023; legacy search and home rows hid them, `SearchComponent.php:276-278`, `HomeComponent.php:90`)
 - AC-8 Given a list page, When there are more results than one page, Then 42 gigs are shown per page on web (numbered pages; the page is kept in the URL) and 42 per load on mobile (infinite scroll). (LEGACY 42)
 
-### Filters (search and all category levels) — one set of rules everywhere (PROPOSED P-27 where marked)
-- AC-9 Given the rating filter with options 5, 4+, 3+, 2+, 1+, When the buyer picks "N+", Then only gigs with an average rating ≥ N are listed (5 = exactly 5.0). (LEGACY search `:197-201`; CHANGE for category pages, which used `BETWEEN N AND N+1`: PROPOSED P-27a)
-- AC-10 Given min price and/or max price, When they are applied, Then only gigs with price ≥ min and/or ≤ max are listed (limits included; up to 2 decimals). When min is greater than max, Then the filter is refused with `t_min_price_greater_than_max` and the previous results stay. (LEGACY range; validation PROPOSED P-27c)
-- AC-11 Given the delivery-time filter with options 1, 2, 3, 4, 5, 6 days, 1, 2, 3 weeks and 1 month, When the buyer picks N days, Then only gigs whose delivery time is **at most** N days are listed (gigs with "None" = 0 days are included). (PROPOSED P-27b; legacy listed only gigs with exactly N days)
+### Filters (search and all category levels) — one set of rules everywhere (ACCEPTED P-27 where marked)
+- AC-9 Given the rating filter with options 5, 4+, 3+, 2+, 1+, When the buyer picks "N+", Then only gigs with an average rating ≥ N are listed (5 = exactly 5.0). (LEGACY search `:197-201`; CHANGE for category pages, which used `BETWEEN N AND N+1`: ACCEPTED P-27a)
+- AC-10 Given min price and/or max price, When they are applied, Then only gigs with price ≥ min and/or ≤ max are listed (limits included; up to 2 decimals). When min is greater than max, Then the filter is refused with `t_min_price_greater_than_max` and the previous results stay. (LEGACY range; validation ACCEPTED P-27c)
+- AC-11 Given the delivery-time filter with options 1, 2, 3, 4, 5, 6 days, 1, 2, 3 weeks and 1 month, When the buyer picks N days, Then only gigs whose delivery time is **at most** N days are listed (gigs with "None" = 0 days are included). (ACCEPTED P-27b; legacy listed only gigs with exactly N days)
 - AC-12 Given filters are set, When the page is reloaded, shared or opened on mobile through a link, Then the same filters and sort are applied (they are in the URL: `q`, `min_price`, `max_price`, `delivery_time`, `rating`, `sort_by`), and changing any filter goes back to page 1. "Reset filter" clears them all. (LEGACY `SearchComponent.php:27-34, :287-380`)
 
-### Sorting and the Premium boost (Q-069 NEW; exact rule PROPOSED P-26)
+### Sorting and the Premium boost (Q-069 NEW; exact rule ACCEPTED P-26)
 - AC-13 Given the sort menu, When it opens, Then it offers: Recommended (default, NEW label), Most popular, Best rating, Most selling, Newest first, Price: Low to High, Price: High to Low. (LEGACY list + NEW default)
-- AC-14 Given a list sorted by Recommended, Most popular, Best rating, Most selling or Newest first, When results are ordered, Then **all gigs whose owner has an active Premium plan (R-2.1) come before all other gigs**, and inside each of the two groups the chosen sort applies: Most popular = most visits first; Best rating = highest average rating first; Most selling = most completed sales first; Newest first = newest publish date first; Recommended = a mixed order that changes once a day and is the same for every visitor that day. Ties are broken by newest gig first. (NEW Q-069; PROPOSED P-26)
-- AC-15 Given a list sorted by Price: Low to High or High to Low, When results are ordered, Then they are ordered by numeric price only (no Premium boost), ties newest first. The badge is still shown. (PROPOSED P-26; legacy category pages sorted the price as text, P-27d)
+- AC-14 Given a list sorted by Recommended, Most popular, Best rating, Most selling or Newest first, When results are ordered, Then **all gigs whose owner has an active Premium plan (R-2.1) come before all other gigs**, and inside each of the two groups the chosen sort applies: Most popular = most visits first; Best rating = highest average rating first; Most selling = most completed sales first; Newest first = newest publish date first; Recommended = a mixed order that changes once a day and is the same for every visitor that day. Ties are broken by newest gig first. (NEW Q-069; ACCEPTED P-26)
+- AC-15 Given a list sorted by Price: Low to High or High to Low, When results are ordered, Then they are ordered by numeric price only (no Premium boost), ties newest first. The badge is still shown. (ACCEPTED P-26; legacy category pages sorted the price as text, P-27d)
 - AC-16 Example (test data): Premium gigs P1 (rating 4.0) and P2 (rating 3.0), Standard gigs S1 (rating 5.0) and S2 (rating 4.5), all matching the filters. Sorted by Best rating the order is P1, P2, S1, S2. Sorted by Price: Low to High with prices P1 = 50, P2 = 20, S1 = 10, S2 = 30 the order is S1, P2, S2, P1. With the filter "4+", the Best-rating order is P1, S1, S2 (P2 is filtered out before ranking; the boost never adds a gig that does not match). (P-26)
 - AC-17 Given a freelancer's Premium ends (or starts), When the next list is requested (at most 60 seconds later, the legacy Premium cache time BR-113), Then their gigs lose (or gain) the boost and the badge. Nothing else about the gigs changes. (NEW Q-069; R-2.1)
 
@@ -64,7 +64,7 @@ Help buyers find the right gig or freelancer fast: the 3-level gig category tree
 - AC-18 Given a gig whose owner has active Premium, When its card is shown anywhere (search, category pages, home rows, profile, favourites, "You may also like"), Then the card has the legacy highlight frame and a "Featured" badge (`t_featured`). The gig page shows the same badge next to the title. Other gigs have neither. The badge has a text label, not colour only. (LEGACY BR-023 + NEW Q-069)
 
 ### Search (`/search?q=…`, header and hero search box)
-- AC-19 Given a keyword, When the buyer searches, Then the list contains gigs where **every word** of the keyword appears (in any order, case-insensitive) in the title or the description, in Georgian or English, whatever the UI language. The characters `- _ ' " / \` +` count as spaces. Every gig the legacy phrase search would find is also found. (LEGACY scope; word rule PROPOSED P-28)
+- AC-19 Given a keyword, When the buyer searches, Then the list contains gigs where **every word** of the keyword appears (in any order, case-insensitive) in the title or the description, in Georgian or English, whatever the UI language. The characters `- _ ' " / \` +` count as spaces. Every gig the legacy phrase search would find is also found. (LEGACY scope; word rule ACCEPTED P-28)
 - AC-20 Given an empty keyword, When the buyer opens `/search`, Then all listed gigs (AC-6) are shown with filters and sort. (LEGACY)
 - AC-21 Given no gig matches, When the results load, Then the empty state shows `t_we_couldnt_find_anthing_search_term` and a "Reset filter" action if filters are set. (LEGACY)
 - AC-22 Given the phone layout, When any page with the header is shown, Then a search entry is reachable from the header (icon that opens a full-width search field), not only from the home hero. (CHANGE for mobile usability, audit §3.1; same behaviour)
@@ -72,17 +72,17 @@ Help buyers find the right gig or freelancer fast: the 3-level gig category tree
 
 ### Home gig rows (LEGACY, with the Q-069 rule)
 - AC-24 Given the home page, When the "Top gigs" row loads, Then it shows 4 gigs: gigs of active-Premium owners first (random), topped up with random other gigs if fewer than 4 exist. (LEGACY logic `HomeComponent.php:92-110`; CHANGE: legacy counted any subscription row, even expired; now active Premium only, R-2.1)
-- AC-25 Given the home page, When the category rows load, Then each visible top-level category (AC-5), in random order, shows up to 4 of its gigs, Premium owners' gigs first (random inside each group), with a "See more" link to the category page. The "See more" link is also visible on phones. (LEGACY random rows; Premium-first PROPOSED P-26; audit §3.2 mobile fix)
+- AC-25 Given the home page, When the category rows load, Then each visible top-level category (AC-5), in random order, shows up to 4 of its gigs, Premium owners' gigs first (random inside each group), with a "See more" link to the category page. The "See more" link is also visible on phones. (LEGACY random rows; Premium-first ACCEPTED P-26; audit §3.2 mobile fix)
 - AC-26 Given S-108 `appearance.home.best_sellers` is ON, When the home page loads, Then a block shows up to 12 users (AC-6 owner rules) with the most completed sales, most first. Given it is OFF, Then the block is not shown. (LEGACY `HomeComponent.php:137-160`, account-type filter dropped)
 
 ### `/sellers` and `/hire/{keyword}`
-- AC-27 Given `/sellers`, When it opens, Then it lists freelancers = users who are active or verified, not banned, restricted or deleted, and have at least one active gig. The order is a mix that changes once a day. 40 per page. Each card shows avatar, username, "ID verified" when KYC is approved, up to 3 skills, "Contact me" and "View profile". (LEGACY page; membership rule PROPOSED P-30 replaces the removed seller-level filter, Q-014)
+- AC-27 Given `/sellers`, When it opens, Then it lists freelancers = users who are active or verified, not banned, restricted or deleted, and have at least one active gig. The order is a mix that changes once a day. 40 per page. Each card shows avatar, username, "ID verified" when KYC is approved, up to 3 skills, "Contact me" and "View profile". (LEGACY page; membership rule ACCEPTED P-30 replaces the removed seller-level filter, Q-014)
 - AC-28 Given `/hire/{keyword}` where at least one user skill has exactly this slug, When it opens, Then the title is `t_hire_the_best_skill_name_experts` with the skill name, and the list shows users (AC-27 status rules, gig not required) who have a skill whose slug or name contains the keyword. The order is a mix that changes once a day. 42 per page. (LEGACY `HireComponent.php:39-151`; account-type filter dropped, Q-013)
 - AC-29 Given `/hire/{keyword}` where no skill has this exact slug, When it opens, Then the visitor is redirected to `/search?q={keyword with + for spaces}` (under `/en/` for English). (LEGACY `HireComponent.php:55-59`)
 - AC-30 Given a skill chip on a profile (spec 02 AC-8), When it is clicked, Then it opens `/hire/{skill-slug}`. (LEGACY)
 
 ### Project categories and skills
-- AC-31 Given the project categories, When they are shown (explore page chips, post-project form, category pages), Then each has a Georgian and English name, a unique slug, an optional SEO description and an image. Each skill has a Georgian and English name and a slug, and belongs to one project category. A project can have at most S-076 skills (spec 10). (LEGACY; skill → project category PROPOSED P-31)
+- AC-31 Given the project categories, When they are shown (explore page chips, post-project form, category pages), Then each has a Georgian and English name, a unique slug, an optional SEO description and an image. Each skill has a Georgian and English name and a slug, and belongs to one project category. A project can have at most S-076 skills (spec 10). (LEGACY; skill → project category ACCEPTED P-31)
 - AC-32 Given `/explore/projects`, When it opens with or without `?q=`, Then it lists projects with status active or completed, newest first, 40 per page. With `q`, the same word rule as AC-19 applies to project title and description in either language. English UI includes projects without English text, showing the Georgian text. (LEGACY list; CHANGE Q-023; word rule P-28)
 - AC-33 Given `/explore/projects/{category}` or `/explore/projects/{category}/{skill}`, When the category (and the skill inside it) exist, Then the list is filtered to that category (and skill), newest first, 40 per page. Otherwise 404. (LEGACY; P-31 fixes the legacy lookup of the category in the wrong table)
 - AC-34 Given S-075 `projects.enabled` is OFF, When any `/explore/projects…` URL is opened, Then the "feature disabled" state of 00 AC-11 is shown (legacy redirected to home), and project links are hidden from menus. (00 AC-11)
@@ -95,9 +95,9 @@ Help buyers find the right gig or freelancer fast: the 3-level gig category tree
 ---
 
 ## Business rules
-- R-S1 **Listing eligibility** (LEGACY + PROPOSED P-29): gig status active (legacy statuses `boosted`, `trending`, `featured` are migrated as active; they had no separate behaviour); owner active/verified; owner not banned, restricted or deleted (P-29).
+- R-S1 **Listing eligibility** (LEGACY + ACCEPTED P-29): gig status active (legacy statuses `boosted`, `trending`, `featured` are migrated as active; they had no separate behaviour); owner active/verified; owner not banned, restricted or deleted (P-29).
 - R-S2 **Filters** (P-27): rating ≥ N; price min ≤ price ≤ max, numeric; delivery time ≤ N days; min > max refused. Same rules on search and every category level.
-- R-S3 **Premium ranking rule** (NEW Q-069, exact rule PROPOSED P-26):
+- R-S3 **Premium ranking rule** (NEW Q-069, exact rule ACCEPTED P-26):
   1. Apply keyword and filters first. The boost never adds gigs.
   2. Split the results into two groups: A = owner has active Premium at request time (R-2.1, cached ≤ 60 s); B = everyone else.
   3. For Recommended, Most popular, Best rating, Most selling and Newest first: list group A before group B, each group ordered by the chosen sort.
@@ -106,10 +106,10 @@ Help buyers find the right gig or freelancer fast: the 3-level gig category tree
   6. Ties: newest gig first.
   7. The same group-first rule applies to the home "Top gigs" row and the home category rows. It does **not** apply to `/sellers`, `/hire`, the profile gig list (newest first, spec 02) or "You may also like" (spec 04).
 - R-S4 **Sort definitions** (LEGACY): popular = gig visits; best rating = average rating of the gig's reviews from buyers (spec 07); most selling = completed sales; newest = publish date. Price is numeric (fixes text sorting on legacy category pages).
-- R-S5 **Keyword matching** (LEGACY scope + PROPOSED P-28): title and description, both languages, all words in any order, case-insensitive; a superset of the legacy phrase search. The search engine choice (for example Postgres full-text or trigram) is ADR-011.
+- R-S5 **Keyword matching** (LEGACY scope + ACCEPTED P-28): title and description, both languages, all words in any order, case-insensitive; a superset of the legacy phrase search. The search engine choice (for example Postgres full-text or trigram) is ADR-011.
 - R-S6 **Page sizes** (LEGACY): gig lists 42; `/sellers` 40; `/hire` 42; project lists 40.
 - R-S7 **Default order before this spec** (for the record): legacy search with no sort had no defined order; legacy `/sellers` and `/hire` were random on every request. The daily mix (P-26, P-30) keeps the "random" feel while making paging stable.
-- R-S8 **Project taxonomy** (PROPOSED P-31): project categories are their own list (LEGACY `projects_categories`). Each skill belongs to one project category. Each project category is linked by staff to one top-level gig category; this link is used for "notify freelancers in the category" (BR-053, spec 10). Migration links them by equal slug (legacy BR-053 matched by slug) and moves each skill to the project category with the same slug as its current gig category.
+- R-S8 **Project taxonomy** (ACCEPTED P-31): project categories are their own list (LEGACY `projects_categories`). Each skill belongs to one project category. Each project category is linked by staff to one top-level gig category; this link is used for "notify freelancers in the category" (BR-053, spec 10). Migration links them by equal slug (legacy BR-053 matched by slug) and moves each skill to the project category with the same slug as its current gig category.
 - R-S9 **Languages** (Q-022, Q-023, Q-024): search matches Latin and Georgian letters as typed; no transliteration between them. Missing English content falls back to Georgian everywhere in this spec.
 
 ---
@@ -189,7 +189,7 @@ NEW keys (English first, Georgian alongside, Q-058):
 - EC-3 A Premium owner has 50 gigs and they fill the first pages of a sort: accepted by design (R-S3). Filters still narrow the list.
 - EC-4 When a list is sorted by price there is no boost, so a Premium gig can appear after Standard ones (AC-15).
 - EC-5 A keyword with only separators (for example `---`): treated as empty (AC-20).
-- EC-6 A very long keyword (> 100 characters): cut to 100 characters (PROPOSED as part of P-28, protects the search engine).
+- EC-6 A very long keyword (> 100 characters): cut to 100 characters (ACCEPTED as part of P-28, protects the search engine).
 - EC-7 Two skills with the same slug belong to different users: `/hire/{slug}` lists all users with a matching skill (skills are per user; LEGACY).
 - EC-8 The daily mix changes at midnight (Tbilisi time) while a visitor is paging: the next page may repeat or skip some gigs once. Accepted.
 - EC-9 An English page lists a Georgian-only gig: the card shows the Georgian title; the gig page shows the fallback note (spec 04).

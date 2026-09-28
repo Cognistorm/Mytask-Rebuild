@@ -83,15 +83,15 @@ Agents add questions here. The Owner answers directly under each one and changes
 | Q-078 | The sky blue `#2EBFF6` (2.12:1 with white) is used on the Premium buy button and the "Invite and earn points" banner. Move both to the brand palette (teal, or orange with dark text)? | ui-ux-designer (P2-C1) | answered |
 | Q-079 | The `lock.svg` illustration is Freepik artwork and requires attribution. Replace it with our own empty-state art? | ui-ux-designer (P2-C1) | answered |
 | Q-080 | The dashboards, chat and checkout were audited from source code only (no login). Could you add a few screenshots of those logged-in screens to `docs/05-design/screenshots/`, or review those audit sections yourself? | ui-ux-designer (P2-C1) | answered |
-| Q-081 | Premium in the mobile apps (ADR-016): Apple and Google require their own in-app billing for subscriptions sold inside apps. At launch, sell Premium for money on the web only, while the app allows buying Premium with points? Or add Apple/Google in-app purchase later? | solution-architect (P2-B1) | open |
-| Q-082 | Email 2FA trigger (ADR-002; same as P-15 in spec 01): ask for a code on a NEW or expired device only, not on an IP change alone (phones change IP often)? Q-063 said "new devices/IPs". | solution-architect (P2-B1) | open |
+| Q-081 | Premium in the mobile apps (ADR-016): Apple and Google require their own in-app billing for subscriptions sold inside apps. At launch, sell Premium for money on the web only, while the app allows buying Premium with points? Or add Apple/Google in-app purchase later? | solution-architect (P2-B1) | answered |
+| Q-082 | Email 2FA trigger (ADR-002; same as P-15 in spec 01): ask for a code on a NEW or expired device only, not on an IP change alone (phones change IP often)? Q-063 said "new devices/IPs". | solution-architect (P2-B1) | answered |
 | Q-083 | Staff reading chats (Q-015) must be disclosed to users in the terms/privacy text. Confirm, and approve the wording when it is drafted. | solution-architect (P2-B1) | open |
 | Q-084 | When auto-release is switched back ON after being OFF: release items that are already past 72h at the next check, or start a fresh 72h for them from that moment? | solution-architect (P2-B1) | open |
 | Q-085 | S-110 custom HTML/JS in head/footer (legacy parity) weakens the site's script protection (CSP). Keep it for the Super-admin only, on public pages only, with approved script hosts, or drop it? | solution-architect (P2-B1) | open |
-| Q-086 | Leaked keys: who rotates the BOG secret, revokes the Binance, Pusher and findip keys, and changes the database password shown in `error_log`, and when? Doing it now also protects the live site. | solution-architect (P2-B1) | open |
-| Q-087 | BOG merchant account: does it support signed callbacks, and is there a BOG test (sandbox) environment? Without one, staging needs real 0.01 GEL payments, each with your approval. | solution-architect (P2-B1) | open |
-| Q-088 | Is the `admin.mytask.ge` subdomain OK for the separate admin panel? | solution-architect (P2-B1) | open |
-| Q-089 | Hosting budget (needed only before Phase 6): about €15–35/month for one VPS plus about €5/month for S3-compatible storage, with the Cloudflare free plan. Acceptable for planning? | solution-architect (P2-B1) | open |
+| Q-086 | Leaked keys: who rotates the BOG secret, revokes the Binance, Pusher and findip keys, and changes the database password shown in `error_log`, and when? Doing it now also protects the live site. | solution-architect (P2-B1) | answered |
+| Q-087 | BOG merchant account: does it support signed callbacks, and is there a BOG test (sandbox) environment? Without one, staging needs real 0.01 GEL payments, each with your approval. | solution-architect (P2-B1) | answered |
+| Q-088 | Is the `admin.mytask.ge` subdomain OK for the separate admin panel? | solution-architect (P2-B1) | answered |
+| Q-089 | Hosting budget (needed only before Phase 6): about €15–35/month for one VPS plus about €5/month for S3-compatible storage, with the Cloudflare free plan. Acceptable for planning? | solution-architect (P2-B1) | answered |
 
 ## Answers
 Owner answers received 2026-09-28 (given in one batch in the chat, recorded here verbatim in substance). "Admin-configurable" means the value is editable in the new Admin Panel, never hard-coded. Items marked NEW are new requirements, not legacy behaviour.
@@ -428,12 +428,12 @@ Copied by the main session from docs/handoffs/2026-09-28-solution-architect-to-o
 ### Q-081
 Premium in the mobile apps (ADR-016): Apple and Google require their own in-app billing for subscriptions sold inside apps. At launch, sell Premium for money on the web only, while the app allows buying Premium with points? Or add Apple/Google in-app purchase later?
 Recommendation: Web only at launch, points in the app; in-app purchase later if needed.
-**Answer:**
+**Answer (Owner, 2026-09-28):** Differs from the recommendation. Premium can also be bought directly with BOG in the mobile app, not only on the web or with points. ADR-016 must be revised. Risk noted by the main session: Apple/Google store rules may require in-app purchase for digital subscriptions sold in apps. The architect documents this risk and a fallback in ADR-016.
 
 ### Q-082
 Email 2FA trigger (ADR-002; same as P-15 in spec 01): ask for a code on a NEW or expired device only, not on an IP change alone (phones change IP often)? Q-063 said "new devices/IPs".
 Recommendation: New or expired device only.
-**Answer:**
+**Answer (Owner, 2026-09-28):** 2FA is triggered by new, unrecognized devices by default. The behaviour is fully configurable in the Admin Panel (setting S-124 `auth.two_factor.trigger`: `new_device` default, or `new_device_or_ip`).
 
 ### Q-083
 Staff reading chats (Q-015) must be disclosed to users in the terms/privacy text. Confirm, and approve the wording when it is drafted.
@@ -453,19 +453,19 @@ Recommendation: Keep, restricted as described.
 ### Q-086
 Leaked keys: who rotates the BOG secret, revokes the Binance, Pusher and findip keys, and changes the database password shown in `error_log`, and when? Doing it now also protects the live site.
 Recommendation: Do it now, before go-live; this also protects the current live site. You name who does it.
-**Answer:**
+**Answer (Owner, 2026-09-28):** Confirmed. Rotate the BOG, Pusher and database keys during the final production deployment. (Binance was removed by Q-041 and findip dropped by Q-055; their keys are revoked with the removal.) Risk noted by the main session: the keys are already in every copy of the legacy code until then.
 
 ### Q-087
 BOG merchant account: does it support signed callbacks, and is there a BOG test (sandbox) environment? Without one, staging needs real 0.01 GEL payments, each with your approval.
 Recommendation: Please check with BOG.
-**Answer:**
+**Answer (Owner, 2026-09-28):** Implement the standard BOG structure based on the available legacy code, without over-engineering payments. Provide clean interfaces and hooks so the lead developer can finalize the integration against the official BOG documentation. (The BOG signed-callback / sandbox check is left to the lead developer.)
 
 ### Q-088
 Is the `admin.mytask.ge` subdomain OK for the separate admin panel?
 Recommendation: Yes.
-**Answer:**
+**Answer (Owner, 2026-09-28):** Accepted: `admin.mytask.ge`.
 
 ### Q-089
 Hosting budget (needed only before Phase 6): about €15–35/month for one VPS plus about €5/month for S3-compatible storage, with the Cloudflare free plan. Acceptable for planning?
 Recommendation: Yes, for planning.
-**Answer:**
+**Answer (Owner, 2026-09-28):** Accepted for planning: one VPS (about €15–35/month), S3-compatible storage (about €5/month), Cloudflare free plan.

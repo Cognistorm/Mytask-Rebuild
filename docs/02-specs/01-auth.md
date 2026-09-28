@@ -1,5 +1,5 @@
 # 01 — Auth and accounts
-Status: **ready for Owner**
+Status: **approved** (Owner 2026-09-28; P-14…P-37 accepted, P-15 adjusted by Q-082)
 Author: product-analyst (P2-A2) | Date: 2026-09-28
 Legacy reference: `docs/01-discovery/features.md` BR-001…BR-008, BR-115; `roles-and-permissions.md`; `risks-and-debt.md` R-020, R-043; `notifications.md` (auth rows); `integrations.md` (social login, reCAPTCHA). Owner decisions: Q-013, Q-032, Q-042, Q-043, Q-057, Q-063, Q-072, P-4, P-7, P-8. Platform rules: `00-platform-rules.md` (settings S-052…S-069, S-091…S-093, S-100; rules R-1.4, R-5.7).
 
@@ -51,14 +51,14 @@ Let people create an account, log in and out on web and mobile, and recover or c
 ### Email verification
 - AC-7 Given a pending account and a valid, unexpired verification link, When the link is opened, Then the status becomes `active`, the email is marked verified, the link is deleted, the pending referral is processed (spec 09), and the user lands on login with `t_ur_account_has_been_successfully_verified_email`. A link for an account that is not `pending` (for example banned) changes nothing. (LEGACY BR-003; CHANGE: legacy activated any status, `VerifyComponent.php:65`)
 - AC-8 Given an expired link, When it is opened, Then the user sees `t_verification_email_link_expired` and a "resend" form. Given an unknown link, Then `t_verification_email_not_exists`. (LEGACY)
-- AC-9 Given the resend form, When a pending account's email is entered, Then all older links for that email stop working and a new `VerifyEmail` is sent (`t_a_new_verification_link_has_been_sent_to_ur_email`). When the account is not pending, Then `t_already_verified_user` is shown. Resends are limited by R-A9. (LEGACY; limit PROPOSED P-19)
+- AC-9 Given the resend form, When a pending account's email is entered, Then all older links for that email stop working and a new `VerifyEmail` is sent (`t_a_new_verification_link_has_been_sent_to_ur_email`). When the account is not pending, Then `t_already_verified_user` is shown. Resends are limited by R-A9. (LEGACY; limit ACCEPTED P-19)
 
 ### Login
 - AC-10 Given an `active` or `verified` account, When the correct email and password are submitted (and the reCAPTCHA passes if S-061 is ON), Then the user is logged in on web or mobile and returned to the page they came from, or to home. "Remember me" is ticked by default on web; mobile always stays signed in until logout. (LEGACY BR-004, `LoginComponent.php:23,144`)
 - AC-11 Given a wrong email or password, When login is submitted, Then the message is `t_invalid_login_credentials_pls_try_again`, and it is the same whether or not the email exists. (LEGACY)
 - AC-12 Given a migrated legacy user whose password hash is bcrypt `$2y$10$…`, When they log in with their old password on web and on mobile, Then login succeeds. The hash is upgraded to the new platform's algorithm in the same request (ADR-002), and the next login works with the upgraded hash. (vision "Must NOT break"; BR-005)
-- AC-13 Given a `pending` account and the correct password, When login is submitted, Then the user is not logged in and sees `t_account_pending_verification` with a "resend verification email" action (method email), or `t_account_pending_admin_review` (method admin). (PROPOSED P-16; legacy showed the generic `t_toast_something_went_wrong`)
-- AC-14 Given a `banned` account and the correct password, When login is submitted, Then the user is not logged in and sees `t_account_suspended`. (LEGACY block; PROPOSED P-16 message)
+- AC-13 Given a `pending` account and the correct password, When login is submitted, Then the user is not logged in and sees `t_account_pending_verification` with a "resend verification email" action (method email), or `t_account_pending_admin_review` (method admin). (ACCEPTED P-16; legacy showed the generic `t_toast_something_went_wrong`)
+- AC-14 Given a `banned` account and the correct password, When login is submitted, Then the user is not logged in and sees `t_account_suspended`. (LEGACY block; ACCEPTED P-16 message)
 - AC-15 Given a deleted (soft-deleted) account, When login is submitted, Then it behaves like wrong credentials (AC-11). (LEGACY)
 - AC-16 Given S-062 = 5 attempts per 15 minutes and S-063 = 15 minutes, When the same account is tried from the same IP with a wrong password 5 times within 15 minutes, Then the 6th attempt is refused even with the right password, with `t_too_many_login_attempts` showing the remaining minutes. After the lock ends, login works. A successful login resets the counter. The rule applies equally to web, mobile and direct API calls. (NEW, P-8, fixes R-043)
 - AC-17 Given the admin changes S-062 or S-063, When the next login attempt happens, Then the new values apply with no deployment. (00 AC-8)
@@ -67,28 +67,28 @@ Let people create an account, log in and out on web and mobile, and recover or c
 
 ### Email two-factor authentication (NEW, Q-043, Q-063, Q-072, P-4, P-7)
 - AC-20 Given S-056 `auth.two_factor.enabled` is ON, When a user opens Account settings → Security, Then they see the "Two-factor authentication (email)" switch, OFF by default. Given S-056 is OFF, Then the switch is hidden and the API refuses to change it.
-- AC-21 Given a user switches 2FA ON or OFF, When they confirm, Then they must first re-authenticate: current password, or, for an account without a password (social only), a 6-digit code sent to their email. On success the choice is saved and the user gets `t_2fa_enabled` / `t_2fa_disabled`. (PROPOSED P-15)
-- AC-22 Given S-056 is ON and the user has 2FA ON, When they log in with the correct password from a device that is not trusted (never confirmed, or its trust is older than S-059 days), Then no session is created yet. A 6-digit code is emailed (`t_2fa_email_subject`) and the user sees the code screen (`t_2fa_code_sent`). (Q-063 "new device/IP"; device-based definition PROPOSED P-15, aligned with ADR-002)
+- AC-21 Given a user switches 2FA ON or OFF, When they confirm, Then they must first re-authenticate: current password, or, for an account without a password (social only), a 6-digit code sent to their email. On success the choice is saved and the user gets `t_2fa_enabled` / `t_2fa_disabled`. (ACCEPTED P-15)
+- AC-22 Given S-056 is ON and the user has 2FA ON, When they log in with the correct password from a device that is not trusted (never confirmed, or its trust is older than S-059 days), Then no session is created yet. A 6-digit code is emailed (`t_2fa_email_subject`) and the user sees the code screen (`t_2fa_code_sent`). (Q-063 "new device/IP"; device-based definition ACCEPTED P-15, aligned with ADR-002)
 - AC-23 Given the code screen, When the correct code is entered within S-057 minutes (default 10), Then the login completes, and the device is remembered as trusted for S-059 days (default 30). The IP of the login is recorded in the session list (AC-43). (P-7)
-- AC-24 Given a trusted device whose trust is not older than S-059 days, When the user logs in from it, also from a different IP address, Then no code is asked. (PROPOSED P-15)
+- AC-24 Given a trusted device whose trust is not older than S-059 days, When the user logs in from it, also from a different IP address, Then no code is asked. (ACCEPTED P-15)
 - AC-25 Given the code screen, When a wrong code is entered S-058 times (default 5), Then that code stops working and the user sees `t_2fa_too_many_attempts`. They must ask for a new code. (P-7)
 - AC-26 Given a code older than S-057 minutes, When it is entered, Then it is refused with `t_2fa_code_expired`.
-- AC-27 Given the code screen, When the user taps "Send a new code", Then a new code is sent and the old one stops working. The button is disabled for 60 seconds after each send, and at most 5 codes per account are sent in 15 minutes (`t_2fa_resend_wait`). (PROPOSED P-15)
+- AC-27 Given the code screen, When the user taps "Send a new code", Then a new code is sent and the old one stops working. The button is disabled for 60 seconds after each send, and at most 5 codes per account are sent in 15 minutes (`t_2fa_resend_wait`). (ACCEPTED P-15)
 - AC-28 Given users who switched 2FA ON, When the admin switches S-056 OFF, Then those users log in without a code, and their choice is kept. When S-056 is switched back ON, Then the code is asked again under AC-22. (Q-072)
 - AC-29 Given S-060 `auth.two_factor.staff_required` is ON, When a staff member logs in to the Admin Panel from a device that is not trusted (same rule as AC-22), Then the same email-code step is required, whatever S-056 says. Given S-060 is OFF, Then no code is asked for staff. (NEW, P-4 adjusted)
-- AC-30 Given a user with 2FA ON logs in through a social provider, When the device is not trusted, Then the same code step is required before the session is created. (PROPOSED P-15)
-- AC-31 Given a user switches 2FA OFF or changes or resets their password, When this is saved, Then all their trusted devices are forgotten. (PROPOSED P-15)
+- AC-30 Given a user with 2FA ON logs in through a social provider, When the device is not trusted, Then the same code step is required before the session is created. (ACCEPTED P-15)
+- AC-31 Given a user switches 2FA OFF or changes or resets their password, When this is saved, Then all their trusted devices are forgotten. (ACCEPTED P-15)
 
 ### Password reset and change
 - AC-32 Given the "forgot password" form, When any email is submitted, Then the screen always shows `t_password_reset_link_sent_success`. A `PasswordReset` email with a link valid for S-055 minutes is sent only if an account with that email has a password and has status active, verified or pending. Older reset links for that email stop working. (LEGACY `ResetComponent.php:107-144`)
-- AC-33 Given a valid reset link, When a new password meeting R-A2 and a matching confirmation are submitted, Then the password is changed, the link is deleted, `PasswordChanged` is sent, every session of the user ends (web and mobile), and the user lands on login with `t_password_has_been_updated`. (LEGACY; password rule PROPOSED P-14)
+- AC-33 Given a valid reset link, When a new password meeting R-A2 and a matching confirmation are submitted, Then the password is changed, the link is deleted, `PasswordChanged` is sent, every session of the user ends (web and mobile), and the user lands on login with `t_password_has_been_updated`. (LEGACY; password rule ACCEPTED P-14)
 - AC-34 Given an expired reset link, When it is opened or submitted, Then `t_password_reset_link_expired` is shown and nothing changes. An unknown link goes to login. (LEGACY)
 - AC-35 Given a logged-in user on the password page, When the correct current password, a new password meeting R-A2 and a matching confirmation are submitted, Then the password changes, `PasswordChanged` is sent, all other sessions end, and the current session stays. When the current password is wrong, Then `t_ur_current_pass_does_not_match` is shown. (LEGACY `PasswordComponent.php:96-155`, `AuthenticateSession`)
-- AC-36 Given reset requests for one email or from one IP, When more than 3 are made within 1 hour, Then no further email is sent in that hour, and the screen still shows the same message. (PROPOSED P-19)
+- AC-36 Given reset requests for one email or from one IP, When more than 3 are made within 1 hour, Then no further email is sent in that hour, and the screen still shows the same message. (ACCEPTED P-19)
 
 ### Social login (Q-032)
 - AC-37 Given a provider (S-065 Google, S-066 Facebook, S-067 GitHub, S-068 LinkedIn, S-069 Twitter/X) is enabled and its keys are saved, When the login or register screen opens (web and mobile), Then that provider's button is shown. Given it is disabled or has no keys, Then no button is shown and its callback is refused. (LEGACY architecture, keys in Admin, Q-032)
-- AC-38 Given a first social login with an email that is not yet registered, When the provider returns the profile, Then an account is created with status active, email verified, both roles, the provider avatar, a username made from the nickname or name (lower-case Latin, `_` separators, with a 4-character suffix if taken), and a referral code (AC-1). A `?ref=` code carried through the flow is applied as in AC-6. (LEGACY BR-006; referral code and `?ref=` PROPOSED P-17)
+- AC-38 Given a first social login with an email that is not yet registered, When the provider returns the profile, Then an account is created with status active, email verified, both roles, the provider avatar, a username made from the nickname or name (lower-case Latin, `_` separators, with a 4-character suffix if taken), and a referral code (AC-1). A `?ref=` code carried through the flow is applied as in AC-6. (LEGACY BR-006; referral code and `?ref=` ACCEPTED P-17)
 - AC-39 Given the email already belongs to an account with a password, or to an account linked to another provider, When social login completes, Then it is refused with `t_socialite_error_email_exists`. (LEGACY BR-006)
 - AC-40 Given an existing social account whose status is banned, pending or deleted, When social login completes, Then no session is created and the same messages as AC-13…AC-15 apply. (CHANGE, fixes R-020; 00 R-1.4)
 - AC-41 Given the provider returns no email address, When social login completes, Then no account is created and `t_social_email_missing` is shown. (NEW; legacy would fail)
@@ -97,7 +97,7 @@ Let people create an account, log in and out on web and mobile, and recover or c
 - AC-42 Given a logged-in user, When they log out (web or mobile), Then the current session is ended on the server, and the device can no longer call the API with it. (LEGACY)
 - AC-43 Given the Sessions page (Account settings), When it opens, Then it lists every active session of the user: device/browser/OS, IP address, last activity, and a "This device" marker. (LEGACY `SessionsComponent.php:97-130`; now web and mobile sessions)
 - AC-44 Given the Sessions page, When the user chooses "Log out other browser sessions" and enters the correct current password (accounts without a password are not asked), Then every other session ends and the current one stays. A wrong password shows `t_ur_current_pass_does_not_match`. (LEGACY)
-- AC-45 Given staff ban a user (status `banned`), When the ban is saved, Then all sessions of that user end, and their next API call is refused with `t_account_suspended`. (PROPOSED P-16; legacy only blocked new logins)
+- AC-45 Given staff ban a user (status `banned`), When the ban is saved, Then all sessions of that user end, and their next API call is refused with `t_account_suspended`. (ACCEPTED P-16; legacy only blocked new logins)
 
 ### Restrictions, appeals and IP banning (Q-057)
 - AC-46 Given a staff member restricts a user with a message and a "files required" flag, When the restriction is saved, Then the user becomes restricted (AC-19) and receives the restriction email with the message. (LEGACY `RestrictComponent.php:89-124`)
@@ -106,7 +106,7 @@ Let people create an account, log in and out on web and mobile, and recover or c
 - AC-49 Given a submitted appeal, When staff reject it, Then the restriction becomes `rejected`, the user stays restricted, `AppealRejected` is sent, and that restriction cannot be appealed again. (LEGACY `IndexComponent.php:120-124`)
 - AC-50 Given staff delete a restriction, When the user has no other restriction left, Then the user is no longer restricted. (LEGACY `RestrictComponent.php:183-235`)
 - AC-51 Given S-064 `security.staff_login.ip_ban_threshold` = 3, When the failed staff logins from one IP reach the threshold, Then that IP is banned from the staff login, and every later staff-login request from it is refused. User logins are not affected by this ban (they are throttled by AC-16). (LEGACY BR-004, `isIpBanned.php:26`)
-- AC-52 Given a staff member with the security permission (spec 16), When they open "Banned IPs", Then they can see each banned IP with its attempt count and date, remove a ban, and add an IP by hand. (PROPOSED P-20; legacy had no screen, so a banned IP could only be cleared in the database)
+- AC-52 Given a staff member with the security permission (spec 16), When they open "Banned IPs", Then they can see each banned IP with its attempt count and date, remove a ban, and add an IP by hand. (ACCEPTED P-20; legacy had no screen, so a banned IP could only be cleared in the database)
 
 ---
 
@@ -118,7 +118,7 @@ Let people create an account, log in and out on web and mobile, and recover or c
 - Every account is buyer and freelancer (00 R-1.1). No `account_type`, no level on registration (Q-013, Q-014; legacy `level_id = 1` is dropped).
 - The Georgian/English UI language of the user does not affect login. Emails are sent in the user's current UI language (spec 15).
 
-### R-A2 Password rule — PROPOSED P-14
+### R-A2 Password rule — ACCEPTED P-14
 - 8–60 characters, with at least one uppercase Latin letter and one digit, for **register, reset and change**. Legacy used this rule only at registration (`RegisterValidator.php:24`); reset and change allowed 6+ characters (`UpdatePasswordValidator.php:26`, `EditValidator.php:26-30`).
 - Existing passwords that do not meet the rule keep working. The rule applies only when a password is set.
 - The legacy key `t_password_validation_message` exists in the code but has no value in either language file. It is added as a NEW text.
@@ -132,11 +132,11 @@ Let people create an account, log in and out on web and mobile, and recover or c
 ### R-A5 Throttling and bans
 - Users: S-062/S-063, per account + IP (NEW, P-8). Wrong 2FA codes are counted per code (S-058), not in S-062.
 - Staff: IP ban after S-064 failed logins (LEGACY), plus the 2FA of S-060.
-- Email-sending endpoints (reset request, verification resend, 2FA code): fixed limits R-A9 (PROPOSED P-19, P-15).
+- Email-sending endpoints (reset request, verification resend, 2FA code): fixed limits R-A9 (ACCEPTED P-19, P-15).
 
 ### R-A6 Two-factor authentication — NEW (Q-043, Q-063, Q-072, P-4, P-7)
 - Optional per user; available only while S-056 is ON (launch ON). The code is 6 digits, valid S-057 = 10 min, invalid after S-058 = 5 wrong tries.
-- **When a code is asked (PROPOSED P-15, same as the ADR-002 recommendation):** the user has 2FA ON, S-056 is ON, and the device is not trusted (never confirmed, or confirmed more than S-059 = 30 days ago). "Device" = a random device identifier the server issues (a secure cookie on web, an install identifier stored in the app on mobile). An IP change on a trusted device does not ask for a code, because mobile networks change IP addresses often. The alternative (also ask for a code on every new IP, the literal reading of Q-063) is listed in P-15 for the Owner.
+- **When a code is asked (ACCEPTED P-15, same as the ADR-002 recommendation):** the user has 2FA ON, S-056 is ON, and the device is not trusted (never confirmed, or confirmed more than S-059 = 30 days ago). "Device" = a random device identifier the server issues (a secure cookie on web, an install identifier stored in the app on mobile). An IP change on a trusted device does not ask for a code, because mobile networks change IP addresses often. Owner decision (Q-082): this is the DEFAULT, and the trigger is admin-configurable through setting S-124 `auth.two_factor.trigger` = `new_device` (default) or `new_device_or_ip` (also ask on every new IP).
 - A successful code marks the device as trusted for S-059 days.
 - Applies to email+password and social logins (P-15). Staff: S-060 (P-4 adjusted).
 - Resend: 60-second cooldown, at most 5 codes per account per 15 minutes (P-15). These are fixed rules, not settings.
@@ -144,14 +144,14 @@ Let people create an account, log in and out on web and mobile, and recover or c
 ### R-A7 Social login — LEGACY architecture, Q-032
 - Providers S-065…S-069. Keys are entered in the Admin Panel, write-only and encrypted (00 §4 rules; the security reviewer confirms, see P2-A1 handoff). OFF until keys exist.
 - Linking rule (LEGACY): the account is found by email + provider id. The login is refused if the email already exists with a password or with another provider.
-- Status checks on every social login (CHANGE, R-020). New social users get a referral code (PROPOSED P-17, fixes a legacy gap: `CallbackComponent.php:151-181` never sets `referral_code`).
+- Status checks on every social login (CHANGE, R-020). New social users get a referral code (ACCEPTED P-17, fixes a legacy gap: `CallbackComponent.php:151-181` never sets `referral_code`).
 
 ### R-A8 Restrictions and appeals — LEGACY (Q-057)
 - A restriction has: message, files-required flag, status `pending → submitted → approved | rejected`. One appeal per restriction. A rejected restriction cannot be appealed again. Staff may delete a restriction.
 - While restricted, the whole account is blocked (both roles, R-1.4). Scheduled jobs still run for the user's orders (auto-release, refund timers), so money flows are not frozen by a restriction.
 - Appeal files are stored privately and only staff can download them (legacy route `auth:admin`, `routes/web.php:821-824`).
 
-### R-A9 Fixed limits on email-sending endpoints — PROPOSED P-19
+### R-A9 Fixed limits on email-sending endpoints — ACCEPTED P-19
 - Password-reset requests and verification resends: at most 3 emails per email address and per IP per hour. The response text never changes (no account enumeration).
 
 ### R-A10 reCAPTCHA — LEGACY
@@ -312,7 +312,7 @@ NEW keys (English first, Georgian alongside, Q-058):
 ## Open questions
 No new questions for `open-questions.md`. Proposed items for Owner approval:
 - **P-14 Password rule everywhere.** The register rule (8–60, one uppercase letter, one digit) also applies to reset and change. Legacy allowed 6+ there. Existing passwords keep working.
-- **P-15 2FA details.** (a) A code is asked when the **device** is new or its 30-day trust has expired. A new IP on a trusted device does not ask for a code. This is the same recommendation as ADR-002 (question 2 in the P2-B1 handoff): mobile phones change IP often, so "new IP" would ask for codes very often. The alternative is the literal reading of Q-063: also ask on every new IP. Please answer once for both documents. (b) Trusted devices are forgotten when 2FA is switched off or the password changes. (c) Resend: 60 s cooldown, at most 5 codes per 15 min. (d) Switching 2FA on or off needs the current password (or an email code for social-only accounts). (e) 2FA also applies to social logins.
+- **P-15 2FA details.** (a) A code is asked when the **device** is new or its 30-day trust has expired. A new IP on a trusted device does not ask for a code. This is the same recommendation as ADR-002 (question 2 in the P2-B1 handoff): mobile phones change IP often, so "new IP" would ask for codes very often. ACCEPTED with the Owner adjustment (Q-082): new unrecognized device is the default, and the behaviour is admin-configurable (S-124: `new_device` / `new_device_or_ip`). (b) Trusted devices are forgotten when 2FA is switched off or the password changes. (c) Resend: 60 s cooldown, at most 5 codes per 15 min. (d) Switching 2FA on or off needs the current password (or an email code for social-only accounts). (e) 2FA also applies to social logins.
 - **P-16 Clear status messages and instant ban.** After a correct password, pending and banned users see a clear message (legacy showed "something went wrong"). A ban ends all sessions of that user at once (legacy only blocked new logins).
 - **P-17 Social sign-ups get a referral code, and a `?ref=` link also works for social sign-ups.** Legacy social accounts never got a referral code, so they could not invite anyone.
 - **P-19 Email-sending limits.** At most 3 reset/verification emails per email address and per IP per hour. The on-screen answer never changes.
