@@ -23,7 +23,7 @@ Phase: 2 — Blueprint (planned, not started) | Gate: not ready | Phase 1 gate: 
 - Security: all keys in .env; strict web-root isolation (logs/config never web-reachable); keep restrictions, appeals, IP banning, KYC
 
 ## In progress (agent → task)
-- none. Steps 1–4 of phase-2-plan.md are done; Step 5 (P2-A5 specs 15–17 || P2-C3 design preview) is ready to start
+- Step 5 (started 2026-09-29): P2-A5 product-analyst specs 15, 16, 17 || P2-C3 ui-ux-designer design preview page
 
 ## Blocked (reason, who must act)
 - none
@@ -45,6 +45,5 @@ Phase: 2 — Blueprint (planned, not started) | Gate: not ready | Phase 1 gate: 
 
 ## Decisions waiting for Owner
 - Approve ADR-001…016 (as revised in Step 4), the design audit, tokens and components (with the P2-C3 preview) at the Phase 2 gate
-- Review specs 08, 10, 11, 12, 13 and decide PROPOSED P-66…P-105 (P2-A4)
-- Answer Q-095…Q-104 (data migration and SEO choices from P2-B2/B3) in docs/01-discovery/open-questions.md; review data-model.md and url-map.md
+- Q-097: list the legacy admin accounts to migrate and their roles (no recommendation possible). Done 2026-09-29: specs 08, 10–13 **approved** (P-66…P-105 accepted); Q-095, Q-096, Q-098…Q-103 accepted as recommended; Q-104 deferred (not a blocker)
 - Done 2026-09-28: Q-083…Q-085 and Q-090…Q-094 answered; money specs 05, 06, 07, 09, 14 **approved** (P-38…P-65 accepted; P-46 set spec 04 to quantity always 1; S-125, S-126 added to spec 00, register now 126 rows); "M" mark approved
