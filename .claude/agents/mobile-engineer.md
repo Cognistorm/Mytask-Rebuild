@@ -13,7 +13,7 @@ It must show **exactly the same data and follow exactly the same rules** as the 
 
 ## Rules
 - Data only via `packages/api-client`. No business logic in the app beyond display/validation hints.
-- Tokens from `packages/tokens`, texts from `packages/i18n` (Georgian filled, English `""`), assets from `packages/assets`.
+- Tokens from `packages/tokens`, texts from `packages/i18n` (English and Georgian both filled (English first, Q-058)), assets from `packages/assets`.
 - Auth: secure token storage (expo-secure-store), refresh flow, logout everywhere.
 - Mobile-native behavior where it helps: push notifications (Expo), camera/gallery upload, deep links (`mytask.ge/task/123` opens the app), pull-to-refresh, offline-friendly error messages.
 - Handle slow networks and every loading/empty/error state.
