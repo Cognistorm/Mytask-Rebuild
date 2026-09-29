@@ -1,0 +1,22 @@
+{
+  "name": "@mytask/api-contract",
+  "version": "1.0.0-draft",
+  "private": true,
+  "description": "MyTask.ge API contract sources (OpenAPI 3.1). Only the solution-architect edits src/. openapi.yaml is generated.",
+  "type": "module",
+  "scripts": {
+    "build:root": "node scripts/build-root.mjs",
+    "lint": "npm run build:root && redocly lint src/openapi.root.yaml --config redocly.yaml",
+    "bundle": "npm run build:root && redocly bundle src/openapi.root.yaml --config redocly.yaml -o openapi.yaml && node scripts/stamp-bundle.mjs",
+    "lint:bundle": "redocly lint openapi.yaml --config redocly.yaml",
+    "check:contract": "node scripts/check-contract.mjs openapi.yaml",
+    "check:coverage": "node scripts/check-coverage.mjs",
+    "verify": "npm run lint && npm run bundle && npm run lint:bundle && npm run check:contract && npm run check:coverage",
+    "verify:final": "npm run lint && npm run bundle && npm run lint:bundle && node scripts/check-contract.mjs openapi.yaml --final && node scripts/check-coverage.mjs --final --markdown coverage/SUMMARY.md",
+    "verify:group": "node scripts/group-verify.mjs"
+  },
+  "devDependencies": {
+    "@redocly/cli": "2.55.0",
+    "yaml": "2.8.1"
+  }
+}

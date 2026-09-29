@@ -1,0 +1,12 @@
+# D4 — schemas for specs 06, 12, 13. STUB written by the P2-B4 foundation run; the D4 group run fills it.
+# Map of SchemaName -> Schema. Names must start with one of the D4 schemaPrefixes in src/ownership.yaml
+# (optionally preceded by "Admin"), except D4ErrorCode. Names in ../components/schemas.yaml are reserved.
+# Reference shared schemas as '../components/schemas.yaml#/Money' and own ones as '#/MySchema'.
+
+D4ErrorCode:
+  type: string
+  x-stub: true
+  description: |
+    Domain error codes of D4 (CONVENTIONS §7.3). The D4 run replaces this stub with
+    `enum: [...]` plus `x-enumDescriptions` ("[HTTP status] meaning; messageKey t_..."), using only
+    the D4 errorPrefixes from src/ownership.yaml, and removes `x-stub`.

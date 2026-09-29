@@ -1,0 +1,86 @@
+# Shared error and utility responses (foundation). Every 4xx/5xx body is the shared `Error` schema.
+# Operations reference the ones that apply (CONVENTIONS §7.2 lists the minimum set per operation type).
+
+BadRequest:
+  description: '`VALIDATION_FAILED` (field errors in `details.fields`) or `IDEMPOTENCY_KEY_REQUIRED`.'
+  headers:
+    X-Request-Id: {$ref: 'headers.yaml#/XRequestId'}
+  content:
+    application/json:
+      schema: {$ref: 'schemas.yaml#/Error'}
+      example:
+        code: VALIDATION_FAILED
+        message: შეამოწმეთ მონიშნული ველები
+        details:
+          fields:
+            - {field: title.ka, code: too_short, message: სათაური ძალიან მოკლეა, messageKey: t_title_too_short}
+
+Unauthorized:
+  description: '`UNAUTHENTICATED`: missing, expired or revoked token, or a token of the wrong audience (user vs staff).'
+  headers:
+    X-Request-Id: {$ref: 'headers.yaml#/XRequestId'}
+  content:
+    application/json:
+      schema: {$ref: 'schemas.yaml#/Error'}
+
+Forbidden:
+  description: '`FORBIDDEN` (ownership/role/staff permission), `CSRF_CHECK_FAILED`, `ACCOUNT_RESTRICTED`, `REAUTH_REQUIRED`, `FEATURE_DISABLED`, `PREMIUM_REQUIRED` or a documented domain code.'
+  headers:
+    X-Request-Id: {$ref: 'headers.yaml#/XRequestId'}
+  content:
+    application/json:
+      schema: {$ref: 'schemas.yaml#/Error'}
+
+NotFound:
+  description: '`NOT_FOUND`. Also used instead of 403 when the caller must not learn that the resource exists (e.g. hidden project for non-owners).'
+  headers:
+    X-Request-Id: {$ref: 'headers.yaml#/XRequestId'}
+  content:
+    application/json:
+      schema: {$ref: 'schemas.yaml#/Error'}
+
+Conflict:
+  description: '`STATE_CONFLICT`, `DUPLICATE`, `IDEMPOTENCY_IN_PROGRESS` or a documented domain code (e.g. `QUOTE_CHANGED`).'
+  headers:
+    X-Request-Id: {$ref: 'headers.yaml#/XRequestId'}
+    Retry-After: {$ref: 'headers.yaml#/RetryAfter'}
+  content:
+    application/json:
+      schema: {$ref: 'schemas.yaml#/Error'}
+
+UnprocessableEntity:
+  description: 'Valid request refused by a business rule: `BUSINESS_RULE_VIOLATION`, `PLAN_LIMIT_REACHED`, `INSUFFICIENT_FUNDS`, `IDEMPOTENCY_KEY_REUSED`, `FILE_*` or a documented domain code.'
+  headers:
+    X-Request-Id: {$ref: 'headers.yaml#/XRequestId'}
+  content:
+    application/json:
+      schema: {$ref: 'schemas.yaml#/Error'}
+
+TooManyRequests:
+  description: '`RATE_LIMITED` (or a documented domain throttle code). Wait `Retry-After` seconds.'
+  headers:
+    X-Request-Id: {$ref: 'headers.yaml#/XRequestId'}
+    Retry-After: {$ref: 'headers.yaml#/RetryAfter'}
+  content:
+    application/json:
+      schema: {$ref: 'schemas.yaml#/Error'}
+
+ServiceUnavailable:
+  description: '`MAINTENANCE` (S-121 ON) or `SERVICE_UNAVAILABLE`.'
+  headers:
+    X-Request-Id: {$ref: 'headers.yaml#/XRequestId'}
+    Retry-After: {$ref: 'headers.yaml#/RetryAfter'}
+  content:
+    application/json:
+      schema: {$ref: 'schemas.yaml#/Error'}
+
+NoContent:
+  description: Done; no body.
+  headers:
+    X-Request-Id: {$ref: 'headers.yaml#/XRequestId'}
+
+FoundRedirect:
+  description: 302 redirect to `Location` (e.g. a short-lived signed download URL, ADR-009 §4). Never cached.
+  headers:
+    Location: {$ref: 'headers.yaml#/Location'}
+    X-Request-Id: {$ref: 'headers.yaml#/XRequestId'}

@@ -1,0 +1,17 @@
+# D2 — paths for specs 03, 04, 07, 17 (categories, search, gigs, reviews, content and SEO).
+# STUB written by the P2-B4 foundation run. The D2 group run fills it.
+#
+# Rules (docs/04-api/CONVENTIONS.md): only path keys owned by D2 in src/ownership.yaml; a map of
+# path -> Path Item exactly like src/paths/f0-files.yaml; every path item declares the shared
+# Accept-Language parameter; every operation has operationId, summary, tags, x-permission, x-covers
+# and the shared error responses. Reference schemas only from ../components/*.yaml and
+# ../schemas/d2.yaml (never another group's schema file). Reserved operations of D2
+# (ownership.yaml "reservedOperations") must be created with exactly that operationId, method and path.
+#
+# Shape of an entry (see f0-files.yaml for complete examples):
+# /example/{exampleId}:
+#   parameters:
+#     - $ref: '../components/parameters.yaml#/AcceptLanguage'
+#   get:
+#     operationId: getExample
+#     ...

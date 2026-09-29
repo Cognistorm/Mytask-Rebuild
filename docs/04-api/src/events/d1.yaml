@@ -1,0 +1,3 @@
+# D1 — realtime (Socket.IO) events emitted for specs 00, 01, 02. STUB; the D1 group run fills it.
+# Format: docs/04-api/realtime.md §4. Payload schemas go in ../schemas/d1.yaml, named <Something>Event.
+events: []

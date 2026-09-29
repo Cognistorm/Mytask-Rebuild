@@ -1,0 +1,3 @@
+# D3 — realtime (Socket.IO) events emitted for specs 05, 09, 14. STUB; the D3 group run fills it.
+# Format: docs/04-api/realtime.md §4. Payload schemas go in ../schemas/d3.yaml, named <Something>Event.
+events: []

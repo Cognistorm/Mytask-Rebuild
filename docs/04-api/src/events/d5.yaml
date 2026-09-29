@@ -1,0 +1,3 @@
+# D5 — realtime (Socket.IO) events emitted for specs 08, 10, 11. STUB; the D5 group run fills it.
+# Format: docs/04-api/realtime.md §4. Payload schemas go in ../schemas/d5.yaml, named <Something>Event.
+events: []

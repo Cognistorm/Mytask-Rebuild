@@ -1,0 +1,3 @@
+# D6 — realtime (Socket.IO) events emitted for specs 15, 16. STUB; the D6 group run fills it.
+# Format: docs/04-api/realtime.md §4. Payload schemas go in ../schemas/d6.yaml, named <Something>Event.
+events: []

@@ -1,0 +1,12 @@
+# D2 — schemas for specs 03, 04, 07, 17. STUB written by the P2-B4 foundation run; the D2 group run fills it.
+# Map of SchemaName -> Schema. Names must start with one of the D2 schemaPrefixes in src/ownership.yaml
+# (optionally preceded by "Admin"), except D2ErrorCode. Names in ../components/schemas.yaml are reserved.
+# Reference shared schemas as '../components/schemas.yaml#/Money' and own ones as '#/MySchema'.
+
+D2ErrorCode:
+  type: string
+  x-stub: true
+  description: |
+    Domain error codes of D2 (CONVENTIONS §7.3). The D2 run replaces this stub with
+    `enum: [...]` plus `x-enumDescriptions` ("[HTTP status] meaning; messageKey t_..."), using only
+    the D2 errorPrefixes from src/ownership.yaml, and removes `x-stub`.

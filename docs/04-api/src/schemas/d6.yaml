@@ -1,0 +1,12 @@
+# D6 — schemas for specs 15, 16. STUB written by the P2-B4 foundation run; the D6 group run fills it.
+# Map of SchemaName -> Schema. Names must start with one of the D6 schemaPrefixes in src/ownership.yaml
+# (optionally preceded by "Admin"), except D6ErrorCode. Names in ../components/schemas.yaml are reserved.
+# Reference shared schemas as '../components/schemas.yaml#/Money' and own ones as '#/MySchema'.
+
+D6ErrorCode:
+  type: string
+  x-stub: true
+  description: |
+    Domain error codes of D6 (CONVENTIONS §7.3). The D6 run replaces this stub with
+    `enum: [...]` plus `x-enumDescriptions` ("[HTTP status] meaning; messageKey t_..."), using only
+    the D6 errorPrefixes from src/ownership.yaml, and removes `x-stub`.

@@ -1,0 +1,3 @@
+# D4 — realtime (Socket.IO) events emitted for specs 06, 12, 13. STUB; the D4 group run fills it.
+# Format: docs/04-api/realtime.md §4. Payload schemas go in ../schemas/d4.yaml, named <Something>Event.
+events: []

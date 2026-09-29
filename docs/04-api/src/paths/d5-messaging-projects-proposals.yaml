@@ -1,0 +1,17 @@
+# D5 — paths for specs 08, 10, 11 (messaging, projects, proposals and hiring, contracts).
+# STUB written by the P2-B4 foundation run. The D5 group run fills it.
+#
+# Rules (docs/04-api/CONVENTIONS.md): only path keys owned by D5 in src/ownership.yaml; a map of
+# path -> Path Item exactly like src/paths/f0-files.yaml; every path item declares the shared
+# Accept-Language parameter; every operation has operationId, summary, tags, x-permission, x-covers
+# and the shared error responses. Reference schemas only from ../components/*.yaml and
+# ../schemas/d5.yaml (never another group's schema file). Reserved operations of D5
+# (ownership.yaml "reservedOperations") must be created with exactly that operationId, method and path.
+#
+# Shape of an entry (see f0-files.yaml for complete examples):
+# /example/{exampleId}:
+#   parameters:
+#     - $ref: '../components/parameters.yaml#/AcceptLanguage'
+#   get:
+#     operationId: getExample
+#     ...

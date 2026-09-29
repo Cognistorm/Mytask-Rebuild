@@ -1,0 +1,12 @@
+# D5 — schemas for specs 08, 10, 11. STUB written by the P2-B4 foundation run; the D5 group run fills it.
+# Map of SchemaName -> Schema. Names must start with one of the D5 schemaPrefixes in src/ownership.yaml
+# (optionally preceded by "Admin"), except D5ErrorCode. Names in ../components/schemas.yaml are reserved.
+# Reference shared schemas as '../components/schemas.yaml#/Money' and own ones as '#/MySchema'.
+
+D5ErrorCode:
+  type: string
+  x-stub: true
+  description: |
+    Domain error codes of D5 (CONVENTIONS §7.3). The D5 run replaces this stub with
+    `enum: [...]` plus `x-enumDescriptions` ("[HTTP status] meaning; messageKey t_..."), using only
+    the D5 errorPrefixes from src/ownership.yaml, and removes `x-stub`.
