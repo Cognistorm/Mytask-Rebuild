@@ -1,9 +1,9 @@
 # 15 — Notifications (catalogue, channels, notification centre, preferences, push)
-Status: **ready for Owner**
+Status: **approved** (Owner 2026-09-29; P-106…P-113 accepted)
 Author: product-analyst (P2-A5) | Date: 2026-09-29
 Legacy reference: `docs/01-discovery/notifications.md` (every email class, every in-app text key, every direct mailable: all accounted for below); `features.md` BR-120; `risks-and-debt.md`; `roles-and-permissions.md` ("System admin inbox"). Owner decisions: Q-013, Q-016, Q-026, Q-033, Q-036, Q-043, Q-058, Q-065, Q-066, Q-076, Q-100, Q-103. Platform rules: `00-platform-rules.md` §4.15 (S-100 `notifications.admin_recipients`, S-101 `notifications.push.enabled`, S-102 `notifications.sms.enabled`), S-043/S-044 (renewal reminder), X-01, X-06, X-07, X-11, X-18; ACCEPTED P-11 (push). Specs 01–14 (each owns the trigger of its notifications; this spec does not repeat their ACs), 16 (admin screens), 17 (content notifications). ADR-007 §8–§12 (NotificationService, channels, catalogue test), ADR-006 §2 (user locale), data-model §1 ("Writes that must notify": outbox) and §3.O (`notifications`, `push_tokens`, `notification_preferences`, `notification_deliveries`), url-map §7.2 (deep links, email links).
 
-Tags: **LEGACY**, **CHANGE** (Q-ID), **NEW** (Q-ID), **PROPOSED** (P-106…P-113, see "Open questions").
+Tags: **LEGACY**, **CHANGE** (Q-ID), **NEW** (Q-ID), **ACCEPTED** (P-106…P-113, see "Open questions").
 
 Legacy code traced for this spec (read-only):
 - In-app helper `app/Utils/Helper/helpers.php:1530-1553` (`notification()` stores `user_id`, text key, action URL, params).
@@ -40,51 +40,51 @@ One catalogue that says, for every event on the platform, who is told, on which 
 - AC-1 Given any event in the catalogue matrix below, When it occurs, Then exactly the listed recipients get exactly the listed channels with the listed template and text keys; no other notification is sent. A catalogue test fails the build if a legacy row marked "kept" or "merged" has no catalogue entry, or if an entry has no template in both `ka` and `en`. (NEW, ADR-007 §8)
 - AC-2 Given the business action that triggers a notification is rolled back (validation error, failed payment, lost race), When the request ends, Then no email, push or in-app row is produced; notifications are dispatched only from committed outbox events. (CHANGE, fixes D-15-5; data-model §1)
 - AC-3 Given the same event is processed twice (retry, callback replay, double click), When it is dispatched, Then each recipient gets at most one in-app row, one email and one push for it. (CHANGE, fixes D-15-6: legacy sent `SubscriptionConfirmation` twice for points, `SubscriptionController.php:60,106`)
-- AC-4 Given an email or push send fails at the provider, When the worker retries, Then it retries up to 5 times with growing delays (about 1 minute to 1 hour); each attempt and the final status (`sent`, `failed`, `suppressed`) is recorded in the delivery log (kept 90 days). A failure on one channel never stops the other channels or the business action. (NEW ADR-007 §9, PROPOSED P-109)
+- AC-4 Given an email or push send fails at the provider, When the worker retries, Then it retries up to 5 times with growing delays (about 1 minute to 1 hour); each attempt and the final status (`sent`, `failed`, `suppressed`) is recorded in the delivery log (kept 90 days). A failure on one channel never stops the other channels or the business action. (NEW ADR-007 §9, ACCEPTED P-109)
 - AC-5 Given a notification links to an item, When the in-app row is stored, Then it stores the locale-free target path (url-map §7.2); web adds the reader's `/en/` prefix when needed and mobile opens the matching screen. (NEW ADR-007, data-model §3.O)
 
 ### Email (SendGrid, Q-033; logo Q-076)
 - AC-6 Given a user notification email, When it is rendered, Then subject and body use the **recipient's** saved language (`ka` or `en`); if none is saved, `ka`. The language of the person who triggered the event does not matter. (CHANGE, fixes D-15-2: legacy used the site language, and forced `ka` for renewals)
-- AC-7 Given an admin notification, When it is sent, Then one separate email goes to each address in S-100 (recipients never see each other's addresses), rendered in the default language S-103 (`ka`). (CHANGE Q-026, X-18; language PROPOSED P-109)
+- AC-7 Given an admin notification, When it is sent, Then one separate email goes to each address in S-100 (recipients never see each other's addresses), rendered in the default language S-103 (`ka`). (CHANGE Q-026, X-18; language ACCEPTED P-109)
 - AC-8 Given any email, When it is rendered, Then it uses the current MyTask logo (Q-076) and design tokens, has an HTML and a plain-text part, a footer with Terms, Privacy and Contact links (spec 17) and the reason line `t_email_footer_reason`; emails of switchable categories (AC-27) also carry `t_email_footer_optout` with a one-click link (AC-30) and a `List-Unsubscribe` header. (CHANGE Q-076; NEW footer P-106)
 - AC-9 Given an email contains a link, When it is built, Then it is an https link to `mytask.ge` with the recipient's language prefix (url-map §7.2), which opens the app when installed and the website otherwise. (NEW url-map §7.2)
 - AC-10 Given the environment, When emails are sent, Then staging/production use SendGrid through the API key in `.env` (`SENDGRID_API_KEY`, `MAIL_FROM_ADDRESS`, `MAIL_FROM_NAME`, names only in `.env.example`), and local development delivers every email to Mailpit; no email leaves a local machine. (Q-033, Q-042; ADR-007 §9, CLAUDE.md rule 7)
-- AC-11 Given SendGrid reports a hard bounce or spam complaint for an address, When the event webhook arrives, Then the address is marked undeliverable on the user, later non-security emails to it are recorded as `suppressed`, and staff see a warning on the user page (spec 16). Security emails (verification, password reset, 2FA, email change) are still attempted. The mark is cleared when the user changes or re-verifies the email. (NEW, PROPOSED P-109)
+- AC-11 Given SendGrid reports a hard bounce or spam complaint for an address, When the event webhook arrives, Then the address is marked undeliverable on the user, later non-security emails to it are recorded as `suppressed`, and staff see a warning on the user page (spec 16). Security emails (verification, password reset, 2FA, email change) are still attempted. The mark is cleared when the user changes or re-verifies the email. (NEW, ACCEPTED P-109)
 
 ### In-app notification centre (web and mobile)
 - AC-12 Given a logged-in user, When any page (web header) or the app (bell icon on the main tab bar screens) is shown, Then the bell shows the number of unread notifications (99+ above 99) and updates in real time when a new one arrives. (LEGACY bell, realtime NEW ADR-007)
-- AC-13 Given the user opens the bell (web: dropdown with the 10 newest and "See all"; `/account/notifications` full page; mobile: Notifications screen), When the list loads, Then it shows read and unread notifications, newest first, 20 per page (cursor): the text rendered from its key and parameters in the reader's **current** language, relative time (absolute on hover), and an unread dot. Empty: `t_no_notification_right_now`. (CHANGE: legacy showed unread only, D-15-4; PROPOSED P-107)
+- AC-13 Given the user opens the bell (web: dropdown with the 10 newest and "See all"; `/account/notifications` full page; mobile: Notifications screen), When the list loads, Then it shows read and unread notifications, newest first, 20 per page (cursor): the text rendered from its key and parameters in the reader's **current** language, relative time (absolute on hover), and an unread dot. Empty: `t_no_notification_right_now`. (CHANGE: legacy showed unread only, D-15-4; ACCEPTED P-107)
 - AC-14 Given a notification in the list, When the user taps it, Then it is marked read and the target opens (web page, or app screen). "Mark as read" on one item (`t_mark_as_read`, LEGACY) and "Mark all as read" (`t_mark_all_as_read`, NEW) are also available; the unread count updates on every open tab and device. (LEGACY + NEW P-107)
 - AC-15 Given a notification parameter contains HTML or script (e.g. a gig title `<b>x</b>`), When it is shown, Then it is displayed as plain text; no notification text is ever rendered as HTML. (CHANGE, fixes D-15-3)
 - AC-16 Given the target no longer exists or the user lost access (gig deleted, project hidden), When the user taps the notification, Then it is marked read and the destination shows its normal not-found or empty state; the app does not crash. (NEW)
-- AC-17 Given an in-app notification older than 12 months, When the nightly clean-up runs, Then it is deleted. (NEW, PROPOSED P-107, same window as Q-100)
-- AC-18 Given the legacy migration, When it runs, Then only legacy in-app notifications of the last 12 months are imported (Q-100): text key → `text_key`, params → JSON, action URL rewritten to the new path (url-map §10), `is_seen` → `read_at`. Rows whose key belongs to a removed feature (`t_u_became_a_seller`, `t_reject_milestone`, `t_subject_employer_freelancer_requested_a_milestone`, `t_u_have_new_message_from_username`, `t_notification_username_has_accpted_ur_offer`, `t_notification_username_has_rejected_ur_offer`) are not imported; rows with a merged key are imported under the key they merge into. (Q-100; mapping PROPOSED P-107)
+- AC-17 Given an in-app notification older than 12 months, When the nightly clean-up runs, Then it is deleted. (NEW, ACCEPTED P-107, same window as Q-100)
+- AC-18 Given the legacy migration, When it runs, Then only legacy in-app notifications of the last 12 months are imported (Q-100): text key → `text_key`, params → JSON, action URL rewritten to the new path (url-map §10), `is_seen` → `read_at`. Rows whose key belongs to a removed feature (`t_u_became_a_seller`, `t_reject_milestone`, `t_subject_employer_freelancer_requested_a_milestone`, `t_u_have_new_message_from_username`, `t_notification_username_has_accpted_ur_offer`, `t_notification_username_has_rejected_ur_offer`) are not imported; rows with a merged key are imported under the key they merge into. (Q-100; mapping ACCEPTED P-107)
 
 ### Push (NEW, P-11; ADR-007 §9)
-- AC-19 Given S-101 is ON and a user is logged in to the mobile app, When the app first reaches the home screen after login, Then it shows a short explanation (`t_push_permission_title`, `t_push_permission_body`) with "Allow" and "Not now" before the system permission dialog; "Not now" asks again at most once every 30 days, and Account → Notifications has a "Turn on push notifications" link to the device settings. (NEW, PROPOSED P-108)
+- AC-19 Given S-101 is ON and a user is logged in to the mobile app, When the app first reaches the home screen after login, Then it shows a short explanation (`t_push_permission_title`, `t_push_permission_body`) with "Allow" and "Not now" before the system permission dialog; "Not now" asks again at most once every 30 days, and Account → Notifications has a "Turn on push notifications" link to the device settings. (NEW, ACCEPTED P-108)
 - AC-20 Given the user allows push, When the app registers, Then the API stores one token per app installation (user, installation id, platform, token, language, app version, last seen); if another user logs in on the same installation, the token moves to that user. (NEW, data-model §3.O `push_tokens`)
 - AC-21 Given the user logs out in the app, When logout completes, Then the token of that installation is removed. Given the account is banned, deleted or all sessions are ended by the user or staff, Then all its tokens are removed. (NEW P-108)
 - AC-22 Given Expo reports a token as no longer registered, When the receipt is processed, Then the token is disabled; tokens not seen for 90 days are removed. (NEW ADR-007 §9, P-108)
-- AC-23 Given an event whose trigger spec lists push, When it fires and S-101 is ON and the user has at least one token and has not switched push off for that category, Then a push is sent to each installation with: title `t_push_title_default` (MyTask), body = the in-app text of the event in the language stored on the token, and the target path; chat pushes use `t_push_new_message` without the message text (spec 08 AC-24); 2FA codes are never pushed. Pushes of the same target collapse into one (chat: per conversation). (NEW P-11, PROPOSED P-108)
+- AC-23 Given an event whose trigger spec lists push, When it fires and S-101 is ON and the user has at least one token and has not switched push off for that category, Then a push is sent to each installation with: title `t_push_title_default` (MyTask), body = the in-app text of the event in the language stored on the token, and the target path; chat pushes use `t_push_new_message` without the message text (spec 08 AC-24); 2FA codes are never pushed. Pushes of the same target collapse into one (chat: per conversation). (NEW P-11, ACCEPTED P-108)
 - AC-24 Given a push is tapped, When the app opens, Then it opens the target screen; if the user is logged out, the login screen opens first and then the target. (NEW url-map §7.2)
-- AC-25 Given S-101 is OFF, When any event fires, Then no push is sent; tokens are kept, so pushes resume when S-101 is switched back ON. The app icon badge (iOS, supported Android launchers) shows unread notifications plus conversations with unseen messages. (NEW P-11, badge PROPOSED P-108)
+- AC-25 Given S-101 is OFF, When any event fires, Then no push is sent; tokens are kept, so pushes resume when S-101 is switched back ON. The app icon badge (iOS, supported Android launchers) shows unread notifications plus conversations with unseen messages. (NEW P-11, badge ACCEPTED P-108)
 
 ### SMS-ready (S-102, vision "SMS: none")
 - AC-26 Given S-102 is OFF (default), When any event fires, Then nothing is sent by SMS; the SMS channel exists only as an interface with a no-op provider, and no catalogue event is mapped to SMS at launch (the matrix marks candidate events `o`). Given a staff member tries to switch S-102 ON while no SMS provider is configured, Then the save is refused with `t_sms_provider_not_configured`. 2FA codes are email only (spec 01) and are marked `×` (never SMS). (NEW, ADR-007 §9)
 
-### Preferences (PROPOSED P-106; ADR-007 §12)
+### Preferences (ACCEPTED P-106; ADR-007 §12)
 - AC-27 Given Account settings → Notifications (web `/account/settings/notifications`; mobile Account → Notifications), When it opens, Then it lists the switchable categories with an Email and a Push switch each: **Messages** (offline chat email EV-48, chat push EV-49), **New projects in my categories** (EV-56; email only), **Reviews** (EV-47), **Referral points** (EV-55; push only). Below them, a locked "Always on" group explains that order, payment, account and security notifications cannot be turned off (`t_notification_category_locked_hint`). In-app notifications are always created. (NEW P-106)
 - AC-28 Given a user switched a category's channel off, When an event of that category fires, Then that channel is not sent (delivery log `suppressed`, reason "preference"); the in-app row is still created. (NEW P-106)
 - AC-29 Given a new or migrated user, When they have not changed anything, Then every switch is ON (legacy sends everything). (P-106)
 - AC-30 Given an email of a switchable category, When the recipient clicks the footer link or uses the mail client's unsubscribe, Then, without logging in (signed link valid 30 days), that category's email switch is turned off and `t_unsubscribed_success` is shown with a link to the preferences page. (NEW P-106)
 
 ### Admin notifications (Q-026)
-- AC-31 Given any admin notification in the matrix (category A), When it fires, Then it goes to every address in S-100 (AC-7); S-100 must keep at least one valid address (00 EC-9) and invalid addresses are refused at save; every change of S-100 is audited and triggers EV-124 to both the old and the new list. (CHANGE Q-026, X-18; alert PROPOSED P-111)
+- AC-31 Given any admin notification in the matrix (category A), When it fires, Then it goes to every address in S-100 (AC-7); S-100 must keep at least one valid address (00 EC-9) and invalid addresses are refused at save; every change of S-100 is audited and triggers EV-124 to both the old and the new list. (CHANGE Q-026, X-18; alert ACCEPTED P-111)
 - AC-32 Given a staff member with `settings.notifications.write` on the S-100 screen, When they press "Send test email" (EV-121) and enter an address, Then a test email is sent through the live transport and the result (sent / failed with the provider message) is shown. (LEGACY `SmtpComponent.php:296`; CHANGE: tests SendGrid from `.env`, not admin-entered SMTP credentials, P-113)
 
 ### Rate limits and throttles
 - AC-33 Given the existing throttles, When events repeat, Then they apply unchanged: offline chat email once per 10 minutes per sender → recipient (BR-120, spec 08 AC-23); refund-thread emails per spec 13 P-101; 2FA resend wait (spec 01); verification and password-reset resend limits (spec 01); contact form and newsletter sign-up limits (spec 17). (LEGACY + earlier specs)
-- AC-34 Given a user would receive more than 30 emails or more than 60 pushes within one hour (all categories except security), When the next one fires, Then it is not sent (delivery log `suppressed`, reason "rate cap"), its in-app row is still created, and staff can see the suppression in the delivery log. Security emails are never capped. (NEW safety cap, PROPOSED P-110)
+- AC-34 Given a user would receive more than 30 emails or more than 60 pushes within one hour (all categories except security), When the next one fires, Then it is not sent (delivery log `suppressed`, reason "rate cap"), its in-app row is still created, and staff can see the suppression in the delivery log. Security emails are never capped. (NEW safety cap, ACCEPTED P-110)
 
 ### Removed and merged items
 - AC-35 Given any legacy item marked **removed** in the accounting tables, When the platform runs, Then that notification is never sent and its template does not exist in the catalogue. (00 AC-26)
@@ -92,8 +92,8 @@ One catalogue that says, for every event on the platform, who is told, on which 
 
 ### Maintenance, staff and system notices (spec 16)
 - AC-37 Given a staff member switches S-121 maintenance mode ON, When it is saved, Then `Admin/SiteIsDown` goes to every S-100 address with who switched it on and when; it contains no bypass secret (staff preview the public site from their admin session, spec 16). (LEGACY E-18; CHANGE P-112, fixes D-15-8)
-- AC-38 Given a staff account is created, When it is saved, Then the invitation email (EV-123) with a single-use set-password link valid 48 hours goes to the staff member's address. (NEW, spec 16, PROPOSED P-111)
-- AC-39 Given a timer job (auto-release, award expiry, refund auto-reject, renewal, reminder, offer expiry) has not finished successfully for 15 minutes, or more than 20% of emails failed in the last hour, When the health check runs (every 5 minutes), Then EV-125 goes to S-100, at most once per problem per hour. (NEW, spec 16, PROPOSED P-111)
+- AC-38 Given a staff account is created, When it is saved, Then the invitation email (EV-123) with a single-use set-password link valid 48 hours goes to the staff member's address. (NEW, spec 16, ACCEPTED P-111)
+- AC-39 Given a timer job (auto-release, award expiry, refund auto-reject, renewal, reminder, offer expiry) has not finished successfully for 15 minutes, or more than 20% of emails failed in the last hour, When the health check runs (every 5 minutes), Then EV-125 goes to S-100, at most once per problem per hour. (NEW, spec 16, ACCEPTED P-111)
 
 ---
 
@@ -273,9 +273,9 @@ One row per event. Legend — **E** email, **I** in-app, **P** push (NEW P-11; o
 | EV-120 | Staff send an email to a user or a newsletter subscriber | that person | ✓ | – | – | – | `StaffEmail` (staff-written subject and text inside the branded layout) | M-1, M-2 (merged) | kept | T | 16 AC-32; 17 AC-33 |
 | EV-121 | Staff "Send test email" | address entered | ✓ | – | – | – | `TestEmail` `t_test_email_subject` | M-3 | kept (CHANGE: SendGrid test) | A | 15 AC-32; 16 |
 | EV-122 | Maintenance mode switched ON (S-121) | S-100 | ✓ | – | – | – | `Admin/SiteIsDown` `t_hi_admin`, body `t_admin_maintenance_on_body` | E-18 | kept (CHANGE: no secret, P-112) | A | 15 AC-37; 16 AC-70 |
-| EV-123 | Staff account created | staff member | ✓ | – | – | – | `StaffInvitation` `t_subject_staff_invitation` | – | **NEW** (PROPOSED P-111) | S | 16 AC-3 |
-| EV-124 | Critical setting changed (any fee rule, S-100, S-110, S-127, S-033, S-025, S-056/S-060, social-login keys) | S-100 (old and new list when S-100 changes) | ✓ | – | – | – | `Admin/CriticalSettingChanged` `t_subject_admin_critical_setting_changed` | – | **NEW** (PROPOSED P-111) | A | 16 AC-55, AC-56 |
-| EV-125 | Timer job stuck for 15 minutes, or email failure rate above 20% in an hour | S-100 | ✓ | – | – | – | `Admin/SystemAlert` `t_subject_admin_system_alert` | – | **NEW** (PROPOSED P-111) | A | 15 AC-39; 16 AC-69 |
+| EV-123 | Staff account created | staff member | ✓ | – | – | – | `StaffInvitation` `t_subject_staff_invitation` | – | **NEW** (ACCEPTED P-111) | S | 16 AC-3 |
+| EV-124 | Critical setting changed (any fee rule, S-100, S-110, S-127, S-033, S-025, S-056/S-060, social-login keys) | S-100 (old and new list when S-100 changes) | ✓ | – | – | – | `Admin/CriticalSettingChanged` `t_subject_admin_critical_setting_changed` | – | **NEW** (ACCEPTED P-111) | A | 16 AC-55, AC-56 |
+| EV-125 | Timer job stuck for 15 minutes, or email failure rate above 20% in an hour | S-100 | ✓ | – | – | – | `Admin/SystemAlert` `t_subject_admin_system_alert` | – | **NEW** (ACCEPTED P-111) | A | 15 AC-39; 16 AC-69 |
 
 Rule for push (P-11): push accompanies the in-app notification of the same event **only where the trigger spec lists push**; this matrix copies the trigger specs (EV-108 and EV-114 have no push because specs 13 and 14 list none).
 
@@ -365,7 +365,7 @@ Every row of the inventory, one line per email class, in-app key and direct mail
 | E-76 | User/Seller/RefundRequest | kept | EV-93 |
 | E-77 | User/Seller/ReviewReceived | kept | EV-47 |
 | E-78 | User/Seller/YouBecameSeller | **removed** — "Become a seller" removed (Q-013, X-06) | – |
-| E-79 | User/Everyone/Welcome | **removed** — never sent in legacy (dead class); not built (PROPOSED P-113) | – |
+| E-79 | User/Everyone/Welcome | **removed** — never sent in legacy (dead class); not built (ACCEPTED P-113) | – |
 
 ### Direct mailables (`app/Mail`, 7)
 | ID | Legacy mailable (call sites) | Status | → |
@@ -445,7 +445,7 @@ Every row of the inventory, one line per email class, in-app key and direct mail
 | In-app text keys | 55 | 42 | 7 | 6 |
 | **Total** | **141** | **120** | **8** | **13** |
 
-**NEW events: 42** — 39 defined in specs 01–14 (EV-06, 11, 12, 22, 23, 26, 29, 30, 31, 32, 36, 41, 44, 46, 49, 52, 53, 55, 57, 67, 68, 71, 74, 76, 77, 78, 79, 83, 84, 85, 88, 89, 91, 96, 104, 106, 108, 109, 114) and 3 PROPOSED here for specs 15/16 (EV-123, EV-124, EV-125). In addition, NEW channels on kept events: push on every kept event with in-app (P-11); in-app on EV-27, EV-58, EV-59, EV-63, EV-64; email on EV-102, EV-103 (P-102). Recipient changes: EV-47 (also buyers), EV-80 (buyer), EV-82 (freelancer). Catalogue total: 125 events.
+**NEW events: 42** — 39 defined in specs 01–14 (EV-06, 11, 12, 22, 23, 26, 29, 30, 31, 32, 36, 41, 44, 46, 49, 52, 53, 55, 57, 67, 68, 71, 74, 76, 77, 78, 79, 83, 84, 85, 88, 89, 91, 96, 104, 106, 108, 109, 114) and 3 ACCEPTED here for specs 15/16 (EV-123, EV-124, EV-125). In addition, NEW channels on kept events: push on every kept event with in-app (P-11); in-app on EV-27, EV-58, EV-59, EV-63, EV-64; email on EV-102, EV-103 (P-102). Recipient changes: EV-47 (also buyers), EV-80 (buyer), EV-82 (freelancer). Catalogue total: 125 events.
 
 ---
 
@@ -478,7 +478,7 @@ None. Notifications never move money.
 Accessibility: the bell has an accessible name with the count ("Notifications, 3 unread"); the unread dot has text; switches have labels; touch targets ≥ 44 px (tokens).
 
 ## Notifications triggered
-This spec is the catalogue. Its own NEW items: EV-123 staff invitation, EV-124 critical setting changed, EV-125 system alert (all PROPOSED P-111), plus the changed EV-121 test email and EV-122 maintenance email.
+This spec is the catalogue. Its own NEW items: EV-123 staff invitation, EV-124 critical setting changed, EV-125 system alert (all ACCEPTED P-111), plus the changed EV-121 test email and EV-122 maintenance email.
 
 ## Texts (i18n key | en | ka)
 Legacy keys reused (values unchanged):
