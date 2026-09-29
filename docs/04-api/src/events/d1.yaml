@@ -1,3 +1,20 @@
-# D1 — realtime (Socket.IO) events emitted for specs 00, 01, 02. STUB; the D1 group run fills it.
-# Format: docs/04-api/realtime.md §4. Payload schemas go in ../schemas/d1.yaml, named <Something>Event.
-events: []
+# D1 — realtime (Socket.IO) events for specs 00, 01, 02. Format: docs/04-api/realtime.md §4.
+# Payload schemas are in ../schemas/d1.yaml. `session.*` are sent by the gateway itself (realtime.md §5).
+events:
+  - name: session.revoked
+    room: 'user:{userId}'
+    payload: SessionRevokedEvent
+    emittedBy: [logout, completePasswordReset, changeMyPassword, revokeMyOtherSessions, deleteMe, adminBanUser, adminRevokeUserSessions, adminDeleteUser]
+    covers: ['01 AC-42', '01 AC-45']
+    description: Sent to the sockets of the revoked session only (filtered by `sid`), then they are disconnected. `reason = ban` → the client shows `t_account_suspended`.
+  - name: session.expired
+    room: 'user:{userId}'
+    payload: SessionExpiredEvent
+    emittedBy: ['job:realtime-gateway-token-expiry']
+    description: The access token of this socket expired; the client calls `refreshSession` and reconnects. Emitted by the Socket.IO gateway, not by a REST operation.
+  - name: account.updated
+    room: 'user:{userId}'
+    payload: AccountUpdatedEvent
+    emittedBy: [confirmEmailChange, updateMyProfile, putMyAvatar, deleteMyAvatar, adminUpdateUser, adminDeleteUserAvatar, adminActivateUser, adminCreateRestriction, adminDeleteRestriction, adminApproveRestrictionAppeal, adminRejectRestrictionAppeal, adminApproveKycVerification, adminDeclineKycVerification]
+    covers: ['01 AC-19']
+    description: The own account changed (restriction, status, KYC, email, profile); clients re-read `getMe` (a restricted user is sent to the Restrictions centre at once).

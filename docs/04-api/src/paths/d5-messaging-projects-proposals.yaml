@@ -1,17 +1,2260 @@
-# D5 — paths for specs 08, 10, 11 (messaging, projects, proposals and hiring, contracts).
-# STUB written by the P2-B4 foundation run. The D5 group run fills it.
+# D5 — paths for specs 08 (messaging), 10 (projects), 11 (proposals and hiring), plus the spec 16 ACs
+# delegated to D5 (19, 22, 23, 31, 38, 65). Written by the P2-B4 D5 group run, 2026-09-29.
+# Conventions: docs/04-api/CONVENTIONS.md. Realtime events: src/events/d5.yaml.
 #
-# Rules (docs/04-api/CONVENTIONS.md): only path keys owned by D5 in src/ownership.yaml; a map of
-# path -> Path Item exactly like src/paths/f0-files.yaml; every path item declares the shared
-# Accept-Language parameter; every operation has operationId, summary, tags, x-permission, x-covers
-# and the shared error responses. Reference schemas only from ../components/*.yaml and
-# ../schemas/d5.yaml (never another group's schema file). Reserved operations of D5
-# (ownership.yaml "reservedOperations") must be created with exactly that operationId, method and path.
-#
-# Shape of an entry (see f0-files.yaml for complete examples):
-# /example/{exampleId}:
-#   parameters:
-#     - $ref: '../components/parameters.yaml#/AcceptLanguage'
-#   get:
-#     operationId: getExample
-#     ...
+# Cross-group boundaries (CONVENTIONS §5):
+# - Every thread (Inbox, order-item delivery thread, project thread, custom-offer thread, refund thread)
+#   is a D5 conversation; other groups embed ConversationRef and use the reserved operations below.
+# - Paying a contract is D3's checkout (CheckoutTarget purpose `contract_payment`); delivery, revision
+#   requests and completion are D4's `/escrows/{escrowId}` operations. D5 writes neither.
+# - Reports are created here (projects, proposals); the one staff queue is D6 `/admin/reports`.
+
+# ═════════════════════════ Conversations (spec 08) ═════════════════════════
+/conversations:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: listConversations
+    summary: List the caller's Inbox (direct conversations)
+    description: |
+      The Inbox list (spec 08 AC-19): the caller's **direct** conversations only (item threads never
+      appear, R-M2, AC-28), newest message first, **30 per load** (default `limit` 30). Conversations
+      without any message and conversations the caller removed from their list (until a new message
+      arrives, AC-26) are not listed. "Saved messages" is listed like a contact (`isSavedMessages`).
+      `q` searches only the caller's own contacts by username or full name (contains, case-insensitive;
+      nobody outside the caller's conversations is found, AC-21). `favorite=true` returns the Favourites
+      row (AC-20). Online dots come from `counterpart.user.isOnline` (server-set, AC-17).
+      Errors: 403 ACCOUNT_RESTRICTED (spec 08 AC-5).
+    tags: [Conversations]
+    x-permission:
+      audience: user
+      ownership: caller's own direct conversations only
+    x-covers: ['08 AC-4', '08 AC-17', '08 AC-19', '08 AC-20', '08 AC-21']
+    parameters:
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/Limit'
+      - name: q
+        in: query
+        required: false
+        description: Search text (username or full name of the other participant).
+        schema: {type: string, minLength: 1, maxLength: 100}
+      - name: favorite
+        in: query
+        required: false
+        description: '`true` = only favourite contacts.'
+        schema: {type: boolean}
+    responses:
+      '200':
+        description: One page of the Inbox.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d5.yaml#/ConversationSummaryPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+  post:
+    operationId: createConversation
+    summary: Open (find or start) the direct conversation with a user
+    description: |
+      Opens the caller's direct conversation with another user (profile "Contact me", gig "Contact
+      seller", project "Chat now", proposal card chat, `/inbox/u/{username}`; spec 08 AC-1). Idempotent:
+      if it exists it is returned with `200`; otherwise it is created and returned with `201` (it appears
+      in the Inbox list only after the first message). Target = the caller → "Saved messages" (AC-4).
+      `projectId` opens the conversation with the project's client without revealing a masked username
+      to the caller beforehand (spec 10 AC-17, spec 02 AC-41). Chat is **not** Premium-gated (Q-069b,
+      AC-2). A **new** conversation with a banned, deleted, restricted or pending account is refused with
+      `422 CONVERSATION_RECIPIENT_UNAVAILABLE` (`t_user_cannot_receive_messages`); an existing one is
+      returned read-only (AC-3, P-69).
+      Errors: 403 ACCOUNT_RESTRICTED; 404 NOT_FOUND (unknown username, project not visible to the
+      caller); 422 CONVERSATION_RECIPIENT_UNAVAILABLE.
+    tags: [Conversations]
+    x-permission:
+      audience: user
+      ownership: none (any active user may open a conversation with any other active or verified user, R-M1)
+    x-covers: ['08 AC-1', '08 AC-2', '08 AC-3', '08 AC-4']
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d5.yaml#/ConversationCreateRequest'}
+    responses:
+      '200':
+        description: The existing conversation.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d5.yaml#/Conversation'}
+      '201':
+        description: The conversation was created.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d5.yaml#/Conversation'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+/conversations/lookup:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: lookupConversation
+    summary: Find the caller's direct conversation with a user (legacy Inbox links)
+    description: |
+      Read-only lookup used by the web to redirect legacy Chatify links `/inbox/{legacyUserId}` (301 to
+      `/inbox/{conversationId}`, url-map §5) and to resolve `/inbox/u/{username}` without creating
+      anything. Give exactly one of `legacyUserId` or `username`. `404` when the caller has no
+      conversation with that user (the web then goes to `/inbox`, or calls `createConversation`).
+    tags: [Conversations]
+    x-permission:
+      audience: user
+      ownership: caller's own direct conversations only; others get 404
+    x-covers: []
+    x-covers-note: Legacy URL support (url-map §5 `/inbox/{id}` → `/inbox/{conversationId}`); the chat ACs are covered by createConversation / getConversation.
+    parameters:
+      - name: legacyUserId
+        in: query
+        required: false
+        description: Legacy numeric user id of the other participant (Chatify `/inbox/{id}`).
+        schema: {type: integer, format: int64, minimum: 1}
+      - name: username
+        in: query
+        required: false
+        schema: {type: string, minLength: 1, maxLength: 60}
+    responses:
+      '200':
+        description: The conversation.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d5.yaml#/Conversation'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/conversations/unread-summary:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: getConversationUnreadSummary
+    summary: Unread badge of the Inbox
+    description: |
+      The header / Inbox tab badge (spec 08 AC-18): number of Inbox conversations with at least one
+      unseen message. Updated in real time by `conversation.unread_count_changed`; clients re-read it on
+      app resume and socket reconnect. The app icon badge also adds unread notifications (D6, spec 15
+      AC-25).
+    tags: [Conversations]
+    x-permission:
+      audience: user
+      ownership: self
+    x-covers: ['08 AC-18']
+    responses:
+      '200':
+        description: Badge value.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d5.yaml#/ConversationUnreadSummary'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+/conversations/{conversationId}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: conversationId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: getConversation
+    summary: Get a conversation or item thread (participants only)
+    description: |
+      Any kind: the Inbox conversation (header, info panel, read-only state, offer buttons) or an item
+      thread (order item 06 AC-40/41, project 11 AC-40, custom offer 12 AC-24, refund 13 AC-21), which
+      the item page links through its `ConversationRef` (spec 08 AC-28). Only the participants may read
+      it; everyone else gets `404` (never 403). The client joins the socket room
+      `conversation:{conversationId}` after this call (same policy, realtime.md §3).
+      Read-only (AC-3, AC-33, thread closed): `isReadOnly`, `readOnlyReason`, `canSend = false`.
+      "Create an offer" / "Request an offer" (AC-27): `offerActions` (S-034).
+    tags: [Conversations]
+    x-permission:
+      audience: user
+      ownership: participant of the conversation; others get 404
+    x-covers: ['08 AC-1', '08 AC-3', '08 AC-17', '08 AC-22', '08 AC-27', '08 AC-28', '08 AC-33', '11 AC-40']
+    x-settings: [S-034, S-094]
+    responses:
+      '200':
+        description: The conversation.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d5.yaml#/Conversation'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+  patch:
+    operationId: updateConversation
+    summary: Star or unstar a contact (Favourites)
+    description: Per-user setting on a direct conversation (spec 08 AC-20). Refused with `409 STATE_CONFLICT` for item threads.
+    tags: [Conversations]
+    x-permission:
+      audience: user
+      ownership: participant of the conversation; others get 404
+    x-covers: ['08 AC-20']
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d5.yaml#/ConversationUpdateRequest'}
+    responses:
+      '200':
+        description: The updated conversation.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d5.yaml#/Conversation'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+/conversations/{conversationId}/remove-from-list:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: conversationId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: removeConversationFromList
+    summary: Remove a conversation from my Inbox list
+    description: |
+      "Remove from my list" (`t_remove_from_my_list`, spec 08 AC-26, P-67): hides the direct conversation
+      for the caller only; nothing is deleted, the other person keeps it, and it comes back when a new
+      message arrives. Refused with `409 STATE_CONFLICT` for item threads.
+    tags: [Conversations]
+    x-permission:
+      audience: user
+      ownership: participant of the conversation; others get 404
+    x-covers: ['08 AC-26']
+    x-emits: [conversation.updated]
+    responses:
+      '204': {$ref: '../components/responses.yaml#/NoContent'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+/conversations/{conversationId}/read:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: conversationId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: markConversationRead
+    summary: Mark messages as seen up to a message
+    description: |
+      Called by web and mobile only while the conversation is actually shown (open conversation, web tab
+      or app in the foreground; spec 08 AC-15, R-M5). Seen is one-way: an older id than the stored one
+      is ignored. Emits `conversation.read` (ticks turn "seen" for the sender) and the new badge value.
+      Staff reads never mark messages as seen.
+    tags: [Conversations]
+    x-permission:
+      audience: user
+      ownership: participant of the conversation; others get 404
+    x-covers: ['08 AC-15', '08 AC-18']
+    x-emits: [conversation.read, conversation.unread_count_changed]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d5.yaml#/ConversationReadRequest'}
+    responses:
+      '200':
+        description: The caller's read state.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d5.yaml#/ConversationReadState'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/conversations/{conversationId}/messages:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: conversationId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: listConversationMessages
+    summary: List messages of a conversation (participants only)
+    description: |
+      Without `after`: newest first, **30 per page** (default `limit` 30), older pages with `cursor` while
+      scrolling up (spec 08 AC-14); clients show them oldest-to-newest with date separators.
+      With `after` (a message id the client already has): messages newer than it, **oldest first** — used
+      after a socket reconnect or app resume to fetch what was missed (ADR-007 §4, EC-9).
+      Deleted and hidden messages keep their place with `state` and no content (AC-25, AC-31). Offer and
+      request cards are `offer_card` / `request_card` messages whose details come from D4 (AC-27).
+    tags: [Conversations]
+    x-permission:
+      audience: user
+      ownership: participant of the conversation; others get 404
+    x-covers: ['08 AC-14', '08 AC-15', '08 AC-25', '08 AC-27', '08 AC-28', '11 AC-40']
+    parameters:
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/Limit'
+      - name: after
+        in: query
+        required: false
+        description: Return only messages newer than this message id, oldest first (catch-up).
+        schema: {$ref: '../components/schemas.yaml#/Uuid'}
+    responses:
+      '200':
+        description: One page of messages.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d5.yaml#/MessagePage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+  post:
+    operationId: createConversationMessage
+    summary: Send a message (Inbox or item thread)
+    description: |
+      One write path for every thread (ADR-007 §2). Stores the message with a server id (UUIDv7) and time,
+      then emits `message.created` to the conversation room after commit (spec 08 AC-6). Idempotent by
+      `clientMessageId` (per sender): a retry returns the stored message with `200` and never creates a
+      duplicate.
+
+      Rules by conversation kind:
+      - `direct` (spec 08): text ≤ 5,000 characters (`t_message_too_long`) and/or one attachment; empty
+        text without a file → `VALIDATION_FAILED` `t_enter_your_message` (AC-7). Attachments only while
+        S-094 is ON, else `403 FEATURE_DISABLED` (`details.settingId` S-094, AC-9); the file must be a
+        `ready` `chat_attachment` of the caller for this conversation (type in S-095 ∪ S-096, size ≤
+        S-097, checked at upload, AC-8). Saved messages never notify.
+      - `order_item` (06 AC-40/41), `project` (11 AC-40), `custom_offer` (12 AC-24): text only, 1–750
+        characters, only while the item is open (awaiting payment/in progress/delivered/revision requested
+        for contracts; in progress/delivered/revision for order items and offers); afterwards
+        `403 CONVERSATION_READ_ONLY`.
+      - `refund` (13 AC-21): text only, 1–750, while the request is pending, rejected by the seller or
+        disputed; buyer and freelancer write, staff use `adminCreateConversationMessage`.
+      Read-only conversations (other account inactive or deleted, AC-3, AC-33) → `403 CONVERSATION_READ_ONLY`.
+
+      Notifications (spec 15, sent by the notification worker after commit): direct → EV-48 email only
+      when the recipient has no open web/app connection, at most once per 10 minutes per sender →
+      recipient pair, in the recipient's language (AC-23) and EV-49 push without the text when S-101 is
+      ON and the app is not in the foreground, collapsed per conversation (AC-24); order thread → EV-45
+      (buyer writes) / EV-46 (freelancer writes); project thread → EV-77; offer thread → EV-89; refund
+      thread → EV-100 (email throttled 10 minutes per sender per request) and EV-101 while disputed.
+      No in-app notification rows for direct messages (spec 08 "Notifications triggered").
+      A new message returns a conversation removed from the recipient's list (AC-26).
+      Errors: 400 VALIDATION_FAILED; 403 ACCOUNT_RESTRICTED, CONVERSATION_READ_ONLY, FEATURE_DISABLED;
+      404 NOT_FOUND; 422 FILE_NOT_READY, FILE_PURPOSE_MISMATCH; 429 RATE_LIMITED (`t_sending_too_fast`,
+      more than 30 messages per minute, AC-12).
+    tags: [Conversations]
+    x-permission:
+      audience: user
+      ownership: participant of the conversation (for item threads, the buyer/client or freelancer of the item); others get 404
+      notes: attachments need S-094 ON (checked only when `attachmentFileId` is sent)
+    x-covers: ['08 AC-3', '08 AC-6', '08 AC-7', '08 AC-8', '08 AC-9', '08 AC-12', '08 AC-23', '08 AC-24', '08 AC-28', '11 AC-40']
+    x-rate-limit: 30 messages / 1 min per user (spec 08 AC-12, P-66)
+    x-settings: [S-094, S-095, S-096, S-097, S-101]
+    x-notifications: [EV-45, EV-46, EV-48, EV-49, EV-77, EV-89, EV-100, EV-101]
+    x-emits: [message.created, conversation.updated, conversation.unread_count_changed]
+    x-jobs: [email, push, in-app-realtime]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d5.yaml#/MessageCreateRequest'}
+    responses:
+      '200':
+        description: Replay of an earlier send with the same `clientMessageId` (the stored message).
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d5.yaml#/Message'}
+      '201':
+        description: The message was stored.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d5.yaml#/Message'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+      '429': {$ref: '../components/responses.yaml#/TooManyRequests'}
+
+/conversations/{conversationId}/messages/{messageId}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: conversationId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+    - name: messageId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  delete:
+    operationId: deleteConversationMessage
+    summary: Delete an own message the recipient has not seen yet
+    description: |
+      Sender "Delete" (spec 08 AC-25, P-67, R-M8): allowed only for the caller's own visible message that
+      the other participant has **not seen**; afterwards `409 MESSAGE_ALREADY_SEEN`
+      (`t_message_seen_cannot_delete`, also when seen was stored first in a race, EC-4). Nothing is
+      destroyed: both users see `t_message_deleted`, the attachment is no longer downloadable by them,
+      and staff still see the original marked "deleted by sender". Emits `message.updated`.
+    tags: [Conversations]
+    x-permission:
+      audience: user
+      ownership: sender of the message (participant); others get 404
+    x-covers: ['08 AC-25']
+    x-emits: [message.updated]
+    responses:
+      '204': {$ref: '../components/responses.yaml#/NoContent'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+/conversations/{conversationId}/attachments:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: conversationId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: listConversationAttachments
+    summary: List files shared in a conversation (info panel)
+    description: 'Info panel "Shared photos" (`t_shared_photos`, empty `t_nothing_shared_yet`; spec 08 AC-22): visible attachments of the conversation, newest first. `type=image` (default) lists images only.'
+    tags: [Conversations]
+    x-permission:
+      audience: user
+      ownership: participant of the conversation; others get 404
+    x-covers: ['08 AC-22']
+    parameters:
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/Limit'
+      - name: type
+        in: query
+        required: false
+        schema:
+          type: string
+          enum: [image, file, all]
+          default: image
+    responses:
+      '200':
+        description: One page of attachments.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d5.yaml#/MessageAttachmentItemPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+# ═════════════════════════ Projects (spec 10) ═════════════════════════
+/projects:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: listProjects
+    summary: List the caller's own projects (Buying → Projects)
+    description: |
+      Buying → Projects (spec 10 AC-23): the caller's projects (all statuses except `deleted`), newest
+      first, with status, budget, active proposals, views (AC-21), posted date, the current contract
+      (Pay, Leave a review) and the next `actions`. Filter chips map to `status` values: pending approval
+      → `pending_approval`; active → `active`; hired/in progress → `hired`; completed → `completed`;
+      closed/refunded → `closed`, `refunded`; rejected → `rejected` (hidden projects appear under "all").
+      Public browsing lists ("Latest projects", explore by category/skill) are D2's search (spec 03 AC-32…AC-34).
+    tags: [Projects]
+    x-permission:
+      audience: user
+      ownership: project owner (client) — the caller's own projects only
+      toggles: [S-075]
+    x-covers: ['10 AC-21', '10 AC-23']
+    parameters:
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/Limit'
+      - name: status
+        in: query
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: array
+          items: {$ref: '../schemas/d5.yaml#/ProjectStatus'}
+    responses:
+      '200':
+        description: One page of the caller's projects.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d5.yaml#/ProjectListItemPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+  post:
+    operationId: createProject
+    summary: Post a project
+    description: |
+      Post form of spec 10 (AC-2…AC-10). Validation: title and description per `ProjectTitleInput` /
+      `ProjectDescriptionInput` (Georgian-field character set of spec 00 R-5.3a, PROPOSED P-136; English
+      without Georgian letters); category must be a project category; skills of that category only, each
+      once, at most S-076 (`t_max_allowed_skills_reached`); thumbnail a `ready` `project_thumbnail` file
+      (jpg/jpeg/png ≤ S-078 MB); budget min ≥ 1.00 GEL (`t_budget_min_too_low`) and min < max
+      (`t_max_project_price_must_be_greater`). No budget type (always fixed, Q-035), no promotions (X-03),
+      no posting payment while S-016 is OFF (AC-10).
+      Creates a unique random 6-digit `pid` (retry on collision, R-P8) and a slug from the Georgian title.
+      Status: `active` when S-072 is ON (launch; `t_ur_project_created_success`), else `pending_approval`
+      (`t_ur_project_created_and_pending_approval`, admin email EV-57 to every S-100 address, AC-11).
+      On first activation the category email EV-56 is queued once (AC-19).
+      Plan limit (AC-9): open projects (pending approval + active without accepted award) ≥ S-003
+      (Standard) / S-004 (Premium) → `422 PLAN_LIMIT_REACHED` (`t_plan_project_limit_reached`;
+      unlimited by default).
+      Errors: 400 VALIDATION_FAILED; 403 ACCOUNT_RESTRICTED, FEATURE_DISABLED (S-075); 422
+      PLAN_LIMIT_REACHED, FILE_NOT_READY, FILE_PURPOSE_MISMATCH.
+    tags: [Projects]
+    x-permission:
+      audience: user
+      ownership: none (any active user may post, Q-013)
+      toggles: [S-075]
+    x-covers: ['10 AC-2', '10 AC-3', '10 AC-4', '10 AC-5', '10 AC-6', '10 AC-7', '10 AC-8', '10 AC-9', '10 AC-10', '10 AC-11', '10 AC-19']
+    x-settings: [S-003, S-004, S-016, S-072, S-075, S-076, S-078]
+    x-notifications: [EV-56, EV-57]
+    x-jobs: [email]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d5.yaml#/ProjectCreateRequest'}
+    responses:
+      '201':
+        description: The created project (owner view).
+        headers:
+          Location: {$ref: '../components/headers.yaml#/Location'}
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d5.yaml#/Project'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+/projects/lookup:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: lookupProject
+    summary: Get a project page by its public number (pid)
+    description: |
+      Same result and visibility rules as `getProject`, looked up by the 6-digit `pid` of
+      `/project/{pid}/{slug}` (CONVENTIONS §3.1). The web answers 301 to the current slug when the
+      requested slug differs from `slug`, and to `/project/{pid}/{slug}` when the slug is missing (spec 10
+      AC-15, url-map §4.2).
+    tags: [Projects]
+    security: [{}, {userBearer: []}, {userCookie: []}]
+    x-permission:
+      audience: optional-user
+      ownership: public for active, closed, hired, completed and refunded projects; owner only for pending, rejected and hidden; others get 404
+      toggles: [S-075]
+    x-covers: ['10 AC-15', '10 AC-16']
+    parameters:
+      - name: pid
+        in: query
+        required: true
+        schema: {type: string, pattern: '^[0-9]{6}$'}
+    responses:
+      '200':
+        description: The project page.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d5.yaml#/Project'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/projects/{projectId}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: projectId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: getProject
+    summary: Get a project page
+    description: |
+      The project page (spec 10 AC-15…AC-18). Visible to anyone when active, closed, hired, completed or
+      refunded; only to the owner when pending approval (`t_project_pending_approval_notice`), rejected
+      or hidden (`t_project_hidden_by_staff`); `404` for everyone else and for deleted projects (staff use
+      `adminGetProject`). English requests without English text return the Georgian content with
+      `contentLocale: ka` (HTTP 200, AC-16). The client's username is masked unless the viewer is the
+      owner or has active Premium (R-P6, 02 AC-41); the average of active proposals is shown only to the
+      owner and Premium users (P-78). `viewer` tells what the caller may do: bid (or why not, AC-18;
+      spec 11 AC-1, AC-2, AC-7), see proposals (spec 11 AC-10), edit, close, delete, report.
+    tags: [Projects]
+    security: [{}, {userBearer: []}, {userCookie: []}]
+    x-permission:
+      audience: optional-user
+      ownership: public for active, closed, hired, completed and refunded projects; owner only for pending, rejected and hidden; others get 404
+      toggles: [S-075]
+    x-covers: ['10 AC-11', '10 AC-14', '10 AC-15', '10 AC-16', '10 AC-17', '10 AC-18', '11 AC-1', '11 AC-10']
+    responses:
+      '200':
+        description: The project page.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d5.yaml#/Project'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+  patch:
+    operationId: updateProject
+    summary: Edit an own project
+    description: |
+      Allowed while the project is `pending_approval`, `rejected`, or `active` **with no award** (none
+      waiting, none accepted) (spec 10 AC-24, P-74); otherwise `409 STATE_CONFLICT` (AC-27, EC-8
+      `t_order_status_changed`). Same validation as `createProject`. After saving: back to
+      `pending_approval` when S-072 is OFF (`t_ur_project_updated_and_pending_approval`, EV-57), else it
+      stays (or becomes, for rejected projects) `active` (`t_ur_project_updated_successfully`). `pid` never
+      changes; a changed Georgian title changes `slug` and the old URL redirects (301). Proposals keep
+      their amounts. Never sends a second category email (AC-20).
+      Errors: 400 VALIDATION_FAILED; 403 ACCOUNT_RESTRICTED, FEATURE_DISABLED; 404; 409 STATE_CONFLICT;
+      422 FILE_NOT_READY.
+    tags: [Projects]
+    x-permission:
+      audience: user
+      ownership: project owner (client); others get 404
+      toggles: [S-075]
+    x-covers: ['10 AC-3', '10 AC-4', '10 AC-5', '10 AC-6', '10 AC-7', '10 AC-11', '10 AC-13', '10 AC-20', '10 AC-24', '10 AC-27']
+    x-settings: [S-072, S-075, S-076, S-078]
+    x-notifications: [EV-57]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d5.yaml#/ProjectUpdateRequest'}
+    responses:
+      '200':
+        description: The updated project (owner view).
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d5.yaml#/Project'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+  delete:
+    operationId: deleteProject
+    summary: Delete an own project without proposals
+    description: |
+      Allowed only for a project with no proposals (other than withdrawn ones) and no payment, in status
+      `pending_approval`, `rejected` or `active` (spec 10 AC-26, P-75). The project becomes `deleted`: it
+      leaves every list and its page answers 404 for everyone except staff (kept for audit, reports stay,
+      EC-10). With proposals → `422 PROJECT_HAS_PROPOSALS` (close it instead); hired, completed, refunded
+      → `409 STATE_CONFLICT` (AC-27).
+    tags: [Projects]
+    x-permission:
+      audience: user
+      ownership: project owner (client); others get 404
+      toggles: [S-075]
+    x-covers: ['10 AC-26', '10 AC-27']
+    responses:
+      '204': {$ref: '../components/responses.yaml#/NoContent'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+/projects/{projectId}/close:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: projectId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: closeProject
+    summary: Close an own project for proposals
+    description: |
+      "Close project" (spec 10 AC-25, P-75): an `active` project with no **accepted** award becomes
+      `closed` (`t_project_closed_success`): no new proposals, a pending award is revoked exactly as
+      `revokeAward` (the freelancer gets EV-67 `t_award_withdrawn`), the page stays public with
+      `t_this_project_is_closed_for_bidding`, it leaves "Latest projects" lists, and it cannot be
+      reopened. Compare-and-set: if the award was accepted meanwhile → `409 STATE_CONFLICT`
+      (`t_order_status_changed`, EC-8); hired, completed or refunded → `409` (AC-27).
+    tags: [Projects]
+    x-permission:
+      audience: user
+      ownership: project owner (client); others get 404
+      toggles: [S-075]
+    x-covers: ['10 AC-25', '10 AC-27']
+    x-notifications: [EV-67]
+    x-emits: [project.status_changed, award.status_changed]
+    responses:
+      '200':
+        description: The closed project (owner view).
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d5.yaml#/Project'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+/projects/{projectId}/views:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: projectId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: recordProjectView
+    summary: Count a visit of a project page
+    description: |
+      Sent by the web page (in the browser, not during SSR) and the app when a project page is shown
+      (spec 10 AC-21). Counted at most once per `visitorId` per project per 15 minutes; requests
+      recognised as bots (user agent) are not counted; the owner's own views are not counted. Always
+      answers `204` for visible projects (no information about whether it counted). No third-party IP
+      lookup (Q-055).
+    tags: [Projects]
+    security: [{}, {userBearer: []}, {userCookie: []}]
+    x-permission:
+      audience: optional-user
+      ownership: none (any visitor of a visible project; hidden/pending projects of others → 404)
+      toggles: [S-075]
+    x-covers: ['10 AC-21']
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d5.yaml#/ProjectViewCreateRequest'}
+    responses:
+      '204': {$ref: '../components/responses.yaml#/NoContent'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/projects/{projectId}/reports:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: projectId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: createProjectReport
+    summary: Report a project
+    description: |
+      Spec 10 AC-22: a logged-in non-owner reports a visible project with a reason (`reason_1…6`) and a
+      description (1–1,500). Saved into the one staff queue (D6 `adminListReports`, P-118) and
+      `Admin/ProjectReported` (EV-60) goes to every S-100 address. The owner gets `403 FORBIDDEN`
+      (`t_u_cannot_report_ur_own_projects`); a second report by the same user while the first is not yet
+      reviewed gets `409 DUPLICATE` (`t_u_already_reported_this_project`). Guests get 401 (clients show
+      `t_pls_login_or_register_report_project`). Success text `t_we_have_received_bid_report_success`.
+    tags: [Projects]
+    x-permission:
+      audience: user
+      ownership: any logged-in user except the project owner
+    x-covers: ['10 AC-22']
+    x-notifications: [EV-60]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d5.yaml#/ProjectReportCreateRequest'}
+    responses:
+      '201':
+        description: The report was saved.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d5.yaml#/ProjectReport'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+/projects/{projectId}/proposals:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: projectId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: listProjectProposals
+    summary: List the proposals of a project (who sees what is enforced here)
+    description: |
+      Proposals section of the project page (spec 11 AC-10, AC-11). The project owner and users with
+      active Premium get every **active** proposal (with the "Awarded" chip) → `visibility: all`
+      (staff use `adminListProposals`). Everyone else (guests, Standard users) gets only their own
+      proposal on this project in any status, if any → `visibility: own_only`; they see the count from
+      `getProject` and `t_warning_bids_limit`. Migrated sealed/sponsored proposals are listed like every
+      other proposal; upgrades do not exist (AC-8, X-04).
+      Sort (AC-11): `newest` (default), `oldest`, `fastest` (fewest days), `cheapest` (lowest amount);
+      ties newest first.
+    tags: [Proposals]
+    security: [{}, {userBearer: []}, {userCookie: []}]
+    x-permission:
+      audience: optional-user
+      ownership: project visible to the caller (see getProject); details only for the owner and active Premium users, own proposal for its author
+      toggles: [S-075]
+    x-covers: ['10 AC-17', '11 AC-8', '11 AC-10', '11 AC-11']
+    parameters:
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/Limit'
+      - name: sort
+        in: query
+        required: false
+        schema:
+          type: string
+          enum: [newest, oldest, fastest, cheapest]
+          default: newest
+    responses:
+      '200':
+        description: One page of proposals.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d5.yaml#/ProposalPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+  post:
+    operationId: createProposal
+    summary: Send a proposal (Premium only)
+    description: |
+      "Bid on this project" (spec 11 AC-1…AC-7). **Active Premium is required at request time**, whatever
+      the client sends → `403 PREMIUM_REQUIRED` (AC-2, R-H1, EC-1). Refusals (AC-7, R-1.3):
+      own project → `403 FORBIDDEN` `t_u_cant_submit_bids_to_urself`; a non-withdrawn proposal of the caller
+      exists → `409 DUPLICATE` `t_u_already_submitted_a_bid_to_this_project`; the caller declined an award
+      on this project → `409 DUPLICATE` (P-82; see handoff for the message); award waiting or accepted →
+      `409 STATE_CONFLICT` `t_u_cant_submit_bids_to_this_project`; project not active →
+      `409 STATE_CONFLICT` `t_project_not_active_to_send_proposals`.
+      Validation (AC-3, AC-4): amount ≥ 1.00 GEL, ≤ 10 characters, inside budget min…max inclusive
+      (`t_pls_insert_bid_value_between_budget`, field `amount`); days 1–365 (`t_validator_proposal_days`);
+      revisions 0…S-041 (`t_validator_revisions_range`); message 1–3,500 plain text.
+      Status: `active` when S-073 is ON (launch; `t_ur_bid_has_been_posted`; client gets EV-61), else
+      `pending_approval` (`t_ur_bid_has_been_posted_pending_approval`; EV-62 to every S-100 address; the
+      client is notified only on approval) (AC-6).
+    tags: [Proposals]
+    x-permission:
+      audience: user
+      ownership: any user except the project owner
+      plan: premium
+      toggles: [S-075]
+    x-covers: ['11 AC-1', '11 AC-2', '11 AC-3', '11 AC-4', '11 AC-6', '11 AC-7']
+    x-settings: [S-041, S-073, S-075]
+    x-notifications: [EV-61, EV-62]
+    x-emits: [proposal.status_changed]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d5.yaml#/ProposalCreateRequest'}
+    responses:
+      '201':
+        description: The created proposal.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d5.yaml#/Proposal'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+/projects/{projectId}/proposal-earnings:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: projectId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: getProposalEarnings
+    summary: '"Paid to you" preview for a proposal amount'
+    description: |
+      Computes P′ = amount − freelancer project commission with the Commission & Fee module (S-015,
+      ADR-005) for the proposal form (spec 11 AC-5, `t_bid_paid_to_you_tooltip`); today P′ = amount.
+      Clients never compute fees. No state change; not Premium-gated (the form itself is).
+    tags: [Proposals]
+    x-permission:
+      audience: user
+      ownership: none (project visible to the caller)
+      toggles: [S-075]
+    x-covers: ['11 AC-5']
+    x-settings: [S-015]
+    parameters:
+      - name: amount
+        in: query
+        required: true
+        description: Proposal amount in integer tetri (Money.amount).
+        schema: {type: integer, format: int64, minimum: 1}
+    responses:
+      '200':
+        description: The preview.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d5.yaml#/ProposalEarningsPreview'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+# ═════════════════════════ Proposals (spec 11) ═════════════════════════
+/proposals:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: listProposals
+    summary: List the caller's own proposals (Selling → Proposals)
+    description: |
+      Selling → Proposals (spec 11 AC-14): the caller's proposals newest first, **42 per page** (default
+      `limit` 42), with project, amount, days, revisions, `displayStatus` (pending approval, active,
+      awarded, accepted, declined, rejected, withdrawn, hire canceled, not selected) and actions (Edit,
+      Withdraw) in `viewer`. Empty: `t_no_proposals_yet`.
+    tags: [Proposals]
+    x-permission:
+      audience: user
+      ownership: author of the proposals (caller's own only)
+    x-covers: ['11 AC-14']
+    parameters:
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/Limit'
+      - name: status
+        in: query
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: array
+          items: {$ref: '../schemas/d5.yaml#/ProposalStatus'}
+    responses:
+      '200':
+        description: One page of the caller's proposals (`visibility` is always `own_only`).
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d5.yaml#/ProposalPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+/proposals/{proposalId}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: proposalId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: getProposal
+    summary: Get a proposal
+    description: |
+      The author sees their proposal in any status (edit form, spec 11 AC-12); the project owner and
+      users with active Premium see it while it is active or awarded/accepted (spec 11 AC-10). Everyone
+      else gets `404`. Also resolves `/seller/proposals/{proposalUid}/edit` via `uid`.
+    tags: [Proposals]
+    security: [{}, {userBearer: []}, {userCookie: []}]
+    x-permission:
+      audience: optional-user
+      ownership: author (any status); project owner and active Premium users (active/awarded/accepted); others get 404
+    x-covers: ['11 AC-10']
+    responses:
+      '200':
+        description: The proposal.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d5.yaml#/Proposal'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+  patch:
+    operationId: updateProposal
+    summary: Edit an own proposal (Premium only)
+    description: |
+      Spec 11 AC-12 (P-81, P-83): the author's proposal in `pending_approval`, `active` or `rejected`, on a
+      project that is active with no award; otherwise `409 STATE_CONFLICT`. Requires active Premium
+      (`403 PREMIUM_REQUIRED`, EC-2). Same validation as `createProposal`. The proposal returns to
+      `pending_approval` when S-073 is OFF (EV-62); a rejected proposal becomes active again when S-073
+      is ON. The client is **not** notified again (P-83).
+    tags: [Proposals]
+    x-permission:
+      audience: user
+      ownership: author of the proposal; others get 404
+      plan: premium
+      toggles: [S-075]
+    x-covers: ['11 AC-3', '11 AC-4', '11 AC-12']
+    x-settings: [S-041, S-073]
+    x-notifications: [EV-62]
+    x-emits: [proposal.status_changed]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d5.yaml#/ProposalUpdateRequest'}
+    responses:
+      '200':
+        description: The updated proposal.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d5.yaml#/Proposal'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+/proposals/{proposalId}/withdraw:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: proposalId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: withdrawProposal
+    summary: Withdraw an own proposal
+    description: |
+      "Withdraw proposal" (spec 11 AC-13, P-82): the author's proposal that is not awarded (pending,
+      active or rejected) becomes `withdrawn`; it leaves the project's list and counts and stays in the
+      author's list. The author may send a new proposal while the project is open. Premium is not
+      required. Awarded, accepted or declined proposals → `409 STATE_CONFLICT` (decline the award
+      instead); a concurrent award wins by compare-and-set (EC-3, `t_order_status_changed`).
+    tags: [Proposals]
+    x-permission:
+      audience: user
+      ownership: author of the proposal; others get 404
+    x-covers: ['11 AC-13']
+    x-emits: [proposal.status_changed]
+    responses:
+      '200':
+        description: The withdrawn proposal.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d5.yaml#/Proposal'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+/proposals/{proposalId}/reports:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: proposalId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: createProposalReport
+    summary: Report a proposal
+    description: |
+      Spec 11 AC-15: a logged-in user who can see an **active** proposal and is not its author reports it
+      with a reason (`reason_1…4`) and a description (1–1,500). Saved into the one staff queue (D6
+      `adminListReports`); `Admin/BidReported` (EV-65) goes to every S-100 address. The author gets
+      `403 FORBIDDEN` (`t_u_cannot_report_ur_own_bids`); a second unreviewed report by the same user
+      `409 DUPLICATE` (`t_u_already_reported_this_bid`). Success `t_we_have_received_bid_report_success`.
+    tags: [Proposals]
+    x-permission:
+      audience: user
+      ownership: a user who can see the proposal (owner, Premium), except its author; others get 404
+    x-covers: ['11 AC-15']
+    x-notifications: [EV-65]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d5.yaml#/ProposalReportCreateRequest'}
+    responses:
+      '201':
+        description: The report was saved.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d5.yaml#/ProposalReport'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+# ═════════════════════════ Awards (spec 11 AC-16…AC-24) ═════════════════════════
+/awards:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: listAwards
+    summary: List awards of the caller (as freelancer or client)
+    description: |
+      `role=freelancer` (default): the awarded proposals of Selling → Projects with the countdown to
+      `expiresAt` and Accept / Decline (spec 11 AC-24); `role=client`: awards the caller made. Filter
+      `status` (e.g. `pending`). 42 per page (default `limit` 42).
+    tags: [Proposals]
+    x-permission:
+      audience: user
+      ownership: freelancer or client of the award (caller's own only)
+    x-covers: ['11 AC-24']
+    parameters:
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/Limit'
+      - name: role
+        in: query
+        required: false
+        schema:
+          type: string
+          enum: [freelancer, client]
+          default: freelancer
+      - name: status
+        in: query
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: array
+          items: {$ref: '../schemas/d5.yaml#/AwardStatus'}
+    responses:
+      '200':
+        description: One page of awards.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d5.yaml#/AwardPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+  post:
+    operationId: createAward
+    summary: Award a proposal (project owner)
+    description: |
+      "Award" (spec 11 AC-16…AC-19, R-H4). The owner of an `active` project awards an `active` proposal:
+      the proposal becomes `awarded` with `expiresAt` = now + S-027 hours (stored with
+      `acceptanceHours`; later S-027 changes do not touch it, AC-23), the project shows "Awarded —
+      waiting for the freelancer", new proposals are closed, and the freelancer gets EV-66 stating the
+      deadline (`:hours`). If another award is pending it is replaced (`moved`): that proposal returns to
+      `active` and its freelancer gets EV-67 `t_award_withdrawn` (AC-17). Re-awarding the same proposal
+      later gets a fresh deadline (EC-9).
+      Refusals (AC-19): owner restricted → `403 ACCOUNT_RESTRICTED`; project closed, hidden or not active,
+      or an award already accepted → `409 STATE_CONFLICT` `t_project_is_not_open_for_bid`; proposal not
+      active → `409 STATE_CONFLICT` `t_this_bid_is_not_active_yet`. Concurrent withdraw → compare-and-set
+      (EC-3).
+    tags: [Proposals]
+    x-permission:
+      audience: user
+      ownership: project owner (client) of the proposal's project; others get 404
+      toggles: [S-075]
+    x-covers: ['10 AC-14', '11 AC-16', '11 AC-17', '11 AC-19', '11 AC-23']
+    x-settings: [S-027]
+    x-notifications: [EV-66, EV-67]
+    x-emits: [award.status_changed, proposal.status_changed]
+    x-jobs: [award-expiry]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d5.yaml#/AwardCreateRequest'}
+    responses:
+      '201':
+        description: The award.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d5.yaml#/Award'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+/awards/{awardId}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: awardId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: getAward
+    summary: Get an award (freelancer or client)
+    description: The accept / decline dialog with its countdown (spec 11 AC-20, AC-21, AC-24), opened from Selling → Projects or the EV-66 notification link.
+    tags: [Proposals]
+    x-permission:
+      audience: user
+      ownership: freelancer or client of the award; others get 404
+    x-covers: ['11 AC-24']
+    responses:
+      '200':
+        description: The award.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d5.yaml#/Award'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/awards/{awardId}/revoke:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: awardId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: revokeAward
+    summary: Revoke a pending award (project owner)
+    description: |
+      "Revoke" (spec 11 AC-18): only the project owner, only while the award is `pending`; the ownership
+      check runs before anything changes. The award becomes `revoked`, the proposal returns to `active`,
+      proposals reopen, and the freelancer gets EV-67 `t_award_withdrawn`. Not pending →
+      `409 STATE_CONFLICT` (`t_this_bid_is_not_awarded_to_revoke_it`). Success
+      `t_u_have_success_revoked_this_bid`.
+    tags: [Proposals]
+    x-permission:
+      audience: user
+      ownership: project owner (client) of the award; others get 404
+    x-covers: ['11 AC-18']
+    x-notifications: [EV-67]
+    x-emits: [award.status_changed, proposal.status_changed]
+    responses:
+      '200':
+        description: The revoked award.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d5.yaml#/Award'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+/awards/{awardId}/accept:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: awardId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: acceptAward
+    summary: Accept an award (freelancer) — creates the contract
+    description: |
+      "Accept" (spec 11 AC-20, BR-059): in one transaction the award becomes `accepted`, the proposal
+      `accepted`, a contract is created in `awaiting_payment` with a snapshot (amount P, days, revisions,
+      fee rule versions for P′ and Fb, client and freelancer) and its single payment line
+      (`contract_payments` sequence 1, kind `full`), the project becomes `hired`, and the project thread
+      (conversation kind `project`) is created. The client gets EV-69 linking to the payment page. No
+      milestone request; Premium is not required. Returns the contract.
+      After `expiresAt` → `409 AWARD_EXPIRED` (`t_award_expired`) even if the sweeper has not run (AC-22);
+      not pending (revoked, moved, declined) → `409 STATE_CONFLICT`; the first of accept/sweeper to lock
+      the award wins (EC-4).
+    tags: [Proposals]
+    x-permission:
+      audience: user
+      ownership: freelancer of the award; others get 404
+    x-covers: ['11 AC-20', '11 AC-22']
+    x-notifications: [EV-69]
+    x-emits: [award.status_changed, proposal.status_changed, contract.status_changed]
+    responses:
+      '200':
+        description: The created contract (awaiting payment).
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d5.yaml#/Contract'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+/awards/{awardId}/decline:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: awardId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: declineAward
+    summary: Decline an award with a reason (freelancer)
+    description: |
+      "Decline" (spec 11 AC-21, P-85): before the deadline, with one reason of `reason_1, _2, _4…_8`
+      (reason 3 is not offered). The award and the proposal become `declined` (the proposal leaves the
+      list), the project returns to `active` (open for proposals), and the client gets EV-70 with the
+      reason. The freelancer cannot send a new proposal on this project (P-82). After the deadline →
+      `409 AWARD_EXPIRED`; not pending → `409 STATE_CONFLICT`.
+    tags: [Proposals]
+    x-permission:
+      audience: user
+      ownership: freelancer of the award; others get 404
+    x-covers: ['11 AC-21']
+    x-notifications: [EV-70]
+    x-emits: [award.status_changed, proposal.status_changed, project.status_changed]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d5.yaml#/AwardDeclineRequest'}
+    responses:
+      '200':
+        description: The declined award.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d5.yaml#/Award'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+# ═════════════════════════ Contracts (spec 11) ═════════════════════════
+/contracts:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: listContracts
+    summary: List the caller's project contracts
+    description: |
+      `role=freelancer` (default): contracts of Selling → Projects (awaiting payment, in progress with
+      expected delivery date and "Late", delivered with the auto-release date when S-025 is ON, revision
+      requested, completed, refunded) with the next `actions` (spec 11 AC-24); `role=client`: the
+      caller's contracts as project owner. 42 per page (default `limit` 42), newest first.
+    tags: [Contracts]
+    x-permission:
+      audience: user
+      ownership: client or freelancer of the contracts (caller's own only)
+    x-covers: ['11 AC-24']
+    parameters:
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/Limit'
+      - name: role
+        in: query
+        required: false
+        schema:
+          type: string
+          enum: [freelancer, client]
+          default: freelancer
+      - name: status
+        in: query
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: array
+          items: {$ref: '../schemas/d5.yaml#/ContractStatus'}
+    responses:
+      '200':
+        description: One page of contracts.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d5.yaml#/ContractListItemPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+/contracts/lookup:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: lookupContract
+    summary: Get the caller's contract of a project by pid (work pages)
+    description: |
+      Resolves the work pages `/account/projects/{pid}` (client) and `/seller/projects/{pid}` (freelancer)
+      (url-map §5; spec 11 AC-41, AC-42) to the project's current, non-canceled contract. Same schema and
+      rules as `getContract`; `404` when the caller is not its client or freelancer (AC-43) or there is
+      no contract.
+    tags: [Contracts]
+    x-permission:
+      audience: user
+      ownership: client or freelancer of the contract; others get 404
+    x-covers: ['11 AC-41', '11 AC-42', '11 AC-43']
+    parameters:
+      - name: pid
+        in: query
+        required: true
+        schema: {type: string, pattern: '^[0-9]{6}$'}
+    responses:
+      '200':
+        description: The contract.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d5.yaml#/Contract'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/contracts/{contractId}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: contractId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: getContract
+    summary: Get a project contract (client or freelancer only)
+    description: |
+      The client's and the freelancer's work pages (spec 11 AC-41, AC-42): header (project, freelancer,
+      amount, delivery days, revisions left from `payments[0].escrow`, expected delivery date, "Late"
+      AC-34), status timeline, the single payment line with its escrow and latest payment, the project
+      thread (`conversation`), reviews, and the caller's next `actions`. Everyone else gets `404`
+      (AC-27, AC-43; fixes R-018). After payment the client has no pending or escrow amount of their
+      own; the page shows "Paid" (AC-31).
+      Related operations (other groups): pay → D3 `createCheckoutQuote` / `createPayment` with
+      `CheckoutTarget {purpose: contract_payment, contractPaymentId}` (AC-26…AC-30); deliveries,
+      revisions, completion → D4 `listEscrowDeliveries`, `createEscrowDelivery`,
+      `createEscrowRevisionRequest`, `completeEscrow` on `payments[0].escrow.id` (AC-32…AC-39); refunds
+      and unblock → D4 `createRefundRequest`, `createUnblockRequest` (spec 13); reviews → D2
+      `createReview` (AC-44).
+    tags: [Contracts]
+    x-permission:
+      audience: user
+      ownership: client or freelancer of the contract; others get 404
+    x-covers: ['11 AC-26', '11 AC-27', '11 AC-34', '11 AC-40', '11 AC-41', '11 AC-42', '11 AC-43', '11 AC-44']
+    responses:
+      '200':
+        description: The contract.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d5.yaml#/Contract'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/contracts/{contractId}/cancel:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: contractId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: cancelContract
+    summary: Cancel the hire before payment (client or freelancer)
+    description: |
+      "Cancel hire" (spec 11 AC-25, P-86): only while the contract is `awaiting_payment`. The contract
+      becomes `canceled`, the proposal `hire_canceled`, the project returns to `active` (other proposals
+      unchanged), no money moves (no ledger entry), and the other side gets EV-71 (`t_hire_canceled`,
+      email + in-app + push). While a card payment for the contract is pending at BOG →
+      `409 CONTRACT_PAYMENT_IN_PROGRESS` (`t_payment_in_progress`, EC-5); already paid or canceled →
+      `409 STATE_CONFLICT` (`t_order_status_changed`). A card payment verified after the cancel is
+      credited to the client's wallet as unapplied (D3, spec 11 AC-30).
+    tags: [Contracts]
+    x-permission:
+      audience: user
+      ownership: client or freelancer of the contract; others get 404
+    x-covers: ['11 AC-25']
+    x-notifications: [EV-71]
+    x-emits: [contract.status_changed, project.status_changed, proposal.status_changed]
+    responses:
+      '200':
+        description: The canceled contract.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d5.yaml#/Contract'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+# ═════════════════════════ Admin — conversations (spec 08 AC-29…AC-31, spec 16 AC-65) ═════════════════════════
+/admin/conversations:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: adminListConversations
+    summary: Staff search of conversations and threads
+    description: |
+      Admin → Conversations (spec 08 AC-29, spec 16 AC-65): every conversation of every kind, newest
+      activity first. `q` matches username, full name or e-mail of either participant (contains,
+      case-insensitive); filter by `kind` and date (`createdFrom`/`createdTo` on the last message);
+      `userId` = conversations of one user (spec 16 AC-31 "Conversations" tab). Listing shows no message
+      text; opening one is `adminGetConversation` (audited).
+    tags: [Admin Conversations]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission:
+      audience: staff
+      permission: chat.read
+      ownership: none
+    x-covers: ['08 AC-29', '16 AC-31', '16 AC-65']
+    parameters:
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/AdminLimit'
+      - $ref: '../components/parameters.yaml#/UserIdFilter'
+      - $ref: '../components/parameters.yaml#/CreatedFrom'
+      - $ref: '../components/parameters.yaml#/CreatedTo'
+      - name: q
+        in: query
+        required: false
+        schema: {type: string, minLength: 1, maxLength: 254}
+      - name: kind
+        in: query
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: array
+          items: {$ref: '../components/schemas.yaml#/ConversationKind'}
+    responses:
+      '200':
+        description: One page of conversations.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d5.yaml#/AdminConversationSummaryPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+/admin/conversations/{conversationId}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: conversationId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: adminGetConversation
+    summary: Open a conversation read-only (audited)
+    description: |
+      Read-only staff view of any conversation (spec 08 AC-29, spec 16 AC-38 item threads, AC-65).
+      **Every call writes an audit entry** (staff member, permission used, conversation, time, IP, user
+      agent, request id and the optional `reason`, `t_admin_access_reason`; spec 08 AC-30, spec 16 AC-14).
+      The entries are listed per conversation and per staff member in D6's audit viewer (target type
+      `conversation`). Staff reads never mark messages as seen and staff are never participants.
+      Permission: `chat.read`; for `refund` threads `refunds.thread.write` is accepted instead (spec 16
+      AC-40, P-114: support staff read and write refund threads) — exactly one of them is checked,
+      chosen by the conversation kind (see handoff).
+    tags: [Admin Conversations]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission:
+      audience: staff
+      permission: chat.read
+      permissionAlternatives:
+        refund: refunds.thread.write
+      ownership: none
+    x-covers: ['08 AC-29', '08 AC-30', '16 AC-38', '16 AC-65']
+    x-audit: conversation.open
+    parameters:
+      - name: reason
+        in: query
+        required: false
+        description: Optional reason for opening, stored in the audit entry.
+        schema: {type: string, maxLength: 1000}
+    responses:
+      '200':
+        description: The conversation.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d5.yaml#/AdminConversation'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/admin/conversations/{conversationId}/messages:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: conversationId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: adminListConversationMessages
+    summary: Read the messages of a conversation (audited)
+    description: |
+      All messages with their original text and attachments, including those deleted by the sender
+      (`deletedBySenderAt`, `t_deleted_by_sender`) and hidden by staff (`hiddenByStaffAt`,
+      `t_hidden_by_staff`) (spec 08 AC-25, AC-29, AC-31). Newest first, 30 per page by default in the
+      viewer (`limit`). Each call is audited like `adminGetConversation` (sensitive read, spec 16 AC-14).
+      Same permission rule as `adminGetConversation`.
+    tags: [Admin Conversations]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission:
+      audience: staff
+      permission: chat.read
+      permissionAlternatives:
+        refund: refunds.thread.write
+      ownership: none
+    x-covers: ['08 AC-25', '08 AC-29', '08 AC-31', '16 AC-65']
+    x-audit: conversation.read_messages
+    parameters:
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/AdminLimit'
+    responses:
+      '200':
+        description: One page of messages.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d5.yaml#/AdminConversationMessagePage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+  post:
+    operationId: adminCreateConversationMessage
+    summary: Write "as MyTask" in a refund/dispute thread
+    description: |
+      Staff messages exist only in `refund` threads (spec 13 AC-19, AC-21; spec 16 AC-40; spec 08 AC-30:
+      staff cannot post into direct conversations or other threads → `403 FORBIDDEN`). Allowed while the
+      refund request is pending, rejected by the seller or disputed; afterwards `409 STATE_CONFLICT`
+      (read-only). Users see the sender as "MyTask". Text only, 1–750 characters; idempotent by
+      `clientMessageId`. Both parties get EV-100 (email throttled 10 minutes per sender per request).
+      Audited.
+    tags: [Admin Conversations]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission:
+      audience: staff
+      permission: refunds.thread.write
+      ownership: none (refund threads only)
+    x-covers: ['08 AC-30', '16 AC-65']
+    x-audit: conversation.staff_message
+    x-notifications: [EV-100]
+    x-emits: [message.created, conversation.updated, conversation.unread_count_changed]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d5.yaml#/AdminConversationMessageCreateRequest'}
+    responses:
+      '200':
+        description: Replay of an earlier send with the same `clientMessageId`.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d5.yaml#/AdminConversationMessage'}
+      '201':
+        description: The message was stored.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d5.yaml#/AdminConversationMessage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+/admin/conversations/{conversationId}/messages/{messageId}/hide:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: conversationId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+    - name: messageId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: adminHideConversationMessage
+    summary: Hide a message (moderation)
+    description: |
+      Spec 08 AC-31 (P-70): with an **internal** reason (never shown to users). Both users then see
+      `t_message_removed_by_staff`; the original stays visible to staff; audited. Staff cannot delete
+      messages. Already hidden → `409 STATE_CONFLICT`. Emits `message.updated`.
+    tags: [Admin Conversations]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission:
+      audience: staff
+      permission: chat.moderate
+      ownership: none
+    x-covers: ['08 AC-31', '16 AC-65']
+    x-audit: message.hide
+    x-emits: [message.updated]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../components/schemas.yaml#/StaffReasonRequest'}
+    responses:
+      '200':
+        description: The hidden message (staff view).
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d5.yaml#/AdminConversationMessage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+/admin/conversations/{conversationId}/messages/{messageId}/unhide:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: conversationId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+    - name: messageId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: adminUnhideConversationMessage
+    summary: Unhide a hidden message
+    description: '"Unhide" restores a message hidden by staff (spec 08 AC-31); audited. Not hidden → `409 STATE_CONFLICT`. Emits `message.updated`.'
+    tags: [Admin Conversations]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission:
+      audience: staff
+      permission: chat.moderate
+      ownership: none
+    x-covers: ['08 AC-31', '16 AC-65']
+    x-audit: message.unhide
+    x-emits: [message.updated]
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema: {$ref: '../components/schemas.yaml#/StaffOptionalNoteRequest'}
+    responses:
+      '200':
+        description: The restored message (staff view).
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d5.yaml#/AdminConversationMessage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+/admin/conversations/{conversationId}/files/{fileId}/download:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: conversationId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+    - name: fileId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: adminGetConversationFileDownload
+    summary: Download a conversation attachment as staff (audited)
+    description: |
+      Staff download of a chat attachment, including attachments of messages deleted by the sender or
+      hidden by staff (spec 08 AC-10, AC-25, AC-30; CONVENTIONS §4.2). Short-lived signed link (302, or
+      `mode=json` → `{url, expiresAt}`), same as `getFileDownload`. Every call writes an audit entry
+      (who, conversation, file, time, IP; spec 16 AC-14). `404` when the file is not attached to a
+      message of this conversation.
+    tags: [Admin Conversations]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission:
+      audience: staff
+      permission: chat.read
+      ownership: none
+    x-covers: ['08 AC-10', '08 AC-30', '16 AC-65']
+    x-audit: conversation.file_download
+    parameters:
+      - name: mode
+        in: query
+        required: false
+        schema:
+          type: string
+          enum: [redirect, json]
+          default: redirect
+    responses:
+      '200':
+        description: '`mode=json`: the signed URL.'
+        content:
+          application/json:
+            schema: {$ref: '../components/schemas.yaml#/SignedUrl'}
+      '302': {$ref: '../components/responses.yaml#/FoundRedirect'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+# ═════════════════════════ Admin — projects (spec 10 AC-11…AC-14, spec 16 AC-19, AC-22, AC-31) ═════════════════════════
+/admin/projects:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: adminListProjects
+    summary: Project moderation queue and project list
+    description: |
+      The project queue is `status=pending_approval` with the default `sort=oldest`, 50 per page (spec
+      16 AC-19, AC-22); the same operation lists projects in any status (incl. hidden and deleted) for
+      the user page tab "Projects and proposals" (`userId` = owner, AC-31). Filters: date
+      (`createdFrom`/`createdTo`), owner (`userId`), `projectCategoryId`, `q` (title or pid). Returns
+      `totalCount` (queue counter, spec 16 AC-17). Empty queue: `t_admin_queue_empty`.
+    tags: [Admin Projects]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission:
+      audience: staff
+      permission: projects.moderate
+      ownership: none
+    x-covers: ['16 AC-19', '16 AC-22', '16 AC-31']
+    parameters:
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/AdminLimit'
+      - $ref: '../components/parameters.yaml#/UserIdFilter'
+      - $ref: '../components/parameters.yaml#/CreatedFrom'
+      - $ref: '../components/parameters.yaml#/CreatedTo'
+      - name: status
+        in: query
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: array
+          items: {$ref: '../schemas/d5.yaml#/ProjectStatus'}
+      - name: projectCategoryId
+        in: query
+        required: false
+        schema: {$ref: '../components/schemas.yaml#/Uuid'}
+      - name: q
+        in: query
+        required: false
+        schema: {type: string, minLength: 1, maxLength: 100}
+      - name: sort
+        in: query
+        required: false
+        schema:
+          type: string
+          enum: [oldest, newest]
+          default: oldest
+    responses:
+      '200':
+        description: One page of projects (with `totalCount`).
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d5.yaml#/AdminProjectListItemPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+/admin/projects/{projectId}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: projectId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: adminGetProject
+    summary: Project detail for staff (queue detail)
+    description: The content as the public would see it (both languages) plus the owner summary — plan, ID verification, open reports, earlier rejections (spec 16 AC-19, AC-22). Any status, including deleted projects kept for audit (spec 10 AC-26, EC-10).
+    tags: [Admin Projects]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission:
+      audience: staff
+      permission: projects.moderate
+      ownership: none
+    x-covers: ['16 AC-19', '16 AC-22']
+    responses:
+      '200':
+        description: The project.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d5.yaml#/AdminProject'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/admin/projects/{projectId}/approve:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: projectId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: adminApproveProject
+    summary: Approve a pending project
+    description: |
+      Spec 10 AC-12: `pending_approval` → `active`; it appears in explore lists; the owner gets EV-58
+      (`YourProjectApproved` email + `t_ur_project_title_has_been_approved` in-app/push); on the
+      project's **first** activation the category email EV-56 is queued once (AC-19, AC-20). First
+      decision wins: if another staff member already decided → `409 STATE_CONFLICT` with
+      `messageKey: t_item_already_decided` (spec 16 AC-19). Audited.
+    tags: [Admin Projects]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission:
+      audience: staff
+      permission: projects.moderate
+      ownership: none
+    x-covers: ['10 AC-12', '10 AC-19', '10 AC-20', '16 AC-19', '16 AC-22']
+    x-audit: project.approve
+    x-notifications: [EV-56, EV-58]
+    x-emits: [project.status_changed]
+    x-jobs: [email]
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema: {$ref: '../components/schemas.yaml#/StaffOptionalNoteRequest'}
+    responses:
+      '200':
+        description: The approved project.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d5.yaml#/AdminProject'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+/admin/projects/{projectId}/reject:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: projectId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: adminRejectProject
+    summary: Reject a pending project with a reason
+    description: |
+      Spec 10 AC-13: `pending_approval` → `rejected` with the reason (required, ≤ 1,000, shown to the
+      owner); the owner gets EV-59 (`YourProjectRejected` email with the reason +
+      `t_ur_project_needs_changes`) and can edit the project, which sends it back to review
+      (`updateProject`). First decision wins (`409 STATE_CONFLICT`, `t_item_already_decided`). Audited.
+    tags: [Admin Projects]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission:
+      audience: staff
+      permission: projects.moderate
+      ownership: none
+    x-covers: ['10 AC-13', '16 AC-19', '16 AC-22']
+    x-audit: project.reject
+    x-notifications: [EV-59]
+    x-emits: [project.status_changed]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../components/schemas.yaml#/StaffReasonRequest'}
+    responses:
+      '200':
+        description: The rejected project.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d5.yaml#/AdminProject'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+/admin/projects/{projectId}/hide:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: projectId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: adminHideProject
+    summary: Hide a project (moderation)
+    description: |
+      Spec 10 AC-14 (P-75): with an **internal** reason. The project becomes `hidden` (previous status
+      kept for unhide): non-owners get 404, it leaves explore lists, open proposals can no longer be
+      awarded, and the owner sees `t_project_hidden_by_staff`. Refused with `409 PROJECT_PAYMENT_OPEN`
+      while a contract payment is paid and not yet completed or refunded. Also used by the reports queue
+      shortcut "hide project" (spec 16 AC-28). Already hidden → `409 STATE_CONFLICT`. Audited.
+    tags: [Admin Projects]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission:
+      audience: staff
+      permission: projects.moderate
+      ownership: none
+    x-covers: ['10 AC-14', '16 AC-22']
+    x-audit: project.hide
+    x-emits: [project.status_changed]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../components/schemas.yaml#/StaffReasonRequest'}
+    responses:
+      '200':
+        description: The hidden project.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d5.yaml#/AdminProject'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+/admin/projects/{projectId}/unhide:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: projectId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: adminUnhideProject
+    summary: Unhide a hidden project
+    description: 'Restores the status the project had before it was hidden (`statusBeforeHidden`, spec 10 AC-14). Not hidden → `409 STATE_CONFLICT`. Audited.'
+    tags: [Admin Projects]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission:
+      audience: staff
+      permission: projects.moderate
+      ownership: none
+    x-covers: ['10 AC-14', '16 AC-22']
+    x-audit: project.unhide
+    x-emits: [project.status_changed]
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema: {$ref: '../components/schemas.yaml#/StaffOptionalNoteRequest'}
+    responses:
+      '200':
+        description: The restored project.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d5.yaml#/AdminProject'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+# ═════════════════════════ Admin — proposals (spec 11 AC-9, spec 16 AC-19, AC-23, AC-31) ═════════════════════════
+/admin/proposals:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: adminListProposals
+    summary: Proposal moderation queue and proposal list
+    description: |
+      The proposal queue is `status=pending_approval` with the default `sort=oldest`, 50 per page (spec
+      16 AC-19, AC-23; only filled while S-073 is OFF). The same operation lists proposals in any status,
+      by project (`projectId`) or by author (`userId`, user page tab, AC-31); date filters. Returns
+      `totalCount` (queue counter).
+    tags: [Admin Projects]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission:
+      audience: staff
+      permission: proposals.moderate
+      ownership: none
+    x-covers: ['16 AC-19', '16 AC-23', '16 AC-31']
+    parameters:
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/AdminLimit'
+      - $ref: '../components/parameters.yaml#/UserIdFilter'
+      - $ref: '../components/parameters.yaml#/CreatedFrom'
+      - $ref: '../components/parameters.yaml#/CreatedTo'
+      - name: status
+        in: query
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: array
+          items: {$ref: '../schemas/d5.yaml#/ProposalStatus'}
+      - name: projectId
+        in: query
+        required: false
+        schema: {$ref: '../components/schemas.yaml#/Uuid'}
+      - name: sort
+        in: query
+        required: false
+        schema:
+          type: string
+          enum: [oldest, newest]
+          default: oldest
+    responses:
+      '200':
+        description: One page of proposals (with `totalCount`).
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d5.yaml#/AdminProposalPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+/admin/proposals/{proposalId}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: proposalId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: adminGetProposal
+    summary: Proposal detail for staff
+    tags: [Admin Projects]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission:
+      audience: staff
+      permission: proposals.moderate
+      ownership: none
+    x-covers: ['16 AC-19', '16 AC-23']
+    responses:
+      '200':
+        description: The proposal.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d5.yaml#/AdminProposal'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/admin/proposals/{proposalId}/approve:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: proposalId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: adminApproveProposal
+    summary: Approve a pending proposal
+    description: |
+      Spec 11 AC-9: `pending_approval` → `active`; the freelancer gets EV-63 (`YourBidApproved` +
+      `t_ur_bid_approved`) and the client gets the "new proposal" notifications EV-61. First decision wins
+      (`409 STATE_CONFLICT`, `t_item_already_decided`). Audited.
+    tags: [Admin Projects]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission:
+      audience: staff
+      permission: proposals.moderate
+      ownership: none
+    x-covers: ['11 AC-9', '16 AC-19', '16 AC-23']
+    x-audit: proposal.approve
+    x-notifications: [EV-61, EV-63]
+    x-emits: [proposal.status_changed]
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema: {$ref: '../components/schemas.yaml#/StaffOptionalNoteRequest'}
+    responses:
+      '200':
+        description: The approved proposal.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d5.yaml#/AdminProposal'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+/admin/proposals/{proposalId}/reject:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: proposalId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: adminRejectProposal
+    summary: Reject a pending proposal with a reason
+    description: |
+      Spec 11 AC-9: `pending_approval` → `rejected` with the reason (shown to the freelancer); the
+      freelancer gets EV-64 (`YourBidRejected` with the reason + `t_ur_bid_rejected`) and can edit it to
+      resubmit (`updateProposal`). Also the reports-queue shortcut "reject proposal" (spec 16 AC-28).
+      First decision wins (`409 STATE_CONFLICT`, `t_item_already_decided`). Audited.
+    tags: [Admin Projects]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission:
+      audience: staff
+      permission: proposals.moderate
+      ownership: none
+    x-covers: ['11 AC-9', '16 AC-19', '16 AC-23']
+    x-audit: proposal.reject
+    x-notifications: [EV-64]
+    x-emits: [proposal.status_changed]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../components/schemas.yaml#/StaffReasonRequest'}
+    responses:
+      '200':
+        description: The rejected proposal.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d5.yaml#/AdminProposal'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+# ═════════════════════════ Admin — contracts (spec 16 AC-31, AC-38) ═════════════════════════
+/admin/contracts:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: adminListContracts
+    summary: Project contracts list for staff
+    description: |
+      Admin → Project contracts (spec 16 AC-38): every contract with status filter, date filters, `q`
+      (project pid or title) and `userId` (client or freelancer; user page tab "Projects and proposals",
+      AC-31). Read-only; newest first. There is no delete.
+    tags: [Admin Projects]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission:
+      audience: staff
+      permission: orders.read
+      ownership: none
+    x-covers: ['16 AC-31', '16 AC-38']
+    parameters:
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/AdminLimit'
+      - $ref: '../components/parameters.yaml#/UserIdFilter'
+      - $ref: '../components/parameters.yaml#/CreatedFrom'
+      - $ref: '../components/parameters.yaml#/CreatedTo'
+      - name: status
+        in: query
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: array
+          items: {$ref: '../schemas/d5.yaml#/ContractStatus'}
+      - name: q
+        in: query
+        required: false
+        schema: {type: string, minLength: 1, maxLength: 100}
+    responses:
+      '200':
+        description: One page of contracts.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d5.yaml#/AdminContractListItemPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+/admin/contracts/{contractId}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: contractId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: adminGetContract
+    summary: Project contract detail for staff (read-only)
+    description: |
+      Read-only detail (spec 16 AC-38): timeline, payment line with escrow and payment, revisions,
+      refund/dispute flags, reviews. Deliveries (signed links) and the staff money tools "Release funds" /
+      "Refund buyer" are on the escrow (D4 `adminListEscrows`, `adminReleaseEscrow`, `adminRefundEscrow`,
+      permissions `escrow.release` / `escrow.refund`); the thread opens with `adminGetConversation`
+      (`chat.read`, audited).
+    tags: [Admin Projects]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission:
+      audience: staff
+      permission: orders.read
+      ownership: none
+    x-covers: ['16 AC-38']
+    responses:
+      '200':
+        description: The contract.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d5.yaml#/AdminContract'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}

@@ -1,17 +1,2694 @@
-# D6 — paths for specs 15, 16 (notifications, admin platform (staff auth, RBAC, audit, dashboard, reports, settings, fees, translations, analytics, system)).
-# STUB written by the P2-B4 foundation run. The D6 group run fills it.
-#
-# Rules (docs/04-api/CONVENTIONS.md): only path keys owned by D6 in src/ownership.yaml; a map of
-# path -> Path Item exactly like src/paths/f0-files.yaml; every path item declares the shared
-# Accept-Language parameter; every operation has operationId, summary, tags, x-permission, x-covers
-# and the shared error responses. Reference schemas only from ../components/*.yaml and
-# ../schemas/d6.yaml (never another group's schema file). Reserved operations of D6
-# (ownership.yaml "reservedOperations") must be created with exactly that operationId, method and path.
-#
-# Shape of an entry (see f0-files.yaml for complete examples):
-# /example/{exampleId}:
-#   parameters:
-#     - $ref: '../components/parameters.yaml#/AcceptLanguage'
-#   get:
-#     operationId: getExample
-#     ...
+# D6 — paths for specs 15 (notifications) and 16 (admin platform: staff auth, staff/roles, audit,
+# dashboard, reports queue, settings, fee rules, custom code, translations, analytics, system).
+# Written by the P2-B4 D6 group run (2026-09-29). Conventions: docs/04-api/CONVENTIONS.md.
+# Staff operations: exactly one permission (or '@self', CONVENTIONS §6.1); high-risk ones carry stepUp (spec 16 AC-7).
+
+# ═════════════════════════════════ Notification centre (spec 15) ═════════════════════════════════
+/notifications:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: listNotifications
+    summary: List own notifications (read and unread, newest first)
+    description: |
+      Notification centre and bell dropdown (spec 15 AC-13, P-107): read and unread rows, newest first,
+      20 per page (the web dropdown asks `limit=10`). Texts are keys + params, rendered by the client in
+      the reader's current language as plain text (AC-15, EC-1). `targetPath` is locale-free (AC-5).
+      Rows older than 12 months are deleted nightly (AC-17). Restricted users still see their notifications.
+    tags: [Notifications]
+    x-permission:
+      audience: restricted-user
+      ownership: self (own notifications only)
+    x-covers: ['15 AC-5', '15 AC-13']
+    parameters:
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/Limit'
+      - name: unreadOnly
+        in: query
+        required: false
+        schema: {type: boolean, default: false}
+    responses:
+      '200':
+        description: A page of notifications plus the unread count.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/NotificationPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+
+/notifications/unread-count:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: getNotificationUnreadCount
+    summary: Bell count and app-icon badge count
+    description: Unread notifications (the bell shows `99+` above 99) and the badge = unread notifications + conversations with unseen messages (spec 15 AC-12, AC-25). Realtime updates arrive as `notification.created`, `notification.read`, `badge.updated`; after reconnect or app resume clients re-read this.
+    tags: [Notifications]
+    x-permission:
+      audience: restricted-user
+      ownership: self
+    x-covers: ['15 AC-12', '15 AC-25']
+    responses:
+      '200':
+        description: Counters.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/NotificationUnreadCount'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+
+/notifications/read-all:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  post:
+    operationId: markAllNotificationsRead
+    summary: Mark all own notifications as read
+    description: '"Mark all as read" (`t_mark_all_as_read`, spec 15 AC-14, P-107). Every open tab and device updates through `notification.read` and `badge.updated`. Idempotent.'
+    tags: [Notifications]
+    x-permission:
+      audience: restricted-user
+      ownership: self
+    x-covers: ['15 AC-14']
+    x-emits: [notification.read, badge.updated]
+    responses:
+      '200':
+        description: Done.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/NotificationReadAllResult'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+/notifications/{notificationId}/read:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: notificationId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: markNotificationRead
+    summary: Mark one notification as read
+    description: Tapping a notification or "Mark as read" (`t_mark_as_read`, spec 15 AC-14). Idempotent (already read → same result). Works also when the target no longer exists (AC-16). Another user's notification → 404.
+    tags: [Notifications]
+    x-permission:
+      audience: restricted-user
+      ownership: recipient of the notification; others get 404
+    x-covers: ['15 AC-14']
+    x-emits: [notification.read, badge.updated]
+    responses:
+      '200':
+        description: The notification, now read.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/Notification'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+# ═════════════════════════════════ Preferences (spec 15 AC-27…AC-30) ═════════════════════════════════
+/notification-preferences:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: getNotificationPreferences
+    summary: Get own notification preferences
+    description: The four switchable categories with their Email / Push switches (ON by default for new and migrated users, AC-29) and the locked "Always on" group (spec 15 AC-27, P-106).
+    tags: [Notifications]
+    x-permission:
+      audience: user
+      ownership: self
+    x-covers: ['15 AC-27', '15 AC-29']
+    x-settings: [S-101]
+    responses:
+      '200':
+        description: Preferences.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/NotificationPreferences'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+  patch:
+    operationId: updateNotificationPreferences
+    summary: Change notification switches
+    description: |
+      Switches a channel of a switchable category ON or OFF (spec 15 AC-27). While OFF, deliveries of that
+      category and channel are recorded as `suppressed` (reason `preference`) and the in-app row is still
+      created (AC-28). Locked categories cannot be sent. Errors: 400 `VALIDATION_FAILED` (unknown channel
+      for the category).
+    tags: [Notifications]
+    x-permission:
+      audience: user
+      ownership: self
+    x-covers: ['15 AC-27', '15 AC-28']
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d6.yaml#/NotificationPreferencesUpdateRequest'}
+    responses:
+      '200':
+        description: The updated preferences.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/NotificationPreferences'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+/notification-preferences/unsubscribe:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  post:
+    operationId: unsubscribeNotificationEmail
+    summary: One-click email unsubscribe (no login)
+    description: |
+      Used by the landing page `/notifications/unsubscribe?token=` and as the RFC 8058 one-click target of
+      the `List-Unsubscribe` header (the mail client POSTs `List-Unsubscribe=One-Click` as a form with the
+      token in the query string). Turns the email switch of the token's category OFF (spec 15 AC-30, AC-8).
+      Idempotent. Errors: 422 `NOTIFICATION_UNSUBSCRIBE_LINK_INVALID` (invalid or older than 30 days →
+      `t_unsubscribe_link_invalid`).
+    tags: [Notifications]
+    security: []
+    x-permission:
+      audience: public
+      notes: the signed token identifies the user and category; valid 30 days
+    x-covers: ['15 AC-30']
+    x-rate-limit: 30 requests / 10 min per IP
+    parameters:
+      - name: token
+        in: query
+        required: false
+        description: Token for the one-click form POST (mail clients cannot send JSON). JSON callers send it in the body.
+        schema: {type: string, maxLength: 512}
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d6.yaml#/NotificationUnsubscribeRequest'}
+        application/x-www-form-urlencoded:
+          schema:
+            type: object
+            properties:
+              List-Unsubscribe: {type: string, const: One-Click}
+    responses:
+      '200':
+        description: The email switch is OFF (`t_unsubscribed_success`).
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/NotificationUnsubscribeResult'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+      '429': {$ref: '../components/responses.yaml#/TooManyRequests'}
+
+# ═════════════════════════════════ Push tokens (spec 15 AC-20…AC-22) ═════════════════════════════════
+/push-tokens/{installationId}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: installationId
+      in: path
+      required: true
+      description: Random id of this app installation (SecureStore), the same the app uses as its device id.
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  put:
+    operationId: putPushToken
+    summary: Register or refresh this installation's push token
+    description: |
+      Stores one token per installation (user, installation, platform, token, language, app version,
+      last seen; spec 15 AC-20). If another user registered the same installation or token before, it
+      moves to the caller. Called after the OS permission is granted, at every app start and when the
+      app language changes. Tokens unseen for 90 days are removed and tokens Expo reports as unregistered
+      are disabled by the push worker (AC-22).
+    tags: [Notifications]
+    x-permission:
+      audience: user
+      ownership: self (the installation becomes the caller's)
+    x-covers: ['15 AC-20']
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d6.yaml#/PushTokenPutRequest'}
+    responses:
+      '200':
+        description: Stored.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/PushToken'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+  delete:
+    operationId: deletePushToken
+    summary: Remove this installation's push token (logout)
+    description: The app calls it before `logout` (spec 15 AC-21). Tokens of banned, deleted or "log out everywhere" accounts are removed server-side by D1's operations. Idempotent (unknown installation → 204). Allowed for restricted users.
+    tags: [Notifications]
+    x-permission:
+      audience: restricted-user
+      ownership: self; another user's installation is ignored (204)
+    x-covers: ['15 AC-21']
+    responses:
+      '204': {$ref: '../components/responses.yaml#/NoContent'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+
+# ═════════════════════════════════ SendGrid event webhook (spec 15 AC-11) ═════════════════════════════════
+/webhooks/sendgrid:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  post:
+    operationId: handleSendGridWebhook
+    summary: SendGrid Event Webhook (bounces, spam reports, delivery status)
+    description: |
+      Verifies the signed Event Webhook (ECDSA public key from `.env`, headers
+      `X-Twilio-Email-Event-Webhook-Signature` / `-Timestamp`, max 10 minutes old), stores the events
+      and answers 200 quickly; processing is asynchronous and idempotent by `sg_event_id`.
+      Effects: delivery-log status updates (spec 15 AC-4); a hard `bounce` or `spamreport` marks the
+      address undeliverable on the user (later non-security emails → `suppressed`, reason
+      `undeliverable`; security emails still attempted; the mark is cleared when the email changes or is
+      re-verified; staff see the warning on the user page, AC-11). Unknown message ids are ignored.
+      Errors: 403 `WEBHOOK_SENDGRID_SIGNATURE_INVALID`. Not blocked by maintenance mode.
+    tags: [Webhooks]
+    security: []
+    x-permission:
+      audience: webhook
+      notes: verified by SendGrid's signed Event Webhook
+    x-covers: ['15 AC-11']
+    parameters:
+      - name: X-Twilio-Email-Event-Webhook-Signature
+        in: header
+        required: true
+        schema: {type: string}
+      - name: X-Twilio-Email-Event-Webhook-Timestamp
+        in: header
+        required: true
+        schema: {type: string}
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d6.yaml#/SendGridEventBatch'}
+    responses:
+      '200':
+        description: Accepted (empty body).
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+# ═════════════════════════════════ Analytics ingestion (ADR-012) ═════════════════════════════════
+/analytics/events:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  post:
+    operationId: ingestAnalyticsEvents
+    summary: Send a batch of first-party analytics events
+    description: |
+      Mobile posts `app_open` and `screen_view`; the Next.js server posts `page_view` for web requests
+      (ADR-012 §1). The API enriches on its own server: user agent → device, OS, browser (bots dropped);
+      IP → country and city from the local GeoIP database or the edge country header; the IP itself is
+      kept only as a daily-salted hash and never sent to any third party (spec 16 AC-67, Q-055). When
+      the web server forwards a visitor's event it authenticates as the web app and passes the visitor
+      IP/UA in trusted proxy headers (configuration, ADR-015). Server events (registration, login, gig
+      view, order paid…) are recorded by the API itself. Raw events are kept 90 days, daily aggregates
+      permanently.
+    tags: [Analytics]
+    security: [{}, {userBearer: []}, {userCookie: []}]
+    x-permission:
+      audience: optional-user
+      ownership: none; a signed-in caller's user id is attached to the events
+    x-covers: ['16 AC-66', '16 AC-67']
+    x-jobs: [analytics-rollup]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d6.yaml#/AnalyticsEventBatchRequest'}
+    responses:
+      '202':
+        description: Queued.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/AnalyticsIngestResult'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '429': {$ref: '../components/responses.yaml#/TooManyRequests'}
+
+# ═════════════════════════════════ Staff auth (spec 16 A; spec 01 AC-29, AC-51) ═════════════════════════════════
+/admin/auth/login:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  post:
+    operationId: adminLogin
+    summary: Staff login (username or email + password)
+    description: |
+      Staff identities are separate from user accounts (spec 16 AC-2): user credentials never open the
+      admin. Legacy `admins` bcrypt hashes are verified and rehashed to Argon2id (ADR-002 §3). Checks in
+      order: IP ban (S-064; `403 STAFF_IP_BANNED`, spec 01 AC-51), reCAPTCHA when S-061 is ON, password,
+      account `active` with a password set. Every failure answers `401 STAFF_LOGIN_FAILED` and counts
+      towards the IP ban. When S-060 is ON and the device is not trusted (trigger S-124, trust S-059), the
+      answer is `202` with an email-code challenge (EV-06; spec 01 AC-29); otherwise `200` with the
+      session (host-only cookies, 12-hour session). The device id is a long-lived host-only cookie on
+      `admin.mytask.ge` set by the API.
+    tags: [Admin Auth]
+    security: []
+    x-permission:
+      audience: public
+      notes: staff login; the only public audience allowed under /admin besides the other /admin/auth operations
+    x-covers: ['16 AC-2', '01 AC-29', '01 AC-51']
+    x-settings: [S-060, S-061, S-064, S-124, S-059, S-057]
+    x-rate-limit: S-064 failed staff logins per IP (default 3) → IP banned from the staff login
+    x-notifications: [EV-06]
+    x-audit: staff.login
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d6.yaml#/AdminAuthLoginRequest'}
+    responses:
+      '200':
+        description: Logged in (cookies set).
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/AdminAuthSession'}
+      '202':
+        description: Email code required.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/AdminAuthTwoFactorChallenge'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '429': {$ref: '../components/responses.yaml#/TooManyRequests'}
+
+/admin/auth/2fa/verify:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  post:
+    operationId: adminVerifyTwoFactor
+    summary: Complete staff login with the emailed code
+    description: 'Correct code within S-057 → session and the device (and IP) trusted for S-059 days (spec 01 AC-29, AC-23 rules). Errors: 422 `STAFF_TWO_FACTOR_CODE_INVALID`, `STAFF_TWO_FACTOR_CODE_EXPIRED`, `STAFF_TWO_FACTOR_TOO_MANY_ATTEMPTS` (S-058); 404 unknown challenge.'
+    tags: [Admin Auth]
+    security: []
+    x-permission:
+      audience: public
+      notes: bound to the challenge of a correct password
+    x-covers: ['16 AC-2', '01 AC-29']
+    x-settings: [S-057, S-058, S-059]
+    x-audit: staff.login
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d6.yaml#/AdminAuthTwoFactorVerifyRequest'}
+    responses:
+      '200':
+        description: Logged in (cookies set).
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/AdminAuthSession'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+/admin/auth/2fa/resend:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  post:
+    operationId: adminResendTwoFactorCode
+    summary: Send a new staff login code
+    description: 'New code, the old one stops working; 60 s cooldown, at most 5 codes per account in 15 minutes (spec 01 AC-27 applied to staff). Errors: 429 `STAFF_TWO_FACTOR_RESEND_WAIT` (`t_2fa_resend_wait`).'
+    tags: [Admin Auth]
+    security: []
+    x-permission:
+      audience: public
+      notes: bound to an open challenge
+    x-covers: ['16 AC-2', '01 AC-29']
+    x-rate-limit: 1 per 60 s and 5 per 15 min per staff account
+    x-notifications: [EV-06]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d6.yaml#/AdminAuthTwoFactorResendRequest'}
+    responses:
+      '202':
+        description: Code sent.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/AdminAuthTwoFactorChallenge'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '429': {$ref: '../components/responses.yaml#/TooManyRequests'}
+
+/admin/auth/refresh:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  post:
+    operationId: adminRefreshSession
+    summary: Refresh the staff access token
+    description: Rotates the refresh token (`mt_staff_rt` cookie or body). Reuse of an old refresh token revokes the session family (ADR-002 §1). Never extends the session beyond 12 hours after login (spec 16 AC-2); disabled staff get 401.
+    tags: [Admin Auth]
+    security: []
+    x-permission:
+      audience: public
+      notes: authenticated by the refresh token itself
+    x-covers: ['16 AC-2']
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d6.yaml#/AdminAuthRefreshRequest'}
+    responses:
+      '200':
+        description: New tokens (cookies set).
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/AdminAuthSession'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+
+/admin/auth/logout:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  post:
+    operationId: adminLogout
+    summary: Staff logout
+    description: Ends the current staff session (refresh token revoked, `sid` on the deny-list, cookies cleared). Idempotent.
+    tags: [Admin Auth]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: '@self'
+      ownership: own session only
+    x-covers: ['16 AC-2']
+    x-audit: staff.logout
+    responses:
+      '204': {$ref: '../components/responses.yaml#/NoContent'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+
+/admin/auth/reauth:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  post:
+    operationId: adminReauthenticate
+    summary: Re-authenticate for high-risk actions (15 minutes)
+    description: |
+      Confirms the password, or the emailed 2FA code when S-060 is ON (get it with
+      `adminRequestReauthCode`), and opens a 15-minute window in which operations marked
+      `x-permission.stepUp` run (spec 16 AC-7, `t_reauth_required`). Without it those operations answer
+      `403 REAUTH_REQUIRED`. Errors: 422 `STAFF_CURRENT_PASSWORD_WRONG`, `STAFF_TWO_FACTOR_CODE_*`.
+    tags: [Admin Auth]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: '@self'
+      ownership: own session only
+    x-covers: ['16 AC-7']
+    x-settings: [S-060]
+    x-audit: staff.reauth
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d6.yaml#/AdminAuthReauthRequest'}
+    responses:
+      '200':
+        description: Re-authenticated.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/AdminAuthReauthResult'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+      '429': {$ref: '../components/responses.yaml#/TooManyRequests'}
+
+/admin/auth/reauth/code:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  post:
+    operationId: adminRequestReauthCode
+    summary: Email a re-authentication code
+    description: Only when S-060 is ON (else `422 BUSINESS_RULE_VIOLATION`). Same limits as login codes (60 s cooldown, 5 per 15 min).
+    tags: [Admin Auth]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: '@self'
+      ownership: own session only
+    x-covers: ['16 AC-7']
+    x-settings: [S-060, S-057]
+    x-rate-limit: 1 per 60 s and 5 per 15 min per staff account
+    x-notifications: [EV-06]
+    responses:
+      '202':
+        description: Code sent.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/AdminAuthTwoFactorChallenge'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+      '429': {$ref: '../components/responses.yaml#/TooManyRequests'}
+
+/admin/auth/password-reset:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  post:
+    operationId: adminRequestPasswordReset
+    summary: Request a staff password-reset link
+    description: Staff password reset (spec 16 EC-2, same rules as spec 01 AC-32). Always answers 202 with no hint whether the address exists; a link is sent only to an active staff account. Older links stop working. The email template for staff is an open question (D6 handoff).
+    tags: [Admin Auth]
+    security: []
+    x-permission:
+      audience: public
+      notes: no account enumeration
+    x-covers: ['16 AC-6']
+    x-settings: [S-055]
+    x-rate-limit: 3 emails per email address and per IP per hour (spec 01 R-A9)
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d6.yaml#/AdminAuthPasswordResetRequest'}
+    responses:
+      '202':
+        description: Accepted (always).
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '429': {$ref: '../components/responses.yaml#/TooManyRequests'}
+
+/admin/auth/password-set/validate:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  post:
+    operationId: adminValidatePasswordToken
+    summary: Check an invitation or reset link before showing the form
+    description: 'Lets the set-password page show the "expired link" state (spec 16 Screens). Errors: 422 `STAFF_PASSWORD_LINK_EXPIRED`; unknown token → 404.'
+    tags: [Admin Auth]
+    security: []
+    x-permission:
+      audience: public
+      notes: the token is the credential
+    x-covers: ['16 AC-3']
+    x-rate-limit: 30 requests / 10 min per IP
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d6.yaml#/AdminAuthPasswordTokenRequest'}
+    responses:
+      '200':
+        description: Link is valid.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/AdminAuthPasswordTokenInfo'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+      '429': {$ref: '../components/responses.yaml#/TooManyRequests'}
+
+/admin/auth/password-set:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  post:
+    operationId: adminSetPassword
+    summary: Set a staff password from an invitation or reset link
+    description: 'Single-use link (invitation 48 h, spec 16 AC-3; reset S-055). Password rule R-A2 of spec 01. On success the link is deleted, all sessions of that staff member end and trusted devices are forgotten (spec 01 AC-31 applied to staff); the staff member then logs in. Errors: 400 `VALIDATION_FAILED` (`t_password_validation_message`, confirmation mismatch); 422 `STAFF_PASSWORD_LINK_EXPIRED`; 404 unknown token.'
+    tags: [Admin Auth]
+    security: []
+    x-permission:
+      audience: public
+      notes: the token is the credential
+    x-covers: ['16 AC-3', '16 AC-6']
+    x-audit: staff.password.set
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d6.yaml#/AdminAuthPasswordSetRequest'}
+    responses:
+      '204': {$ref: '../components/responses.yaml#/NoContent'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+/admin/auth/email-confirm:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  post:
+    operationId: adminConfirmEmailChange
+    summary: Confirm a staff email change from the link
+    description: 'Opens the link sent to the new address by `adminRequestMyEmailChange` (spec 16 AC-6); the new email becomes active. Errors: 422 `STAFF_PASSWORD_LINK_EXPIRED` (expired or used link); 409 `DUPLICATE` (address taken meanwhile); 404 unknown token.'
+    tags: [Admin Auth]
+    security: []
+    x-permission:
+      audience: public
+      notes: the token is the credential
+    x-covers: ['16 AC-6']
+    x-audit: staff.email.change
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d6.yaml#/AdminAuthEmailConfirmRequest'}
+    responses:
+      '204': {$ref: '../components/responses.yaml#/NoContent'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+# ═════════════════════════════════ Own staff profile ═════════════════════════════════
+/admin/me:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: adminGetMe
+    summary: Get the signed-in staff member and their permissions
+    description: Profile, roles and the effective permission list; the admin app hides what the caller cannot use (cosmetic, spec 16 AC-9). Permission changes apply within 1 minute (AC-12).
+    tags: [Admin Auth]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: '@self'
+      ownership: self
+    x-covers: ['16 AC-9', '16 AC-12', '16 AC-76']
+    responses:
+      '200':
+        description: The staff member.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/AdminMe'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+  patch:
+    operationId: adminUpdateMe
+    summary: Edit own name and admin language
+    tags: [Admin Auth]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: '@self'
+      ownership: self
+    x-covers: ['16 AC-6', '16 AC-76']
+    x-audit: staff.profile.update
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d6.yaml#/AdminMeUpdateRequest'}
+    responses:
+      '200':
+        description: Updated.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/AdminMe'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+
+/admin/me/password:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  post:
+    operationId: adminChangeMyPassword
+    summary: Change own password (with the current password)
+    description: 'Spec 16 AC-6. Other sessions of the staff member end, the current one stays, trusted devices are forgotten. Errors: 400 `VALIDATION_FAILED` (R-A2, confirmation); 422 `STAFF_CURRENT_PASSWORD_WRONG`.'
+    tags: [Admin Auth]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: '@self'
+      ownership: self
+    x-covers: ['16 AC-6']
+    x-audit: staff.password.change
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d6.yaml#/AdminMePasswordChangeRequest'}
+    responses:
+      '204': {$ref: '../components/responses.yaml#/NoContent'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+/admin/me/email-change:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  post:
+    operationId: adminRequestMyEmailChange
+    summary: Change own email (confirmation link to the new address)
+    description: 'The email changes only when the link sent to the new address is opened (`adminConfirmEmailChange`, spec 16 AC-6). Errors: 409 `DUPLICATE` (address used by another staff account).'
+    tags: [Admin Auth]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: '@self'
+      ownership: self
+    x-covers: ['16 AC-6']
+    x-audit: staff.email.change_requested
+    x-rate-limit: 3 emails per staff account per hour (spec 01 R-A9 pattern)
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d6.yaml#/AdminMeEmailChangeRequest'}
+    responses:
+      '202':
+        description: Link sent; `pendingEmail` shows the new address.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/AdminMe'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+      '429': {$ref: '../components/responses.yaml#/TooManyRequests'}
+
+# ═════════════════════════════════ Staff accounts (staff.manage) ═════════════════════════════════
+/admin/staff:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: adminListStaff
+    summary: List staff accounts
+    description: Name, username, email, roles, status, 2FA state, last login time and IP country; filters role and status; newest first (spec 16 AC-13).
+    tags: [Admin Staff]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: staff.manage
+      ownership: none
+    x-covers: ['16 AC-13']
+    parameters:
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/AdminLimit'
+      - name: roleId
+        in: query
+        required: false
+        schema: {$ref: '../components/schemas.yaml#/Uuid'}
+      - name: status
+        in: query
+        required: false
+        schema: {$ref: '../schemas/d6.yaml#/StaffStatus'}
+      - name: q
+        in: query
+        required: false
+        description: Partial match on name, username or email.
+        schema: {type: string, maxLength: 100}
+    responses:
+      '200':
+        description: A page of staff accounts.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/StaffMemberPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+  post:
+    operationId: adminCreateStaff
+    summary: Invite a new staff member
+    description: 'Creates the account without a password and sends the invitation email EV-123 with a single-use set-password link valid 48 hours (spec 16 AC-3, spec 15 AC-38). Errors: 409 `DUPLICATE` (username or email taken, field in `details.fields`); 422 `ROLE_PERMISSION_NOT_GRANTABLE` never applies here (roles are checked on role edit).'
+    tags: [Admin Staff]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: staff.manage
+      ownership: none
+      stepUp: true
+    x-covers: ['16 AC-3', '15 AC-38']
+    x-notifications: [EV-123]
+    x-audit: staff.create
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d6.yaml#/StaffCreateRequest'}
+    responses:
+      '201':
+        description: Created; invitation sent.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/StaffMember'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+/admin/staff/{staffId}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: staffId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: adminGetStaff
+    summary: Get a staff account
+    tags: [Admin Staff]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: staff.manage
+      ownership: none
+    x-covers: ['16 AC-13']
+    responses:
+      '200':
+        description: The staff account.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/StaffMember'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/admin/staff/{staffId}/roles:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: staffId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  put:
+    operationId: adminReplaceStaffRoles
+    summary: Replace a staff member's roles
+    description: 'The new roles apply at the next request, at most 1 minute later, without logging out (spec 16 AC-12). Errors: 403 `STAFF_CANNOT_EDIT_OWN_ROLES` (own account); 409 `STAFF_LAST_SUPER_ADMIN` (would leave no active Super-admin, AC-5); 400 unknown role ids.'
+    tags: [Admin Staff]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: staff.manage
+      ownership: any staff account except the caller's own
+      stepUp: true
+    x-covers: ['16 AC-5', '16 AC-8', '16 AC-12']
+    x-emits: [admin.permissions_changed]
+    x-audit: staff.roles.replace
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d6.yaml#/StaffRolesReplaceRequest'}
+    responses:
+      '200':
+        description: Updated.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/StaffMember'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+/admin/staff/{staffId}/disable:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: staffId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: adminDisableStaff
+    summary: Disable a staff account (sessions end at once)
+    description: 'All sessions end immediately (deny-list, socket `session.revoked`) and login is refused; there is no delete, the audit history stays (spec 16 AC-4). Errors: 403 `STAFF_CANNOT_EDIT_OWN_ROLES` (own account); 409 `STAFF_LAST_SUPER_ADMIN`; 409 `STATE_CONFLICT` (already disabled).'
+    tags: [Admin Staff]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: staff.manage
+      ownership: any staff account except the caller's own
+      stepUp: true
+    x-covers: ['16 AC-4', '16 AC-5']
+    x-audit: staff.disable
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../components/schemas.yaml#/StaffReasonRequest'}
+    responses:
+      '200':
+        description: Disabled.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/StaffMember'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+/admin/staff/{staffId}/enable:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: staffId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: adminEnableStaff
+    summary: Re-enable a staff account
+    description: Spec 16 AC-4. Also how the Owner's list activates imported legacy admins (AC-8, P-115 default). Errors 409 `STATE_CONFLICT` (already active).
+    tags: [Admin Staff]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: staff.manage
+      ownership: any staff account except the caller's own
+      stepUp: true
+    x-covers: ['16 AC-4', '16 AC-8']
+    x-audit: staff.enable
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema: {$ref: '../components/schemas.yaml#/StaffOptionalNoteRequest'}
+    responses:
+      '200':
+        description: Enabled.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/StaffMember'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+/admin/staff/{staffId}/resend-invitation:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: staffId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: adminResendStaffInvitation
+    summary: Re-send the invitation (new 48-hour link)
+    description: 'Earlier links stop working (spec 16 AC-3). Errors: 409 `STATE_CONFLICT` (password already set or account disabled).'
+    tags: [Admin Staff]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: staff.manage
+      ownership: none
+    x-covers: ['16 AC-3', '15 AC-38']
+    x-notifications: [EV-123]
+    x-audit: staff.invitation.resend
+    responses:
+      '200':
+        description: Sent.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/StaffMember'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+/admin/staff/{staffId}/end-sessions:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: staffId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: adminEndStaffSessions
+    summary: End all sessions of another staff member
+    description: All sessions end at once; the next login asks for 2FA again when S-060 is ON (spec 16 AC-6). Use `adminLogout` for the own session.
+    tags: [Admin Staff]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: staff.manage
+      ownership: any staff account except the caller's own
+      stepUp: true
+    x-covers: ['16 AC-6']
+    x-audit: staff.sessions.end
+    responses:
+      '200':
+        description: Done.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/StaffMember'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/admin/staff/{staffId}/reset-devices:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: staffId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: adminResetStaffTrustedDevices
+    summary: Forget another staff member's trusted devices
+    description: The next login asks for the 2FA code again (S-060; spec 16 AC-6).
+    tags: [Admin Staff]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: staff.manage
+      ownership: any staff account except the caller's own
+      stepUp: true
+    x-covers: ['16 AC-6']
+    x-settings: [S-060]
+    x-audit: staff.devices.reset
+    responses:
+      '200':
+        description: Done.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/StaffMember'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+# ═════════════════════════════════ Roles and permissions (staff.manage) ═════════════════════════════════
+/admin/permissions:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: adminListPermissions
+    summary: List the permission catalogue
+    description: The fixed catalogue of spec 16 (P-114) grouped by area, for the role editor. Deny by default; an admin operation without a declared permission fails the API startup check (AC-9).
+    tags: [Admin Staff]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: staff.manage
+      ownership: none
+    x-covers: ['16 AC-10']
+    responses:
+      '200':
+        description: The catalogue.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/PermissionList'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+/admin/roles:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: adminListRoles
+    summary: List roles
+    description: All roles with their permissions and staff count (small list, not paginated). A new installation has the four seeded roles of the matrix (spec 16 AC-11).
+    tags: [Admin Staff]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: staff.manage
+      ownership: none
+    x-covers: ['16 AC-10', '16 AC-11']
+    responses:
+      '200':
+        description: Roles.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/RoleList'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+  post:
+    operationId: adminCreateRole
+    summary: Create a role
+    description: 'Name ka/en, description, ticked permissions (spec 16 AC-10). Errors: 422 `ROLE_PERMISSION_NOT_GRANTABLE` (`settings.custom_code.write`); 409 `DUPLICATE` (name).'
+    tags: [Admin Staff]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: staff.manage
+      ownership: none
+      stepUp: true
+    x-covers: ['16 AC-10']
+    x-audit: role.create
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d6.yaml#/RoleCreateRequest'}
+    responses:
+      '201':
+        description: Created.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/Role'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+/admin/roles/{roleId}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: roleId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: adminGetRole
+    summary: Get a role
+    tags: [Admin Staff]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: staff.manage
+      ownership: none
+    x-covers: ['16 AC-10']
+    responses:
+      '200':
+        description: The role.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/Role'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+  patch:
+    operationId: adminUpdateRole
+    summary: Edit a role
+    description: 'Changes apply to every holder within 1 minute (spec 16 AC-12). Errors: 403 `ROLE_SYSTEM_READ_ONLY` (Super-admin); 403 `STAFF_CANNOT_EDIT_OWN_ROLES` when the caller holds the role (editing it would change their own permissions — see D6 handoff); 422 `ROLE_PERMISSION_NOT_GRANTABLE`.'
+    tags: [Admin Staff]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: staff.manage
+      ownership: none
+      stepUp: true
+    x-covers: ['16 AC-10', '16 AC-12']
+    x-emits: [admin.permissions_changed]
+    x-audit: role.update
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d6.yaml#/RoleUpdateRequest'}
+    responses:
+      '200':
+        description: Updated.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/Role'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+  delete:
+    operationId: adminDeleteRole
+    summary: Delete an unused role
+    description: 'Errors: 403 `ROLE_SYSTEM_READ_ONLY`; 409 `ROLE_IN_USE` (still assigned, spec 16 AC-10).'
+    tags: [Admin Staff]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: staff.manage
+      ownership: none
+      stepUp: true
+    x-covers: ['16 AC-10']
+    x-audit: role.delete
+    responses:
+      '204': {$ref: '../components/responses.yaml#/NoContent'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+# ═════════════════════════════════ Audit log (audit.read) ═════════════════════════════════
+/admin/audit-log:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: adminListAuditEntries
+    summary: Search the audit log
+    description: |
+      Filters staff member, action, target type and id, date range (spec 16 AC-16); newest first. The
+      "History" tabs of users, orders, contracts, offers, withdrawals and settings call this with
+      `targetType` + `targetId`. The log is append-only: no operation edits or deletes entries (AC-15).
+    tags: [Admin Audit]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: audit.read
+      ownership: none
+    x-covers: ['16 AC-14', '16 AC-16']
+    parameters:
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/AdminLimit'
+      - $ref: '../components/parameters.yaml#/CreatedFrom'
+      - $ref: '../components/parameters.yaml#/CreatedTo'
+      - name: staffId
+        in: query
+        required: false
+        schema: {$ref: '../components/schemas.yaml#/Uuid'}
+      - name: actorType
+        in: query
+        required: false
+        schema: {type: string, enum: [staff, user, system]}
+      - name: action
+        in: query
+        required: false
+        description: Exact action or a prefix ending in `.` (e.g. `withdrawal.`).
+        schema: {type: string, maxLength: 100}
+      - name: targetType
+        in: query
+        required: false
+        schema: {type: string, maxLength: 50}
+      - name: targetId
+        in: query
+        required: false
+        schema: {type: string, maxLength: 100}
+    responses:
+      '200':
+        description: A page of entries.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/AuditEntryPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+/admin/audit-log/export:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: adminExportAuditLog
+    summary: Export audit entries as CSV
+    description: Same filters as `adminListAuditEntries`; the export itself is audited with its filter (spec 16 AC-16, AC-77). Entries can contain personal data (before/after values), so re-authentication is required (AC-7). Max 100,000 rows; narrow the filter above that (422).
+    tags: [Admin Audit]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: audit.read
+      ownership: none
+      stepUp: true
+    x-covers: ['16 AC-16', '16 AC-77']
+    x-audit: audit.export
+    parameters:
+      - $ref: '../components/parameters.yaml#/CreatedFrom'
+      - $ref: '../components/parameters.yaml#/CreatedTo'
+      - name: staffId
+        in: query
+        required: false
+        schema: {$ref: '../components/schemas.yaml#/Uuid'}
+      - name: action
+        in: query
+        required: false
+        schema: {type: string, maxLength: 100}
+      - name: targetType
+        in: query
+        required: false
+        schema: {type: string, maxLength: 50}
+      - name: targetId
+        in: query
+        required: false
+        schema: {type: string, maxLength: 100}
+    responses:
+      '200':
+        description: 'CSV file with Content-Disposition attachment.'
+        content:
+          text/csv:
+            schema: {type: string}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+/admin/audit-log/{auditEntryId}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: auditEntryId
+      in: path
+      required: true
+      schema: {type: string, pattern: '^[0-9]+$'}
+  get:
+    operationId: adminGetAuditEntry
+    summary: Get one audit entry (before/after diff)
+    tags: [Admin Audit]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: audit.read
+      ownership: none
+    x-covers: ['16 AC-14']
+    responses:
+      '200':
+        description: The entry.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/AuditEntry'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+# ═════════════════════════════════ Dashboard (spec 16 D) ═════════════════════════════════
+/admin/dashboard/queue-counters:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: adminGetDashboardQueueCounters
+    summary: Queue counters for the admin home
+    description: A counter for every queue the caller may access (each counter is filtered by its own queue permission; custom offers only while S-035 is ON; bank transfers per spec 16 AC-43). Clients refresh every minute; `admin.queue_counters_updated` pushes changes (spec 16 AC-17).
+    tags: [Admin Dashboard]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: dashboard.read
+      ownership: none; each counter additionally requires its queue permission (omitted otherwise)
+    x-covers: ['16 AC-17']
+    x-settings: [S-035, S-021]
+    responses:
+      '200':
+        description: Counters.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/AdminDashboardQueueCounters'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+/admin/dashboard/kpis:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: adminGetDashboardKpis
+    summary: Non-money KPIs and newest users and gigs
+    description: Period default = last 30 days (Tbilisi dates, inclusive) (spec 16 AC-18).
+    tags: [Admin Dashboard]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: dashboard.read
+      ownership: none
+    x-covers: ['16 AC-18']
+    parameters:
+      - name: from
+        in: query
+        required: false
+        schema: {$ref: '../components/schemas.yaml#/DateOnly'}
+      - name: to
+        in: query
+        required: false
+        schema: {$ref: '../components/schemas.yaml#/DateOnly'}
+    responses:
+      '200':
+        description: KPIs.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/AdminDashboardKpis'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+/admin/dashboard/money-kpis:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: adminGetDashboardMoneyKpis
+    summary: Money KPIs from the ledger
+    description: Paid volume, fee and card-surcharge revenue, withdrawals paid, current HOLD total — from the ledger, never order totals (spec 16 AC-18, P-119). Separate operation because money figures need `payments.read`.
+    tags: [Admin Dashboard]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: payments.read
+      ownership: none
+    x-covers: ['16 AC-18']
+    parameters:
+      - name: from
+        in: query
+        required: false
+        schema: {$ref: '../components/schemas.yaml#/DateOnly'}
+      - name: to
+        in: query
+        required: false
+        schema: {$ref: '../components/schemas.yaml#/DateOnly'}
+    responses:
+      '200':
+        description: Money KPIs.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/AdminDashboardMoneyKpis'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+# ═════════════════════════════════ Reports queue (reports.handle) ═════════════════════════════════
+/admin/reports:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: adminListReports
+    summary: Reports queue grouped by reported item
+    description: |
+      One queue for profile, gig, project and proposal reports (spec 16 AC-28, P-118), grouped by item with
+      the number of reports; oldest first, 50 per page (AC-19); `totalCount` feeds the counter. Empty:
+      `t_admin_queue_empty`. Report creation lives with each resource (D1, D2, D5); shortcut actions
+      (remove gig, hide project, reject proposal, restrict/ban) are the owners' admin operations, shown only
+      with their permission.
+    tags: [Admin Reports]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: reports.handle
+      ownership: none
+    x-covers: ['16 AC-19', '16 AC-28']
+    parameters:
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/AdminLimit'
+      - $ref: '../components/parameters.yaml#/CreatedFrom'
+      - $ref: '../components/parameters.yaml#/CreatedTo'
+      - $ref: '../components/parameters.yaml#/UserIdFilter'
+      - name: targetType
+        in: query
+        required: false
+        schema: {$ref: '../components/schemas.yaml#/ReportTargetType'}
+      - name: status
+        in: query
+        required: false
+        description: Default `pending`.
+        schema: {$ref: '../schemas/d6.yaml#/ReportStatus'}
+      - name: reporterUserId
+        in: query
+        required: false
+        description: Reports made by this user (user page tab "Reports by the user", spec 16 AC-31).
+        schema: {$ref: '../components/schemas.yaml#/Uuid'}
+    responses:
+      '200':
+        description: A page of reported items (with `totalCount`).
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/ReportedItemPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+/admin/reports/{targetType}/{targetId}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: targetType
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/ReportTargetType'}
+    - name: targetId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: adminGetReportedItem
+    summary: Get one reported item
+    tags: [Admin Reports]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: reports.handle
+      ownership: none
+    x-covers: ['16 AC-28']
+    responses:
+      '200':
+        description: The item.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/ReportedItem'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/admin/reports/{targetType}/{targetId}/entries:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: targetType
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/ReportTargetType'}
+    - name: targetId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: adminListReportEntries
+    summary: List the individual reports of an item
+    description: Reporter, reason and date of each report, newest first (spec 16 AC-28).
+    tags: [Admin Reports]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: reports.handle
+      ownership: none
+    x-covers: ['16 AC-28']
+    parameters:
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/AdminLimit'
+    responses:
+      '200':
+        description: A page of reports.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/ReportEntryPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/admin/reports/{targetType}/{targetId}/dismiss:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: targetType
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/ReportTargetType'}
+    - name: targetId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: adminDismissReports
+    summary: Dismiss the pending reports of an item
+    description: 'Note required (spec 16 AC-28). Reporters are not notified. First decision wins: 409 `STATE_CONFLICT` with `t_item_already_decided` (AC-19).'
+    tags: [Admin Reports]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: reports.handle
+      ownership: none
+    x-covers: ['16 AC-19', '16 AC-28']
+    x-emits: [admin.queue_counters_updated]
+    x-audit: report.dismiss
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d6.yaml#/ReportDecisionRequest'}
+    responses:
+      '200':
+        description: Dismissed.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/ReportedItem'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+/admin/reports/{targetType}/{targetId}/resolve:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: targetType
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/ReportTargetType'}
+    - name: targetId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: adminResolveReports
+    summary: Resolve the pending reports of an item
+    description: 'Note required; usually after a shortcut action of the owning group (spec 16 AC-28). First decision wins: 409 `STATE_CONFLICT` with `t_item_already_decided`.'
+    tags: [Admin Reports]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: reports.handle
+      ownership: none
+    x-covers: ['16 AC-19', '16 AC-28']
+    x-emits: [admin.queue_counters_updated]
+    x-audit: report.resolve
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d6.yaml#/ReportDecisionRequest'}
+    responses:
+      '200':
+        description: Resolved.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/ReportedItem'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+# ═════════════════════════════════ Settings register (spec 16 I, O) ═════════════════════════════════
+/admin/settings:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: adminListSettings
+    summary: List the settings register
+    description: |
+      All register rows grouped by area (spec 16 AC-51; fixed list, not paginated), searchable by id, key or
+      meaning (`q`). Secret rows show only "set / not set" (AC-54). S-110 and S-127 are returned only to
+      holders of `settings.custom_code.write` (AC-72). Fee rules S-010…S-018 appear read-only with
+      `area: fees` (edited in `/admin/fee-rules`). Proposed rows (S-128, P-135) carry `registerStatus: proposed`.
+    tags: [Admin Settings]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: settings.read
+      ownership: none; custom-code rows need settings.custom_code.write in addition (hidden otherwise)
+    x-covers: ['16 AC-51', '16 AC-54', '16 AC-72']
+    parameters:
+      - name: area
+        in: query
+        required: false
+        schema: {$ref: '../schemas/d6.yaml#/SettingArea'}
+      - name: q
+        in: query
+        required: false
+        schema: {type: string, maxLength: 100}
+    responses:
+      '200':
+        description: Register rows.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/SettingList'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+/admin/settings/{key}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: key
+      in: path
+      required: true
+      description: Register key, e.g. `escrow.auto_release.hours`.
+      schema: {type: string, pattern: '^[a-z0-9_]+(\.[a-z0-9_]+)+$', maxLength: 100}
+  get:
+    operationId: adminGetSetting
+    summary: Get one register row
+    description: S-110/S-127 → 404 without `settings.custom_code.write` (spec 16 AC-72). Viewing a secret row's status is audited (AC-14).
+    tags: [Admin Settings]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: settings.read
+      ownership: none; custom-code rows need settings.custom_code.write in addition (404 otherwise)
+    x-covers: ['16 AC-51', '16 AC-54', '16 AC-72']
+    x-audit: setting.secret_status.read
+    responses:
+      '200':
+        description: The row.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/SettingEntry'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+  patch:
+    operationId: adminUpdateSetting
+    summary: Change one register row
+    description: |
+      The only write path for settings (ADR-005 §4). Exactly one permission is checked per call: the
+      write permission of the row's area (`x-permission.permissionByArea`, spec 16 "Settings areas").
+      Validation per register row (00 AC-10; out of range → `400 VALIDATION_FAILED` with
+      `t_setting_invalid_value`, old value kept). `expectedVersion` → `409 STATE_CONFLICT` if someone
+      else saved first (EC-3). Effective for web, mobile and API within 60 seconds, no deployment
+      (00 AC-8, P-123); audited with old/new (secrets redacted); V rows get a new version.
+      Row-specific rules:
+      - **Re-authentication** (AC-7) for S-100, S-110, S-127 and S-065…S-069 → else `403 REAUTH_REQUIRED`.
+      - **Critical rows** (S-025, S-033, S-056, S-060, S-065…S-069, S-100, S-110, S-127) send EV-124 to every
+        S-100 address; for S-100 to the old and the new list (AC-55, AC-56; spec 15 AC-31).
+      - **S-100**: at least one valid address (00 EC-9); test email with `adminSendTestEmail`.
+      - **Secrets** S-065…S-069: string replaces, `null` clears; the value is never returned or audited;
+        enabling a provider without keys → `422 BUSINESS_RULE_VIOLATION` (00 EC-10, AC-54).
+      - **S-102** ON without an SMS provider → `422 BUSINESS_RULE_VIOLATION` `t_sms_provider_not_configured` (spec 15 AC-26).
+      - **S-110** (value `CustomCodeValue`) and **S-127**: Super-admin only (`settings.custom_code.write`,
+        non-grantable); every external host in the code must be in S-127 and S-127 cannot drop a host
+        still used → `422 CUSTOM_CODE_HOST_NOT_ALLOWED` with `details.hosts` (AC-74, EC-10); full
+        before/after audited; `enabled: false` = "Disable custom code" (AC-75).
+      - **S-121** → `422 SETTING_MANAGED_ELSEWHERE` (use `adminUpdateMaintenance`); fee rows S-010…S-018 →
+        `422 SETTING_MANAGED_ELSEWHERE` (use `/admin/fee-rules`).
+      - Switching a toggle OFF blocks new items only (00 AC-11, EC-1); the confirmation text is client-side.
+    tags: [Admin Settings]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: settings.system.write
+      permissionByArea:
+        plans: settings.plans.write
+        payments: settings.payments.write
+        escrow: settings.escrow.write
+        withdrawals: settings.withdrawals.write
+        marketplace: settings.marketplace.write
+        subscriptions: settings.subscriptions.write
+        auth: settings.auth.write
+        moderation: settings.moderation.write
+        media: settings.media.write
+        chat: settings.chat.write
+        notifications: settings.notifications.write
+        content: settings.content.write
+        custom_code: settings.custom_code.write
+        system: settings.system.write
+      stepUpFor: [S-065, S-066, S-067, S-068, S-069, S-100, S-110, S-127]
+      ownership: none
+      notes: the permission is chosen by the row's area (registry, ADR-005 §1); `permission` shows the area of S-121/S-122/S-103 and S-128 (proposed default, see D6 handoff)
+    x-covers: ['16 AC-7', '16 AC-52', '16 AC-54', '16 AC-55', '16 AC-56', '16 AC-72', '16 AC-74', '16 AC-75', '15 AC-26', '15 AC-31', '00 AC-8', '00 AC-10']
+    x-notifications: [EV-124]
+    x-audit: setting.update
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d6.yaml#/SettingUpdateRequest'}
+    responses:
+      '200':
+        description: Saved (`t_setting_saved`).
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/SettingEntry'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+/admin/settings/{key}/history:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: key
+      in: path
+      required: true
+      schema: {type: string, pattern: '^[a-z0-9_]+(\.[a-z0-9_]+)+$', maxLength: 100}
+  get:
+    operationId: adminListSettingHistory
+    summary: History of a register row
+    description: Every change (who, when, old → new) and, for V rows, the versions, newest first (spec 16 AC-53). Secret values are never shown.
+    tags: [Admin Settings]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: settings.read
+      ownership: none; custom-code rows need settings.custom_code.write in addition (404 otherwise)
+    x-covers: ['16 AC-53']
+    parameters:
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/AdminLimit'
+    responses:
+      '200':
+        description: A page of versions.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/SettingVersionPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/admin/settings/{key}/restore:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: key
+      in: path
+      required: true
+      schema: {type: string, pattern: '^[a-z0-9_]+(\.[a-z0-9_]+)+$', maxLength: 100}
+  post:
+    operationId: adminRestoreSettingVersion
+    summary: Restore an earlier value as a new change
+    description: '"Restore" creates a new change with the old value (spec 16 AC-53); same permission, validation, re-authentication, audit and EV-124 rules as `adminUpdateSetting`. Secret rows cannot be restored (`422 BUSINESS_RULE_VIOLATION`).'
+    tags: [Admin Settings]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: settings.system.write
+      permissionByArea:
+        plans: settings.plans.write
+        payments: settings.payments.write
+        escrow: settings.escrow.write
+        withdrawals: settings.withdrawals.write
+        marketplace: settings.marketplace.write
+        subscriptions: settings.subscriptions.write
+        auth: settings.auth.write
+        moderation: settings.moderation.write
+        media: settings.media.write
+        chat: settings.chat.write
+        notifications: settings.notifications.write
+        content: settings.content.write
+        custom_code: settings.custom_code.write
+        system: settings.system.write
+      stepUpFor: [S-100, S-110, S-127]
+      ownership: none
+    x-covers: ['16 AC-53']
+    x-notifications: [EV-124]
+    x-audit: setting.restore
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d6.yaml#/SettingRestoreRequest'}
+    responses:
+      '200':
+        description: Restored as a new change.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/SettingEntry'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+# ═════════════════════════════════ Admin notification tools (S-100, delivery log) ═════════════════════════════════
+/admin/notifications/test-email:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  post:
+    operationId: adminSendTestEmail
+    summary: Send a test email through the live transport
+    description: 'EV-121 `TestEmail` to the entered address through SendGrid (Mailpit locally), from the configuration in `.env`; the result (sent / failed with the provider message) is returned (spec 15 AC-32, spec 16 AC-55, P-113).'
+    tags: [Admin Settings]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: settings.notifications.write
+      ownership: none
+    x-covers: ['15 AC-32', '16 AC-55']
+    x-notifications: [EV-121]
+    x-audit: notification.test_email
+    x-rate-limit: 10 per hour per staff member
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d6.yaml#/NotificationTestEmailRequest'}
+    responses:
+      '200':
+        description: Result of the attempt.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/NotificationTestEmailResult'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '429': {$ref: '../components/responses.yaml#/TooManyRequests'}
+
+/admin/notifications/deliveries:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: adminListNotificationDeliveries
+    summary: Notification delivery log
+    description: Email, push and SMS delivery records of the last 90 days, newest first, with failed and suppressed filters (spec 16 AC-69, spec 15 AC-4, AC-28, AC-34). `totalCount` feeds the "failed deliveries" counter (AC-17).
+    tags: [Admin System]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: system.health.read
+      ownership: none
+    x-covers: ['16 AC-69', '15 AC-4', '15 AC-28', '15 AC-34']
+    parameters:
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/AdminLimit'
+      - $ref: '../components/parameters.yaml#/CreatedFrom'
+      - $ref: '../components/parameters.yaml#/CreatedTo'
+      - $ref: '../components/parameters.yaml#/UserIdFilter'
+      - name: status
+        in: query
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: array
+          items: {$ref: '../schemas/d6.yaml#/NotificationDeliveryStatus'}
+      - name: channel
+        in: query
+        required: false
+        schema: {type: string, enum: [email, push, sms]}
+      - name: eventId
+        in: query
+        required: false
+        schema: {$ref: '../schemas/d6.yaml#/NotificationEventId'}
+      - name: recipientEmail
+        in: query
+        required: false
+        schema: {type: string, maxLength: 254}
+    responses:
+      '200':
+        description: A page of deliveries (with `totalCount`).
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/NotificationDeliveryPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+/admin/notifications/deliveries/{deliveryId}/retry:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: deliveryId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: adminRetryNotificationDelivery
+    summary: Retry a failed email delivery
+    description: '"Retry" of the delivery log (spec 16 AC-69). Queues one new attempt of the same email (same template, locale and recipient; still subject to suppression rules). Errors: 409 `STATE_CONFLICT` (not a failed email). Permission per spec 16 AC-69 (see D6 handoff about ADR-008 `system.queues.write`).'
+    tags: [Admin System]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: system.health.read
+      ownership: none
+    x-covers: ['16 AC-69']
+    x-audit: notification.delivery.retry
+    responses:
+      '202':
+        description: Retry queued.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/NotificationDelivery'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+# ═════════════════════════════════ Commission & Fee module (spec 16 H) ═════════════════════════════════
+/admin/fee-rules:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: adminListFeeRules
+    summary: List fee rules (current versions)
+    description: Every rule (S-010…S-018 and later ones) with purpose, payer, type, value, plan scope, enabled, effective from, version, changed by (spec 16 AC-46). Read-only for staff without `fees.write`. Promo codes never reduce fees; there is no promo field (AC-50).
+    tags: [Admin Settings]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: settings.read
+      ownership: none
+    x-covers: ['16 AC-46', '16 AC-50']
+    responses:
+      '200':
+        description: Fee rules.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/FeeRuleList'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+  post:
+    operationId: adminCreateFeeRule
+    summary: Add a fee rule for a supported purpose (created OFF)
+    description: 'The new rule is always created OFF (spec 16 AC-49, 00 §4.2); `enabled: true` → 400. Audited; EV-124 to S-100. Errors: 409 `DUPLICATE` (code exists).'
+    tags: [Admin Settings]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: fees.write
+      ownership: none
+      stepUp: true
+    x-covers: ['16 AC-49', '16 AC-56']
+    x-notifications: [EV-124]
+    x-audit: fee_rule.create
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d6.yaml#/FeeRuleCreateRequest'}
+    responses:
+      '201':
+        description: Created (OFF).
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/FeeRule'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+/admin/fee-rules/preview:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  post:
+    operationId: adminPreviewFeeRule
+    summary: Live example of a rule on a 100.00 GEL item
+    description: Buyer pays, freelancer HOLD or payout, platform revenue for the candidate values (spec 16 AC-47). Pure calculation with `calculateFees`; nothing is saved or audited.
+    tags: [Admin Settings]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: fees.write
+      ownership: none
+    x-covers: ['16 AC-47']
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d6.yaml#/FeeRulePreviewRequest'}
+    responses:
+      '200':
+        description: The example.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/FeeRulePreview'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+/admin/fee-rules/{feeRuleCode}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: feeRuleCode
+      in: path
+      required: true
+      description: Stable rule code, e.g. `withdrawal.standard` (versions share it).
+      schema: {type: string, pattern: '^[a-z_]+(\.[a-z_]+)+$', maxLength: 100}
+  get:
+    operationId: adminGetFeeRule
+    summary: Get the current version of a fee rule
+    tags: [Admin Settings]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: settings.read
+      ownership: none
+    x-covers: ['16 AC-46']
+    responses:
+      '200':
+        description: The rule.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/FeeRule'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+  put:
+    operationId: adminUpdateFeeRule
+    summary: Save a new version of a fee rule
+    description: |
+      Validates the values (spec 16 AC-47: percent 0–100 with at most 2 decimals, fixed 0–100,000 GEL,
+      payer allowed for the purpose), requires a reason and re-authentication (AC-7), stores a new version
+      effective immediately (P-123); transactions created earlier keep their version (00 AC-9, 05 AC-39);
+      audited; EV-124 to every S-100 address (AC-56). Errors: 400 `VALIDATION_FAILED`; 409 `STATE_CONFLICT`
+      (`expectedVersion` outdated, EC-3); 422 `FEE_REQUIRES_PAYMENT_FLOW` (switching S-016 ON, AC-49).
+      A checkout quoted before the change answers `QUOTE_CHANGED` (EC-4, D3).
+    tags: [Admin Settings]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: fees.write
+      ownership: none
+      stepUp: true
+    x-covers: ['16 AC-47', '16 AC-49', '16 AC-56', '00 AC-9', '05 AC-39']
+    x-notifications: [EV-124]
+    x-audit: fee_rule.update
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d6.yaml#/FeeRuleUpdateRequest'}
+    responses:
+      '200':
+        description: New version stored.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/FeeRule'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+/admin/fee-rules/{feeRuleCode}/versions:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: feeRuleCode
+      in: path
+      required: true
+      schema: {type: string, pattern: '^[a-z_]+(\.[a-z_]+)+$', maxLength: 100}
+  get:
+    operationId: adminListFeeRuleVersions
+    summary: History of a fee rule
+    description: All versions, newest first (who, when, values, reason); the client shows old → new between neighbours (spec 16 AC-48).
+    tags: [Admin Settings]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: settings.read
+      ownership: none
+    x-covers: ['16 AC-48']
+    parameters:
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/AdminLimit'
+    responses:
+      '200':
+        description: A page of versions.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/FeeRuleVersionPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/admin/fee-rules/{feeRuleCode}/restore:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: feeRuleCode
+      in: path
+      required: true
+      schema: {type: string, pattern: '^[a-z_]+(\.[a-z_]+)+$', maxLength: 100}
+  post:
+    operationId: adminRestoreFeeRuleVersion
+    summary: Restore a fee-rule version as a new version
+    description: '"Restore this version" creates a new version with those values (spec 16 AC-48); same rules as `adminUpdateFeeRule` (reason, re-authentication, audit, EV-124, S-016 check).'
+    tags: [Admin Settings]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: fees.write
+      ownership: none
+      stepUp: true
+    x-covers: ['16 AC-48', '16 AC-56']
+    x-notifications: [EV-124]
+    x-audit: fee_rule.restore
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d6.yaml#/FeeRuleRestoreRequest'}
+    responses:
+      '200':
+        description: New version stored.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/FeeRule'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+# ═════════════════════════════════ Translations (translations.write) ═════════════════════════════════
+/admin/translations:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: adminListTranslations
+    summary: Search UI translation keys with base value and override
+    description: Search by key name or by ka/en text (spec 16 AC-64). Staff cannot create or delete keys.
+    tags: [Admin Translations]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: translations.write
+      ownership: none
+    x-covers: ['16 AC-64']
+    parameters:
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/AdminLimit'
+      - name: q
+        in: query
+        required: false
+        schema: {type: string, maxLength: 200}
+      - name: overriddenOnly
+        in: query
+        required: false
+        schema: {type: boolean, default: false}
+    responses:
+      '200':
+        description: A page of keys.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/TranslationOverrideEntryPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+/admin/translations/export:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: adminExportTranslationOverrides
+    summary: Export all overrides as a JSON file
+    description: '"Export overrides" for committing to `packages/i18n` (spec 16 AC-64); unused overrides are flagged (EC-9). Audited.'
+    tags: [Admin Translations]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: translations.write
+      ownership: none
+    x-covers: ['16 AC-64', '16 AC-77']
+    x-audit: translation.export
+    responses:
+      '200':
+        description: 'JSON file with Content-Disposition attachment.'
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/TranslationOverrideExport'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+/admin/translations/{translationKey}/{locale}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: translationKey
+      in: path
+      required: true
+      schema: {type: string, pattern: '^t_[a-z0-9_]+$', maxLength: 200}
+    - name: locale
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Locale'}
+  put:
+    operationId: adminPutTranslationOverride
+    summary: Save an override for one key and language
+    description: 'Refused when the placeholders differ from the base value (`422 TRANSLATION_PLACEHOLDERS_MISMATCH`) or the text contains HTML (`400 VALIDATION_FAILED`, code `html_not_allowed`). Visible on the web within 60 seconds and in the app at its next start or refresh (`getI18nBundle` version hash, ADR-006 §4). Unknown key → 404. Audited.'
+    tags: [Admin Translations]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: translations.write
+      ownership: none
+    x-covers: ['16 AC-64']
+    x-audit: translation.override.put
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d6.yaml#/TranslationOverridePutRequest'}
+    responses:
+      '200':
+        description: Saved.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/TranslationOverrideEntry'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+  delete:
+    operationId: adminDeleteTranslationOverride
+    summary: Reset a key to its base value
+    description: '"Reset" removes the override (spec 16 AC-64). Idempotent. Audited.'
+    tags: [Admin Translations]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: translations.write
+      ownership: none
+    x-covers: ['16 AC-64']
+    x-audit: translation.override.delete
+    responses:
+      '204': {$ref: '../components/responses.yaml#/NoContent'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+# ═════════════════════════════════ Analytics dashboards (analytics.read) ═════════════════════════════════
+/admin/analytics/{widget}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: widget
+      in: path
+      required: true
+      schema: {$ref: '../schemas/d6.yaml#/AnalyticsWidget'}
+    - name: period
+      in: query
+      required: false
+      schema:
+        allOf: [{$ref: '../schemas/d6.yaml#/AnalyticsPeriod'}]
+        default: last_30_days
+    - name: from
+      in: query
+      required: false
+      description: Required when `period=custom`.
+      schema: {$ref: '../components/schemas.yaml#/DateOnly'}
+    - name: to
+      in: query
+      required: false
+      description: Required when `period=custom`.
+      schema: {$ref: '../components/schemas.yaml#/DateOnly'}
+    - name: granularity
+      in: query
+      required: false
+      description: Time-series widgets only (default day up to 90 days, else week).
+      schema: {$ref: '../schemas/d6.yaml#/AnalyticsGranularity'}
+  get:
+    operationId: adminGetAnalyticsWidget
+    summary: Data of one analytics widget
+    description: 'Period 7/30/90/365 days or custom, compared with the previous period (spec 16 AC-66, P-120). First-party aggregates only; no IP anywhere; legacy aggregates flagged; GeoIP attribution included (AC-67).'
+    tags: [Admin Analytics]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: analytics.read
+      ownership: none
+    x-covers: ['16 AC-66', '16 AC-67']
+    responses:
+      '200':
+        description: Widget data.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/AnalyticsWidgetResult'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+/admin/analytics/{widget}/export:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: widget
+      in: path
+      required: true
+      schema: {$ref: '../schemas/d6.yaml#/AnalyticsWidget'}
+    - name: period
+      in: query
+      required: false
+      schema:
+        allOf: [{$ref: '../schemas/d6.yaml#/AnalyticsPeriod'}]
+        default: last_30_days
+    - name: from
+      in: query
+      required: false
+      schema: {$ref: '../components/schemas.yaml#/DateOnly'}
+    - name: to
+      in: query
+      required: false
+      schema: {$ref: '../components/schemas.yaml#/DateOnly'}
+    - name: granularity
+      in: query
+      required: false
+      schema: {$ref: '../schemas/d6.yaml#/AnalyticsGranularity'}
+  get:
+    operationId: adminExportAnalyticsWidget
+    summary: Export one widget as CSV
+    description: Aggregates only, no personal data, so no re-authentication; audited with the filter (spec 16 AC-66, AC-77).
+    tags: [Admin Analytics]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: analytics.read
+      ownership: none
+    x-covers: ['16 AC-66', '16 AC-77']
+    x-audit: analytics.export
+    responses:
+      '200':
+        description: CSV file.
+        content:
+          text/csv:
+            schema: {type: string}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+# ═════════════════════════════════ System (spec 16 N) ═════════════════════════════════
+/admin/system/logs:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: adminListSystemLogs
+    summary: System logs (warnings, errors, fatal; 30 days)
+    description: Level, source (api, worker, websocket), message, request id, time, redacted context, with filters (spec 16 AC-68). There is no download of raw log files and no public URL for logs (Q-054, ADR-013).
+    tags: [Admin System]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: system.logs.read
+      ownership: none
+    x-covers: ['16 AC-68']
+    parameters:
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/AdminLimit'
+      - $ref: '../components/parameters.yaml#/CreatedFrom'
+      - $ref: '../components/parameters.yaml#/CreatedTo'
+      - name: level
+        in: query
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: array
+          items: {$ref: '../schemas/d6.yaml#/SystemLogLevel'}
+      - name: source
+        in: query
+        required: false
+        schema: {$ref: '../schemas/d6.yaml#/SystemLogSource'}
+      - name: requestId
+        in: query
+        required: false
+        schema: {type: string, maxLength: 100}
+      - name: q
+        in: query
+        required: false
+        schema: {type: string, maxLength: 200}
+    responses:
+      '200':
+        description: A page of log entries.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/SystemLogEntryPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+/admin/system/health:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: adminGetSystemHealth
+    summary: Job and queue health, last BOG callback
+    description: Each background job with last success, last error and processed count (red after 15 minutes without success for minute jobs), queue sizes, last BOG callback time, email failure rate (spec 16 AC-69, P-121). The delivery log is `adminListNotificationDeliveries`. Problems trigger EV-125 from the health-check job (spec 15 AC-39).
+    tags: [Admin System]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: system.health.read
+      ownership: none
+    x-covers: ['16 AC-69']
+    responses:
+      '200':
+        description: Health snapshot.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/SystemHealth'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+/admin/system/caches/refresh:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  post:
+    operationId: adminRefreshCaches
+    summary: Refresh caches (public pages, settings, translations)
+    description: Revalidates public page caches, the settings cache and the translation cache; audited (spec 16 AC-71, P-121). Idempotent.
+    tags: [Admin System]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: settings.system.write
+      ownership: none
+    x-covers: ['16 AC-71']
+    x-audit: system.caches.refresh
+    responses:
+      '200':
+        description: Done.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/SystemCacheRefreshResult'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+/admin/system/maintenance:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: adminGetMaintenance
+    summary: Get maintenance mode state
+    tags: [Admin System]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: settings.read
+      ownership: none
+    x-covers: ['16 AC-70']
+    x-settings: [S-121]
+    responses:
+      '200':
+        description: State.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/MaintenanceState'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+  put:
+    operationId: adminUpdateMaintenance
+    summary: Switch maintenance mode ON or OFF
+    description: |
+      ON with headline and message (ka/en): the website and app show the maintenance screen (web 503 with
+      `Retry-After`, user API `503 MAINTENANCE`); admin, BOG callback, health, jobs and notifications keep
+      working (spec 16 AC-70, EC-8). Switching ON sends EV-122 `Admin/SiteIsDown` to every S-100 address
+      with who and when, without any secret (spec 15 AC-37, P-112). OFF reopens everything. Audited.
+      Errors: 409 `STATE_CONFLICT` (`expectedVersion` outdated).
+    tags: [Admin System]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: settings.system.write
+      ownership: none
+    x-covers: ['16 AC-70', '15 AC-37']
+    x-settings: [S-121, S-100]
+    x-notifications: [EV-122]
+    x-audit: system.maintenance.update
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d6.yaml#/MaintenanceUpdateRequest'}
+    responses:
+      '200':
+        description: Saved.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/MaintenanceState'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+/admin/system/maintenance/preview-links:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  post:
+    operationId: adminCreateMaintenancePreviewLink
+    summary: Link that lets this browser preview the public site during maintenance
+    description: 'Any signed-in staff member (spec 16 AC-70 "staff logged in to the admin"): a one-time link (about 5 minutes) that sets a host-only bypass cookie for this browser only, valid at most until the staff session ends. No shared secret (P-112). Refused with `409 STATE_CONFLICT` when maintenance is OFF.'
+    tags: [Admin System]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: '@self'
+      ownership: own browser session only
+    x-covers: ['16 AC-70']
+    x-audit: system.maintenance.preview
+    responses:
+      '201':
+        description: Link created.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d6.yaml#/MaintenancePreviewLink'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}

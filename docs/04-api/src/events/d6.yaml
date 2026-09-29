@@ -1,3 +1,37 @@
-# D6 — realtime (Socket.IO) events emitted for specs 15, 16. STUB; the D6 group run fills it.
-# Format: docs/04-api/realtime.md §4. Payload schemas go in ../schemas/d6.yaml, named <Something>Event.
-events: []
+# D6 — realtime (Socket.IO) events for specs 15, 16. Format: docs/04-api/realtime.md §4.
+# Payload schemas live in ../schemas/d6.yaml and are wrapped in the shared RealtimeEnvelope.
+events:
+  - name: notification.created
+    room: 'user:{userId}'
+    payload: NotificationCreatedEvent
+    emittedBy: ['job:notification-dispatch']
+    covers: ['15 AC-12']
+    description: A new in-app notification was stored (after commit, from the outbox); clients update the bell and prepend it to an open list.
+
+  - name: notification.read
+    room: 'user:{userId}'
+    payload: NotificationReadEvent
+    emittedBy: [markNotificationRead, markAllNotificationsRead]
+    covers: ['15 AC-14']
+    description: Notifications were marked read on one device; every tab and device updates its list and count (spec 15 EC-3).
+
+  - name: badge.updated
+    room: 'user:{userId}'
+    payload: NotificationBadgeEvent
+    emittedBy: [markNotificationRead, markAllNotificationsRead, 'job:notification-dispatch', 'job:conversation-read-state']
+    covers: ['15 AC-12', '15 AC-25']
+    description: New bell and app-icon badge counts (unread notifications + conversations with unseen messages).
+
+  - name: admin.queue_counters_updated
+    room: 'staff-permission:{permission}'
+    payload: AdminQueueCountersEvent
+    emittedBy: [adminDismissReports, adminResolveReports, 'job:admin-queue-counters']
+    covers: ['16 AC-17']
+    description: Counts of the queues guarded by that permission changed; the admin home updates without waiting for the 1-minute refresh.
+
+  - name: admin.permissions_changed
+    room: 'staff:{staffId}'
+    payload: StaffPermissionsChangedEvent
+    emittedBy: [adminReplaceStaffRoles, adminUpdateRole]
+    covers: ['16 AC-12']
+    description: The staff member's effective permissions changed; the admin app re-reads adminGetMe and hides/shows menu items.

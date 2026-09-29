@@ -1,12 +1,1917 @@
-# D3 — schemas for specs 05, 09, 14. STUB written by the P2-B4 foundation run; the D3 group run fills it.
-# Map of SchemaName -> Schema. Names must start with one of the D3 schemaPrefixes in src/ownership.yaml
-# (optionally preceded by "Admin"), except D3ErrorCode. Names in ../components/schemas.yaml are reserved.
-# Reference shared schemas as '../components/schemas.yaml#/Money' and own ones as '#/MySchema'.
+# D3 — schemas for specs 05 (payments and wallet), 09 (subscriptions, points, referrals, promo codes)
+# and 14 (withdrawals), plus the spec 16 admin screens delegated to D3 (CONVENTIONS §4.3).
+# Written by the P2-B4 D3 group run (2026-09-29). Rules: CONVENTIONS §3.4, §9, §11.
+# Money is always the shared Money (integer tetri, GEL); points are plain integers (ADR-003 §9).
+# Response objects list every property in `required` (unknown / not applicable = null).
 
+# ═════════════════════════ Error codes ═════════════════════════
 D3ErrorCode:
   type: string
-  x-stub: true
+  description: Domain error codes of D3 (CONVENTIONS §7.3). Everything else uses `CommonErrorCode` plus `details.messageKey`.
+  enum:
+    - QUOTE_CHANGED
+    - CHECKOUT_METHOD_NOT_AVAILABLE
+    - CHECKOUT_CART_EMPTY
+    - CHECKOUT_ITEMS_NO_LONGER_AVAILABLE
+    - CHECKOUT_TARGET_NOT_PAYABLE
+    - TOPUP_AMOUNT_OUT_OF_RANGE
+    - PROMO_INVALID
+    - PROMO_WRONG_PLAN
+    - PROMO_ALREADY_USED
+    - PROMO_FULLY_REDEEMED
+    - PROMO_NOT_APPLICABLE
+    - SUBSCRIPTION_ALREADY_ACTIVE
+    - PAYOUT_DETAILS_REQUIRED
+    - PAYOUT_PASSWORD_INCORRECT
+    - WITHDRAWAL_PENDING_EXISTS
+    - WITHDRAWAL_PERIOD_NOT_ELAPSED
+    - WITHDRAWAL_BELOW_MINIMUM
+    - WITHDRAWAL_PAYOUT_TOO_LOW
+  x-enumDescriptions:
+    QUOTE_CHANGED: '[409] The server recomputed the quote and its total for the chosen method differs from `quoteId` (fee rule, S-012, price or promo changed). Nothing was started. `details.quote` holds the new `CheckoutQuote` to confirm (spec 05 AC-8); messageKey t_quote_changed'
+    CHECKOUT_METHOD_NOT_AVAILABLE: '[422] The method is never offered for this purpose (spec 05 R-P1: bank transfer only for gig orders and top-ups, wallet never for Premium or top-ups). A method switched OFF is `403 FEATURE_DISABLED` instead; messageKey t_payment_method_not_available (NEW, requested in the D3 handoff)'
+    CHECKOUT_CART_EMPTY: '[422] The cart has no orderable line left after re-validation (spec 06 AC-6); messageKey t_an_item_in_your_cart_doesnot_exist'
+    CHECKOUT_ITEMS_NO_LONGER_AVAILABLE: '[422] "Pay" again for an order awaiting payment whose gigs are no longer orderable; only "Delete" remains (spec 06 AC-11); messageKey t_order_items_no_longer_available'
+    CHECKOUT_TARGET_NOT_PAYABLE: '[409] The item can no longer take a payment: order not awaiting payment, contract already paid or canceled, offer withdrawn/declined/expired/rejected (spec 11 AC-30, spec 12 AC-17, AC-18); messageKey t_order_status_changed or t_offer_no_longer_available'
+    TOPUP_AMOUNT_OUT_OF_RANGE: '[422] Top-up amount A below S-023 or above S-024; `details.min` and `details.max` are Money (spec 05 AC-22); messageKey t_min_deposit_amount_is_and_max_is'
+    PROMO_INVALID: '[422] Unknown, inactive or outside its dates (spec 09 AC-28); messageKey t_promo_invalid'
+    PROMO_WRONG_PLAN: '[422] The code does not apply to this billing period (S-048, spec 09 AC-28); messageKey t_promo_wrong_plan'
+    PROMO_ALREADY_USED: '[422] Per-user limit S-049 reached (spec 09 AC-28); messageKey t_promo_already_used'
+    PROMO_FULLY_REDEEMED: '[422] Total cap S-050 reached (reserved + final, spec 09 AC-28, AC-31); messageKey t_promo_fully_redeemed'
+    PROMO_NOT_APPLICABLE: '[422] A promo code on a checkout that is not a promo-eligible platform service (gig order, contract, offer, top-up; spec 05 AC-40); messageKey t_promo_not_applicable'
+    SUBSCRIPTION_ALREADY_ACTIVE: '[422] The user already has Premium that has not ended (active or canceled-running) — purchase, points purchase or staff gift refused (spec 09 AC-6, AC-35, R-S3); messageKey t_already_have_active_subscription'
+    PAYOUT_DETAILS_REQUIRED: '[422] No usable payout details (neither holder + IBAN nor migrated text) (spec 14 AC-4); messageKey t_add_payout_details_first'
+    PAYOUT_PASSWORD_INCORRECT: '[422] The current password sent to confirm new payout details is wrong (spec 14 AC-3, P-63); messageKey = the current-password error key of spec 02 (aligned with D1 by the integration run)'
+    WITHDRAWAL_PENDING_EXISTS: '[409] The user already has a pending or processing withdrawal (spec 14 AC-6, AC-10); messageKey t_cant_withdraw_reason_pending_request'
+    WITHDRAWAL_PERIOD_NOT_ELAPSED: '[422] Less than 24h / 168h / 720h (S-032) since the creation of the latest paid request; `details.nextAllowedAt` (spec 14 AC-6); messageKey t_cant_withdraw_reason_period_24_hours | t_cant_withdraw_reason_period_7_days | t_cant_withdraw_reason_period_monthly'
+    WITHDRAWAL_BELOW_MINIMUM: '[422] A below S-031; `details.min` is Money (spec 14 AC-6); messageKey t_cant_withdraw_reason_min_amount'
+    WITHDRAWAL_PAYOUT_TOO_LOW: '[422] Payout A − F would be 0 or less (spec 14 AC-6); messageKey t_withdrawal_amount_too_low'
+
+# ═════════════════════════ Checkout (spec 05 AC-1…AC-8, AC-21, AC-22, AC-37, AC-40; 09 AC-3, AC-28…AC-30) ═════════════════════════
+CheckoutPromoCodeInput:
+  type: [string, 'null']
+  minLength: 4
+  maxLength: 20
+  pattern: '^[A-Za-z0-9-]{4,20}$'
+  description: Promo code as typed (case-insensitive, spec 09 AC-27). Only accepted for promo-eligible platform services (today Premium, purpose `subscription`); on any other purpose → `422 PROMO_NOT_APPLICABLE` (spec 05 AC-40).
+
+CheckoutQuoteRequest:
+  type: object
+  required: [target]
+  properties:
+    target: {$ref: '../components/schemas.yaml#/CheckoutTarget'}
+    promoCode:
+      $ref: '#/CheckoutPromoCodeInput'
+      description: |
+        The promo code to apply. For purpose `subscription` the code may also arrive in
+        `target.promoCode` (shared schema); if both are set they must be equal (else `400 VALIDATION_FAILED`).
+        The integration run is asked to keep only this top-level field (D3 handoff).
+
+CheckoutQuoteLine:
+  type: object
+  description: One thing being paid for, with its price P as stored or re-read by the server.
+  required: [lineNo, kind, description, amount, workItem, gig, freelancer, upgrades]
+  properties:
+    lineNo: {type: integer, minimum: 1}
+    kind: {$ref: '#/PaymentLineKind'}
+    description:
+      type: string
+      description: Snapshot name (gig title, project title, offer excerpt, "Wallet top-up", "Premium monthly"), resolved in the request language.
+    amount:
+      $ref: '../components/schemas.yaml#/Money'
+      description: Item price P (base + upgrades for a gig line; proposal amount; offer price; top-up A; Premium list price).
+    workItem:
+      oneOf: [{$ref: '../components/schemas.yaml#/WorkItemRef'}, {type: 'null'}]
+      description: Existing item being paid (contract payment, custom offer, order item of an order awaiting payment); null for cart lines not yet ordered, top-ups and Premium.
+    gig:
+      oneOf: [{$ref: '../components/schemas.yaml#/GigRef'}, {type: 'null'}]
+    freelancer:
+      oneOf: [{$ref: '../components/schemas.yaml#/UserSummary'}, {type: 'null'}]
+    upgrades:
+      type: array
+      description: Chosen gig upgrades (titles and prices included in `amount`); empty for other kinds.
+      items: {$ref: '#/CheckoutQuoteUpgrade'}
+
+CheckoutQuoteUpgrade:
+  type: object
+  required: [title, price, extraDays]
+  properties:
+    title: {type: string}
+    price: {$ref: '../components/schemas.yaml#/Money'}
+    extraDays: {type: integer, minimum: 0}
+
+CheckoutUnavailableReason:
+  type: object
+  description: Why a method is shown disabled (data + i18n key; clients never hard-code texts).
+  required: [code, messageKey, settingId]
+  properties:
+    code:
+      type: string
+      enum: [feature_disabled, insufficient_funds, not_offered_for_purpose, mobile_card_purchase_disabled]
+      description: |
+        `feature_disabled` = S-019/S-020/S-021/S-022 OFF (spec 05 AC-4); `insufficient_funds` = wallet
+        Available < total, including a negative balance (AC-19, AC-30; messageKey
+        t_insufficient_funds_in_your_account); `not_offered_for_purpose` = R-P1; `mobile_card_purchase_disabled`
+        = S-126 OFF and the caller is `ios`/`android` (spec 09 AC-7).
+    messageKey:
+      type: string
+      pattern: '^t_[a-z0-9_]+$'
+    settingId:
+      type: [string, 'null']
+      pattern: '^S-[0-9]{3}$'
+
+CheckoutMethodQuote:
+  type: object
+  description: The complete breakdown if the buyer pays with this method. Clients show these numbers only (spec 05 AC-5).
+  required: [method, isAvailable, unavailableReason, surchargeLine, total, walletAvailable, creditedAmount]
+  properties:
+    method: {$ref: '../components/schemas.yaml#/PaymentMethod'}
+    isAvailable: {type: boolean}
+    unavailableReason:
+      oneOf: [{$ref: '#/CheckoutUnavailableReason'}, {type: 'null'}]
+    surchargeLine:
+      oneOf: [{$ref: '../components/schemas.yaml#/FeeLine'}, {type: 'null'}]
+      description: |
+        Card surcharge S-012 on the surcharge base (prices + buyer-paid fees), half up to the tetri
+        (spec 05 AC-6, R-P5, P-38). Only for `bog_card` and only for gig orders, contract payments,
+        custom offers and top-ups; null for wallet, bank transfer and Premium (AC-7), and null when it
+        rounds to 0.00 (EC-6). Shown with `t_card_fee_line` and `rate`.
+    total:
+      $ref: '../components/schemas.yaml#/Money'
+      description: What the buyer pays with this method = items + buyer fees + surcharge − discount (≥ 0).
+    walletAvailable:
+      oneOf: [{$ref: '../components/schemas.yaml#/Money'}, {type: 'null'}]
+      description: '`wallet` only: the caller''s Available balance (may be negative for migrated users, spec 05 AC-30), for `t_pay_by_wallet`.'
+    creditedAmount:
+      oneOf: [{$ref: '../components/schemas.yaml#/Money'}, {type: 'null'}]
+      description: Top-ups only — the amount A that reaches the wallet (`t_amount_credited`, spec 05 AC-21); null otherwise.
+
+CheckoutPromo:
+  type: object
+  description: The applied promo code (valid codes only; invalid codes are refused with a `PROMO_*` error).
+  required: [code, discountType, discountRate, discountAmount, label]
+  properties:
+    code: {type: string, description: Normalised upper-case code.}
+    discountType: {$ref: '#/PromoDiscountType'}
+    discountRate:
+      oneOf: [{$ref: '../components/schemas.yaml#/BasisPoints'}, {type: 'null'}]
+      description: Percent codes only.
+    discountAmount:
+      $ref: '../components/schemas.yaml#/Money'
+      description: 'Discount D actually given: price × rate half up, or min(fixed, price) (spec 09 AC-29).'
+    label:
+      type: string
+      description: Resolved `t_promo_discount_line` text parameters are `code`; clients render the key themselves.
+
+CheckoutPointsOption:
+  type: object
+  description: '"Buy with points" for monthly Premium (spec 09 AC-8, AC-9). Not a payment method (Q-052); bought with `purchaseSubscriptionWithPoints`.'
+  required: [isAvailable, points, pointsBalance, pointsNeeded]
+  properties:
+    isAvailable: {type: boolean}
+    points:
+      type: integer
+      minimum: 0
+      description: S-045 (server value; the client never sends a number of points, R-006).
+    pointsBalance: {type: integer}
+    pointsNeeded:
+      type: integer
+      minimum: 0
+      description: How many more points are needed (`t_points_needed_more`); 0 when available.
+
+CheckoutSubscriptionTerms:
+  type: object
+  description: Premium checkout information (spec 09 AC-3).
+  required: [plan, billingPeriod, periodEndsAt, autoRenew, renewalReminderDays, isZeroTotal]
+  properties:
+    plan: {$ref: '../components/schemas.yaml#/PlanCode'}
+    billingPeriod: {$ref: '../components/schemas.yaml#/BillingPeriod'}
+    periodEndsAt:
+      $ref: '../components/schemas.yaml#/Timestamp'
+      description: End of the first period if paid now (1 calendar month / 1 year, R-S4).
+    autoRenew:
+      type: boolean
+      description: True for card purchases with S-042 ON; false when the promo makes the total 0 (AC-30).
+    renewalReminderDays:
+      type: integer
+      minimum: 0
+      description: S-043, for `t_auto_renew_notice`.
+    isZeroTotal:
+      type: boolean
+      description: The promo makes the total 0.00 → the client shows "Activate" (`t_activate_premium`) and `createPayment` activates without BOG (spec 09 AC-30).
+
+CheckoutNotice:
+  type: object
+  description: Something the server changed while re-validating the cart (spec 06 AC-6), e.g. a removed line.
+  required: [messageKey, gig]
+  properties:
+    messageKey:
+      type: string
+      pattern: '^t_[a-z0-9_]+$'
+      examples: [t_an_item_in_your_cart_doesnot_exist, t_an_upgrade_in_item_in_cart_not_found]
+    gig:
+      oneOf: [{$ref: '../components/schemas.yaml#/GigRef'}, {type: 'null'}]
+
+CheckoutQuote:
+  type: object
   description: |
-    Domain error codes of D3 (CONVENTIONS §7.3). The D3 run replaces this stub with
-    `enum: [...]` plus `x-enumDescriptions` ("[HTTP status] meaning; messageKey t_..."), using only
-    the D3 errorPrefixes from src/ownership.yaml, and removes `x-stub`.
+    Server-computed checkout breakdown for one `CheckoutTarget` and every method the purpose allows
+    (spec 05 R-P1). Fees come from the Commission & Fee module with their rule versions (ADR-005 §6);
+    `quoteId` is the opaque quote hash (`payments.quote_hash`) that `createPayment` compares with its own
+    recomputation (spec 05 AC-8).
+  required: [quoteId, purpose, target, lines, itemsTotal, buyerFeeLines, promo, methods, pointsOption, subscription, notices, computedAt]
+  properties:
+    quoteId:
+      type: string
+      maxLength: 128
+    purpose: {$ref: '../components/schemas.yaml#/PaymentPurpose'}
+    target: {$ref: '../components/schemas.yaml#/CheckoutTarget'}
+    lines:
+      type: array
+      items: {$ref: '#/CheckoutQuoteLine'}
+    itemsTotal:
+      $ref: '../components/schemas.yaml#/Money'
+      description: Σ P of the lines (`t_subtotal`).
+    buyerFeeLines:
+      type: array
+      description: Buyer-paid fees (Fb) from enabled rules (S-014, S-017; today none, spec 05 AC-37). Freelancer-paid fees are never shown to the buyer.
+      items: {$ref: '../components/schemas.yaml#/FeeLine'}
+    promo:
+      oneOf: [{$ref: '#/CheckoutPromo'}, {type: 'null'}]
+    methods:
+      type: array
+      description: One entry per method the purpose allows (disabled ones with a reason). Points are never a method (Q-052).
+      items: {$ref: '#/CheckoutMethodQuote'}
+    pointsOption:
+      oneOf: [{$ref: '#/CheckoutPointsOption'}, {type: 'null'}]
+      description: Monthly Premium only; null otherwise (spec 05 AC-3, spec 09 AC-8).
+    subscription:
+      oneOf: [{$ref: '#/CheckoutSubscriptionTerms'}, {type: 'null'}]
+    notices:
+      type: array
+      items: {$ref: '#/CheckoutNotice'}
+    computedAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+# ═════════════════════════ Payments ═════════════════════════
+PaymentLineKind:
+  type: string
+  enum: [order_item, contract_payment, custom_offer, topup_credit, subscription_period]
+  description: data-model §3.J `payment_line_kind`.
+
+PaymentCreateRequest:
+  type: object
+  required: [target, method, quoteId]
+  properties:
+    target: {$ref: '../components/schemas.yaml#/CheckoutTarget'}
+    method: {$ref: '../components/schemas.yaml#/PaymentMethod'}
+    quoteId:
+      type: string
+      maxLength: 128
+      description: '`quoteId` of the `CheckoutQuote` the buyer confirmed.'
+    saveCard:
+      type: [boolean, 'null']
+      description: Ignored except for Premium by card, where the card is always saved for auto-renewal (spec 09 AC-3, AC-4). Other purposes never save cards (legacy saved cards only for subscriptions).
+    promoCode: {$ref: '#/CheckoutPromoCodeInput'}
+
+PaymentTargetRef:
+  type: object
+  description: What the payment paid (or pays) for, with links for the result page (spec 05 AC-12).
+  required: [purpose, orderId, orderUid, contractId, contractPaymentId, customOfferId, subscriptionId, workItems]
+  properties:
+    purpose: {$ref: '../components/schemas.yaml#/PaymentPurpose'}
+    orderId:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+      description: Gig order created from the cart or paid again.
+    orderUid:
+      type: [string, 'null']
+      description: Public order number shown to users.
+    contractId:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+    contractPaymentId:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+    customOfferId:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+    subscriptionId:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+      description: Set once a Premium purchase or renewal is applied.
+    workItems:
+      type: array
+      description: Paid units of work (order items, contract payment, offer). Empty for top-ups and Premium.
+      items: {$ref: '../components/schemas.yaml#/WorkItemRef'}
+
+PaymentLine:
+  type: object
+  required: [lineNo, kind, description, amount, workItem]
+  properties:
+    lineNo: {type: integer, minimum: 1}
+    kind: {$ref: '#/PaymentLineKind'}
+    description: {type: string, description: 'Snapshot name (also the BOG basket line, spec 05 AC-16).'}
+    amount:
+      $ref: '../components/schemas.yaml#/Money'
+      description: P of the line.
+    workItem:
+      oneOf: [{$ref: '../components/schemas.yaml#/WorkItemRef'}, {type: 'null'}]
+
+PaymentCard:
+  type: object
+  description: Card as reported by BOG payment details (never a full number).
+  required: [brand, maskedPan]
+  properties:
+    brand: {type: [string, 'null']}
+    maskedPan: {type: [string, 'null'], maxLength: 20}
+
+PaymentBillingSnapshot:
+  type: object
+  description: Billing information copied onto the payment when it was created (spec 05 AC-33, AC-36).
+  required: [firstName, lastName, company, countryCode, address, vatNumber]
+  properties:
+    firstName: {type: [string, 'null']}
+    lastName: {type: [string, 'null']}
+    company: {type: [string, 'null']}
+    countryCode:
+      oneOf: [{$ref: '../components/schemas.yaml#/CountryCode'}, {type: 'null'}]
+    address: {type: [string, 'null']}
+    vatNumber: {type: [string, 'null']}
+
+PaymentBankTransferInstructions:
+  type: object
+  description: What the buyer must do for a bank transfer (spec 05 AC-24, AC-26).
+  required: [instructions, reference, amount, messageKey]
+  properties:
+    instructions:
+      type: string
+      description: S-125 bank details text in the request language (Georgian fallback).
+    reference:
+      type: string
+      description: Reference to write in the transfer description (order number or payment reference), for `t_bank_transfer_instructions`.
+    amount: {$ref: '../components/schemas.yaml#/Money'}
+    messageKey:
+      type: string
+      pattern: '^t_[a-z0-9_]+$'
+      description: '`t_awaiting_bank_transfer` (orders) or `t_deposit_offline_pending_msg` (top-ups).'
+
+PaymentNextAction:
+  type: object
+  description: What the client does after `createPayment` (and while polling `getPayment`).
+  required: [type, redirectUrl, bankTransfer]
+  properties:
+    type:
+      type: string
+      enum: [redirect, completed, bank_transfer, none]
+      description: |
+        `redirect` = open `redirectUrl` (BOG hosted page; web same tab, mobile in-app browser, spec 05 AC-9);
+        `completed` = paid already (wallet, zero-total Premium) — show success;
+        `bank_transfer` = show `bankTransfer`; `none` = nothing to do (final state).
+    redirectUrl:
+      oneOf: [{$ref: '../components/schemas.yaml#/HttpUrl'}, {type: 'null'}]
+    bankTransfer:
+      oneOf: [{$ref: '#/PaymentBankTransferInstructions'}, {type: 'null'}]
+
+Payment:
+  type: object
+  description: |
+    A payment of the caller (payer view). Also the receipt of spec 05 AC-33 (breakdown, method, card,
+    BOG order reference, billing snapshot). Status meaning: data-model §4.3; only `paid` and
+    `paid_unapplied` moved money.
+  required: [id, purpose, method, status, target, lines, itemsTotal, buyerFeeLines, surcharge, surchargeLine, discount, promoCode, total, card, providerOrderId, billing, nextAction, creditedToWallet, failureMessageKey, createdAt, paidAt, failedAt, expiresAt]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    purpose: {$ref: '../components/schemas.yaml#/PaymentPurpose'}
+    method: {$ref: '../components/schemas.yaml#/PaymentMethod'}
+    status: {$ref: '../components/schemas.yaml#/PaymentStatus'}
+    target: {$ref: '#/PaymentTargetRef'}
+    lines:
+      type: array
+      items: {$ref: '#/PaymentLine'}
+    itemsTotal: {$ref: '../components/schemas.yaml#/Money'}
+    buyerFeeLines:
+      type: array
+      items: {$ref: '../components/schemas.yaml#/FeeLine'}
+    surcharge: {$ref: '../components/schemas.yaml#/Money'}
+    surchargeLine:
+      oneOf: [{$ref: '../components/schemas.yaml#/FeeLine'}, {type: 'null'}]
+    discount: {$ref: '../components/schemas.yaml#/Money'}
+    promoCode: {type: [string, 'null']}
+    total:
+      $ref: '../components/schemas.yaml#/Money'
+      description: Amount charged (= amount sent to BOG for card payments, ADR-004 §2).
+    card:
+      oneOf: [{$ref: '#/PaymentCard'}, {type: 'null'}]
+    providerOrderId:
+      type: [string, 'null']
+      description: BOG order reference (receipt, spec 05 AC-33).
+    billing:
+      oneOf: [{$ref: '#/PaymentBillingSnapshot'}, {type: 'null'}]
+    nextAction: {$ref: '#/PaymentNextAction'}
+    creditedToWallet:
+      type: boolean
+      description: True for `paid_unapplied` — the full amount went to the wallet (`t_payment_credited_to_wallet`, spec 05 AC-15).
+    failureMessageKey:
+      type: [string, 'null']
+      pattern: '^t_[a-z0-9_]+$'
+      description: '`t_error_xendit_payment_failed` for failed/expired (spec 05 AC-12), `t_bank_transfer_rejected` for rejected bank transfers.'
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    paidAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    failedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    expiresAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+      description: BOG order lifetime (card payments while pending).
+
+PaymentPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/Payment'}
+
+BogWebhookPayload:
+  type: object
+  description: |
+    BOG callback body, stored raw (`payment_events.raw_body`). Only the BOG order id and the status are
+    read, and they are only a trigger: the state is taken from BOG's payment details (ADR-004 §3). Field
+    names are mapped inside the BOG adapter; the lead developer confirms them against the BOG
+    documentation (Q-087). Any other fields are accepted and ignored.
+  additionalProperties: true
+
+# ═════════════════════════ Wallet (spec 05 AC-27…AC-34) ═════════════════════════
+WalletBalances:
+  type: object
+  description: The caller's balance figures, all derived from the ledger (spec 00 §3, spec 05 R-P7, data-model §5.4). Buyers never see a pending amount of their own (AC-29).
+  required: [available, hold, withdrawn, netIncome, usedForPurchases, isNegative, pendingWithdrawal]
+  properties:
+    available:
+      $ref: '../components/schemas.yaml#/Money'
+      description: '"Available for withdrawal". May be negative for migrated users (spec 05 AC-30).'
+    hold:
+      $ref: '../components/schemas.yaml#/Money'
+      description: HOLD / Pending = Σ open escrows where the caller is the freelancer (incl. a migrated legacy hold, which may be negative).
+    withdrawn: {$ref: '../components/schemas.yaml#/Money'}
+    netIncome: {$ref: '../components/schemas.yaml#/Money'}
+    usedForPurchases: {$ref: '../components/schemas.yaml#/Money'}
+    isNegative:
+      type: boolean
+      description: Available < 0 → wallet payments and withdrawals are refused until it is positive (AC-30).
+    pendingWithdrawal:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+      description: Id of the open (pending/processing) withdrawal, if any.
+
+HoldItem:
+  type: object
+  description: One open escrow whose money is on HOLD for the caller (spec 05 AC-28).
+  required: [escrowId, kind, workItem, amount, itemStatus, fundedAt, deliveredAt, autoReleaseAt, autoReleasePausedReason, legacySource]
+  properties:
+    escrowId: {$ref: '../components/schemas.yaml#/Uuid'}
+    kind: {$ref: '../components/schemas.yaml#/EscrowKind'}
+    workItem:
+      oneOf: [{$ref: '../components/schemas.yaml#/WorkItemRef'}, {type: 'null'}]
+      description: Null for a migrated `legacy_hold` residual.
+    amount:
+      $ref: '../components/schemas.yaml#/Money'
+      description: Current escrow balance (P′). A migrated legacy hold may be negative.
+    itemStatus:
+      type: [string, 'null']
+      description: Status of the item (order item / contract / offer status of data-model §4, owned by D4/D5).
+    fundedAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    deliveredAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    autoReleaseAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+      description: Shown with `t_auto_release_on_date` only when S-025 is ON.
+    autoReleasePausedReason:
+      oneOf: [{$ref: '../components/schemas.yaml#/AutoReleasePauseReason'}, {type: 'null'}]
+    legacySource:
+      type: [string, 'null']
+      description: Legacy hold residuals only (migration note).
+
+HoldItemPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      required: [holdTotal]
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/HoldItem'}
+        holdTotal:
+          $ref: '../components/schemas.yaml#/Money'
+          description: Sum of all open HOLD items of the caller = `WalletBalances.hold` (AC-28).
+
+TransactionType:
+  type: string
+  description: Movement type, label `t_txn_type_<value>` (spec 05 AC-31). `legacy` = migrated history without a mapped type (label = `legacyDescription`).
+  enum: [card_payment, wallet_payment, topup, hold_funded, released, refund, cancellation, withdrawal_requested, withdrawal_paid, withdrawal_rejected, adjustment, unapplied_payment, opening_balance, legacy]
+
+TransactionAffectedBalance:
+  type: string
+  enum: [available, hold, none]
+  description: Which balance of the caller moved. `none` = informational line (the buyer's own card payment, "withdrawal paid").
+
+TransactionLink:
+  type: object
+  description: The linked item (order/project/offer/withdrawal number with a link, spec 05 AC-31).
+  required: [workItem, paymentId, withdrawalId, withdrawalNumber]
+  properties:
+    workItem:
+      oneOf: [{$ref: '../components/schemas.yaml#/WorkItemRef'}, {type: 'null'}]
+    paymentId:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+      description: Opens the receipt (`getPayment`, spec 05 AC-33).
+    withdrawalId:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+    withdrawalNumber: {type: [string, 'null']}
+
+Transaction:
+  type: object
+  description: One line of the caller's Transactions list (a ledger journal line of their account, or a migrated legacy record).
+  required: [id, occurredAt, type, amount, affectedBalance, link, publicNote, isLegacy, legacyDescription]
+  properties:
+    id:
+      type: string
+      description: Stable id (journal entry id, or `legacy:{id}` for migrated records).
+    occurredAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    type: {$ref: '#/TransactionType'}
+    amount:
+      $ref: '../components/schemas.yaml#/Money'
+      description: Signed (+ in, − out) for the affected balance; for `none` lines the amount of the payment or payout, unsigned.
+    affectedBalance: {$ref: '#/TransactionAffectedBalance'}
+    link: {$ref: '#/TransactionLink'}
+    publicNote:
+      type: [string, 'null']
+      description: Staff public note of a balance correction (P-41); the internal reason is never shown.
+    isLegacy:
+      type: boolean
+      description: Migrated history, read-only (spec 05 AC-34).
+    legacyDescription: {type: [string, 'null']}
+
+TransactionPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/Transaction'}
+
+# ═════════════════════════ Saved cards and billing (spec 05 AC-35, AC-36) ═════════════════════════
+SavedCard:
+  type: object
+  required: [id, brand, maskedPan, expiryMonth, expiryYear, holderName, isDefault, isRenewalCard, renewalEndsAt, createdAt]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    brand: {type: [string, 'null']}
+    maskedPan: {type: string, maxLength: 20}
+    expiryMonth: {type: [integer, 'null'], minimum: 1, maximum: 12}
+    expiryYear: {type: [integer, 'null']}
+    holderName: {type: [string, 'null']}
+    isDefault: {type: boolean}
+    isRenewalCard:
+      type: boolean
+      description: Used for Premium auto-renewal → the delete dialog shows `t_delete_card_renewal_warning` (P-45).
+    renewalEndsAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+      description: Subscription end date for the warning's `:date` (renewal cards only).
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+SavedCardList:
+  type: object
+  description: The caller's saved cards (small list, not paginated).
+  required: [cards]
+  properties:
+    cards:
+      type: array
+      items: {$ref: '#/SavedCard'}
+
+BillingProfile:
+  type: object
+  description: Billing information (spec 05 AC-36; legacy limits `Validators/Main/Account/Billing/EditValidator.php:26-40`).
+  required: [firstName, lastName, company, countryCode, address, vatNumber, updatedAt]
+  properties:
+    firstName: {type: [string, 'null']}
+    lastName: {type: [string, 'null']}
+    company: {type: [string, 'null']}
+    countryCode:
+      oneOf: [{$ref: '../components/schemas.yaml#/CountryCode'}, {type: 'null'}]
+    address: {type: [string, 'null']}
+    vatNumber: {type: [string, 'null']}
+    updatedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+      description: Null when never saved.
+
+BillingProfilePutRequest:
+  type: object
+  required: [firstName, lastName, address]
+  properties:
+    firstName: {type: string, minLength: 1, maxLength: 60}
+    lastName: {type: string, minLength: 1, maxLength: 60}
+    company: {type: [string, 'null'], maxLength: 60}
+    countryCode:
+      oneOf: [{$ref: '../components/schemas.yaml#/CountryCode'}, {type: 'null'}]
+    address: {type: string, minLength: 1, maxLength: 600}
+    vatNumber: {type: [string, 'null'], maxLength: 30}
+
+# ═════════════════════════ Plans and subscriptions (spec 09) ═════════════════════════
+PlanWithdrawalFee:
+  type: object
+  description: The plan's current withdrawal fee rule (S-010 Standard, S-011 Premium), read from the fee module (spec 09 AC-1, not hard-coded).
+  required: [isEnabled, calcType, rate, amount]
+  properties:
+    isEnabled: {type: boolean}
+    calcType: {type: string, enum: [percent, fixed]}
+    rate:
+      oneOf: [{$ref: '../components/schemas.yaml#/BasisPoints'}, {type: 'null'}]
+    amount:
+      oneOf: [{$ref: '../components/schemas.yaml#/Money'}, {type: 'null'}]
+      description: Fixed rules only.
+
+PlanPrices:
+  type: object
+  required: [monthly, yearly, yearlyMonthlyEquivalent, yearlySavingRate]
+  properties:
+    monthly:
+      oneOf: [{$ref: '../components/schemas.yaml#/Money'}, {type: 'null'}]
+      description: S-008 (Premium); null for Standard.
+    yearly:
+      oneOf: [{$ref: '../components/schemas.yaml#/Money'}, {type: 'null'}]
+      description: S-009 (Premium); null for Standard.
+    yearlyMonthlyEquivalent:
+      oneOf: [{$ref: '../components/schemas.yaml#/Money'}, {type: 'null'}]
+      description: yearly ÷ 12, half up (`t_per_month_equivalent`).
+    yearlySavingRate:
+      oneOf: [{$ref: '../components/schemas.yaml#/BasisPoints'}, {type: 'null'}]
+      description: Saving of yearly vs 12 × monthly (`t_yearly_saving`), computed by the API as legacy `SubscriptionComponent.php:139-150`.
+
+Plan:
+  type: object
+  description: A plan card of `/subscription` (spec 09 AC-1). Texts resolved in the request language (`contentLocale`).
+  required: [code, name, description, featuresIncluded, featuresExcluded, contentLocale, prices, withdrawalFee, pointsPriceMonthly]
+  properties:
+    code: {$ref: '../components/schemas.yaml#/PlanCode'}
+    name: {type: string}
+    description: {type: [string, 'null']}
+    featuresIncluded:
+      type: array
+      items: {type: string}
+    featuresExcluded:
+      type: array
+      items: {type: string}
+    contentLocale: {$ref: '../components/schemas.yaml#/ContentLocale'}
+    prices: {$ref: '#/PlanPrices'}
+    withdrawalFee: {$ref: '#/PlanWithdrawalFee'}
+    pointsPriceMonthly:
+      type: [integer, 'null']
+      minimum: 0
+      description: S-045 for monthly Premium; null for Standard.
+
+PlanViewerState:
+  type: object
+  description: 'Button state of the Premium card for the caller (spec 09 AC-2). Guests: `isSignedIn = false`, everything else false/null.'
+  required: [isSignedIn, isPremium, activeUntil, pointsBalance, canSubscribe, canBuyWithPoints]
+  properties:
+    isSignedIn: {type: boolean}
+    isPremium: {type: boolean}
+    activeUntil:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+      description: For `t_subscription_active_until`.
+    pointsBalance: {type: [integer, 'null']}
+    canSubscribe: {type: boolean}
+    canBuyWithPoints: {type: boolean}
+
+PlanList:
+  type: object
+  required: [plans, viewer]
+  properties:
+    plans:
+      type: array
+      items: {$ref: '#/Plan'}
+    viewer: {$ref: '#/PlanViewerState'}
+
+SubscriptionSource:
+  type: string
+  enum: [card, points, gift, referral_benefit, promo, apple, google, legacy_unknown]
+  description: How Premium was obtained (`t_subscription_source_*`). `apple`/`google` are reserved (ADR-016 §4); `legacy_unknown` = migrated without a payment.
+
+SubscriptionState:
+  type: string
+  enum: [active, canceled_running, ended]
+  description: Derived (data-model §4.8). `canceled_running` still counts as Premium until `endsAt` (R-S1).
+
+SubscriptionPeriod:
+  type: string
+  enum: [monthly, yearly, custom]
+  description: '`custom` = staff gift with an explicit end date (spec 09 AC-35).'
+
+SubscriptionNextCharge:
+  type: object
+  description: Present only if the subscription will renew (card source, auto-renew on, saved card, S-042 ON).
+  required: [amount, chargeAt]
+  properties:
+    amount:
+      $ref: '../components/schemas.yaml#/Money'
+      description: Current price S-008/S-009 (P-57; no promo, no surcharge).
+    chargeAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+Subscription:
+  type: object
+  required: [id, plan, period, source, state, startsAt, endsAt, autoRenew, canceledAt, cancelKind, nextCharge, renewalCard, canCancel, canResume, createdAt]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    plan: {$ref: '../components/schemas.yaml#/PlanCode'}
+    period: {$ref: '#/SubscriptionPeriod'}
+    source: {$ref: '#/SubscriptionSource'}
+    state: {$ref: '#/SubscriptionState'}
+    startsAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    endsAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    autoRenew: {type: boolean}
+    canceledAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    cancelKind:
+      type: [string, 'null']
+      enum: [user_cancel, staff_immediate, renewal_failed, card_deleted, null]
+    nextCharge:
+      oneOf: [{$ref: '#/SubscriptionNextCharge'}, {type: 'null'}]
+    renewalCard:
+      oneOf: [{$ref: '#/SavedCard'}, {type: 'null'}]
+    canCancel:
+      type: boolean
+      description: Card-paid, auto-renew on, not ended (spec 09 AC-16).
+    canResume:
+      type: boolean
+      description: Canceled by the user, not ended, saved card still present (spec 09 AC-17, P-58).
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+SubscriptionStatus:
+  type: object
+  description: The caller's "My subscription" state (spec 09 AC-18). Past Premium payments come from `listPayments?purpose=subscription&purpose=subscription_renewal`.
+  required: [isPremium, subscription, canSubscribe, canBuyWithPoints, pointsPrice, pointsBalance]
+  properties:
+    isPremium: {type: boolean}
+    subscription:
+      oneOf: [{$ref: '#/Subscription'}, {type: 'null'}]
+      description: The running subscription, or the last ended one, or null (`t_no_subscription`).
+    canSubscribe: {type: boolean}
+    canBuyWithPoints: {type: boolean}
+    pointsPrice: {type: integer, minimum: 0, description: S-045.}
+    pointsBalance: {type: integer}
+
+SubscriptionPointsPurchaseRequest:
+  type: object
+  description: Premium for points (spec 09 AC-8). Only monthly Premium; the number of points is computed by the server (S-045) and never sent (R-006).
+  required: [plan, billingPeriod]
+  properties:
+    plan: {type: string, const: premium}
+    billingPeriod: {type: string, const: monthly}
+
+# ═════════════════════════ Points and referrals (spec 09 AC-20…AC-26) ═════════════════════════
+PointsEventType:
+  type: string
+  description: Points event (`t_points_event_<value>`); extensible (Q-017) — clients treat unknown values as "other".
+  enum: [referral_signup, admin_grant, admin_deduct, premium_redemption, migration_opening]
+
+PointsSummary:
+  type: object
+  required: [pointsBalance, premiumMonthPoints, referralSignupPoints]
+  properties:
+    pointsBalance: {type: integer, minimum: 0}
+    premiumMonthPoints: {type: integer, minimum: 0, description: S-045.}
+    referralSignupPoints: {type: integer, minimum: 0, description: S-046 (`t_invite_and_earn`).}
+
+PointsHistoryEntry:
+  type: object
+  required: [id, occurredAt, eventType, points, pointsBalanceAfter, publicNote]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    occurredAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    eventType: {$ref: '#/PointsEventType'}
+    points:
+      type: integer
+      description: Signed (+ credited, − spent/deducted).
+    pointsBalanceAfter: {type: integer, minimum: 0}
+    publicNote:
+      type: [string, 'null']
+      description: Staff public note (admin grant/deduct, P-41).
+
+PointsHistoryEntryPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/PointsHistoryEntry'}
+
+ReferralStats:
+  type: object
+  required: [totalCount, paidPremiumCount, bonusPremiumCount, pointsEarned]
+  properties:
+    totalCount: {type: integer, minimum: 0}
+    paidPremiumCount: {type: integer, minimum: 0}
+    bonusPremiumCount: {type: integer, minimum: 0}
+    pointsEarned: {type: integer, minimum: 0}
+
+ReferralSummary:
+  type: object
+  description: Referral page header (spec 09 AC-22).
+  required: [code, inviteUrl, pointsPerReferral, stats]
+  properties:
+    code:
+      type: string
+      pattern: '^[A-Z0-9]{8}$'
+    inviteUrl:
+      $ref: '../components/schemas.yaml#/HttpUrl'
+      description: Registration page with `?ref=CODE` in the caller's language (url-map).
+    pointsPerReferral: {type: integer, minimum: 0, description: S-046.}
+    stats: {$ref: '#/ReferralStats'}
+
+ReferralStatus:
+  type: string
+  enum: [pending, verified]
+  description: '`t_referral_status_*`. (Internally `cancelled` referrals are not listed.)'
+
+Referral:
+  type: object
+  required: [id, referred, status, hasPremium, createdAt, verifiedAt]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    referred: {$ref: '../components/schemas.yaml#/UserSummary'}
+    status: {$ref: '#/ReferralStatus'}
+    hasPremium: {type: boolean}
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    verifiedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+
+ReferralPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/Referral'}
+
+# ═════════════════════════ Withdrawals and payout details (spec 14) ═════════════════════════
+PayoutDetails:
+  type: object
+  description: The caller's payout details (spec 14 AC-1, AC-2; P-62). The IBAN is returned in full to its owner only.
+  required: [holderName, iban, previousDetails, hasPasswordConfirmation, isUsable, updatedAt]
+  properties:
+    holderName: {type: [string, 'null']}
+    iban:
+      type: [string, 'null']
+      description: Normalised (no spaces) Georgian IBAN.
+    previousDetails:
+      type: [string, 'null']
+      description: Migrated legacy free text, shown read-only as `t_previous_payout_details` until structured details are saved (AC-2).
+    hasPasswordConfirmation:
+      type: boolean
+      description: True when saving needs `currentPassword` (false for accounts without a password, spec 02 AC-29).
+    isUsable:
+      type: boolean
+      description: Holder + IBAN, or migrated text → withdrawals allowed (AC-4).
+    updatedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+
+PayoutDetailsPutRequest:
+  type: object
+  required: [holderName, iban]
+  properties:
+    holderName:
+      type: string
+      minLength: 3
+      maxLength: 100
+    iban:
+      type: string
+      maxLength: 40
+      description: 'Georgian IBAN: `GE`, 22 characters, valid check digits, spaces ignored. Invalid → `400 VALIDATION_FAILED` field `iban` code `iban_invalid` messageKey `t_iban_invalid` (AC-1).'
+    currentPassword:
+      type: [string, 'null']
+      maxLength: 200
+      description: Required when `PayoutDetails.hasPasswordConfirmation` is true (P-63).
+
+PayoutDetailsSnapshot:
+  type: object
+  description: Payout details copied onto a withdrawal at request time (R-W6).
+  required: [holderName, iban, previousDetails]
+  properties:
+    holderName: {type: [string, 'null']}
+    iban: {type: [string, 'null']}
+    previousDetails: {type: [string, 'null']}
+
+WithdrawalStatus:
+  type: string
+  enum: [pending, processing, paid, rejected]
+  description: data-model §4.7 (`processing` only with a payout provider, S-033).
+
+WithdrawalPeriodRule:
+  type: string
+  enum: [daily, weekly, monthly]
+  description: S-032 (24h / 168h / 720h since the creation of the latest paid request).
+
+WithdrawalEligibility:
+  type: object
+  description: Whether the caller can request now, with the first failing rule (spec 14 AC-6 order).
+  required: [canWithdraw, reasonCode, messageKey, nextAllowedAt]
+  properties:
+    canWithdraw: {type: boolean}
+    reasonCode:
+      type: [string, 'null']
+      description: The error code `createWithdrawal` would return (e.g. `PAYOUT_DETAILS_REQUIRED`, `INSUFFICIENT_FUNDS`, `WITHDRAWAL_PENDING_EXISTS`, `WITHDRAWAL_PERIOD_NOT_ELAPSED`).
+    messageKey:
+      type: [string, 'null']
+      pattern: '^t_[a-z0-9_]+$'
+      description: e.g. `t_add_payout_details_first`, `t_nothing_to_withdraw` (AC-11).
+    nextAllowedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+
+WithdrawalQuoteRequest:
+  type: object
+  properties:
+    amount:
+      oneOf: [{$ref: '../components/schemas.yaml#/Money'}, {type: 'null'}]
+      description: Amount A being typed; omit/null when the form first loads.
+
+WithdrawalQuote:
+  type: object
+  description: Everything the withdraw form shows; the client never computes the fee (spec 14 AC-5).
+  required: [available, minimum, periodRule, plan, feeLine, feeRate, amount, fee, payout, payoutDetails, eligibility]
+  properties:
+    available: {$ref: '../components/schemas.yaml#/Money'}
+    minimum:
+      $ref: '../components/schemas.yaml#/Money'
+      description: S-031.
+    periodRule: {$ref: '#/WithdrawalPeriodRule'}
+    plan: {$ref: '../components/schemas.yaml#/PlanCode'}
+    feeLine:
+      oneOf: [{$ref: '../components/schemas.yaml#/FeeLine'}, {type: 'null'}]
+      description: Fee for `amount` with the rule version that would be stored (null when no amount or 0 fee).
+    feeRate:
+      oneOf: [{$ref: '../components/schemas.yaml#/BasisPoints'}, {type: 'null'}]
+      description: Percent of the plan's rule (`t_fee_for_your_plan`); null for fixed rules.
+    amount:
+      oneOf: [{$ref: '../components/schemas.yaml#/Money'}, {type: 'null'}]
+    fee:
+      oneOf: [{$ref: '../components/schemas.yaml#/Money'}, {type: 'null'}]
+      description: F (half up, R-W2).
+    payout:
+      oneOf: [{$ref: '../components/schemas.yaml#/Money'}, {type: 'null'}]
+      description: '"You will receive" = A − F.'
+    payoutDetails: {$ref: '#/PayoutDetails'}
+    eligibility: {$ref: '#/WithdrawalEligibility'}
+
+WithdrawalCreateRequest:
+  type: object
+  required: [amount]
+  properties:
+    amount:
+      $ref: '../components/schemas.yaml#/Money'
+      description: A in tetri (integer tetri = "up to 2 decimals" of the legacy rule; ≤ 0 → `400 VALIDATION_FAILED` with messageKey `t_validator_regex`).
+
+Withdrawal:
+  type: object
+  description: A withdrawal request of the caller (spec 14 AC-18).
+  required: [id, number, status, amount, fee, feeLine, payout, planAtRequest, payoutDetails, provider, rejectionReason, bankReference, paidOn, createdAt, processedAt]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    number: {type: string, description: Public withdrawal number.}
+    status: {$ref: '#/WithdrawalStatus'}
+    amount:
+      $ref: '../components/schemas.yaml#/Money'
+      description: A — left Available at request.
+    fee:
+      $ref: '../components/schemas.yaml#/Money'
+      description: F stored at request time (AC-9).
+    feeLine:
+      oneOf: [{$ref: '../components/schemas.yaml#/FeeLine'}, {type: 'null'}]
+      description: Rule version used (spec 05 AC-39); null for migrated requests.
+    payout: {$ref: '../components/schemas.yaml#/Money'}
+    planAtRequest: {$ref: '../components/schemas.yaml#/PlanCode'}
+    payoutDetails: {$ref: '#/PayoutDetailsSnapshot'}
+    provider: {type: string, enum: [manual, bog_payout]}
+    rejectionReason: {type: [string, 'null']}
+    bankReference: {type: [string, 'null']}
+    paidOn:
+      oneOf: [{$ref: '../components/schemas.yaml#/DateOnly'}, {type: 'null'}]
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    processedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+
+WithdrawalPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/Withdrawal'}
+
+AdminWithdrawal:
+  allOf:
+    - $ref: '#/Withdrawal'
+    - type: object
+      required: [user, currentPayoutDetails, processedBy, userAvailable]
+      properties:
+        user: {$ref: '../components/schemas.yaml#/UserSummary'}
+        currentPayoutDetails:
+          oneOf: [{$ref: '#/PayoutDetailsSnapshot'}, {type: 'null'}]
+          description: The user's details now, when they differ from the snapshot (spec 14 EC-4).
+        processedBy:
+          oneOf: [{$ref: '../components/schemas.yaml#/StaffSummary'}, {type: 'null'}]
+        userAvailable:
+          $ref: '../components/schemas.yaml#/Money'
+          description: The user's current Available balance (detail context, AC-13).
+
+AdminWithdrawalPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/AdminWithdrawal'}
+
+WithdrawalMarkPaidRequest:
+  type: object
+  properties:
+    bankReference:
+      type: [string, 'null']
+      maxLength: 100
+    paidOn:
+      oneOf: [{$ref: '../components/schemas.yaml#/DateOnly'}, {type: 'null'}]
+      description: Payout date; default today (Asia/Tbilisi).
+
+WithdrawalRejectRequest:
+  type: object
+  required: [reason]
+  properties:
+    reason:
+      type: string
+      minLength: 1
+      maxLength: 500
+      description: Shown to the user in the email, notification and history (P-64).
+
+# ═════════════════════════ Admin: payments and bank transfers (spec 16 AC-36, AC-37, AC-43) ═════════════════════════
+PaymentEventKind:
+  type: string
+  enum: [callback, details_fetch, reconcile_fetch, charge_response, staff_check]
+
+AdminPaymentEvent:
+  type: object
+  description: One raw provider event or status check of a payment (`payment_events`, spec 16 AC-36).
+  required: [id, kind, receivedAt, processedAt, signatureValid, result, error, rawBody]
+  properties:
+    id: {type: integer, format: int64}
+    kind: {$ref: '#/PaymentEventKind'}
+    receivedAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    processedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    signatureValid: {type: [boolean, 'null']}
+    result:
+      type: [string, 'null']
+      enum: [applied, duplicate, ignored, amount_mismatch, unknown_order, error, null]
+    error: {type: [string, 'null']}
+    rawBody:
+      type: [string, 'null']
+      description: Raw body as received (no secrets; BOG sends none).
+
+AdminPaymentReview:
+  type: object
+  required: [reviewedAt, reviewedBy, note]
+  properties:
+    reviewedAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    reviewedBy: {$ref: '../components/schemas.yaml#/StaffSummary'}
+    note: {type: [string, 'null']}
+
+AdminPaymentListItem:
+  type: object
+  description: Row of the staff Payments list (spec 16 AC-36).
+  required: [id, providerOrderId, payer, purpose, method, status, itemsTotal, surcharge, discount, total, verifiedAmount, target, createdAt, paidAt, review]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    providerOrderId: {type: [string, 'null']}
+    payer: {$ref: '../components/schemas.yaml#/UserSummary'}
+    purpose: {$ref: '../components/schemas.yaml#/PaymentPurpose'}
+    method: {$ref: '../components/schemas.yaml#/PaymentMethod'}
+    status: {$ref: '../components/schemas.yaml#/PaymentStatus'}
+    itemsTotal: {$ref: '../components/schemas.yaml#/Money'}
+    surcharge: {$ref: '../components/schemas.yaml#/Money'}
+    discount: {$ref: '../components/schemas.yaml#/Money'}
+    total: {$ref: '../components/schemas.yaml#/Money'}
+    verifiedAmount:
+      oneOf: [{$ref: '../components/schemas.yaml#/Money'}, {type: 'null'}]
+      description: Amount BOG confirmed (differs from `total` → not applied, spec 05 EC-3).
+    target: {$ref: '#/PaymentTargetRef'}
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    paidAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    review:
+      oneOf: [{$ref: '#/AdminPaymentReview'}, {type: 'null'}]
+      description: Staff "reviewed" mark (unapplied or amount-mismatch payments, spec 16 AC-37).
+
+AdminPaymentPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/AdminPaymentListItem'}
+
+AdminPayment:
+  allOf:
+    - $ref: '#/AdminPaymentListItem'
+    - type: object
+      required: [payment, events, journals, bankReference, confirmedBy, rejectionReason]
+      properties:
+        payment:
+          $ref: '#/Payment'
+          description: Full breakdown as the payer sees it (receipt).
+        events:
+          type: array
+          items: {$ref: '#/AdminPaymentEvent'}
+        journals:
+          type: array
+          description: Ledger journal(s) of the payment (0 while unpaid; 1 when settled).
+          items: {$ref: '#/AdminLedgerJournal'}
+        bankReference: {type: [string, 'null']}
+        confirmedBy:
+          oneOf: [{$ref: '../components/schemas.yaml#/StaffSummary'}, {type: 'null'}]
+        rejectionReason: {type: [string, 'null']}
+
+PaymentReviewRequest:
+  type: object
+  properties:
+    note:
+      type: [string, 'null']
+      maxLength: 1000
+
+BankTransferConfirmRequest:
+  type: object
+  properties:
+    bankReference:
+      type: [string, 'null']
+      maxLength: 100
+    note:
+      type: [string, 'null']
+      maxLength: 1000
+
+# ═════════════════════════ Admin: ledger viewer, adjustments, legacy holds (spec 16 AC-32, AC-44, AC-45) ═════════════════════════
+LedgerAccountType:
+  type: string
+  enum: [user_available, escrow_hold, bog_clearing, bank_transfer_clearing, payout_clearing, withdrawals_payable, card_surcharge_revenue, fee_revenue, subscription_revenue, promo_discounts, adjustments, migration_opening_balance]
+  description: data-model §5.1.
+
+LedgerJournalType:
+  type: string
+  enum: [card_payment, wallet_payment, bank_transfer_payment, topup_card, topup_bank, unapplied_payment, escrow_release, escrow_refund, withdrawal_request, withdrawal_paid, withdrawal_reject, subscription_payment, subscription_renewal, promo_zero_total, adjustment_credit, adjustment_debit, legacy_hold_release, legacy_hold_write_off, migration_opening, reversal]
+  description: data-model §5.3 (+ `legacy_hold_release` / `legacy_hold_write_off` for spec 16 AC-44 settlements; requested for data-model in the D3 handoff).
+
+AdminLedgerAccount:
+  type: object
+  required: [id, code, type, owner, escrowId, feeCode, balance, isClosed, updatedAt]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    code: {type: string, examples: ['user:0192…:available']}
+    type: {$ref: '#/LedgerAccountType'}
+    owner:
+      oneOf: [{$ref: '../components/schemas.yaml#/UserSummary'}, {type: 'null'}]
+    escrowId:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+    feeCode: {type: [string, 'null']}
+    balance:
+      $ref: '../components/schemas.yaml#/Money'
+      description: Signed (data-model §5.1 sign convention).
+    isClosed: {type: boolean}
+    updatedAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+AdminLedgerAccountPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/AdminLedgerAccount'}
+
+LedgerEntry:
+  type: object
+  required: [lineNo, accountId, accountCode, accountType, amount, balanceAfter]
+  properties:
+    lineNo: {type: integer, minimum: 1}
+    accountId: {$ref: '../components/schemas.yaml#/Uuid'}
+    accountCode: {type: string}
+    accountType: {$ref: '#/LedgerAccountType'}
+    amount:
+      $ref: '../components/schemas.yaml#/Money'
+      description: Signed (− = from, + = to).
+    balanceAfter:
+      $ref: '../components/schemas.yaml#/Money'
+      description: Running balance of the account after this entry.
+
+AdminLedgerJournal:
+  type: object
+  description: One immutable journal with its debit/credit lines (read-only, spec 16 AC-45).
+  required: [id, type, idempotencyRef, exclusiveKey, occurredAt, actor, paymentId, escrowId, withdrawalId, adjustmentId, subscriptionId, reversesJournalId, descriptionKey, entries, createdAt]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    type: {$ref: '#/LedgerJournalType'}
+    idempotencyRef: {type: string}
+    exclusiveKey: {type: [string, 'null']}
+    occurredAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    actor:
+      $ref: '../components/schemas.yaml#/ActorRef'
+      description: '`system` for jobs and verified BOG callbacks.'
+    paymentId:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+    escrowId:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+    withdrawalId:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+    adjustmentId:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+    subscriptionId:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+    reversesJournalId:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+    descriptionKey:
+      type: [string, 'null']
+      pattern: '^t_[a-z0-9_]+$'
+    entries:
+      type: array
+      minItems: 2
+      items: {$ref: '#/LedgerEntry'}
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+AdminLedgerJournalPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/AdminLedgerJournal'}
+
+AdminLedgerUserBalances:
+  type: object
+  description: Balances tab of the admin user page (spec 16 AC-31), same figures as the user sees plus points.
+  required: [userId, balances, pointsBalance, openEscrowCount, legacyHold]
+  properties:
+    userId: {$ref: '../components/schemas.yaml#/Uuid'}
+    balances: {$ref: '#/WalletBalances'}
+    pointsBalance: {type: integer}
+    openEscrowCount: {type: integer, minimum: 0}
+    legacyHold:
+      oneOf: [{$ref: '#/AdminLegacyHold'}, {type: 'null'}]
+
+AdjustmentDirection:
+  type: string
+  enum: [credit, debit]
+
+AdjustmentLinkType:
+  type: string
+  enum: [order_item, contract_payment, custom_offer, withdrawal]
+
+AdjustmentLink:
+  type: object
+  required: [type, id]
+  properties:
+    type: {$ref: '#/AdjustmentLinkType'}
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+
+AdjustmentCreateRequest:
+  type: object
+  description: Staff balance adjustment of a user's Available balance (spec 05 AC-41, P-12). There is no field to type a balance.
+  required: [userId, direction, amount, internalReason]
+  properties:
+    userId: {$ref: '../components/schemas.yaml#/Uuid'}
+    direction: {$ref: '#/AdjustmentDirection'}
+    amount:
+      $ref: '../components/schemas.yaml#/Money'
+      description: X > 0 (tetri).
+    internalReason:
+      type: string
+      minLength: 1
+      maxLength: 1000
+      description: Staff-only reason (audit).
+    publicNote:
+      type: [string, 'null']
+      maxLength: 500
+      description: Shown to the user in Transactions and in `t_balance_adjusted` (P-41).
+    link:
+      oneOf: [{$ref: '#/AdjustmentLink'}, {type: 'null'}]
+
+AdminAdjustment:
+  type: object
+  required: [id, user, direction, amount, internalReason, publicNote, link, staff, journalId, createdAt]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    user: {$ref: '../components/schemas.yaml#/UserSummary'}
+    direction: {$ref: '#/AdjustmentDirection'}
+    amount: {$ref: '../components/schemas.yaml#/Money'}
+    internalReason: {type: string}
+    publicNote: {type: [string, 'null']}
+    link:
+      oneOf: [{$ref: '#/AdjustmentLink'}, {type: 'null'}]
+    staff: {$ref: '../components/schemas.yaml#/StaffSummary'}
+    journalId: {$ref: '../components/schemas.yaml#/Uuid'}
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+AdminAdjustmentPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/AdminAdjustment'}
+
+LegacyHoldStatus:
+  type: string
+  enum: [open, released, written_off]
+
+AdminLegacyHold:
+  type: object
+  description: A migrated per-user legacy-hold residual (data-model §12.3, Q-096) = an escrow of kind `legacy_hold`.
+  required: [id, user, amount, legacySource, status, settledAt, settledBy, reason, journalId, createdAt]
+  properties:
+    id:
+      $ref: '../components/schemas.yaml#/Uuid'
+      description: The escrow id of the legacy hold.
+    user: {$ref: '../components/schemas.yaml#/UserSummary'}
+    amount:
+      $ref: '../components/schemas.yaml#/Money'
+      description: Residual still on hold (may be negative, data-model §12.3); 0 after settlement.
+    legacySource:
+      type: [string, 'null']
+      description: Migration note of where the residual comes from.
+    status: {$ref: '#/LegacyHoldStatus'}
+    settledAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    settledBy:
+      oneOf: [{$ref: '../components/schemas.yaml#/StaffSummary'}, {type: 'null'}]
+    reason: {type: [string, 'null']}
+    journalId:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+AdminLegacyHoldPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/AdminLegacyHold'}
+
+# ═════════════════════════ Admin: reconciliation (spec 05 AC-44…AC-47, PROPOSED P-135) ═════════════════════════
+ReconciliationRunStatus:
+  type: string
+  enum: [running, no_differences, differences_found, failed]
+  description: '`t_admin_recon_status_ok` / `_differences` / `_failed` (spec 05 AC-44, AC-47). `running` while the job works.'
+
+ReconciliationCheckCode:
+  type: string
+  enum: [c1_journal_sum, c2_account_balance, c3_books_total, c4_escrow, c5_user_totals, c6_withdrawals_payable, c7_card_payment, c8_bog_day_total, c9_bog_settlement]
+  description: 'Checks C-1…C-9 of spec 05 AC-45; label `t_admin_recon_check_*` (journal_sum, account_balance, books_total, escrow, user_totals, withdrawals_payable, card_payment, bog_day_total, bog_settlement).'
+
+ReconciliationCheckResult:
+  type: object
+  required: [check, result, differenceCount]
+  properties:
+    check: {$ref: '#/ReconciliationCheckCode'}
+    result:
+      type: string
+      enum: [ok, differences, not_available]
+      description: '`not_available` only for C-9 without a BOG settlement report (not a difference, `t_admin_recon_not_available`).'
+    differenceCount: {type: integer, minimum: 0}
+
+AdminReconciliationRun:
+  type: object
+  description: One nightly run for one Georgian calendar day (at most one completed run per run day).
+  required: [id, runDay, status, startedAt, finishedAt, checkCount, differenceCount, unreviewedCount, checks, errorSummary, alertSentAt]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    runDay:
+      $ref: '../components/schemas.yaml#/DateOnly'
+      description: The day checked (00:00–24:00 Georgian time).
+    status: {$ref: '#/ReconciliationRunStatus'}
+    startedAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    finishedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    checkCount: {type: integer, minimum: 0}
+    differenceCount: {type: integer, minimum: 0}
+    unreviewedCount: {type: integer, minimum: 0}
+    checks:
+      type: array
+      items: {$ref: '#/ReconciliationCheckResult'}
+    errorSummary:
+      type: [string, 'null']
+      description: Failed runs only (screen state "run failed").
+    alertSentAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+      description: When EV-32 (differences) or EV-125 (failure) was sent for this run day; sent once (AC-46).
+
+AdminReconciliationRunPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/AdminReconciliationRun'}
+
+ReconciliationSubjectType:
+  type: string
+  enum: [journal, ledger_account, escrow, user, withdrawal, payment, books, bog_report]
+
+AdminReconciliationDifference:
+  type: object
+  description: One difference found by a run (spec 05 AC-45, AC-47). Expected / actual / gap are exact tetri (no tolerance).
+  required: [id, runId, check, subjectType, subjectId, subjectLabel, expected, actual, gap, review]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    runId: {$ref: '../components/schemas.yaml#/Uuid'}
+    check: {$ref: '#/ReconciliationCheckCode'}
+    subjectType: {$ref: '#/ReconciliationSubjectType'}
+    subjectId:
+      type: [string, 'null']
+      description: Id of the subject (uuid, or the BOG order id for `bog_report`); links to the ledger viewer, payment detail, escrow list, withdrawal or user.
+    subjectLabel:
+      type: [string, 'null']
+      description: Human reference (account code, payment BOG id, withdrawal number, username).
+    expected: {$ref: '../components/schemas.yaml#/Money'}
+    actual: {$ref: '../components/schemas.yaml#/Money'}
+    gap:
+      $ref: '../components/schemas.yaml#/Money'
+      description: actual − expected (signed).
+    review:
+      oneOf: [{$ref: '#/ReconciliationDifferenceReview'}, {type: 'null'}]
+
+ReconciliationDifferenceReview:
+  type: object
+  required: [reviewedAt, reviewedBy, note]
+  properties:
+    reviewedAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    reviewedBy: {$ref: '../components/schemas.yaml#/StaffSummary'}
+    note: {type: string}
+
+AdminReconciliationDifferencePage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/AdminReconciliationDifference'}
+
+ReconciliationDifferenceReviewRequest:
+  type: object
+  required: [note]
+  properties:
+    note:
+      type: string
+      minLength: 1
+      maxLength: 1000
+      description: Required review note (spec 05 AC-47, `t_admin_recon_review_note`). Length follows the staff reason limit of spec 16 AC-19.
+
+# ═════════════════════════ Admin: plans (spec 16 AC-57) ═════════════════════════
+AdminPlan:
+  type: object
+  description: |
+    Plan as edited by staff: texts in both languages (R-2.6) plus the current prices (S-008/S-009) and
+    limits (S-001…S-007) with their register ids. Prices and limits are settings: they are changed with
+    D6 `adminUpdateSetting` (CONVENTIONS §5.7); this object shows them for the plan screen and preview.
+  required: [code, name, description, featuresIncluded, featuresExcluded, isActive, sortOrder, prices, limits, renewalReminderDays, updatedAt]
+  properties:
+    code: {$ref: '../components/schemas.yaml#/PlanCode'}
+    name: {$ref: '../components/schemas.yaml#/LocalizedString'}
+    description:
+      oneOf: [{$ref: '../components/schemas.yaml#/LocalizedString'}, {type: 'null'}]
+    featuresIncluded:
+      type: array
+      items: {$ref: '../components/schemas.yaml#/LocalizedString'}
+    featuresExcluded:
+      type: array
+      items: {$ref: '../components/schemas.yaml#/LocalizedString'}
+    isActive: {type: boolean}
+    sortOrder: {type: integer}
+    prices: {$ref: '#/PlanPrices'}
+    limits:
+      type: array
+      description: Current plan limits for this plan (S-001…S-007).
+      items: {$ref: '#/PlanLimitValue'}
+    renewalReminderDays:
+      type: integer
+      minimum: 0
+      description: S-043, for the "change prices more than S-043 days ahead" warning (spec 09 EC-5).
+    updatedAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+PlanLimitValue:
+  type: object
+  required: [settingId, key, value]
+  properties:
+    settingId:
+      type: string
+      pattern: '^S-[0-9]{3}$'
+    key: {type: string, description: Register key (e.g. the gig limit of the plan).}
+    value:
+      type: [integer, 'null']
+      description: Null = unlimited, where the register allows it.
+
+AdminPlanList:
+  type: object
+  required: [plans]
+  properties:
+    plans:
+      type: array
+      items: {$ref: '#/AdminPlan'}
+
+PlanUpdateRequest:
+  type: object
+  description: Plan texts only (ka required, en optional and without Georgian letters, CONVENTIONS §11). Prices and limits → `adminUpdateSetting`.
+  properties:
+    name: {$ref: '../components/schemas.yaml#/LocalizedString'}
+    description:
+      oneOf: [{$ref: '../components/schemas.yaml#/LocalizedString'}, {type: 'null'}]
+    featuresIncluded:
+      type: array
+      maxItems: 30
+      items: {$ref: '../components/schemas.yaml#/LocalizedString'}
+    featuresExcluded:
+      type: array
+      maxItems: 30
+      items: {$ref: '../components/schemas.yaml#/LocalizedString'}
+
+# ═════════════════════════ Admin: subscriptions (spec 09 AC-34…AC-36; spec 16 AC-59) ═════════════════════════
+SubscriptionPeriodRecord:
+  type: object
+  description: One paid or granted period (`subscription_periods`).
+  required: [periodStart, periodEnd, kind, listPrice, discount, charged, paymentId, promoCode]
+  properties:
+    periodStart: {$ref: '../components/schemas.yaml#/Timestamp'}
+    periodEnd: {$ref: '../components/schemas.yaml#/Timestamp'}
+    kind:
+      type: string
+      enum: [initial, renewal, gift, points, promo, referral_benefit, migrated]
+    listPrice: {$ref: '../components/schemas.yaml#/Money'}
+    discount: {$ref: '../components/schemas.yaml#/Money'}
+    charged: {$ref: '../components/schemas.yaml#/Money'}
+    paymentId:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+    promoCode: {type: [string, 'null']}
+
+AdminSubscription:
+  allOf:
+    - $ref: '#/Subscription'
+    - type: object
+      required: [user, cancelReason, canceledBy, periods]
+      properties:
+        user: {$ref: '../components/schemas.yaml#/UserSummary'}
+        cancelReason: {type: [string, 'null']}
+        canceledBy:
+          oneOf: [{$ref: '../components/schemas.yaml#/StaffSummary'}, {type: 'null'}]
+        periods:
+          type: array
+          items: {$ref: '#/SubscriptionPeriodRecord'}
+
+AdminSubscriptionPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/AdminSubscription'}
+
+SubscriptionGiftRequest:
+  type: object
+  description: Staff gift of Premium (spec 09 AC-35). `endsAt` is required for `custom` and must be in the future.
+  required: [userId, period, reason]
+  properties:
+    userId: {$ref: '../components/schemas.yaml#/Uuid'}
+    period: {$ref: '#/SubscriptionPeriod'}
+    endsAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    reason:
+      type: string
+      minLength: 1
+      maxLength: 1000
+
+# ═════════════════════════ Admin: points (spec 05 AC-43) ═════════════════════════
+PointsAdjustmentCreateRequest:
+  type: object
+  required: [userId, direction, points, internalReason]
+  properties:
+    userId: {$ref: '../components/schemas.yaml#/Uuid'}
+    direction:
+      type: string
+      enum: [grant, deduct]
+    points:
+      type: integer
+      minimum: 1
+      maximum: 1000000
+    internalReason:
+      type: string
+      minLength: 1
+      maxLength: 1000
+    publicNote:
+      type: [string, 'null']
+      maxLength: 500
+
+AdminPointsHistoryEntry:
+  allOf:
+    - $ref: '#/PointsHistoryEntry'
+    - type: object
+      required: [internalReason, staff]
+      properties:
+        internalReason: {type: [string, 'null']}
+        staff:
+          oneOf: [{$ref: '../components/schemas.yaml#/StaffSummary'}, {type: 'null'}]
+
+AdminPointsHistoryEntryPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/AdminPointsHistoryEntry'}
+
+AdminReferral:
+  type: object
+  required: [id, referrer, referred, codeUsed, status, createdAt, verifiedAt, pointsJournalId, benefitSubscriptionId]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    referrer: {$ref: '../components/schemas.yaml#/UserSummary'}
+    referred: {$ref: '../components/schemas.yaml#/UserSummary'}
+    codeUsed: {type: string}
+    status:
+      type: string
+      enum: [pending, verified, cancelled]
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    verifiedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    pointsJournalId:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+    benefitSubscriptionId:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+
+AdminReferralPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/AdminReferral'}
+
+# ═════════════════════════ Admin: promo codes (spec 09 AC-27…AC-33) and referral benefits (AC-26) ═════════════════════════
+PromoDiscountType:
+  type: string
+  enum: [percent, fixed]
+
+PromoTarget:
+  type: string
+  enum: [premium_month, premium_year]
+  description: S-048 (extensible to other promo-eligible platform services).
+
+PromoCodeCreateRequest:
+  type: object
+  description: 'S-047…S-050 plus P-59 dates. `discountRate` (100…10000 bp = 1–100%) for `percent`, `discountAmount` (> 0) for `fixed`.'
+  required: [code, name, discountType, appliesTo, maxTotalRedemptions]
+  properties:
+    code:
+      type: string
+      pattern: '^[A-Za-z0-9-]{4,20}$'
+      description: Unique case-insensitive; stored upper-case. Taken → `409 DUPLICATE`.
+    name: {type: string, minLength: 1, maxLength: 100}
+    discountType: {$ref: '#/PromoDiscountType'}
+    discountRate:
+      type: [integer, 'null']
+      minimum: 100
+      maximum: 10000
+    discountAmount:
+      oneOf: [{$ref: '../components/schemas.yaml#/Money'}, {type: 'null'}]
+    appliesTo:
+      type: array
+      minItems: 1
+      uniqueItems: true
+      items: {$ref: '#/PromoTarget'}
+    maxUsesPerUser:
+      type: integer
+      minimum: 1
+      default: 1
+    maxTotalRedemptions:
+      type: integer
+      minimum: 1
+      description: Required (a code without a cap is refused, P-10).
+    isActive:
+      type: boolean
+      default: true
+    validFrom:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    validUntil:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+
+PromoCodeUpdateRequest:
+  type: object
+  description: |
+    Partial update. After the first redemption only `isActive`, `validUntil` and `maxTotalRedemptions`
+    (not below redemptions so far) may change; other fields → `422 BUSINESS_RULE_VIOLATION` with
+    `details.fields` (spec 09 AC-27, P-59).
+  properties:
+    name: {type: string, minLength: 1, maxLength: 100}
+    discountType: {$ref: '#/PromoDiscountType'}
+    discountRate:
+      type: [integer, 'null']
+      minimum: 100
+      maximum: 10000
+    discountAmount:
+      oneOf: [{$ref: '../components/schemas.yaml#/Money'}, {type: 'null'}]
+    appliesTo:
+      type: array
+      minItems: 1
+      uniqueItems: true
+      items: {$ref: '#/PromoTarget'}
+    maxUsesPerUser: {type: integer, minimum: 1}
+    maxTotalRedemptions: {type: integer, minimum: 1}
+    isActive: {type: boolean}
+    validFrom:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    validUntil:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+
+AdminPromoCode:
+  type: object
+  required: [id, code, name, discountType, discountRate, discountAmount, appliesTo, maxUsesPerUser, maxTotalRedemptions, reservedCount, finalCount, isActive, validFrom, validUntil, firstRedeemedAt, isLocked, createdBy, createdAt, updatedAt]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    code: {type: string}
+    name: {type: string}
+    discountType: {$ref: '#/PromoDiscountType'}
+    discountRate:
+      oneOf: [{$ref: '../components/schemas.yaml#/BasisPoints'}, {type: 'null'}]
+    discountAmount:
+      oneOf: [{$ref: '../components/schemas.yaml#/Money'}, {type: 'null'}]
+    appliesTo:
+      type: array
+      items: {$ref: '#/PromoTarget'}
+    maxUsesPerUser: {type: integer, minimum: 1}
+    maxTotalRedemptions: {type: integer, minimum: 1}
+    reservedCount:
+      type: integer
+      minimum: 0
+      description: Redemptions reserved by payments in progress (AC-31).
+    finalCount:
+      type: integer
+      minimum: 0
+      description: '"Used" count (AC-33).'
+    isActive: {type: boolean}
+    validFrom:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    validUntil:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    firstRedeemedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    isLocked:
+      type: boolean
+      description: True after the first redemption (edit rule of AC-27).
+    createdBy:
+      oneOf: [{$ref: '../components/schemas.yaml#/StaffSummary'}, {type: 'null'}]
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    updatedAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+AdminPromoCodePage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/AdminPromoCode'}
+
+PromoRedemptionStatus:
+  type: string
+  enum: [reserved, final, released]
+
+AdminPromoRedemption:
+  type: object
+  required: [id, user, status, planPeriod, discountAmount, paymentId, paymentStatus, subscriptionId, reservedAt, finalizedAt, releasedAt]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    user: {$ref: '../components/schemas.yaml#/UserSummary'}
+    status: {$ref: '#/PromoRedemptionStatus'}
+    planPeriod: {$ref: '../components/schemas.yaml#/BillingPeriod'}
+    discountAmount: {$ref: '../components/schemas.yaml#/Money'}
+    paymentId:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+    paymentStatus:
+      oneOf: [{$ref: '../components/schemas.yaml#/PaymentStatus'}, {type: 'null'}]
+    subscriptionId:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+    reservedAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    finalizedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    releasedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+
+AdminPromoRedemptionPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/AdminPromoRedemption'}
+
+ReferralBenefitCreateRequest:
+  type: object
+  description: Referral-code benefit S-051 (code, name, active, Premium months; spec 09 AC-26).
+  required: [code, name, premiumMonths]
+  properties:
+    code:
+      type: string
+      pattern: '^[A-Z0-9]{8}$'
+      description: A referral code (8 characters A–Z 0–9, R-S8). Taken → `409 DUPLICATE`.
+    name: {type: string, minLength: 1, maxLength: 100}
+    premiumMonths: {type: integer, minimum: 1, maximum: 120}
+    isActive:
+      type: boolean
+      default: true
+
+ReferralBenefitUpdateRequest:
+  type: object
+  properties:
+    name: {type: string, minLength: 1, maxLength: 100}
+    premiumMonths: {type: integer, minimum: 1, maximum: 120}
+    isActive: {type: boolean}
+
+AdminReferralBenefit:
+  type: object
+  required: [id, code, name, premiumMonths, isActive, grantedCount, createdBy, createdAt]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    code: {type: string}
+    name: {type: string}
+    premiumMonths: {type: integer, minimum: 1}
+    isActive: {type: boolean}
+    grantedCount:
+      type: integer
+      minimum: 0
+      description: Premium gifts granted through this benefit.
+    createdBy:
+      oneOf: [{$ref: '../components/schemas.yaml#/StaffSummary'}, {type: 'null'}]
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+AdminReferralBenefitPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/AdminReferralBenefit'}
+
+# ═════════════════════════ Realtime payloads (src/events/d3.yaml) ═════════════════════════
+PaymentStatusChangedEvent:
+  type: object
+  description: '`payment.status_changed` (room `user:{payerUserId}`): a payment of the user changed status (paid, paid_unapplied, failed, expired, rejected). Result pages may stop polling and re-read `getPayment`.'
+  required: [payment]
+  properties:
+    payment: {$ref: '../components/schemas.yaml#/PaymentSummary'}
+
+WalletBalanceChangedEvent:
+  type: object
+  description: '`wallet.balance_changed` (room `user:{userId}`): the user''s Available or HOLD changed; clients re-read `getWallet`.'
+  required: [available, hold]
+  properties:
+    available: {$ref: '../components/schemas.yaml#/Money'}
+    hold: {$ref: '../components/schemas.yaml#/Money'}
+
+SubscriptionChangedEvent:
+  type: object
+  description: '`subscription.changed` (room `user:{userId}`): Premium activated, renewed, canceled, resumed or ended; clients re-read `getCurrentSubscription` (perks within 60 s, BR-113).'
+  required: [subscriptionId, isPremium, state, endsAt]
+  properties:
+    subscriptionId: {$ref: '../components/schemas.yaml#/Uuid'}
+    isPremium: {type: boolean}
+    state: {$ref: '#/SubscriptionState'}
+    endsAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+PointsBalanceChangedEvent:
+  type: object
+  description: '`points.balance_changed` (room `user:{userId}`).'
+  required: [pointsBalance]
+  properties:
+    pointsBalance: {type: integer, minimum: 0}
+
+WithdrawalStatusChangedEvent:
+  type: object
+  description: '`withdrawal.status_changed` (room `user:{userId}`): a withdrawal of the user became processing, paid or rejected.'
+  required: [withdrawalId, number, status]
+  properties:
+    withdrawalId: {$ref: '../components/schemas.yaml#/Uuid'}
+    number: {type: string}
+    status: {$ref: '#/WithdrawalStatus'}

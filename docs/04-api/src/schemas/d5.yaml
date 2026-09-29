@@ -1,12 +1,1542 @@
-# D5 — schemas for specs 08, 10, 11. STUB written by the P2-B4 foundation run; the D5 group run fills it.
-# Map of SchemaName -> Schema. Names must start with one of the D5 schemaPrefixes in src/ownership.yaml
-# (optionally preceded by "Admin"), except D5ErrorCode. Names in ../components/schemas.yaml are reserved.
-# Reference shared schemas as '../components/schemas.yaml#/Money' and own ones as '#/MySchema'.
+# D5 — schemas for specs 08 (messaging), 10 (projects), 11 (proposals and hiring).
+# Written by the P2-B4 D5 group run (solution-architect), 2026-09-29.
+# Names start with a D5 schemaPrefix (Conversation, Message, Chat, Presence, Typing, Project, Proposal,
+# Award, Contract, Hire, Bid), optionally preceded by "Admin". Shared schemas: ../components/schemas.yaml.
+# Response objects list every property in `required` (unknown / not applicable = null).
 
+# ───────────────────────── Error codes ─────────────────────────
 D5ErrorCode:
   type: string
-  x-stub: true
+  description: Domain error codes of D5 (CONVENTIONS §7.3). Everything else uses `CommonErrorCode` + `details.messageKey`.
+  enum:
+    - CONVERSATION_READ_ONLY
+    - CONVERSATION_RECIPIENT_UNAVAILABLE
+    - MESSAGE_ALREADY_SEEN
+    - PROJECT_HAS_PROPOSALS
+    - PROJECT_PAYMENT_OPEN
+    - AWARD_EXPIRED
+    - CONTRACT_PAYMENT_IN_PROGRESS
+  x-enumDescriptions:
+    CONVERSATION_READ_ONLY: '[403] The conversation is read-only for the caller (other account banned/deleted/restricted/pending, or the item thread is closed: completed, canceled, refunded, decided). Clients switch to the read-only state; messageKey t_conversation_read_only (spec 08 AC-3, AC-33; 06 AC-41; 11 AC-40; 13 AC-21).'
+    CONVERSATION_RECIPIENT_UNAVAILABLE: '[422] A new direct conversation cannot be started with a banned, deleted, restricted or pending account; messageKey t_user_cannot_receive_messages (spec 08 AC-3, P-69).'
+    MESSAGE_ALREADY_SEEN: '[409] The sender tried to delete a message the recipient has already seen; messageKey t_message_seen_cannot_delete (spec 08 AC-25, EC-4).'
+    PROJECT_HAS_PROPOSALS: '[422] A project with proposals (other than withdrawn ones) or a payment cannot be deleted, only closed; messageKey t_project_cannot_be_deleted_has_proposals (spec 10 AC-26).'
+    PROJECT_PAYMENT_OPEN: '[409] Staff cannot hide a project whose contract payment is paid and not yet completed or refunded (spec 10 AC-14, P-75); messageKey t_order_status_changed.'
+    AWARD_EXPIRED: '[409] The acceptance deadline of the award has passed (even if the sweeper has not run yet); messageKey t_award_expired (spec 11 AC-22, EC-4).'
+    CONTRACT_PAYMENT_IN_PROGRESS: '[409] "Cancel hire" refused while a card payment for the contract is pending at BOG; messageKey t_payment_in_progress (spec 11 EC-5).'
+
+# ═════════════════════════ Conversations and messages (spec 08) ═════════════════════════
+ConversationCounterpart:
+  type: object
   description: |
-    Domain error codes of D5 (CONVENTIONS §7.3). The D5 run replaces this stub with
-    `enum: [...]` plus `x-enumDescriptions` ("[HTTP status] meaning; messageKey t_..."), using only
-    the D5 errorPrefixes from src/ownership.yaml, and removes `x-stub`.
+    The other participant of a direct conversation as shown in the Inbox header and info panel (spec 08
+    AC-19, AC-22). For "Saved messages" it is the caller. Deleted accounts show `user.isDeleted = true`
+    and the client shows "Deleted user" without a profile link (spec 08 AC-33, 02 P-21).
+  required: [user, fullName]
+  properties:
+    user: {$ref: '../components/schemas.yaml#/UserSummary'}
+    fullName:
+      type: [string, 'null']
+      description: Full name shown in the info panel (spec 08 AC-22); null for deleted accounts or when not set.
+
+ConversationParticipant:
+  type: object
+  description: A participant of an item thread (order item, project, custom offer, refund) with their role in the item.
+  required: [user, role]
+  properties:
+    user: {$ref: '../components/schemas.yaml#/UserSummary'}
+    role:
+      type: string
+      enum: [member, buyer, freelancer]
+      description: '`member` for direct conversations; `buyer` = buyer/client of the item, `freelancer` = freelancer of the item (data-model §3.N).'
+
+ConversationSubject:
+  type: object
+  description: |
+    What an item thread belongs to (spec 08 R-M2). Exactly the id matching `kind` is set; all null for
+    `direct`. Clients open the item page with it (the item itself is read through its owning group:
+    order items and custom offers D4, refund requests D4, contracts D5).
+  required: [orderItemId, contractId, customOfferId, refundRequestId, project]
+  properties:
+    orderItemId:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+    contractId:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+    customOfferId:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+    refundRequestId:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+    project:
+      oneOf: [{$ref: '../components/schemas.yaml#/ProjectRef'}, {type: 'null'}]
+      description: Set for `project` threads.
+
+ConversationReadOnlyReason:
+  type: string
+  description: Why the caller cannot write (spec 08 AC-3, AC-5, AC-33; 06 AC-41; 11 AC-40; 12 AC-24; 13 AC-21).
+  enum: [counterpart_inactive, counterpart_deleted, item_closed, staff_only]
+  x-enumDescriptions:
+    counterpart_inactive: The other account is banned, restricted or pending (`t_conversation_read_only`).
+    counterpart_deleted: The other account was deleted (`t_conversation_read_only`, "Deleted user").
+    item_closed: The item of a thread is completed, canceled, refunded, decided or closed (thread read-only).
+    staff_only: Reserved; not used by user responses today.
+
+ConversationOfferActions:
+  type: object
+  description: |
+    Header buttons of a direct conversation (spec 08 AC-27): both false when S-034 is OFF, for Saved
+    messages, or when the conversation is read-only. The offer and request operations are D4's
+    (`/custom-offers`, `/custom-offer-requests`), which enforce spec 12 themselves.
+  required: [canCreateOffer, canRequestOffer]
+  properties:
+    canCreateOffer: {type: boolean}
+    canRequestOffer: {type: boolean}
+
+ConversationMessagePreview:
+  type: object
+  description: Last message shown in the Inbox list (spec 08 AC-19). Clients add `t_you` for own messages and `t_image` / `t_attachment` for files.
+  required: [id, kind, sender, excerpt, attachmentKind, state, createdAt]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    kind: {$ref: '#/MessageKind'}
+    sender: {$ref: '../components/schemas.yaml#/ActorRef'}
+    excerpt:
+      type: [string, 'null']
+      maxLength: 200
+      description: Start of the text (plain text, up to 200 characters); null when the message has no text or is deleted/hidden.
+    attachmentKind:
+      type: [string, 'null']
+      enum: [image, file, null]
+    state: {$ref: '#/MessageState'}
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+ConversationSummary:
+  type: object
+  description: One row of the Inbox list (direct conversations only, spec 08 AC-19, R-M2).
+  required: [id, kind, counterpart, isSavedMessages, isFavorite, isReadOnly, lastMessage, lastMessageAt, unreadCount]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    kind: {$ref: '../components/schemas.yaml#/ConversationKind'}
+    counterpart: {$ref: '#/ConversationCounterpart'}
+    isSavedMessages:
+      type: boolean
+      description: The caller's own notes conversation (`t_saved_messages`, spec 08 AC-4).
+    isFavorite: {type: boolean}
+    isReadOnly: {type: boolean}
+    lastMessage:
+      oneOf: [{$ref: '#/ConversationMessagePreview'}, {type: 'null'}]
+    lastMessageAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    unreadCount:
+      type: integer
+      minimum: 0
+      description: Messages from others not yet seen by the caller.
+
+ConversationSummaryPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/ConversationSummary'}
+
+Conversation:
+  type: object
+  description: |
+    A conversation as seen by one of its participants: the Inbox conversation (direct) or an item thread
+    (order item, project, custom offer, refund). Staff use `adminGetConversation`.
+  required: [id, kind, counterpart, participants, subject, isSavedMessages, isFavorite, isReadOnly, readOnlyReason, canSend, canAttach, maxBodyLength, offerActions, unreadCount, lastReadMessageId, otherLastReadMessageId, createdAt, lastMessageAt]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    kind: {$ref: '../components/schemas.yaml#/ConversationKind'}
+    counterpart:
+      oneOf: [{$ref: '#/ConversationCounterpart'}, {type: 'null'}]
+      description: Direct conversations only (header and info panel, spec 08 AC-22).
+    participants:
+      type: array
+      items: {$ref: '#/ConversationParticipant'}
+      description: Both users of the conversation (one for Saved messages). Staff are never participants; staff messages show as "MyTask".
+    subject: {$ref: '#/ConversationSubject'}
+    isSavedMessages: {type: boolean}
+    isFavorite:
+      type: boolean
+      description: Direct conversations only; false for threads.
+    isReadOnly: {type: boolean}
+    readOnlyReason:
+      oneOf: [{$ref: '#/ConversationReadOnlyReason'}, {type: 'null'}]
+    canSend:
+      type: boolean
+      description: False when read-only or when the caller is restricted.
+    canAttach:
+      type: boolean
+      description: True only for direct conversations while S-094 is ON (spec 08 AC-8, AC-9). Threads are text only (see handoff).
+    maxBodyLength:
+      type: integer
+      description: 5,000 for direct conversations (P-66), 750 for item threads (spec 06 R-O10, 11 AC-40, 12 AC-24, 13 AC-21).
+    offerActions: {$ref: '#/ConversationOfferActions'}
+    unreadCount: {type: integer, minimum: 0}
+    lastReadMessageId:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+      description: Last message the caller has seen (R-M5).
+    otherLastReadMessageId:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+      description: Last message of the caller the other participant has seen (ticks, spec 08 AC-15).
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    lastMessageAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+
+ConversationCreateRequest:
+  type: object
+  description: |
+    Open the direct conversation with another user (or Saved messages with yourself). Give exactly one
+    target: `username` (profile, gig, proposal card, `/inbox/u/{username}`) or `projectId` ("Chat now" on
+    a project page, where the client's username may be masked for the caller, spec 02 AC-41).
+  properties:
+    username:
+      type: string
+      minLength: 1
+      maxLength: 60
+    projectId:
+      $ref: '../components/schemas.yaml#/Uuid'
+      description: Opens the conversation with the client (owner) of this project.
+  oneOf:
+    - required: [username]
+    - required: [projectId]
+
+ConversationUpdateRequest:
+  type: object
+  description: Per-user conversation settings (direct conversations only).
+  required: [isFavorite]
+  properties:
+    isFavorite:
+      type: boolean
+      description: Star / unstar the contact (Favourites row, spec 08 AC-20).
+
+ConversationReadRequest:
+  type: object
+  required: [lastSeenMessageId]
+  properties:
+    lastSeenMessageId:
+      $ref: '../components/schemas.yaml#/Uuid'
+      description: Newest message actually shown to the user in the open conversation (spec 08 AC-15). Seen never moves backwards (R-M5).
+
+ConversationReadState:
+  type: object
+  required: [conversationId, lastReadMessageId, unreadCount, unreadConversationCount]
+  properties:
+    conversationId: {$ref: '../components/schemas.yaml#/Uuid'}
+    lastReadMessageId:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+    unreadCount: {type: integer, minimum: 0}
+    unreadConversationCount:
+      type: integer
+      minimum: 0
+      description: New badge value (same as `getConversationUnreadSummary`).
+
+ConversationUnreadSummary:
+  type: object
+  description: Header / Inbox tab badge (spec 08 AC-18).
+  required: [unreadConversationCount]
+  properties:
+    unreadConversationCount:
+      type: integer
+      minimum: 0
+      description: Number of Inbox (direct) conversations with at least one message from others not yet seen.
+
+MessageKind:
+  type: string
+  description: data-model §3.N `messages.kind`.
+  enum: [text, revision_request, offer_card, request_card, system_event]
+  x-enumDescriptions:
+    text: A user or staff message (text and/or one attachment).
+    revision_request: The buyer's revision request message, written into the item thread by D4 `createEscrowRevisionRequest` (spec 06 AC-26).
+    offer_card: A custom offer card in the direct conversation (spec 12 AC-9); `customOfferId` set, details read from D4.
+    request_card: An offer request card (spec 12 AC-3); `customOfferRequestId` set.
+    system_event: A status line in an item thread (e.g. delivered, completed); `systemEvent` set.
+
+MessageState:
+  type: string
+  enum: [visible, deleted_by_sender, hidden_by_staff]
+  x-enumDescriptions:
+    visible: Normal message.
+    deleted_by_sender: Deleted by the sender before it was seen; users see `t_message_deleted`, body and attachment are null for them (spec 08 AC-25).
+    hidden_by_staff: Hidden by staff (`chat.moderate`); users see `t_message_removed_by_staff` (spec 08 AC-31).
+
+MessageAttachment:
+  type: object
+  description: |
+    The one attachment of a message (R-M4), a private file. Participants download it with
+    `getFileDownload` (`mode=json` for a signed URL to show image previews); staff with
+    `adminGetConversationFileDownload`.
+  required: [file, isImage, isMissing]
+  properties:
+    file: {$ref: '../components/schemas.yaml#/Attachment'}
+    isImage:
+      type: boolean
+      description: Type in the S-095 image list; shown as a preview (spec 08 AC-8, "Shared photos").
+    isMissing:
+      type: boolean
+      description: Migrated attachment whose file was not found; show `t_sorry_file_chat_does_not_exist` (spec 08 EC-10).
+
+MessageSystemEvent:
+  type: object
+  description: 'A system line in a thread, rendered from an i18n key (CONVENTIONS §11: data + keys, no sentences).'
+  required: [key, params]
+  properties:
+    key:
+      type: string
+      pattern: '^t_[a-z0-9_]+$'
+    params:
+      type: object
+      additionalProperties: {type: string}
+
+Message:
+  type: object
+  description: |
+    A message as seen by participants. Staff senders appear as `sender.type = staff` with `staff = null`
+    ("MyTask"). Deleted/hidden messages keep their place with `body = null` and `attachment = null`.
+    Own-message rules: "Delete" is offered only while `isSeen` is false (the API enforces it, spec 08 AC-25).
+  required: [id, conversationId, clientMessageId, kind, sender, body, attachment, state, customOfferId, customOfferRequestId, systemEvent, isSeen, createdAt]
+  properties:
+    id:
+      $ref: '../components/schemas.yaml#/Uuid'
+      description: UUIDv7, time-ordered (fixes R-038); order of messages = server time (EC-1).
+    conversationId: {$ref: '../components/schemas.yaml#/Uuid'}
+    clientMessageId:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+      description: The sender's idempotency id; clients match it to their optimistic "sending" bubble. Null for system and migrated messages.
+    kind: {$ref: '#/MessageKind'}
+    sender: {$ref: '../components/schemas.yaml#/ActorRef'}
+    body:
+      type: [string, 'null']
+      maxLength: 5000
+      description: Plain text; line breaks kept; clients render links clickable and never render HTML (spec 08 AC-7).
+    attachment:
+      oneOf: [{$ref: '#/MessageAttachment'}, {type: 'null'}]
+    state: {$ref: '#/MessageState'}
+    customOfferId:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+      description: '`offer_card` only; the card content (price, days, revisions, status, expiry) is read from D4 custom offers.'
+    customOfferRequestId:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+      description: '`request_card` only (D4 offer requests).'
+    systemEvent:
+      oneOf: [{$ref: '#/MessageSystemEvent'}, {type: 'null'}]
+    isSeen:
+      type: boolean
+      description: Seen by the other participant (double tick, spec 08 AC-15). Always false in `message.created` events.
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+MessagePage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/Message'}
+
+MessageCreateRequest:
+  type: object
+  description: |
+    Send a message (ADR-007 §2). At least one of `body` (non-blank) and `attachmentFileId` is required
+    (`t_enter_your_message`). `attachmentFileId` is a `ready` file of the caller with purpose
+    `chat_attachment` uploaded for this conversation (`createFileUpload` with `context.conversationId`).
+  required: [clientMessageId]
+  properties:
+    clientMessageId:
+      $ref: '../components/schemas.yaml#/Uuid'
+      description: Client-generated UUID per message; a retry with the same id returns the stored message and never creates a duplicate (spec 08 AC-6).
+    body:
+      type: [string, 'null']
+      maxLength: 5000
+      description: Plain text. Direct conversations ≤ 5,000 characters (`t_message_too_long`, P-66); item threads ≤ 750 (spec 06 AC-40, 11 AC-40, 12 AC-24, 13 AC-21).
+    attachmentFileId:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+      description: Direct conversations only, while S-094 is ON (spec 08 AC-8, AC-9).
+
+MessageAttachmentItem:
+  type: object
+  description: One file shared in a conversation (info panel "Shared photos", spec 08 AC-22).
+  required: [messageId, sender, attachment, createdAt]
+  properties:
+    messageId: {$ref: '../components/schemas.yaml#/Uuid'}
+    sender: {$ref: '../components/schemas.yaml#/ActorRef'}
+    attachment: {$ref: '#/MessageAttachment'}
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+MessageAttachmentItemPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/MessageAttachmentItem'}
+
+# ── Admin (spec 08 AC-29…AC-31, spec 16 AC-65) ──
+AdminConversationParticipant:
+  type: object
+  required: [user, role, fullName, email]
+  properties:
+    user: {$ref: '../components/schemas.yaml#/UserSummary'}
+    role:
+      type: string
+      enum: [member, buyer, freelancer]
+    fullName: {type: [string, 'null']}
+    email:
+      oneOf: [{$ref: '../components/schemas.yaml#/EmailAddress'}, {type: 'null'}]
+      description: Shown to staff because the search covers e-mail addresses (spec 08 AC-29).
+
+AdminConversationSummary:
+  type: object
+  required: [id, kind, participants, subject, messageCount, lastMessageAt, createdAt]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    kind: {$ref: '../components/schemas.yaml#/ConversationKind'}
+    participants:
+      type: array
+      items: {$ref: '#/AdminConversationParticipant'}
+    subject: {$ref: '#/ConversationSubject'}
+    messageCount: {type: integer, minimum: 0}
+    lastMessageAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+AdminConversationSummaryPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/AdminConversationSummary'}
+
+AdminConversation:
+  type: object
+  description: Read-only staff view of any conversation. Opening it writes an audit entry (spec 08 AC-30).
+  required: [id, kind, participants, subject, isReadOnly, staffCanWrite, messageCount, createdAt, lastMessageAt]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    kind: {$ref: '../components/schemas.yaml#/ConversationKind'}
+    participants:
+      type: array
+      items: {$ref: '#/AdminConversationParticipant'}
+    subject: {$ref: '#/ConversationSubject'}
+    isReadOnly:
+      type: boolean
+      description: The item thread is closed for everybody (users and staff).
+    staffCanWrite:
+      type: boolean
+      description: True only for `refund` threads that are still open (spec 13 AC-21); still needs `refunds.thread.write`.
+    messageCount: {type: integer, minimum: 0}
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    lastMessageAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+
+AdminConversationMessage:
+  type: object
+  description: A message as staff see it — always with its original text and attachment, marked when deleted by the sender or hidden by staff (spec 08 AC-25, AC-29, AC-31).
+  required: [id, conversationId, kind, sender, body, attachment, state, customOfferId, customOfferRequestId, systemEvent, isSeen, createdAt, deletedBySenderAt, hiddenByStaffAt, hiddenByStaff, moderationReason]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    conversationId: {$ref: '../components/schemas.yaml#/Uuid'}
+    kind: {$ref: '#/MessageKind'}
+    sender:
+      $ref: '../components/schemas.yaml#/ActorRef'
+      description: '`staff` is filled for staff messages in admin responses.'
+    body: {type: [string, 'null']}
+    attachment:
+      oneOf: [{$ref: '#/MessageAttachment'}, {type: 'null'}]
+    state: {$ref: '#/MessageState'}
+    customOfferId:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+    customOfferRequestId:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+    systemEvent:
+      oneOf: [{$ref: '#/MessageSystemEvent'}, {type: 'null'}]
+    isSeen: {type: boolean}
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    deletedBySenderAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+      description: '`t_deleted_by_sender` marker.'
+    hiddenByStaffAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+      description: '`t_hidden_by_staff` marker.'
+    hiddenByStaff:
+      oneOf: [{$ref: '../components/schemas.yaml#/StaffSummary'}, {type: 'null'}]
+    moderationReason:
+      type: [string, 'null']
+      description: Internal reason of the hide (never shown to users).
+
+AdminConversationMessagePage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/AdminConversationMessage'}
+
+AdminConversationMessageCreateRequest:
+  type: object
+  description: A staff message "as MyTask" in an open refund/dispute thread (spec 13 AC-21, spec 16 AC-40).
+  required: [clientMessageId, body]
+  properties:
+    clientMessageId:
+      $ref: '../components/schemas.yaml#/Uuid'
+      description: Idempotent retry id (same rule as users).
+    body:
+      type: string
+      minLength: 1
+      maxLength: 750
+
+# ═════════════════════════ Projects (spec 10) ═════════════════════════
+ProjectStatus:
+  type: string
+  description: spec 10 R-P3, data-model §4.4.
+  enum: [pending_approval, rejected, active, hired, completed, refunded, closed, hidden, deleted]
+  x-enumDescriptions:
+    pending_approval: Waiting for staff (S-072 OFF). Owner and staff only.
+    rejected: Staff asked for changes (reason). Owner and staff only; editing sends it back to review.
+    active: Open for proposals (an award may be waiting for acceptance).
+    hired: The freelancer accepted; the contract is open (spec 11).
+    completed: The contract was completed (money released).
+    refunded: The contract was refunded to the client (spec 13).
+    closed: Closed by the owner before hiring; public, closed for bidding.
+    hidden: Hidden by staff (moderation). Owner and staff only.
+    deleted: Deleted by the owner (no proposals). Staff only.
+
+ProjectTitleInput:
+  type: object
+  description: |
+    Title in both languages (write form). `ka` 3–100 characters: Georgian letters, Latin letters,
+    digits, whitespace and `- _ . , ! ? ( )` (spec 00 R-5.3a, PROPOSED P-136) with at least one Georgian
+    letter; other characters → `VALIDATION_FAILED`, field `title.ka`, messageKey
+    `t_validator_georgian_field_characters` (naming them) or `t_validator_georgian_letter_required`
+    (shared validation error defined by D1). `en` optional, 3–100 characters, no Georgian letters
+    (field `title.en`, code `georgian_letters_not_allowed`, R-5.4).
+  required: [ka]
+  properties:
+    ka:
+      type: string
+      minLength: 3
+      maxLength: 100
+    en:
+      type: [string, 'null']
+      minLength: 3
+      maxLength: 100
+
+ProjectDescriptionInput:
+  type: object
+  description: |
+    Description in both languages (write form), plain text, line breaks kept, HTML refused. `ka` 10–10,000
+    characters with the same character set as the Georgian title (spec 10 AC-4, R-5.3a, PROPOSED P-136;
+    `t_project_description_too_long` above the maximum). `en` optional, 10–10,000, no Georgian letters.
+  required: [ka]
+  properties:
+    ka:
+      type: string
+      minLength: 10
+      maxLength: 10000
+    en:
+      type: [string, 'null']
+      minLength: 10
+      maxLength: 10000
+
+ProjectCreateRequest:
+  type: object
+  description: |
+    Post a project (spec 10 AC-2…AC-10). Fixed budget only (Q-035): no budget type, no promotions.
+    Budget: `budgetMin.amount` ≥ 100 tetri (1.00 GEL, `t_budget_min_too_low`) and `budgetMin` <
+    `budgetMax` (`t_max_project_price_must_be_greater`); tetri integers make "up to 2 decimals" exact.
+  required: [title, description, projectCategoryId, thumbnailFileId, budgetMin, budgetMax]
+  properties:
+    title: {$ref: '#/ProjectTitleInput'}
+    description: {$ref: '#/ProjectDescriptionInput'}
+    projectCategoryId:
+      $ref: '../components/schemas.yaml#/Uuid'
+      description: A project category (D2 catalog, spec 03).
+    skillIds:
+      type: array
+      uniqueItems: true
+      items: {$ref: '../components/schemas.yaml#/Uuid'}
+      description: Optional; skills of the chosen category only, each once, at most S-076 (default 5; `t_max_allowed_skills_reached`).
+    thumbnailFileId:
+      $ref: '../components/schemas.yaml#/Uuid'
+      description: '`ready` file with purpose `project_thumbnail` (jpg, jpeg, png ≤ S-078 MB; spec 10 AC-7).'
+    budgetMin: {$ref: '../components/schemas.yaml#/Money'}
+    budgetMax: {$ref: '../components/schemas.yaml#/Money'}
+
+ProjectUpdateRequest:
+  type: object
+  description: Edit a project (spec 10 AC-24). Omitted fields stay unchanged; the same validation as posting applies. Changing the category without `skillIds` clears the skills (spec 10 AC-6).
+  minProperties: 1
+  properties:
+    title: {$ref: '#/ProjectTitleInput'}
+    description: {$ref: '#/ProjectDescriptionInput'}
+    projectCategoryId: {$ref: '../components/schemas.yaml#/Uuid'}
+    skillIds:
+      type: array
+      uniqueItems: true
+      items: {$ref: '../components/schemas.yaml#/Uuid'}
+    thumbnailFileId: {$ref: '../components/schemas.yaml#/Uuid'}
+    budgetMin: {$ref: '../components/schemas.yaml#/Money'}
+    budgetMax: {$ref: '../components/schemas.yaml#/Money'}
+
+ProjectClient:
+  type: object
+  description: |
+    The project owner as shown on the project page (spec 10 AC-17, R-P6; spec 02 AC-41). For guests and
+    for users who are neither Premium, nor the owner, the username is masked (`mytask` → `my**sk`),
+    `usernameMasked` is true and `user` is null: the API never returns the real username or user id to
+    such viewers, so no profile link can be built. "Chat now" uses `createConversation` with `projectId`.
+  required: [displayUsername, usernameMasked, avatar, isIdVerified, countryCode, user]
+  properties:
+    displayUsername: {type: string}
+    usernameMasked: {type: boolean}
+    avatar:
+      oneOf: [{$ref: '../components/schemas.yaml#/ImageVariants'}, {type: 'null'}]
+    isIdVerified: {type: boolean}
+    countryCode:
+      oneOf: [{$ref: '../components/schemas.yaml#/CountryCode'}, {type: 'null'}]
+    user:
+      oneOf: [{$ref: '../components/schemas.yaml#/UserSummary'}, {type: 'null'}]
+      description: Full summary only for the owner and Premium viewers.
+
+ProjectBidBlockedReason:
+  type: string
+  description: Why "Bid on this project" is not available to the viewer (spec 10 AC-18, spec 11 AC-1, AC-2, AC-7).
+  enum: [login_required, premium_required, own_project, already_submitted, declined_award, award_pending, not_open, restricted]
+  x-enumDescriptions:
+    login_required: Guest; send to login.
+    premium_required: No active Premium (`t_warning_project_limit` box / sheet, spec 11 AC-2).
+    own_project: '`t_u_cant_submit_bids_to_urself`.'
+    already_submitted: A non-withdrawn proposal exists (`t_u_already_submitted_a_bid_to_this_project`); edit it instead.
+    declined_award: The viewer declined an award on this project (spec 11 AC-21, P-82).
+    award_pending: An award is waiting for acceptance or was accepted (`t_u_cant_submit_bids_to_this_project`).
+    not_open: The project is not active (`t_this_project_is_closed_for_bidding`, spec 10 AC-18).
+    restricted: The viewer is restricted (spec 01 AC-19).
+
+ProjectProposalRef:
+  type: object
+  description: The viewer's own proposal on this project (spec 11 AC-10).
+  required: [id, status]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    status: {$ref: '#/ProposalStatus'}
+
+ProjectViewer:
+  type: object
+  description: What the caller may do on the project page, computed by the API (clients only render it).
+  required: [isOwner, canEdit, canClose, canDelete, canReport, canBid, bidBlockedReason, canSeeProposals, canSeeAverage, myProposal, contractId]
+  properties:
+    isOwner: {type: boolean}
+    canEdit: {type: boolean}
+    canClose: {type: boolean}
+    canDelete: {type: boolean}
+    canReport:
+      type: boolean
+      description: Logged-in non-owner (spec 10 AC-22).
+    canBid: {type: boolean}
+    bidBlockedReason:
+      oneOf: [{$ref: '#/ProjectBidBlockedReason'}, {type: 'null'}]
+    canSeeProposals:
+      type: boolean
+      description: Owner or active Premium (spec 11 AC-10); others see only the count and `t_warning_bids_limit`.
+    canSeeAverage:
+      type: boolean
+      description: Owner or active Premium (spec 10 AC-17, P-78); others see `t_need_subscription`.
+    myProposal:
+      oneOf: [{$ref: '#/ProjectProposalRef'}, {type: 'null'}]
+    contractId:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+      description: The open (non-canceled) contract when the caller is its client or freelancer.
+
+ProjectOwnerContent:
+  type: object
+  description: The owner's edit form values in both languages (CONVENTIONS §11). Only returned to the owner.
+  required: [title, description, projectCategoryId, skillIds, thumbnailFileId]
+  properties:
+    title: {$ref: '../components/schemas.yaml#/LocalizedString'}
+    description: {$ref: '../components/schemas.yaml#/LocalizedString'}
+    projectCategoryId: {$ref: '../components/schemas.yaml#/Uuid'}
+    skillIds:
+      type: array
+      items: {$ref: '../components/schemas.yaml#/Uuid'}
+    thumbnailFileId: {$ref: '../components/schemas.yaml#/Uuid'}
+
+Project:
+  type: object
+  description: |
+    The project page (spec 10 AC-15…AC-18). Translatable fields are resolved to the requested language
+    with Georgian fallback (`contentLocale`, spec 10 AC-16). The web redirects (301) to
+    `/project/{pid}/{slug}` when the requested slug differs from `slug` (AC-15).
+  required: [id, pid, slug, title, description, contentLocale, status, category, skills, thumbnail, budgetType, budgetMin, budgetMax, activeProposalsCount, averageProposalAmount, client, hasPendingAward, isOpenForProposals, isIndexable, viewsCount, rejectionReason, createdAt, publishedAt, closedAt, ownerContent, viewer]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    pid:
+      type: string
+      pattern: '^[0-9]{6}$'
+      description: Unique 6-digit project number (R-P8); never changes.
+    slug:
+      type: string
+      description: Current slug (from the Georgian title; changes when the Georgian title changes, AC-24).
+    title: {type: string}
+    description: {type: string}
+    contentLocale: {$ref: '../components/schemas.yaml#/ContentLocale'}
+    status: {$ref: '#/ProjectStatus'}
+    category: {$ref: '../components/schemas.yaml#/CategoryRef'}
+    skills:
+      type: array
+      items: {$ref: '../components/schemas.yaml#/CategoryRef'}
+      description: Skill chips linking to `/explore/projects/{category}/{skill}` (spec 03 AC-33).
+    thumbnail:
+      oneOf: [{$ref: '../components/schemas.yaml#/ImageVariants'}, {type: 'null'}]
+    budgetType:
+      type: string
+      const: fixed
+      description: Always fixed (Q-035); `t_fixed_price`.
+    budgetMin: {$ref: '../components/schemas.yaml#/Money'}
+    budgetMax: {$ref: '../components/schemas.yaml#/Money'}
+    activeProposalsCount:
+      type: integer
+      minimum: 0
+    averageProposalAmount:
+      oneOf: [{$ref: '../components/schemas.yaml#/Money'}, {type: 'null'}]
+      description: Average of **active** proposals (P-78); null when the viewer may not see it (`viewer.canSeeAverage` false) or there is none.
+    client: {$ref: '#/ProjectClient'}
+    hasPendingAward:
+      type: boolean
+      description: '"Awarded — waiting for the freelancer" (`t_awaiting_freelancer_acceptance`, spec 11 AC-16).'
+    isOpenForProposals: {type: boolean}
+    isIndexable:
+      type: boolean
+      description: False for pending, rejected, hidden and deleted projects (`noindex`, spec 10 AC-28).
+    viewsCount:
+      type: [integer, 'null']
+      minimum: 0
+      description: Owner only (P-78); null for others.
+    rejectionReason:
+      type: [string, 'null']
+      description: Owner only, while `rejected` (staff reason, AC-13).
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    publishedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+      description: First activation (posted date shown on the page).
+    closedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    ownerContent:
+      oneOf: [{$ref: '#/ProjectOwnerContent'}, {type: 'null'}]
+    viewer: {$ref: '#/ProjectViewer'}
+
+ProjectContractSummary:
+  type: object
+  description: The project's current contract as shown in the owner's list (Pay, Leave a review).
+  required: [id, status, freelancer]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    status: {$ref: '#/ContractStatus'}
+    freelancer: {$ref: '../components/schemas.yaml#/UserSummary'}
+
+ProjectOwnerAction:
+  type: string
+  enum: [edit, close, delete, view_proposals, pay, review]
+  description: Next actions of a row in Buying → Projects (spec 10 AC-23); `pay` opens the contract payment page, `review` the review form (spec 07).
+
+ProjectListItem:
+  type: object
+  description: One row of Buying → Projects (spec 10 AC-23).
+  required: [id, pid, slug, title, contentLocale, status, budgetMin, budgetMax, activeProposalsCount, viewsCount, createdAt, publishedAt, contract, actions]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    pid: {type: string, pattern: '^[0-9]{6}$'}
+    slug: {type: string}
+    title: {type: string}
+    contentLocale: {$ref: '../components/schemas.yaml#/ContentLocale'}
+    status: {$ref: '#/ProjectStatus'}
+    budgetMin: {$ref: '../components/schemas.yaml#/Money'}
+    budgetMax: {$ref: '../components/schemas.yaml#/Money'}
+    activeProposalsCount: {type: integer, minimum: 0}
+    viewsCount: {type: integer, minimum: 0}
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    publishedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    contract:
+      oneOf: [{$ref: '#/ProjectContractSummary'}, {type: 'null'}]
+    actions:
+      type: array
+      items: {$ref: '#/ProjectOwnerAction'}
+
+ProjectListItemPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/ProjectListItem'}
+
+ProjectReportCreateRequest:
+  type: object
+  required: [reason, description]
+  properties:
+    reason:
+      type: string
+      enum: [reason_1, reason_2, reason_3, reason_4, reason_5, reason_6]
+      description: Legacy reason codes, labels `t_report_project_reason_1…6` (spec 10 AC-22).
+    description:
+      type: string
+      minLength: 1
+      maxLength: 1500
+
+ProjectReport:
+  type: object
+  description: Receipt of a saved report (the queue is D6 `/admin/reports`, P-118).
+  required: [id, reason, createdAt]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    reason: {type: string}
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+ProjectViewCreateRequest:
+  type: object
+  required: [visitorId]
+  properties:
+    visitorId:
+      $ref: '../components/schemas.yaml#/Uuid'
+      description: First-party browser or app-installation id; one counted visit per visitor per project per 15 minutes (spec 10 AC-21).
+
+# ── Admin projects (spec 16 AC-19, AC-22) ──
+AdminProjectOwnerSummary:
+  type: object
+  description: Owner summary of a queue item (spec 16 AC-19).
+  required: [user, plan, openReportsCount, earlierRejectionsCount]
+  properties:
+    user: {$ref: '../components/schemas.yaml#/UserSummary'}
+    plan: {$ref: '../components/schemas.yaml#/PlanCode'}
+    openReportsCount:
+      type: integer
+      minimum: 0
+      description: Unreviewed reports about this user's projects and profile.
+    earlierRejectionsCount:
+      type: integer
+      minimum: 0
+      description: Earlier rejections of this owner's projects.
+
+AdminProjectListItem:
+  type: object
+  required: [id, pid, title, status, category, owner, budgetMin, budgetMax, activeProposalsCount, reportsCount, createdAt, publishedAt, updatedAt]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    pid: {type: string, pattern: '^[0-9]{6}$'}
+    title:
+      type: string
+      description: Georgian title.
+    status: {$ref: '#/ProjectStatus'}
+    category: {$ref: '../components/schemas.yaml#/CategoryRef'}
+    owner: {$ref: '../components/schemas.yaml#/UserSummary'}
+    budgetMin: {$ref: '../components/schemas.yaml#/Money'}
+    budgetMax: {$ref: '../components/schemas.yaml#/Money'}
+    activeProposalsCount: {type: integer, minimum: 0}
+    reportsCount: {type: integer, minimum: 0}
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    publishedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    updatedAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+AdminProjectListItemPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/AdminProjectListItem'}
+
+AdminProject:
+  type: object
+  description: Staff detail of a project in any status (incl. deleted, kept for audit, spec 10 AC-26), with the content in both languages as the public would see it.
+  required: [id, pid, slug, status, title, description, category, skills, thumbnail, budgetMin, budgetMax, owner, ownerSummary, activeProposalsCount, proposalsCount, viewsCount, reportsCount, rejectionReason, hiddenReason, statusBeforeHidden, hasOpenPayment, contractId, createdAt, publishedAt, closedAt, updatedAt]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    pid: {type: string, pattern: '^[0-9]{6}$'}
+    slug: {type: string}
+    status: {$ref: '#/ProjectStatus'}
+    title: {$ref: '../components/schemas.yaml#/LocalizedString'}
+    description: {$ref: '../components/schemas.yaml#/LocalizedString'}
+    category: {$ref: '../components/schemas.yaml#/CategoryRef'}
+    skills:
+      type: array
+      items: {$ref: '../components/schemas.yaml#/CategoryRef'}
+    thumbnail:
+      oneOf: [{$ref: '../components/schemas.yaml#/ImageVariants'}, {type: 'null'}]
+    budgetMin: {$ref: '../components/schemas.yaml#/Money'}
+    budgetMax: {$ref: '../components/schemas.yaml#/Money'}
+    owner: {$ref: '../components/schemas.yaml#/UserSummary'}
+    ownerSummary: {$ref: '#/AdminProjectOwnerSummary'}
+    activeProposalsCount: {type: integer, minimum: 0}
+    proposalsCount:
+      type: integer
+      minimum: 0
+      description: All proposals in any status.
+    viewsCount: {type: integer, minimum: 0}
+    reportsCount: {type: integer, minimum: 0}
+    rejectionReason: {type: [string, 'null']}
+    hiddenReason:
+      type: [string, 'null']
+      description: Internal staff reason of the hide.
+    statusBeforeHidden:
+      oneOf: [{$ref: '#/ProjectStatus'}, {type: 'null'}]
+      description: The status restored by `adminUnhideProject`.
+    hasOpenPayment:
+      type: boolean
+      description: A contract payment is paid and not yet completed or refunded (hide refused, AC-14).
+    contractId:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    publishedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    closedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    updatedAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+# ═════════════════════════ Proposals (spec 11) ═════════════════════════
+ProposalStatus:
+  type: string
+  description: spec 11 R-H3, data-model §4.4.
+  enum: [pending_approval, active, rejected, awarded, accepted, declined, withdrawn, hire_canceled, hidden]
+  x-enumDescriptions:
+    pending_approval: Waiting for staff (S-073 OFF).
+    active: Visible to the owner, Premium users and staff.
+    rejected: Staff asked for changes (reason); the author can edit it to resubmit.
+    awarded: Awarded, waiting for the freelancer (deadline in the award).
+    accepted: The freelancer accepted; a contract exists.
+    declined: The freelancer declined the award (hidden from the project list).
+    withdrawn: Withdrawn by the author (kept as history, P-82).
+    hire_canceled: The hire was canceled before payment (spec 11 AC-25).
+    hidden: Migrated legacy rows only.
+
+ProposalDisplayStatus:
+  type: string
+  description: Status chip for the author's list (spec 11 AC-14); equals `status` except `not_selected` (another proposal was hired, R-H3).
+  enum: [pending_approval, active, rejected, awarded, accepted, declined, withdrawn, hire_canceled, not_selected, hidden]
+
+ProposalFreelancerRating:
+  type: object
+  description: Freelancer rating summary (spec 07, owned by D2) shown on proposal cards (spec 11 AC-10). Local stand-in; see handoff (shared rating summary requested).
+  required: [averageTenths, count]
+  properties:
+    averageTenths:
+      type: [integer, 'null']
+      minimum: 10
+      maximum: 50
+      description: Average rating × 10 (e.g. 48 = 4.8); null without reviews.
+    count: {type: integer, minimum: 0}
+
+ProposalAwardRef:
+  type: object
+  required: [id, status, expiresAt]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    status: {$ref: '#/AwardStatus'}
+    expiresAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+ProposalViewer:
+  type: object
+  description: Actions available to the caller on this proposal (API-computed).
+  required: [isAuthor, isProjectOwner, canEdit, canWithdraw, canAward, canRevoke, canReport, canChat]
+  properties:
+    isAuthor: {type: boolean}
+    isProjectOwner: {type: boolean}
+    canEdit:
+      type: boolean
+      description: Author, status pending/active/rejected, project active without award, active Premium (spec 11 AC-12).
+    canWithdraw: {type: boolean}
+    canAward: {type: boolean}
+    canRevoke: {type: boolean}
+    canReport: {type: boolean}
+    canChat:
+      type: boolean
+      description: Owner's chat button — every bidder until an award, then only the awarded one (LEGACY `Cards/Bid.php:82-98`).
+
+Proposal:
+  type: object
+  description: A proposal (bid) as shown on the project page, in Selling → Proposals and in the edit form.
+  required: [id, uid, project, freelancer, freelancerRating, amount, deliveryDays, revisions, message, status, displayStatus, rejectionReason, award, createdAt, updatedAt, viewer]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    uid:
+      type: string
+      maxLength: 20
+      description: Public id used in `/seller/proposals/{proposalUid}/edit` (url-map §5).
+    project: {$ref: '../components/schemas.yaml#/ProjectRef'}
+    freelancer: {$ref: '../components/schemas.yaml#/UserSummary'}
+    freelancerRating: {$ref: '#/ProposalFreelancerRating'}
+    amount: {$ref: '../components/schemas.yaml#/Money'}
+    deliveryDays:
+      type: integer
+      minimum: 1
+    revisions:
+      type: [integer, 'null']
+      minimum: 0
+      description: Number of revisions offered; null only for migrated proposals (data-model §3.G).
+    message: {type: string}
+    status: {$ref: '#/ProposalStatus'}
+    displayStatus: {$ref: '#/ProposalDisplayStatus'}
+    rejectionReason:
+      type: [string, 'null']
+      description: Author only (staff reason, spec 11 AC-9).
+    award:
+      oneOf: [{$ref: '#/ProposalAwardRef'}, {type: 'null'}]
+      description: The current or last award of this proposal ("Awarded" chip, countdown).
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    updatedAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    viewer: {$ref: '#/ProposalViewer'}
+
+ProposalPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      required: [visibility]
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/Proposal'}
+        visibility:
+          type: string
+          enum: [all, own_only]
+          description: '`all` = the caller may see every active proposal (owner, Premium, spec 11 AC-10); `own_only` = only the caller''s own proposal is returned (guests and Standard users: show the count from `getProject` and `t_warning_bids_limit`).'
+
+ProposalCreateRequest:
+  type: object
+  description: |
+    Send a proposal (spec 11 AC-1…AC-7). `amount`: ≥ 100 tetri, inside the project's budget min…max
+    inclusive (`t_pls_insert_bid_value_between_budget`), at most 10 characters when written in GEL (≤
+    9,999,999.99 GEL). `revisions`: 0…S-041 (default 10, `t_validator_revisions_range`).
+  required: [amount, deliveryDays, revisions, message]
+  properties:
+    amount: {$ref: '../components/schemas.yaml#/Money'}
+    deliveryDays:
+      type: integer
+      minimum: 1
+      maximum: 365
+      description: '`t_validator_proposal_days`.'
+    revisions:
+      type: integer
+      minimum: 0
+      description: Upper bound = S-041 (checked by the API).
+    message:
+      type: string
+      minLength: 1
+      maxLength: 3500
+      description: Plain text.
+
+ProposalUpdateRequest:
+  type: object
+  description: Edit an own proposal (spec 11 AC-12), same rules as sending.
+  minProperties: 1
+  properties:
+    amount: {$ref: '../components/schemas.yaml#/Money'}
+    deliveryDays:
+      type: integer
+      minimum: 1
+      maximum: 365
+    revisions:
+      type: integer
+      minimum: 0
+    message:
+      type: string
+      minLength: 1
+      maxLength: 3500
+
+ProposalEarningsPreview:
+  type: object
+  description: '"Paid to you" preview for the proposal form (spec 11 AC-5), computed by the Commission & Fee module (S-015).'
+  required: [amount, fees, paidToYou]
+  properties:
+    amount: {$ref: '../components/schemas.yaml#/Money'}
+    fees:
+      type: array
+      items: {$ref: '../components/schemas.yaml#/FeeLine'}
+      description: Freelancer project commission lines (empty while S-015 is OFF).
+    paidToYou:
+      $ref: '../components/schemas.yaml#/Money'
+      description: P′ = amount − freelancer commission.
+
+ProposalReportCreateRequest:
+  type: object
+  required: [reason, description]
+  properties:
+    reason:
+      type: string
+      enum: [reason_1, reason_2, reason_3, reason_4]
+      description: Labels `t_report_bid_reason_1…4` (spec 11 AC-15).
+    description:
+      type: string
+      minLength: 1
+      maxLength: 1500
+
+ProposalReport:
+  type: object
+  required: [id, reason, createdAt]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    reason: {type: string}
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+AdminProposal:
+  type: object
+  description: Staff view of a proposal (queue detail, spec 16 AC-19, AC-23).
+  required: [id, uid, project, projectOwner, freelancer, ownerSummary, amount, deliveryDays, revisions, message, status, rejectionReason, reportsCount, createdAt, updatedAt]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    uid: {type: string}
+    project: {$ref: '../components/schemas.yaml#/ProjectRef'}
+    projectOwner: {$ref: '../components/schemas.yaml#/UserSummary'}
+    freelancer: {$ref: '../components/schemas.yaml#/UserSummary'}
+    ownerSummary:
+      $ref: '#/AdminProjectOwnerSummary'
+      description: Summary of the proposal's author (the "owner" of the queue item).
+    amount: {$ref: '../components/schemas.yaml#/Money'}
+    deliveryDays: {type: integer}
+    revisions: {type: [integer, 'null']}
+    message: {type: string}
+    status: {$ref: '#/ProposalStatus'}
+    rejectionReason: {type: [string, 'null']}
+    reportsCount: {type: integer, minimum: 0}
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    updatedAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+AdminProposalPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/AdminProposal'}
+
+# ═════════════════════════ Awards (spec 11 AC-16…AC-24) ═════════════════════════
+AwardStatus:
+  type: string
+  description: data-model §4.4 `award_status` (one row per award attempt).
+  enum: [pending, accepted, declined, expired, revoked, moved]
+
+AwardDeclineReason:
+  type: string
+  description: Legacy reason codes, labels `t_freelancer_reject_project_reason_n`. `reason_3` (milestone) is not offered any more and appears only on migrated awards (P-85).
+  enum: [reason_1, reason_2, reason_3, reason_4, reason_5, reason_6, reason_7, reason_8]
+
+Award:
+  type: object
+  description: An award of a proposal (spec 11 R-H4). The freelancer has until `expiresAt` to accept or decline.
+  required: [id, proposalId, project, client, freelancer, amount, deliveryDays, revisions, status, awardedAt, expiresAt, acceptanceHours, respondedAt, declineReason, contractId]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    proposalId: {$ref: '../components/schemas.yaml#/Uuid'}
+    project: {$ref: '../components/schemas.yaml#/ProjectRef'}
+    client: {$ref: '../components/schemas.yaml#/UserSummary'}
+    freelancer: {$ref: '../components/schemas.yaml#/UserSummary'}
+    amount: {$ref: '../components/schemas.yaml#/Money'}
+    deliveryDays: {type: integer}
+    revisions: {type: [integer, 'null']}
+    status: {$ref: '#/AwardStatus'}
+    awardedAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    expiresAt:
+      $ref: '../components/schemas.yaml#/Timestamp'
+      description: awardedAt + S-027 hours, stored (spec 11 AC-16, AC-23; `t_accept_award_before`).
+    acceptanceHours:
+      type: integer
+      minimum: 1
+      description: S-027 value used for this award (`:hours` in the notification).
+    respondedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    declineReason:
+      oneOf: [{$ref: '#/AwardDeclineReason'}, {type: 'null'}]
+    contractId:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+      description: Set once accepted.
+
+AwardPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/Award'}
+
+AwardCreateRequest:
+  type: object
+  required: [proposalId]
+  properties:
+    proposalId:
+      $ref: '../components/schemas.yaml#/Uuid'
+      description: An active proposal of the caller's active project.
+
+AwardDeclineRequest:
+  type: object
+  required: [reason]
+  properties:
+    reason:
+      type: string
+      enum: [reason_1, reason_2, reason_4, reason_5, reason_6, reason_7, reason_8]
+      description: '`t_pls_select_rejection_reason` when missing (spec 11 AC-21, P-85).'
+
+# ═════════════════════════ Contracts (spec 11 AC-20…AC-45) ═════════════════════════
+ContractStatus:
+  type: string
+  description: spec 11 R-H5, data-model §4.4.
+  enum: [awaiting_payment, in_progress, delivered, revision_requested, completed, refunded, canceled]
+
+ContractScheduleType:
+  type: string
+  enum: [single_payment, milestones, hourly]
+  description: Only `single_payment` exists at launch; the others are reserved (R-H7, data-model §11).
+
+ContractPaymentStatus:
+  type: string
+  enum: [awaiting_payment, funded, released, refunded, canceled]
+
+ContractPaymentLine:
+  type: object
+  description: |
+    One line of the contract's payment schedule — today exactly one (`sequence 1`, `kind full`,
+    Q-050). Pay it with D3's checkout: `CheckoutTarget {purpose: contract_payment, contractPaymentId: id}`
+    (CONVENTIONS §5.4).
+  required: [id, sequence, kind, amount, freelancerAmount, buyerFee, status, escrow, payment, fundedAt, closedAt]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    sequence: {type: integer, minimum: 1}
+    kind:
+      type: string
+      enum: [full, milestone, hourly_period]
+      description: Only `full` at launch.
+    amount:
+      $ref: '../components/schemas.yaml#/Money'
+      description: P, the proposal amount.
+    freelancerAmount:
+      oneOf: [{$ref: '../components/schemas.yaml#/Money'}, {type: 'null'}]
+      description: P′ = P − freelancer commission (S-015 snapshot); returned to the freelancer only (null for the client).
+    buyerFee:
+      $ref: '../components/schemas.yaml#/Money'
+      description: Fb, client project commission (S-014 snapshot; 0 at launch).
+    status: {$ref: '#/ContractPaymentStatus'}
+    escrow:
+      oneOf: [{$ref: '../components/schemas.yaml#/EscrowSummary'}, {type: 'null'}]
+      description: Null before a verified payment (ADR-003 §7). Delivery, revision and completion go through D4 `/escrows/{escrowId}`.
+    payment:
+      oneOf: [{$ref: '../components/schemas.yaml#/PaymentSummary'}, {type: 'null'}]
+      description: Latest payment attempt for this line (e.g. pending card payment, spec 11 EC-5).
+    fundedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    closedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+
+ContractTimelineEntry:
+  type: object
+  description: Status timeline (awarded → accepted → paid → delivered → completed, spec 11 AC-41).
+  required: [event, at, actor]
+  properties:
+    event:
+      type: string
+      enum: [awarded, accepted, paid, delivered, revision_requested, completed, auto_completed, refunded, canceled]
+    at: {$ref: '../components/schemas.yaml#/Timestamp'}
+    actor: {$ref: '../components/schemas.yaml#/ActorRef'}
+
+ContractAction:
+  type: string
+  description: Next actions for the caller (API-computed; the owning operations still enforce the rules).
+  enum: [pay, cancel_hire, deliver, request_revision, complete, request_refund, request_unblock, review, write_thread]
+  x-enumDescriptions:
+    pay: Client, awaiting payment → D3 `createCheckoutQuote` / `createPayment`.
+    cancel_hire: Either side, awaiting payment → `cancelContract`.
+    deliver: Freelancer → D4 `createEscrowDelivery`.
+    request_revision: Client, delivered with revisions left → D4 `createEscrowRevisionRequest`.
+    complete: Client, delivered, no open dispute → D4 `completeEscrow`.
+    request_refund: Client → D4 `createRefundRequest` (spec 13).
+    request_unblock: Freelancer, when available (spec 13) → D4 `createUnblockRequest`.
+    review: Completed, no own review yet → D2 `createReview`.
+    write_thread: Thread open → `createConversationMessage`.
+
+ContractViewer:
+  type: object
+  required: [role, actions]
+  properties:
+    role:
+      type: string
+      enum: [client, freelancer]
+    actions:
+      type: array
+      items: {$ref: '#/ContractAction'}
+
+Contract:
+  type: object
+  description: |
+    The work contract of a hired project (spec 11 R-H5), shown on the client's work page
+    (`/account/projects/{pid}`) and the freelancer's work page (`/seller/projects/{pid}`). Only its client
+    and freelancer can read it (others: 404, AC-27, AC-43). Delivery records are read through D4
+    `listEscrowDeliveries` with `payments[0].escrow.id`.
+  required: [id, project, proposalId, awardId, client, freelancer, title, amount, deliveryDays, revisionsAllowed, scheduleType, status, expectedDeliveryAt, isLate, refundOpen, disputeOpen, payments, conversation, reviews, timeline, createdAt, startedAt, completedAt, canceledAt, viewer]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    project: {$ref: '../components/schemas.yaml#/ProjectRef'}
+    proposalId: {$ref: '../components/schemas.yaml#/Uuid'}
+    awardId: {$ref: '../components/schemas.yaml#/Uuid'}
+    client: {$ref: '../components/schemas.yaml#/UserSummary'}
+    freelancer: {$ref: '../components/schemas.yaml#/UserSummary'}
+    title:
+      type: string
+      description: Title snapshot.
+    amount:
+      $ref: '../components/schemas.yaml#/Money'
+      description: Agreed amount P (proposal snapshot).
+    deliveryDays: {type: integer, minimum: 1}
+    revisionsAllowed:
+      type: integer
+      minimum: 0
+      description: Snapshot from the proposal (revisions left = escrow revisionsAllowed − revisionsUsed).
+    scheduleType: {$ref: '#/ContractScheduleType'}
+    status: {$ref: '#/ContractStatus'}
+    expectedDeliveryAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+      description: Payment time + delivery days (P-86); null before payment.
+    isLate:
+      type: boolean
+      description: In progress and past `expectedDeliveryAt` ("Late" chip, spec 11 AC-34).
+    refundOpen: {type: boolean}
+    disputeOpen: {type: boolean}
+    payments:
+      type: array
+      minItems: 1
+      items: {$ref: '#/ContractPaymentLine'}
+    conversation:
+      $ref: '../components/schemas.yaml#/ConversationRef'
+      description: The project thread (kind `project`, spec 11 AC-40).
+    reviews:
+      type: array
+      items: {$ref: '../components/schemas.yaml#/ReviewRef'}
+      description: Reviews written for this contract (spec 07 AC-2; D2).
+    timeline:
+      type: array
+      items: {$ref: '#/ContractTimelineEntry'}
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    startedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+      description: Payment verified (in progress).
+    completedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    canceledAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    viewer: {$ref: '#/ContractViewer'}
+
+ContractListItem:
+  type: object
+  description: A contract row in Selling → Projects (spec 11 AC-24) or Buying → Projects.
+  required: [id, project, role, counterpart, amount, status, expectedDeliveryAt, isLate, autoReleaseAt, refundOpen, disputeOpen, createdAt, actions]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    project: {$ref: '../components/schemas.yaml#/ProjectRef'}
+    role:
+      type: string
+      enum: [client, freelancer]
+    counterpart: {$ref: '../components/schemas.yaml#/UserSummary'}
+    amount: {$ref: '../components/schemas.yaml#/Money'}
+    status: {$ref: '#/ContractStatus'}
+    expectedDeliveryAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    isLate: {type: boolean}
+    autoReleaseAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+      description: Shown on delivered contracts while S-025 is ON.
+    refundOpen: {type: boolean}
+    disputeOpen: {type: boolean}
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    actions:
+      type: array
+      items: {$ref: '#/ContractAction'}
+
+ContractListItemPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/ContractListItem'}
+
+AdminContractListItem:
+  type: object
+  required: [id, project, client, freelancer, amount, status, escrowStatus, refundOpen, disputeOpen, createdAt, startedAt, completedAt]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    project: {$ref: '../components/schemas.yaml#/ProjectRef'}
+    client: {$ref: '../components/schemas.yaml#/UserSummary'}
+    freelancer: {$ref: '../components/schemas.yaml#/UserSummary'}
+    amount: {$ref: '../components/schemas.yaml#/Money'}
+    status: {$ref: '#/ContractStatus'}
+    escrowStatus:
+      oneOf: [{$ref: '../components/schemas.yaml#/EscrowStatus'}, {type: 'null'}]
+    refundOpen: {type: boolean}
+    disputeOpen: {type: boolean}
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    startedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    completedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+
+AdminContractListItemPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/AdminContractListItem'}
+
+AdminContract:
+  type: object
+  description: |
+    Read-only staff detail of a contract (spec 16 AC-38). Deliveries and staff money tools live on the
+    escrow (D4 `adminListEscrows`, `adminReleaseEscrow`, `adminRefundEscrow`); the thread opens with
+    `adminGetConversation` (`chat.read`, audited).
+  required: [id, project, proposalId, awardId, client, freelancer, title, amount, deliveryDays, revisionsAllowed, scheduleType, status, expectedDeliveryAt, isLate, refundOpen, disputeOpen, payments, conversation, reviews, timeline, createdAt, startedAt, completedAt, canceledAt]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    project: {$ref: '../components/schemas.yaml#/ProjectRef'}
+    proposalId: {$ref: '../components/schemas.yaml#/Uuid'}
+    awardId: {$ref: '../components/schemas.yaml#/Uuid'}
+    client: {$ref: '../components/schemas.yaml#/UserSummary'}
+    freelancer: {$ref: '../components/schemas.yaml#/UserSummary'}
+    title: {type: string}
+    amount: {$ref: '../components/schemas.yaml#/Money'}
+    deliveryDays: {type: integer}
+    revisionsAllowed: {type: integer}
+    scheduleType: {$ref: '#/ContractScheduleType'}
+    status: {$ref: '#/ContractStatus'}
+    expectedDeliveryAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    isLate: {type: boolean}
+    refundOpen: {type: boolean}
+    disputeOpen: {type: boolean}
+    payments:
+      type: array
+      items: {$ref: '#/ContractPaymentLine'}
+      description: '`freelancerAmount` is always filled for staff.'
+    conversation: {$ref: '../components/schemas.yaml#/ConversationRef'}
+    reviews:
+      type: array
+      items: {$ref: '../components/schemas.yaml#/ReviewRef'}
+    timeline:
+      type: array
+      items: {$ref: '#/ContractTimelineEntry'}
+      description: Staff see `actor.staff` filled.
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    startedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    completedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    canceledAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+
+# ═════════════════════════ Realtime payloads (src/events/d5.yaml) ═════════════════════════
+MessageCreatedEvent:
+  type: object
+  description: '`message.created` (room `conversation:{conversationId}`): a new message; clients append it or replace their optimistic bubble by `clientMessageId`.'
+  required: [conversationId, message]
+  properties:
+    conversationId: {$ref: '../components/schemas.yaml#/Uuid'}
+    message: {$ref: '#/Message'}
+
+MessageUpdatedEvent:
+  type: object
+  description: '`message.updated` (room `conversation:{conversationId}`): a message was deleted by its sender, hidden or unhidden by staff; replace it (users receive the user view, body null when not visible).'
+  required: [conversationId, message]
+  properties:
+    conversationId: {$ref: '../components/schemas.yaml#/Uuid'}
+    message: {$ref: '#/Message'}
+
+ConversationReadEvent:
+  type: object
+  description: '`conversation.read` (room `conversation:{conversationId}`): a participant has seen messages up to `lastReadMessageId` (ticks turn to "seen").'
+  required: [conversationId, userId, lastReadMessageId, readAt]
+  properties:
+    conversationId: {$ref: '../components/schemas.yaml#/Uuid'}
+    userId: {$ref: '../components/schemas.yaml#/Uuid'}
+    lastReadMessageId: {$ref: '../components/schemas.yaml#/Uuid'}
+    readAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+ConversationUpdatedEvent:
+  type: object
+  description: '`conversation.updated` (room `user:{userId}` of each participant): the conversation got a new message or changed; re-read it via REST (no message text in user rooms).'
+  required: [conversationId, kind, lastMessageAt, unreadCount]
+  properties:
+    conversationId: {$ref: '../components/schemas.yaml#/Uuid'}
+    kind: {$ref: '../components/schemas.yaml#/ConversationKind'}
+    lastMessageAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    unreadCount:
+      type: integer
+      minimum: 0
+      description: For the receiving user.
+
+ConversationUnreadCountChangedEvent:
+  type: object
+  description: '`conversation.unread_count_changed` (room `user:{userId}`): new badge value (spec 08 AC-18).'
+  required: [unreadConversationCount]
+  properties:
+    unreadConversationCount: {type: integer, minimum: 0}
+
+TypingEvent:
+  type: object
+  description: '`typing.started` / `typing.stopped` (room `conversation:{conversationId}`), relayed by the gateway from the client emits `typing.start` / `typing.stop` after the participant check. Clients hide the indicator after a few seconds without `typing.started` (spec 08 AC-16).'
+  required: [conversationId, userId]
+  properties:
+    conversationId: {$ref: '../components/schemas.yaml#/Uuid'}
+    userId: {$ref: '../components/schemas.yaml#/Uuid'}
+
+PresenceChangedEvent:
+  type: object
+  description: '`presence.changed` (room `conversation:{conversationId}` of the user''s direct conversations): online state changed (activity in the last 10 minutes, BR-012). Only the server sets presence (spec 08 AC-17).'
+  required: [userId, isOnline]
+  properties:
+    userId: {$ref: '../components/schemas.yaml#/Uuid'}
+    isOnline: {type: boolean}
+
+ProjectStatusChangedEvent:
+  type: object
+  description: '`project.status_changed` (room `user:{ownerUserId}`): the owner''s project changed status (approved, rejected, hidden, hired, …).'
+  required: [project, status]
+  properties:
+    project: {$ref: '../components/schemas.yaml#/ProjectRef'}
+    status: {$ref: '#/ProjectStatus'}
+
+ProposalStatusChangedEvent:
+  type: object
+  description: '`proposal.status_changed` (rooms `user:{freelancerUserId}` and `user:{clientUserId}`): a proposal was created as active, approved, rejected, withdrawn, awarded, accepted or declined.'
+  required: [proposalId, project, status]
+  properties:
+    proposalId: {$ref: '../components/schemas.yaml#/Uuid'}
+    project: {$ref: '../components/schemas.yaml#/ProjectRef'}
+    status: {$ref: '#/ProposalStatus'}
+
+AwardStatusChangedEvent:
+  type: object
+  description: '`award.status_changed` (rooms `user:{freelancerUserId}` and `user:{clientUserId}`): award created, moved, revoked, accepted, declined or expired.'
+  required: [awardId, proposalId, project, status, expiresAt]
+  properties:
+    awardId: {$ref: '../components/schemas.yaml#/Uuid'}
+    proposalId: {$ref: '../components/schemas.yaml#/Uuid'}
+    project: {$ref: '../components/schemas.yaml#/ProjectRef'}
+    status: {$ref: '#/AwardStatus'}
+    expiresAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+ContractStatusChangedEvent:
+  type: object
+  description: '`contract.status_changed` (rooms `user:{clientUserId}` and `user:{freelancerUserId}`): the contract changed status; re-read it with `getContract`.'
+  required: [contractId, project, status]
+  properties:
+    contractId: {$ref: '../components/schemas.yaml#/Uuid'}
+    project: {$ref: '../components/schemas.yaml#/ProjectRef'}
+    status: {$ref: '#/ContractStatus'}

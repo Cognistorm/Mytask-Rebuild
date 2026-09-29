@@ -1,12 +1,2035 @@
-# D2 — schemas for specs 03, 04, 07, 17. STUB written by the P2-B4 foundation run; the D2 group run fills it.
-# Map of SchemaName -> Schema. Names must start with one of the D2 schemaPrefixes in src/ownership.yaml
-# (optionally preceded by "Admin"), except D2ErrorCode. Names in ../components/schemas.yaml are reserved.
-# Reference shared schemas as '../components/schemas.yaml#/Money' and own ones as '#/MySchema'.
+# D2 — schemas for specs 03 (categories and search), 04 (gigs), 07 (reviews), 17 (content and SEO)
+# and the spec 16 ACs delegated to D2 (gig/review/comment moderation, catalog, content screens).
+# Written by the P2-B4 D2 group run (2026-09-29). Rules: docs/04-api/CONVENTIONS.md.
+# Names start with a D2 schemaPrefix (optionally after "Admin"); shared schemas are referenced as
+# '../components/schemas.yaml#/…'; own schemas as '#/…'.
 
+# ═════════════════════════ Errors ═════════════════════════
 D2ErrorCode:
   type: string
-  x-stub: true
   description: |
-    Domain error codes of D2 (CONVENTIONS §7.3). The D2 run replaces this stub with
-    `enum: [...]` plus `x-enumDescriptions` ("[HTTP status] meaning; messageKey t_..."), using only
-    the D2 errorPrefixes from src/ownership.yaml, and removes `x-stub`.
+    Domain error codes of D2 (CONVENTIONS §7.3). Everything else uses `CommonErrorCode` with the
+    spec's `t_*` key in `details.messageKey` (e.g. `DUPLICATE` + `t_looks_like_alrdy_reported_this_gig`,
+    `FORBIDDEN` + `t_gig_owner_cant_report_his_gig`, `VALIDATION_FAILED` + `t_min_price_greater_than_max`).
+  enum:
+    - CATEGORY_IN_USE
+    - COUNTRY_IN_USE
+    - GIG_HAS_ORDERS_IN_QUEUE
+    - GIG_RESTORE_WINDOW_EXPIRED
+    - REVIEW_NOT_ALLOWED
+    - REVIEW_ALREADY_EXISTS
+    - CONTACT_CAPTCHA_FAILED
+    - NEWSLETTER_TOKEN_INVALID
+    - OUTBOUND_LINK_INVALID
+  x-enumDescriptions:
+    CATEGORY_IN_USE: '[409] A gig category (any level), project category or skill still has children, gigs, skills or projects and cannot be deleted (spec 16 AC-60, AC-61; spec 03 EC-2). `details.gigCount`, `details.childCount`, `details.projectCount` when known; messageKey t_category_in_use'
+    COUNTRY_IN_USE: '[409] A country used by at least one user cannot be deleted (spec 16 AC-62, P-125); messageKey t_country_in_use (NEW key, requested in the handoff)'
+    GIG_HAS_ORDERS_IN_QUEUE: '[409] The gig has paid, unfinished order items (spec 04 AC-24, R-G8; spec 16 AC-20); messageKey t_this_gig_has_orders_in_queue_delete'
+    GIG_RESTORE_WINDOW_EXPIRED: '[422] Staff restore of a removed gig more than 30 days after the removal (spec 16 AC-20); messageKey t_gig_restore_window_expired (NEW key requested in the handoff)'
+    REVIEW_NOT_ALLOWED: '[422] The item is not completed (canceled, refunded or still running), so no review can be written (spec 07 AC-1, R-V1); messageKey t_review_not_allowed'
+    REVIEW_ALREADY_EXISTS: '[409] The caller already reviewed this item from this side; clients open the edit form of `details.reviewId` (spec 07 AC-7); messageKey t_review_already_exists'
+    CONTACT_CAPTCHA_FAILED: '[422] reCAPTCHA token missing or invalid while S-061 is ON (spec 17 AC-23); clients reset the captcha; messageKey t_recaptcha_failed (requested in the handoff)'
+    NEWSLETTER_TOKEN_INVALID: '[422] Newsletter confirmation/unsubscribe token unknown, used or older than 7 days (spec 17 AC-31, AC-32); messageKey t_newsletter_link_invalid'
+    OUTBOUND_LINK_INVALID: '[422] `/redirect` target is not http/https or its signature is wrong (includes legacy encrypted `to` values) (spec 17 AC-47); messageKey t_redirect_link_invalid'
+
+# ═════════════════════════ Catalog (spec 03, spec 16 AC-60…AC-62) ═════════════════════════
+CategoryDepth:
+  type: integer
+  enum: [1, 2, 3]
+  description: 1 = category, 2 = sub-category, 3 = child category (data-model §3.C).
+
+CategoryNode:
+  type: object
+  description: One node of the public gig category tree (spec 03 AC-1, AC-2). Names resolved in the request language (Georgian fallback, AC-4).
+  required: [id, slug, path, depth, name, contentLocale, icon, image, isVisibleOnHome, position, children]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    slug: {type: string}
+    path:
+      type: string
+      description: 'Slug path from the top level, e.g. `graphics-design/logo-design` (the URL is `/categories/{path}`).'
+    depth: {$ref: '#/CategoryDepth'}
+    name: {type: string}
+    contentLocale: {$ref: '../components/schemas.yaml#/ContentLocale'}
+    icon:
+      oneOf: [{$ref: '../components/schemas.yaml#/ImageVariants'}, {type: 'null'}]
+      description: Top level only.
+    image:
+      oneOf: [{$ref: '../components/schemas.yaml#/ImageVariants'}, {type: 'null'}]
+      description: Top level only.
+    isVisibleOnHome:
+      type: boolean
+      description: Top level only (spec 03 AC-5); always true below the top level.
+    position: {type: integer}
+    children:
+      type: array
+      items: {$ref: '#/CategoryNode'}
+
+CategoryTree:
+  type: object
+  required: [categories]
+  properties:
+    categories:
+      type: array
+      items: {$ref: '#/CategoryNode'}
+
+CategoryDetail:
+  type: object
+  description: A category page (spec 03 AC-3, AC-4). `description`, `contentTop` and `contentBottom` are the SEO texts (sanitised HTML for the two content blocks).
+  required: [id, slug, path, depth, name, description, contentTop, contentBottom, contentLocale, hasEnglish, icon, image, breadcrumb, children, updatedAt]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    slug: {type: string}
+    path: {type: string}
+    depth: {$ref: '#/CategoryDepth'}
+    name: {type: string}
+    description: {type: [string, 'null']}
+    contentTop: {type: [string, 'null']}
+    contentBottom: {type: [string, 'null']}
+    contentLocale: {$ref: '../components/schemas.yaml#/ContentLocale'}
+    hasEnglish:
+      type: boolean
+      description: The English name exists (url-map §8 hreflang/sitemap).
+    icon:
+      oneOf: [{$ref: '../components/schemas.yaml#/ImageVariants'}, {type: 'null'}]
+    image:
+      oneOf: [{$ref: '../components/schemas.yaml#/ImageVariants'}, {type: 'null'}]
+    breadcrumb:
+      type: array
+      description: Ancestors from the top level down to and including this category.
+      items: {$ref: '../components/schemas.yaml#/CategoryRef'}
+    children:
+      type: array
+      items: {$ref: '../components/schemas.yaml#/CategoryRef'}
+    updatedAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+CategoryNameInput:
+  description: Category name per language, each ≤ 60 characters (spec 16 AC-60).
+  allOf:
+    - $ref: '../components/schemas.yaml#/LocalizedString'
+    - type: object
+      properties:
+        ka: {type: string, minLength: 1, maxLength: 60}
+        en: {type: [string, 'null'], minLength: 1, maxLength: 60}
+
+CategoryDescriptionInput:
+  description: Category SEO description per language, each ≤ 300 characters (spec 16 AC-60).
+  allOf:
+    - $ref: '../components/schemas.yaml#/LocalizedString'
+    - type: object
+      properties:
+        ka: {type: string, maxLength: 300}
+        en: {type: [string, 'null'], maxLength: 300}
+
+CategorySlug:
+  type: string
+  minLength: 1
+  maxLength: 60
+  pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$'
+  description: Lower-case Latin letters, digits and hyphens, unique per level (spec 16 AC-60). A change makes the old URL answer 301 (spec 17 AC-10).
+
+AdminCategory:
+  type: object
+  description: A gig category of any level as edited by staff (both languages, usage counts).
+  required: [id, parentId, depth, slug, name, description, contentTop, contentBottom, icon, image, isVisibleOnHome, position, gigCount, childCount, projectCategoryCount, previousSlugs, createdAt, updatedAt]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    parentId:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+    depth: {$ref: '#/CategoryDepth'}
+    slug: {type: string}
+    name: {$ref: '../components/schemas.yaml#/LocalizedString'}
+    description:
+      oneOf: [{$ref: '../components/schemas.yaml#/LocalizedString'}, {type: 'null'}]
+    contentTop:
+      oneOf: [{$ref: '../components/schemas.yaml#/LocalizedString'}, {type: 'null'}]
+    contentBottom:
+      oneOf: [{$ref: '../components/schemas.yaml#/LocalizedString'}, {type: 'null'}]
+    icon:
+      oneOf: [{$ref: '../components/schemas.yaml#/ImageVariants'}, {type: 'null'}]
+    image:
+      oneOf: [{$ref: '../components/schemas.yaml#/ImageVariants'}, {type: 'null'}]
+    isVisibleOnHome: {type: boolean}
+    position: {type: integer}
+    gigCount: {type: integer, minimum: 0, description: Non-deleted gigs using this node at any level.}
+    childCount: {type: integer, minimum: 0}
+    projectCategoryCount: {type: integer, minimum: 0, description: Project categories linked to this top-level category (P-31).}
+    previousSlugs:
+      type: array
+      description: Old slugs that currently redirect to this category (spec 17 AC-10).
+      items: {type: string}
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    updatedAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+AdminCategoryList:
+  type: object
+  description: Every gig category of the three levels as a flat list (parent first, then `position`); the admin UI builds the tree from `parentId`.
+  required: [categories]
+  properties:
+    categories:
+      type: array
+      items: {$ref: '#/AdminCategory'}
+
+CategoryCreateRequest:
+  type: object
+  required: [slug, name]
+  properties:
+    parentId:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+      description: Null for a top-level category; a top-level id for a sub-category; a sub-category id for a child category (at most 3 levels).
+    slug: {$ref: '#/CategorySlug'}
+    name: {$ref: '#/CategoryNameInput'}
+    description:
+      oneOf: [{$ref: '#/CategoryDescriptionInput'}, {type: 'null'}]
+    contentTop:
+      oneOf: [{$ref: '../components/schemas.yaml#/LocalizedString'}, {type: 'null'}]
+      description: SEO text above the list (sanitised HTML).
+    contentBottom:
+      oneOf: [{$ref: '../components/schemas.yaml#/LocalizedString'}, {type: 'null'}]
+      description: SEO text below the list (sanitised HTML).
+    iconFileId:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+      description: A `ready` `category_image` file from `adminCreateFileUpload` (top level only).
+    imageFileId:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+      description: A `ready` `category_image` file (top level only).
+    isVisibleOnHome: {type: boolean, default: true}
+    position: {type: integer, minimum: 0}
+
+CategoryUpdateRequest:
+  type: object
+  description: Partial update; omitted fields are unchanged. The parent cannot be changed (moving nodes is not in the specs).
+  properties:
+    slug: {$ref: '#/CategorySlug'}
+    name: {$ref: '#/CategoryNameInput'}
+    description:
+      oneOf: [{$ref: '#/CategoryDescriptionInput'}, {type: 'null'}]
+    contentTop:
+      oneOf: [{$ref: '../components/schemas.yaml#/LocalizedString'}, {type: 'null'}]
+    contentBottom:
+      oneOf: [{$ref: '../components/schemas.yaml#/LocalizedString'}, {type: 'null'}]
+    iconFileId:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+    imageFileId:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+    isVisibleOnHome: {type: boolean}
+    position: {type: integer, minimum: 0}
+
+SkillSummary:
+  type: object
+  description: A project skill (P-31), name resolved in the request language.
+  required: [id, slug, name, contentLocale]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    slug: {type: string}
+    name: {type: string}
+    contentLocale: {$ref: '../components/schemas.yaml#/ContentLocale'}
+
+ProjectCategory:
+  type: object
+  description: A project category with its skills (spec 03 AC-31).
+  required: [id, slug, name, seoDescription, contentLocale, hasEnglish, image, position, skills]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    slug: {type: string}
+    name: {type: string}
+    seoDescription: {type: [string, 'null']}
+    contentLocale: {$ref: '../components/schemas.yaml#/ContentLocale'}
+    hasEnglish: {type: boolean}
+    image:
+      oneOf: [{$ref: '../components/schemas.yaml#/ImageVariants'}, {type: 'null'}]
+    position: {type: integer}
+    skills:
+      type: array
+      items: {$ref: '#/SkillSummary'}
+
+ProjectCategoryList:
+  type: object
+  required: [projectCategories]
+  properties:
+    projectCategories:
+      type: array
+      items: {$ref: '#/ProjectCategory'}
+
+ProjectCategoryLookupResult:
+  type: object
+  description: '`/explore/projects/{category}` or `/explore/projects/{category}/{skill}` resolved (spec 03 AC-33).'
+  required: [projectCategory, skill]
+  properties:
+    projectCategory: {$ref: '#/ProjectCategory'}
+    skill:
+      oneOf: [{$ref: '#/SkillSummary'}, {type: 'null'}]
+
+AdminProjectCategory:
+  type: object
+  required: [id, slug, name, seoDescription, gigCategory, image, position, isActive, skillCount, projectCount, createdAt, updatedAt]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    slug: {type: string}
+    name: {$ref: '../components/schemas.yaml#/LocalizedString'}
+    seoDescription:
+      oneOf: [{$ref: '../components/schemas.yaml#/LocalizedString'}, {type: 'null'}]
+    gigCategory:
+      oneOf: [{$ref: '../components/schemas.yaml#/CategoryRef'}, {type: 'null'}]
+      description: The linked top-level gig category used for "notify freelancers in the category" (spec 03 R-S8, P-31; BR-053).
+    image:
+      oneOf: [{$ref: '../components/schemas.yaml#/ImageVariants'}, {type: 'null'}]
+    position: {type: integer}
+    isActive: {type: boolean}
+    skillCount: {type: integer, minimum: 0}
+    projectCount: {type: integer, minimum: 0}
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    updatedAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+AdminProjectCategoryList:
+  type: object
+  required: [projectCategories]
+  properties:
+    projectCategories:
+      type: array
+      items: {$ref: '#/AdminProjectCategory'}
+
+ProjectCategoryCreateRequest:
+  type: object
+  required: [slug, name, gigCategoryId]
+  properties:
+    slug: {$ref: '#/CategorySlug'}
+    name: {$ref: '../components/schemas.yaml#/LocalizedString'}
+    seoDescription:
+      oneOf: [{$ref: '../components/schemas.yaml#/LocalizedString'}, {type: 'null'}]
+    gigCategoryId:
+      $ref: '../components/schemas.yaml#/Uuid'
+      description: A top-level (depth 1) gig category (spec 16 AC-61, P-31).
+    imageFileId:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+    position: {type: integer, minimum: 0}
+    isActive: {type: boolean, default: true}
+
+ProjectCategoryUpdateRequest:
+  type: object
+  properties:
+    slug: {$ref: '#/CategorySlug'}
+    name: {$ref: '../components/schemas.yaml#/LocalizedString'}
+    seoDescription:
+      oneOf: [{$ref: '../components/schemas.yaml#/LocalizedString'}, {type: 'null'}]
+    gigCategoryId: {$ref: '../components/schemas.yaml#/Uuid'}
+    imageFileId:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+    position: {type: integer, minimum: 0}
+    isActive: {type: boolean}
+
+AdminSkill:
+  type: object
+  required: [id, projectCategoryId, slug, name, isActive, projectCount, createdAt, updatedAt]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    projectCategoryId: {$ref: '../components/schemas.yaml#/Uuid'}
+    slug: {type: string}
+    name: {$ref: '../components/schemas.yaml#/LocalizedString'}
+    isActive: {type: boolean}
+    projectCount: {type: integer, minimum: 0}
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    updatedAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+AdminSkillPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/AdminSkill'}
+
+SkillCreateRequest:
+  type: object
+  required: [projectCategoryId, slug, name]
+  properties:
+    projectCategoryId: {$ref: '../components/schemas.yaml#/Uuid'}
+    slug:
+      type: string
+      minLength: 1
+      maxLength: 100
+      pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$'
+      description: Unique inside its project category (data-model `skills` UK).
+    name: {$ref: '../components/schemas.yaml#/LocalizedString'}
+    isActive: {type: boolean, default: true}
+
+SkillUpdateRequest:
+  type: object
+  properties:
+    projectCategoryId: {$ref: '../components/schemas.yaml#/Uuid'}
+    slug:
+      type: string
+      minLength: 1
+      maxLength: 100
+      pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$'
+    name: {$ref: '../components/schemas.yaml#/LocalizedString'}
+    isActive: {type: boolean}
+
+Country:
+  type: object
+  required: [code, name]
+  properties:
+    code: {$ref: '../components/schemas.yaml#/CountryCode'}
+    name:
+      type: string
+      description: In the request language.
+
+CountryList:
+  type: object
+  required: [countries]
+  properties:
+    countries:
+      type: array
+      items: {$ref: '#/Country'}
+
+AdminCountry:
+  type: object
+  required: [code, name, isActive, userCount]
+  properties:
+    code: {$ref: '../components/schemas.yaml#/CountryCode'}
+    name: {$ref: '../components/schemas.yaml#/LocalizedString'}
+    isActive: {type: boolean}
+    userCount: {type: integer, minimum: 0}
+
+AdminCountryList:
+  type: object
+  required: [countries]
+  properties:
+    countries:
+      type: array
+      items: {$ref: '#/AdminCountry'}
+
+CountryUpdateRequest:
+  type: object
+  properties:
+    name:
+      allOf:
+        - $ref: '../components/schemas.yaml#/LocalizedString'
+        - type: object
+          properties:
+            ka: {type: string, minLength: 1, maxLength: 100}
+            en: {type: [string, 'null'], maxLength: 100}
+    isActive: {type: boolean}
+
+# ═════════════════════════ Search and lists (spec 03) ═════════════════════════
+SearchGigSort:
+  type: string
+  enum: [recommended, most_popular, best_rating, most_selling, newest, price_asc, price_desc]
+  default: recommended
+  description: |
+    Spec 03 AC-13…AC-15, R-S3, R-S4. All except the two price sorts list active-Premium owners' gigs
+    first (group A, then group B), each group in the chosen order; price sorts are pure numeric price
+    order. Ties: newest gig first. `recommended` = a mix that changes once a day (Tbilisi date) and is
+    the same for everyone. Web maps the legacy `sort_by` URL values to these.
+
+GigDeliveryDays:
+  type: integer
+  enum: [0, 1, 2, 3, 4, 5, 6, 7, 14, 21, 30]
+  description: Delivery time in days from the fixed list (spec 04 AC-8; 0 = "None").
+
+ReviewRatingSummary:
+  type: object
+  description: |
+    Average of visible reviews (spec 07 R-V5). `average` is the display value with one decimal
+    (P-56, e.g. `"4.3"` for 4.33); filters and sorting use the exact value on the server. Null when
+    `count` is 0 (clients show `t_no_reviews_yet`).
+  required: [count, average]
+  properties:
+    count: {type: integer, minimum: 0}
+    average:
+      type: [string, 'null']
+      pattern: '^[1-5]\.[0-9]$'
+
+ReviewStarBreakdown:
+  type: object
+  description: Number of visible reviews per star value (spec 07 AC-11, AC-12, AC-14).
+  required: [five, four, three, two, one]
+  properties:
+    five: {type: integer, minimum: 0}
+    four: {type: integer, minimum: 0}
+    three: {type: integer, minimum: 0}
+    two: {type: integer, minimum: 0}
+    one: {type: integer, minimum: 0}
+
+ReviewRatingBlock:
+  type: object
+  description: One profile rating block ("As a freelancer" or "As a client", spec 07 AC-11, AC-12).
+  required: [count, average, stars]
+  properties:
+    count: {type: integer, minimum: 0}
+    average:
+      type: [string, 'null']
+      pattern: '^[1-5]\.[0-9]$'
+    stars: {$ref: '#/ReviewStarBreakdown'}
+
+GigCard:
+  type: object
+  description: |
+    A gig as shown on cards in every list (search, category pages, home rows, profile, favourites, "You
+    may also like"). `isFeatured` = the owner has active Premium (spec 03 AC-18, Q-069; refreshed
+    within 60 s, AC-17); clients draw the highlight frame and the `t_featured` badge.
+  required: [id, uid, slug, title, contentLocale, thumbnail, price, deliveryDays, rating, seller, isFeatured, isFavorite]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    uid: {type: string}
+    slug: {type: string}
+    title:
+      type: string
+      description: In the request language, Georgian when English is missing (spec 03 AC-7).
+    contentLocale: {$ref: '../components/schemas.yaml#/ContentLocale'}
+    thumbnail:
+      oneOf: [{$ref: '../components/schemas.yaml#/ImageVariants'}, {type: 'null'}]
+    price:
+      $ref: '../components/schemas.yaml#/Money'
+      description: Starting price (without upgrades).
+    deliveryDays: {$ref: '#/GigDeliveryDays'}
+    rating: {$ref: '#/ReviewRatingSummary'}
+    seller: {$ref: '../components/schemas.yaml#/UserSummary'}
+    isFeatured: {type: boolean}
+    isFavorite:
+      type: [boolean, 'null']
+      description: Null for guests; for a signed-in caller whether the gig is in their favourites (spec 04 AC-35).
+
+GigCardPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/GigCard'}
+
+SellerSkill:
+  type: object
+  description: A user skill (spec 02) as a chip linking to `/hire/{slug}` (spec 03 AC-30).
+  required: [name, slug]
+  properties:
+    name: {type: string}
+    slug: {type: string}
+
+SellerCard:
+  type: object
+  description: A freelancer card on `/sellers` and `/hire/{keyword}` (spec 03 AC-27, AC-28). "ID verified" comes from `user.isIdVerified`.
+  required: [user, skills]
+  properties:
+    user: {$ref: '../components/schemas.yaml#/UserSummary'}
+    skills:
+      type: array
+      maxItems: 3
+      items: {$ref: '#/SellerSkill'}
+
+SellerCardPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/SellerCard'}
+
+HireSellerPage:
+  description: '`/hire/{keyword}` result: the skill whose slug equals the keyword (for the title `t_hire_the_best_skill_name_experts`) and the matching users (spec 03 AC-28).'
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      required: [skill]
+      properties:
+        skill: {$ref: '#/SellerSkill'}
+        data:
+          type: array
+          items: {$ref: '#/SellerCard'}
+
+SearchProjectCard:
+  type: object
+  description: |
+    A project row of `/explore/projects` (spec 03 AC-32, AC-33; row design spec 10). The client
+    username follows the masking rule (BR-015) through `client.usernameMasked`.
+  required: [project, descriptionExcerpt, status, thumbnail, projectCategory, skills, budgetMin, budgetMax, proposalCount, client, publishedAt]
+  properties:
+    project: {$ref: '../components/schemas.yaml#/ProjectRef'}
+    descriptionExcerpt:
+      type: string
+      description: Plain text, first 200 characters.
+    status:
+      type: string
+      enum: [active, completed]
+      description: Only these two are listed (spec 03 AC-32).
+    thumbnail:
+      oneOf: [{$ref: '../components/schemas.yaml#/ImageVariants'}, {type: 'null'}]
+    projectCategory: {$ref: '../components/schemas.yaml#/CategoryRef'}
+    skills:
+      type: array
+      items: {$ref: '#/SkillSummary'}
+    budgetMin: {$ref: '../components/schemas.yaml#/Money'}
+    budgetMax: {$ref: '../components/schemas.yaml#/Money'}
+    proposalCount: {type: integer, minimum: 0}
+    client: {$ref: '../components/schemas.yaml#/UserSummary'}
+    publishedAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+SearchProjectCardPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/SearchProjectCard'}
+
+# ═════════════════════════ Gigs (spec 04) ═════════════════════════
+GigStatus:
+  type: string
+  enum: [pending, active, rejected, deleted]
+  description: data-model §4.8 `gig_status` (spec 04 R-G5). Legacy `featured`/`boosted`/`trending` are migrated as `active`.
+
+GigUpgrade:
+  type: object
+  required: [id, title, price, extraDays]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    title: {type: string}
+    price: {$ref: '../components/schemas.yaml#/Money'}
+    extraDays:
+      $ref: '#/GigDeliveryDays'
+      description: Extra delivery days (0 = `t_no_changes_delivery_time`).
+
+GigFaq:
+  type: object
+  required: [id, question, answer]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    question: {type: string}
+    answer: {type: string}
+
+GigDocument:
+  type: object
+  description: A public PDF document of the gig (spec 04 R-G11, public download without auth).
+  required: [fileId, fileName, sizeBytes, url]
+  properties:
+    fileId: {$ref: '../components/schemas.yaml#/Uuid'}
+    fileName: {type: string}
+    sizeBytes: {type: integer, format: int64}
+    url: {$ref: '../components/schemas.yaml#/HttpUrl'}
+
+GigSellerInfo:
+  type: object
+  description: The seller row of the gig page (spec 04 AC-26, AC-29).
+  required: [user, rating, unavailableUntil, isAcceptingOrders]
+  properties:
+    user: {$ref: '../components/schemas.yaml#/UserSummary'}
+    rating:
+      $ref: '#/ReviewRatingSummary'
+      description: The seller's rating as a freelancer (spec 07 AC-11).
+    unavailableUntil:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+      description: '"Unavailable until" set by the seller (spec 02); the page shows `t_seller_wont_be_able_to_receive_orders_date`.'
+    isAcceptingOrders:
+      type: boolean
+      description: False while the seller is unavailable or restricted (spec 04 AC-29); the cart refuses the gig (D4 cart operation).
+
+GigViewer:
+  type: object
+  description: Facts about the signed-in caller and this gig (null for guests).
+  required: [isOwner, isFavorite, hasReported]
+  properties:
+    isOwner:
+      type: boolean
+      description: The owner sees "Edit gig" instead of the favourite button and cannot add to cart (spec 04 AC-30).
+    isFavorite: {type: boolean}
+    hasReported:
+      type: boolean
+      description: The caller already reported this gig (spec 04 AC-37).
+
+Gig:
+  type: object
+  description: |
+    The gig page (spec 04 AC-26). Text fields are resolved in the request language with Georgian
+    fallback (`contentLocale`, AC-27). `description` is sanitised HTML. `status` is `active` for
+    everyone except the owner, who may also receive `pending` (banner `t_this_gig_not_activated_yet`,
+    AC-28) or `rejected`.
+  required: [id, uid, slug, status, title, description, contentLocale, hasEnglish, category, subcategory, childCategory, price, deliveryDays, revisionsAllowed, upgrades, faqs, thumbnail, images, documents, seller, isFeatured, rating, ordersInQueueCount, seoTitle, seoDescription, publishedAt, updatedAt, viewer]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    uid: {type: string, description: 'Legacy-format public id (20 characters), the last part of the slug.'}
+    slug:
+      type: string
+      description: Current slug (P-33). If the requested URL slug differs, the web answers 301 to this one (spec 04 AC-33).
+    status: {$ref: '#/GigStatus'}
+    title: {type: string}
+    description: {type: string}
+    contentLocale: {$ref: '../components/schemas.yaml#/ContentLocale'}
+    hasEnglish:
+      type: boolean
+      description: English title and description exist (canonical/hreflang/noindex rules, spec 17 AC-4).
+    category: {$ref: '../components/schemas.yaml#/CategoryRef'}
+    subcategory: {$ref: '../components/schemas.yaml#/CategoryRef'}
+    childCategory: {$ref: '../components/schemas.yaml#/CategoryRef'}
+    price: {$ref: '../components/schemas.yaml#/Money'}
+    deliveryDays: {$ref: '#/GigDeliveryDays'}
+    revisionsAllowed:
+      type: [integer, 'null']
+      minimum: 0
+      description: 'Number of revisions included (`t_revisions_included` / `t_no_revisions` for 0). Null only for migrated gigs without a value (data-model §3.D, Owner question 1).'
+    upgrades:
+      type: array
+      maxItems: 10
+      items: {$ref: '#/GigUpgrade'}
+    faqs:
+      type: array
+      maxItems: 10
+      items: {$ref: '#/GigFaq'}
+    thumbnail: {$ref: '../components/schemas.yaml#/ImageVariants'}
+    images:
+      type: array
+      items: {$ref: '../components/schemas.yaml#/ImageVariants'}
+    documents:
+      type: array
+      items: {$ref: '#/GigDocument'}
+    seller: {$ref: '#/GigSellerInfo'}
+    isFeatured: {type: boolean}
+    rating:
+      $ref: '#/ReviewRatingSummary'
+      description: Visible buyer→freelancer reviews of this gig (spec 07 AC-10).
+    ordersInQueueCount: {type: integer, minimum: 0, description: 'R-G8 (`t_number_orders_in_queue`).'}
+    seoTitle: {type: [string, 'null'], description: 'Used as the page title when set (spec 04 AC-15, spec 17).'}
+    seoDescription: {type: [string, 'null']}
+    publishedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    updatedAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    viewer:
+      oneOf: [{$ref: '#/GigViewer'}, {type: 'null'}]
+
+GigRelatedList:
+  type: object
+  description: '"You may also like" (spec 04 AC-32, P-137): at most 40 gigs in random order; an empty list means the section is hidden.'
+  required: [gigs]
+  properties:
+    gigs:
+      type: array
+      maxItems: 40
+      items: {$ref: '#/GigCard'}
+
+GigTitleInput:
+  description: Gig title per language, 3–100 characters (spec 04 AC-4). `ka` must contain a Georgian letter and only the R-5.3a characters (AC-5); `en` must contain a Latin letter and no Georgian letter (AC-6).
+  allOf:
+    - $ref: '../components/schemas.yaml#/LocalizedString'
+    - type: object
+      properties:
+        ka: {type: string, minLength: 3, maxLength: 100}
+        en: {type: [string, 'null'], minLength: 3, maxLength: 100}
+
+GigDescriptionInput:
+  description: Gig description per language, formatted text (bold, italic, lists, line breaks), sanitised on save, at least 10 characters of text (spec 04 AC-4). Same letter rules as the title (AC-5, AC-6), checked on the text without formatting.
+  allOf:
+    - $ref: '../components/schemas.yaml#/LocalizedString'
+    - type: object
+      properties:
+        ka: {type: string, minLength: 10}
+        en: {type: [string, 'null'], minLength: 10}
+
+GigUpgradeInput:
+  type: object
+  required: [title, price, extraDays]
+  properties:
+    id:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+      description: Existing upgrade id when editing (keeps its identity); null/absent for a new one.
+    title: {type: string, minLength: 1, maxLength: 100}
+    price:
+      $ref: '../components/schemas.yaml#/Money'
+      description: Same format as the gig price, at least 100 tetri (1.00 GEL, P-35).
+    extraDays: {$ref: '#/GigDeliveryDays'}
+
+GigFaqInput:
+  type: object
+  required: [question, answer]
+  properties:
+    question: {type: string, minLength: 1, maxLength: 100}
+    answer: {type: string, minLength: 1, maxLength: 300}
+
+GigSeoInput:
+  type: object
+  description: Both fields or none (spec 04 AC-15); one alone is refused with `t_seo_both_fields_required`.
+  required: [title, description]
+  properties:
+    title: {type: string, minLength: 1, maxLength: 100}
+    description: {type: string, minLength: 1, maxLength: 150}
+
+GigCreateRequest:
+  type: object
+  description: |
+    The whole wizard in one request (spec 04 AC-4…AC-15; there are no drafts, EC-9). Files are
+    uploaded first with `createFileUpload` (`gig_thumbnail`, `gig_image`, `gig_document`) and
+    referenced by id. Price: integer tetri, at least 100 (1.00 GEL, P-35), at most 999,999,999
+    (legacy 10-character limit). `revisionsAllowed`: 0…S-041 (checked against the current value, AC-9).
+  required: [title, description, categoryId, subcategoryId, childCategoryId, price, deliveryDays, revisionsAllowed, thumbnailFileId, imageFileIds]
+  properties:
+    title: {$ref: '#/GigTitleInput'}
+    description: {$ref: '#/GigDescriptionInput'}
+    categoryId: {$ref: '../components/schemas.yaml#/Uuid'}
+    subcategoryId:
+      $ref: '../components/schemas.yaml#/Uuid'
+      description: Must be a child of `categoryId`.
+    childCategoryId:
+      $ref: '../components/schemas.yaml#/Uuid'
+      description: Must be a child of `subcategoryId`.
+    price: {$ref: '../components/schemas.yaml#/Money'}
+    deliveryDays: {$ref: '#/GigDeliveryDays'}
+    revisionsAllowed: {type: integer, minimum: 0, maximum: 100}
+    upgrades:
+      type: array
+      maxItems: 10
+      items: {$ref: '#/GigUpgradeInput'}
+    faqs:
+      type: array
+      maxItems: 10
+      items: {$ref: '#/GigFaqInput'}
+    thumbnailFileId: {$ref: '../components/schemas.yaml#/Uuid'}
+    imageFileIds:
+      type: array
+      minItems: 1
+      description: Gallery in display order; 1…S-077 `gig_image` files (AC-14, AC-23).
+      items: {$ref: '../components/schemas.yaml#/Uuid'}
+    documentFileIds:
+      type: array
+      description: 0…S-081 `gig_document` PDFs, only while S-080 is ON (AC-14, EC-8).
+      items: {$ref: '../components/schemas.yaml#/Uuid'}
+    seo:
+      oneOf: [{$ref: '#/GigSeoInput'}, {type: 'null'}]
+
+GigUpdateRequest:
+  type: object
+  description: |
+    Edit (spec 04 AC-21…AC-23, AC-25). Omitted fields are unchanged. `upgrades`, `faqs`,
+    `imageFileIds` and `documentFileIds` replace the whole list in the given order (so removing,
+    adding or reordering one image needs no re-upload, AC-23). The plan limit never blocks an edit (AC-25).
+  properties:
+    title: {$ref: '#/GigTitleInput'}
+    description: {$ref: '#/GigDescriptionInput'}
+    categoryId: {$ref: '../components/schemas.yaml#/Uuid'}
+    subcategoryId: {$ref: '../components/schemas.yaml#/Uuid'}
+    childCategoryId: {$ref: '../components/schemas.yaml#/Uuid'}
+    price: {$ref: '../components/schemas.yaml#/Money'}
+    deliveryDays: {$ref: '#/GigDeliveryDays'}
+    revisionsAllowed: {type: integer, minimum: 0, maximum: 100}
+    upgrades:
+      type: array
+      maxItems: 10
+      items: {$ref: '#/GigUpgradeInput'}
+    faqs:
+      type: array
+      maxItems: 10
+      items: {$ref: '#/GigFaqInput'}
+    thumbnailFileId: {$ref: '../components/schemas.yaml#/Uuid'}
+    imageFileIds:
+      type: array
+      minItems: 1
+      items: {$ref: '../components/schemas.yaml#/Uuid'}
+    documentFileIds:
+      type: array
+      items: {$ref: '../components/schemas.yaml#/Uuid'}
+    seo:
+      oneOf: [{$ref: '#/GigSeoInput'}, {type: 'null'}]
+
+GigOwnerView:
+  type: object
+  description: The owner's edit form data (both languages, file ids) and moderation state (spec 04 AC-18, AC-21).
+  required: [id, uid, slug, status, rejectionReason, title, description, categoryId, subcategoryId, childCategoryId, price, deliveryDays, revisionsAllowed, upgrades, faqs, thumbnail, images, documents, seo, ordersInQueueCount, createdAt, updatedAt, publishedAt]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    uid: {type: string}
+    slug: {type: string}
+    status: {$ref: '#/GigStatus'}
+    rejectionReason:
+      type: [string, 'null']
+      description: Shown on My gigs and in the edit screen while `rejected` (AC-18).
+    title: {$ref: '../components/schemas.yaml#/LocalizedString'}
+    description: {$ref: '../components/schemas.yaml#/LocalizedString'}
+    categoryId: {$ref: '../components/schemas.yaml#/Uuid'}
+    subcategoryId: {$ref: '../components/schemas.yaml#/Uuid'}
+    childCategoryId: {$ref: '../components/schemas.yaml#/Uuid'}
+    price: {$ref: '../components/schemas.yaml#/Money'}
+    deliveryDays: {$ref: '#/GigDeliveryDays'}
+    revisionsAllowed:
+      type: [integer, 'null']
+      minimum: 0
+      description: The stored value may exceed today's S-041 (AC-10); saving then requires 0…S-041.
+    upgrades:
+      type: array
+      items: {$ref: '#/GigUpgrade'}
+    faqs:
+      type: array
+      items: {$ref: '#/GigFaq'}
+    thumbnail: {$ref: '../components/schemas.yaml#/ImageVariants'}
+    images:
+      type: array
+      items: {$ref: '../components/schemas.yaml#/ImageVariants'}
+    documents:
+      type: array
+      items: {$ref: '#/GigDocument'}
+    seo:
+      oneOf: [{$ref: '#/GigSeoInput'}, {type: 'null'}]
+    ordersInQueueCount: {type: integer, minimum: 0}
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    updatedAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    publishedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+
+GigOwnerListItem:
+  type: object
+  description: A row of Selling → Gigs (spec 04 AC-20).
+  required: [id, uid, slug, title, contentLocale, thumbnail, price, status, rejectionReason, ordersInQueueCount, createdAt, updatedAt]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    uid: {type: string}
+    slug: {type: string}
+    title: {type: string}
+    contentLocale: {$ref: '../components/schemas.yaml#/ContentLocale'}
+    thumbnail:
+      oneOf: [{$ref: '../components/schemas.yaml#/ImageVariants'}, {type: 'null'}]
+    price: {$ref: '../components/schemas.yaml#/Money'}
+    status: {$ref: '#/GigStatus'}
+    rejectionReason: {type: [string, 'null']}
+    ordersInQueueCount: {type: integer, minimum: 0}
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    updatedAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+GigOwnerListItemPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/GigOwnerListItem'}
+
+GigCreationEligibility:
+  type: object
+  description: Plan-limit check when the wizard opens (spec 04 AC-2, P-35). The server checks again on submit (AC-3).
+  required: [canCreate, plan, gigCount, gigLimit, settingId]
+  properties:
+    canCreate: {type: boolean}
+    plan: {$ref: '../components/schemas.yaml#/PlanCode'}
+    gigCount:
+      type: integer
+      minimum: 0
+      description: Non-deleted gigs (active, pending, rejected) of the caller (R-G3).
+    gigLimit:
+      type: [integer, 'null']
+      minimum: 0
+      description: S-001 (Standard) or S-002 (Premium); null = unlimited.
+    settingId:
+      type: string
+      enum: [S-001, S-002]
+
+GigAnalyticsBucket:
+  type: object
+  required: [label, count]
+  properties:
+    label:
+      type: string
+      description: Device type, browser, OS, referrer domain, country code or city; `unknown` when not detected.
+    count: {type: integer, minimum: 0}
+
+GigAnalyticsOrder:
+  type: object
+  description: A recent order item of the gig (spec 04 AC-39).
+  required: [item, buyer, price, status, createdAt]
+  properties:
+    item: {$ref: '../components/schemas.yaml#/WorkItemRef'}
+    buyer: {$ref: '../components/schemas.yaml#/UserSummary'}
+    price:
+      $ref: '../components/schemas.yaml#/Money'
+      description: Item price paid (snapshot).
+    status:
+      type: string
+      description: The order item status (data-model §4.1 `order_item_status`, owned by D4); clients treat unknown values as "other".
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+GigAnalytics:
+  type: object
+  description: Selling → Gigs → Analytics (spec 04 AC-39). Totals are all-time; breakdowns come from `analytics_daily` (ADR-012, local GeoIP, no third-party lookup).
+  required: [gigId, salesCount, clickCount, impressionCount, reviewCount, devices, browsers, operatingSystems, referrers, countries, cities, recentOrders]
+  properties:
+    gigId: {$ref: '../components/schemas.yaml#/Uuid'}
+    salesCount: {type: integer, minimum: 0, description: '`t_total_sales` (completed sales).'}
+    clickCount: {type: integer, minimum: 0, description: '`t_total_clicks` (page visits by non-owners, AC-34).'}
+    impressionCount: {type: integer, minimum: 0, description: '`t_total_impressions` (appearances in lists).'}
+    reviewCount: {type: integer, minimum: 0, description: '`t_total_reviews` (visible reviews).'}
+    devices:
+      type: array
+      items: {$ref: '#/GigAnalyticsBucket'}
+    browsers:
+      type: array
+      items: {$ref: '#/GigAnalyticsBucket'}
+    operatingSystems:
+      type: array
+      items: {$ref: '#/GigAnalyticsBucket'}
+    referrers:
+      type: array
+      items: {$ref: '#/GigAnalyticsBucket'}
+    countries:
+      type: array
+      items: {$ref: '#/GigAnalyticsBucket'}
+    cities:
+      type: array
+      items: {$ref: '#/GigAnalyticsBucket'}
+    recentOrders:
+      type: array
+      maxItems: 20
+      items: {$ref: '#/GigAnalyticsOrder'}
+
+GigViewCreateRequest:
+  type: object
+  description: A gig page view (spec 04 AC-34). Device, browser, OS and country/city are derived on the server from the request (user agent, IP → local GeoIP, ADR-012); the IP itself is never stored.
+  properties:
+    referrer:
+      oneOf: [{$ref: '../components/schemas.yaml#/HttpUrl'}, {type: 'null'}]
+      description: '`document.referrer` on web (only its domain is kept); null on mobile.'
+
+GigReportCreateRequest:
+  type: object
+  required: [reason]
+  properties:
+    reason:
+      type: string
+      minLength: 6
+      maxLength: 500
+      description: Spec 04 AC-37.
+
+GigReport:
+  type: object
+  description: The saved report (it appears in the staff reports queue, D6 `adminListReports`).
+  required: [id, gigId, createdAt]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    gigId: {$ref: '../components/schemas.yaml#/Uuid'}
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+FavoriteGig:
+  type: object
+  required: [gigId, createdAt]
+  properties:
+    gigId: {$ref: '../components/schemas.yaml#/Uuid'}
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+GigStatusChangedEvent:
+  type: object
+  description: 'Realtime `gig.status_changed` (room `user:{ownerUserId}`): staff published, rejected, removed or restored the owner''s gig; My gigs refreshes the row.'
+  required: [gigId, status, rejectionReason]
+  properties:
+    gigId: {$ref: '../components/schemas.yaml#/Uuid'}
+    status: {$ref: '#/GigStatus'}
+    rejectionReason: {type: [string, 'null']}
+
+# ─── Admin gigs (spec 16 AC-19, AC-20) ───
+AdminGigOwnerSummary:
+  type: object
+  description: Owner summary shown next to a queue item (spec 16 AC-19).
+  required: [user, accountStatus, plan, kycStatus, reportCount, earlierRejectionCount]
+  properties:
+    user: {$ref: '../components/schemas.yaml#/UserSummary'}
+    accountStatus:
+      type: string
+      description: data-model `user_status` (pending, active, verified, banned) plus restriction/deletion as D1 defines; unknown values are shown as text.
+    plan: {$ref: '../components/schemas.yaml#/PlanCode'}
+    kycStatus:
+      type: [string, 'null']
+      description: data-model `kyc_status` (owned by D1); null when never submitted.
+    reportCount: {type: integer, minimum: 0, description: Reports about this owner's gigs and profile.}
+    earlierRejectionCount: {type: integer, minimum: 0, description: Earlier rejections of this owner's gigs.}
+
+AdminGigListItem:
+  type: object
+  required: [id, uid, slug, title, contentLocale, thumbnail, category, owner, status, deletedBy, price, createdAt, submittedAt, updatedAt]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    uid: {type: string}
+    slug: {type: string}
+    title: {type: string}
+    contentLocale: {$ref: '../components/schemas.yaml#/ContentLocale'}
+    thumbnail:
+      oneOf: [{$ref: '../components/schemas.yaml#/ImageVariants'}, {type: 'null'}]
+    category: {$ref: '../components/schemas.yaml#/CategoryRef'}
+    owner: {$ref: '../components/schemas.yaml#/UserSummary'}
+    status: {$ref: '#/GigStatus'}
+    deletedBy:
+      type: [string, 'null']
+      enum: [owner, staff, null]
+      description: 'For deleted gigs: who deleted it (a staff "Remove" can be restored within 30 days).'
+    price: {$ref: '../components/schemas.yaml#/Money'}
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    submittedAt:
+      $ref: '../components/schemas.yaml#/Timestamp'
+      description: Last create/edit that put the gig into `pending` (queue order, oldest first).
+    updatedAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+AdminGigListItemPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/AdminGigListItem'}
+
+AdminGig:
+  type: object
+  description: A gig as staff see it (both languages, moderation history, owner summary; spec 16 AC-19, AC-20). Staff never edit the gig's content (P-117).
+  required: [id, uid, slug, status, title, description, category, subcategory, childCategory, price, deliveryDays, revisionsAllowed, upgrades, faqs, thumbnail, images, documents, seo, isFeatured, rating, ordersInQueueCount, rejectionReason, deletedBy, removalReason, removedAt, restoreDeadlineAt, ownerSummary, createdAt, submittedAt, publishedAt, updatedAt]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    uid: {type: string}
+    slug: {type: string}
+    status: {$ref: '#/GigStatus'}
+    title: {$ref: '../components/schemas.yaml#/LocalizedString'}
+    description: {$ref: '../components/schemas.yaml#/LocalizedString'}
+    category: {$ref: '../components/schemas.yaml#/CategoryRef'}
+    subcategory: {$ref: '../components/schemas.yaml#/CategoryRef'}
+    childCategory: {$ref: '../components/schemas.yaml#/CategoryRef'}
+    price: {$ref: '../components/schemas.yaml#/Money'}
+    deliveryDays: {$ref: '#/GigDeliveryDays'}
+    revisionsAllowed: {type: [integer, 'null'], minimum: 0}
+    upgrades:
+      type: array
+      items: {$ref: '#/GigUpgrade'}
+    faqs:
+      type: array
+      items: {$ref: '#/GigFaq'}
+    thumbnail: {$ref: '../components/schemas.yaml#/ImageVariants'}
+    images:
+      type: array
+      items: {$ref: '../components/schemas.yaml#/ImageVariants'}
+    documents:
+      type: array
+      items: {$ref: '#/GigDocument'}
+    seo:
+      oneOf: [{$ref: '#/GigSeoInput'}, {type: 'null'}]
+    isFeatured: {type: boolean}
+    rating: {$ref: '#/ReviewRatingSummary'}
+    ordersInQueueCount: {type: integer, minimum: 0}
+    rejectionReason: {type: [string, 'null']}
+    deletedBy:
+      type: [string, 'null']
+      enum: [owner, staff, null]
+    removalReason:
+      type: [string, 'null']
+      description: Internal reason of a staff removal (not shown to the owner).
+    removedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    restoreDeadlineAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+      description: removedAt + 30 days (spec 16 AC-20).
+    ownerSummary: {$ref: '#/AdminGigOwnerSummary'}
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    submittedAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    publishedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    updatedAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+# ═════════════════════════ Reviews (spec 07) ═════════════════════════
+ReviewDirection:
+  type: string
+  enum: [about_freelancer, about_client]
+  description: '`about_freelancer` = written by the buyer/client; `about_client` = written by the freelancer (R-V2).'
+
+ReviewSource:
+  type: string
+  enum: [gig_order, project, custom_offer]
+
+ReviewStatus:
+  type: string
+  enum: [visible, hidden]
+
+ReviewTarget:
+  type: object
+  description: |
+    What the review was for (spec 07 AC-16): gig title with link, project title with link, or
+    "Custom offer" (`t_review_for_custom_offer`). `isLinkable` is false when the gig was deleted
+    or the project is not public: show the title without a link (AC-18).
+  required: [source, gig, project, isLinkable]
+  properties:
+    source: {$ref: '#/ReviewSource'}
+    gig:
+      oneOf: [{$ref: '../components/schemas.yaml#/GigRef'}, {type: 'null'}]
+    project:
+      oneOf: [{$ref: '../components/schemas.yaml#/ProjectRef'}, {type: 'null'}]
+    isLinkable: {type: boolean}
+
+Review:
+  type: object
+  description: |
+    A review. Visible reviews are public. A hidden review is returned only to its author (status
+    `hidden`, clients show `t_review_hidden_by_moderator`, AC-19). `item` (the private work item) is
+    filled only when the caller is a party of it; otherwise null. A deleted author shows as
+    "Deleted user" through `author.isDeleted` (AC-18).
+  required: [id, direction, target, item, author, subject, rating, text, status, isEdited, editedAt, createdAt]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    direction: {$ref: '#/ReviewDirection'}
+    target: {$ref: '#/ReviewTarget'}
+    item:
+      oneOf: [{$ref: '../components/schemas.yaml#/WorkItemRef'}, {type: 'null'}]
+    author: {$ref: '../components/schemas.yaml#/UserSummary'}
+    subject:
+      $ref: '../components/schemas.yaml#/UserSummary'
+      description: The reviewed user.
+    rating: {type: integer, minimum: 1, maximum: 5}
+    text: {type: string}
+    status: {$ref: '#/ReviewStatus'}
+    isEdited: {type: boolean}
+    editedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+ReviewPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/Review'}
+
+ReviewItemInput:
+  type: object
+  description: The work item being reviewed. The server derives the direction from the caller's role in it (buyer/client → `about_freelancer`, freelancer → `about_client`).
+  required: [type, id]
+  properties:
+    type: {$ref: '../components/schemas.yaml#/WorkItemType'}
+    id:
+      $ref: '../components/schemas.yaml#/Uuid'
+      description: Order item id, contract payment id or custom offer id.
+
+ReviewCreateRequest:
+  type: object
+  required: [item, rating, text]
+  properties:
+    item: {$ref: '#/ReviewItemInput'}
+    rating: {type: integer, minimum: 1, maximum: 5}
+    text:
+      type: string
+      minLength: 1
+      maxLength: 800
+      description: Plain text (spec 07 AC-6, R-V3).
+
+ReviewUpdateRequest:
+  type: object
+  properties:
+    rating: {type: integer, minimum: 1, maximum: 5}
+    text: {type: string, minLength: 1, maxLength: 800}
+
+ReviewEligibility:
+  type: object
+  description: Whether the caller can review a work item now (spec 07 AC-1…AC-3, AC-7). When `myReview` is set, clients open the edit form.
+  required: [item, canReview, direction, myReview, reasonKey]
+  properties:
+    item: {$ref: '#/ReviewItemInput'}
+    canReview: {type: boolean}
+    direction:
+      oneOf: [{$ref: '#/ReviewDirection'}, {type: 'null'}]
+    myReview:
+      oneOf: [{$ref: '../components/schemas.yaml#/ReviewRef'}, {type: 'null'}]
+    reasonKey:
+      type: [string, 'null']
+      pattern: '^t_[a-z0-9_]+$'
+      description: Why not (`t_review_not_allowed`, `t_review_already_exists`); null when `canReview`.
+
+ReviewableItem:
+  type: object
+  description: A completed item the caller has not reviewed yet ("To review", spec 07 AC-5, AC-17).
+  required: [item, target, direction, otherParty, completedAt]
+  properties:
+    item: {$ref: '../components/schemas.yaml#/WorkItemRef'}
+    target: {$ref: '#/ReviewTarget'}
+    direction:
+      $ref: '#/ReviewDirection'
+      description: The direction the caller's review will have.
+    otherParty: {$ref: '../components/schemas.yaml#/UserSummary'}
+    completedAt:
+      $ref: '../components/schemas.yaml#/Timestamp'
+      description: When the money was released to the freelancer (R-V1).
+
+ReviewableItemPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/ReviewableItem'}
+
+ReviewUserSummary:
+  type: object
+  description: The two profile rating blocks (spec 07 AC-11, AC-12; spec 02 AC-10). Visible reviews only, from gig orders, custom offers and projects; reviews on later-deleted gigs still count.
+  required: [username, asFreelancer, asClient]
+  properties:
+    username: {type: string}
+    asFreelancer: {$ref: '#/ReviewRatingBlock'}
+    asClient: {$ref: '#/ReviewRatingBlock'}
+
+ReviewReceivedEvent:
+  type: object
+  description: 'Realtime `review.received` (room `user:{subjectUserId}`): a new review about the user was published (spec 07 AC-9); the badge/notification itself is D6.'
+  required: [reviewId, direction, rating]
+  properties:
+    reviewId: {$ref: '../components/schemas.yaml#/Uuid'}
+    direction: {$ref: '#/ReviewDirection'}
+    rating: {type: integer, minimum: 1, maximum: 5}
+
+AdminReview:
+  type: object
+  description: A review as staff see it (spec 07 AC-19, AC-20; spec 16 AC-25).
+  required: [id, direction, target, item, author, subject, rating, text, status, isEdited, editedAt, hiddenReason, hiddenBy, hiddenAt, createdAt]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    direction: {$ref: '#/ReviewDirection'}
+    target: {$ref: '#/ReviewTarget'}
+    item: {$ref: '../components/schemas.yaml#/WorkItemRef'}
+    author: {$ref: '../components/schemas.yaml#/UserSummary'}
+    subject: {$ref: '../components/schemas.yaml#/UserSummary'}
+    rating: {type: integer, minimum: 1, maximum: 5}
+    text: {type: string}
+    status: {$ref: '#/ReviewStatus'}
+    isEdited: {type: boolean}
+    editedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    hiddenReason:
+      type: [string, 'null']
+      description: Internal reason (never shown to users).
+    hiddenBy:
+      oneOf: [{$ref: '../components/schemas.yaml#/StaffSummary'}, {type: 'null'}]
+    hiddenAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+AdminReviewPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/AdminReview'}
+
+# ═════════════════════════ CMS pages (spec 17 B) ═════════════════════════
+PageSlug:
+  type: string
+  minLength: 1
+  maxLength: 160
+  pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$'
+  description: Lower-case Latin letters, digits and hyphens, unique (spec 17 AC-8).
+
+PageLayout:
+  type: string
+  enum: [standard, landing]
+  description: '`landing` is used only by `gita`, served at `/gita` instead of `/page/gita` (spec 17 AC-46).'
+
+PageLink:
+  type: object
+  description: An active CMS page for the footer and the mobile "Help & legal" list (spec 17 AC-9, AC-13, AC-37).
+  required: [id, slug, title, contentLocale, footerColumn, position, externalUrl, layout]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    slug: {type: string}
+    title: {type: string}
+    contentLocale: {$ref: '../components/schemas.yaml#/ContentLocale'}
+    footerColumn:
+      type: [integer, 'null']
+      minimum: 1
+      maximum: 4
+      description: Null = not in the footer.
+    position: {type: integer}
+    externalUrl:
+      oneOf: [{$ref: '../components/schemas.yaml#/HttpUrl'}, {type: 'null'}]
+      description: Set for external-link pages (opened through the page URL, which answers 302; mobile opens the in-app browser).
+    layout: {$ref: '#/PageLayout'}
+
+PageLinkList:
+  type: object
+  required: [pages]
+  properties:
+    pages:
+      type: array
+      items: {$ref: '#/PageLink'}
+
+PageDetail:
+  type: object
+  description: |
+    A public CMS page (spec 17 AC-6, AC-7, AC-11, AC-46). `content` is sanitised HTML (allowed
+    elements of AC-8; external links already point to the signed `/redirect`, AC-47). For
+    `terms-of-service` and `privacy-policy`, `showsStaffChatReviewClause` is true: clients render the
+    template section `t_staff_review_section_title` + `t_terms_clause_staff_chat_review` and
+    "Last updated" (`t_last_updated` with `lastUpdatedAt`), which the editor cannot remove (AC-11).
+  required: [id, slug, title, content, contentLocale, hasEnglish, seoTitle, seoDescription, externalUrl, layout, showsStaffChatReviewClause, lastUpdatedAt, updatedAt]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    slug: {type: string}
+    title: {type: string}
+    content:
+      type: [string, 'null']
+      description: Null for external-link pages.
+    contentLocale: {$ref: '../components/schemas.yaml#/ContentLocale'}
+    hasEnglish:
+      type: boolean
+      description: English title and content exist (canonical/hreflang/noindex, spec 17 AC-4).
+    seoTitle: {type: [string, 'null']}
+    seoDescription:
+      type: [string, 'null']
+      description: In the returned language; null → clients use the S-115 default (spec 17 SEO table).
+    externalUrl:
+      oneOf: [{$ref: '../components/schemas.yaml#/HttpUrl'}, {type: 'null'}]
+      description: 'External-link page: the web answers 302 to it (AC-7).'
+    layout: {$ref: '#/PageLayout'}
+    showsStaffChatReviewClause: {type: boolean}
+    lastUpdatedAt:
+      $ref: '../components/schemas.yaml#/Timestamp'
+      description: Date of the last content change (AC-11 "Last updated").
+    updatedAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+AdminPageDetail:
+  type: object
+  required: [id, slug, title, content, seoTitle, seoDescription, footerColumn, position, isActive, externalUrl, layout, needsReview, previousSlugs, lastUpdatedAt, createdAt, updatedAt]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    slug: {type: string}
+    title: {$ref: '../components/schemas.yaml#/LocalizedString'}
+    content:
+      oneOf: [{$ref: '../components/schemas.yaml#/LocalizedString'}, {type: 'null'}]
+    seoTitle:
+      oneOf: [{$ref: '../components/schemas.yaml#/LocalizedString'}, {type: 'null'}]
+    seoDescription:
+      oneOf: [{$ref: '../components/schemas.yaml#/LocalizedString'}, {type: 'null'}]
+    footerColumn: {type: [integer, 'null'], minimum: 1, maximum: 4}
+    position: {type: integer}
+    isActive: {type: boolean}
+    externalUrl:
+      oneOf: [{$ref: '../components/schemas.yaml#/HttpUrl'}, {type: 'null'}]
+    layout: {$ref: '#/PageLayout'}
+    needsReview:
+      type: boolean
+      description: '"To review" flag (`t_admin_page_to_review`), set by the migration for the legacy `payments` page and cleared when staff save the content (spec 17 AC-14).'
+    previousSlugs:
+      type: array
+      description: Old slugs that redirect (301) to this page (AC-10).
+      items: {type: string}
+    lastUpdatedAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    updatedAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+AdminPageList:
+  type: object
+  description: All CMS pages (a small fixed list, not paginated).
+  required: [pages]
+  properties:
+    pages:
+      type: array
+      items: {$ref: '#/AdminPageDetail'}
+
+PageCreateRequest:
+  type: object
+  description: Either `content` or `externalUrl` (http/https only, AC-7) is set. Content is sanitised on save to the allowed elements of AC-8 (headings, paragraphs, lists, links, bold/italic, tables, images from the public media library).
+  required: [slug, title]
+  properties:
+    slug: {$ref: '#/PageSlug'}
+    title: {$ref: '../components/schemas.yaml#/LocalizedString'}
+    content:
+      oneOf: [{$ref: '../components/schemas.yaml#/LocalizedString'}, {type: 'null'}]
+    seoTitle:
+      oneOf: [{$ref: '../components/schemas.yaml#/LocalizedString'}, {type: 'null'}]
+    seoDescription:
+      oneOf: [{$ref: '../components/schemas.yaml#/LocalizedString'}, {type: 'null'}]
+    footerColumn: {type: [integer, 'null'], minimum: 1, maximum: 4}
+    position: {type: integer, minimum: 0}
+    isActive: {type: boolean, default: true}
+    externalUrl:
+      oneOf: [{$ref: '../components/schemas.yaml#/HttpUrl'}, {type: 'null'}]
+
+PageUpdateRequest:
+  type: object
+  description: Partial update. A new `slug` makes the old URLs (both languages) answer 301 (AC-10); an old slug still redirecting cannot be reused by another page.
+  properties:
+    slug: {$ref: '#/PageSlug'}
+    title: {$ref: '../components/schemas.yaml#/LocalizedString'}
+    content:
+      oneOf: [{$ref: '../components/schemas.yaml#/LocalizedString'}, {type: 'null'}]
+    seoTitle:
+      oneOf: [{$ref: '../components/schemas.yaml#/LocalizedString'}, {type: 'null'}]
+    seoDescription:
+      oneOf: [{$ref: '../components/schemas.yaml#/LocalizedString'}, {type: 'null'}]
+    footerColumn: {type: [integer, 'null'], minimum: 1, maximum: 4}
+    position: {type: integer, minimum: 0}
+    isActive: {type: boolean}
+    externalUrl:
+      oneOf: [{$ref: '../components/schemas.yaml#/HttpUrl'}, {type: 'null'}]
+
+# ═════════════════════════ Blog (spec 17 C) ═════════════════════════
+BlogArticleStatus:
+  type: string
+  enum: [draft, published, hidden]
+
+BlogArticleCard:
+  type: object
+  required: [id, slug, title, excerpt, cover, publishedAt, commentCount, contentLocale]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    slug: {type: string}
+    title: {type: string}
+    excerpt:
+      type: string
+      maxLength: 200
+      description: First 200 characters of the text (spec 17 AC-15).
+    cover:
+      oneOf: [{$ref: '../components/schemas.yaml#/ImageVariants'}, {type: 'null'}]
+    publishedAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    commentCount: {type: integer, minimum: 0, description: Published comments.}
+    contentLocale: {$ref: '../components/schemas.yaml#/ContentLocale'}
+
+BlogArticleCardPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/BlogArticleCard'}
+
+BlogArticle:
+  type: object
+  description: A published article (spec 17 AC-15). `commentsEnabled` mirrors S-118 (no comment section when false, AC-18).
+  required: [id, slug, title, content, excerpt, cover, contentLocale, hasEnglish, seoTitle, seoDescription, publishedAt, updatedAt, commentCount, commentsEnabled]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    slug: {type: string}
+    title: {type: string}
+    content: {type: string, description: Sanitised HTML.}
+    excerpt: {type: string, maxLength: 200}
+    cover:
+      oneOf: [{$ref: '../components/schemas.yaml#/ImageVariants'}, {type: 'null'}]
+    contentLocale: {$ref: '../components/schemas.yaml#/ContentLocale'}
+    hasEnglish: {type: boolean}
+    seoTitle: {type: [string, 'null']}
+    seoDescription: {type: [string, 'null']}
+    publishedAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    updatedAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    commentCount: {type: integer, minimum: 0}
+    commentsEnabled: {type: boolean}
+
+BlogCommentStatus:
+  type: string
+  enum: [pending, published, hidden]
+
+BlogComment:
+  type: object
+  description: A blog comment (spec 17 AC-18). `authorName` is the full name stored when commenting.
+  required: [id, articleId, authorName, authorAvatar, body, status, createdAt]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    articleId: {$ref: '../components/schemas.yaml#/Uuid'}
+    authorName: {type: string}
+    authorAvatar:
+      oneOf: [{$ref: '../components/schemas.yaml#/ImageVariants'}, {type: 'null'}]
+    body: {type: string, description: Plain text.}
+    status:
+      $ref: '#/BlogCommentStatus'
+      description: Public lists contain only `published`; the create response may be `pending` (S-074 OFF).
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+BlogCommentPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/BlogComment'}
+
+BlogCommentCreateRequest:
+  type: object
+  required: [body]
+  properties:
+    body:
+      type: string
+      minLength: 1
+      maxLength: 1500
+      description: Plain text (spec 17 AC-19; too long → `t_comment_too_long`).
+
+AdminBlogArticle:
+  type: object
+  required: [id, slug, status, title, content, seoTitle, seoDescription, cover, author, previousSlugs, commentCount, publishedAt, createdAt, updatedAt]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    slug: {type: string}
+    status: {$ref: '#/BlogArticleStatus'}
+    title: {$ref: '../components/schemas.yaml#/LocalizedString'}
+    content: {$ref: '../components/schemas.yaml#/LocalizedString'}
+    seoTitle:
+      oneOf: [{$ref: '../components/schemas.yaml#/LocalizedString'}, {type: 'null'}]
+    seoDescription:
+      oneOf: [{$ref: '../components/schemas.yaml#/LocalizedString'}, {type: 'null'}]
+    cover:
+      oneOf: [{$ref: '../components/schemas.yaml#/ImageVariants'}, {type: 'null'}]
+    author:
+      oneOf: [{$ref: '../components/schemas.yaml#/StaffSummary'}, {type: 'null'}]
+    previousSlugs:
+      type: array
+      items: {type: string}
+    commentCount: {type: integer, minimum: 0, description: All comments (any status).}
+    publishedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+      description: Set the first time the article is published (AC-17).
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    updatedAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+AdminBlogArticlePage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/AdminBlogArticle'}
+
+BlogArticleCreateRequest:
+  type: object
+  required: [slug, title, content]
+  properties:
+    slug: {$ref: '#/PageSlug'}
+    status:
+      $ref: '#/BlogArticleStatus'
+      default: draft
+    title: {$ref: '../components/schemas.yaml#/LocalizedString'}
+    content: {$ref: '../components/schemas.yaml#/LocalizedString'}
+    seoTitle:
+      oneOf: [{$ref: '../components/schemas.yaml#/LocalizedString'}, {type: 'null'}]
+    seoDescription:
+      oneOf: [{$ref: '../components/schemas.yaml#/LocalizedString'}, {type: 'null'}]
+    coverFileId:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+      description: A `ready` `blog_image` file (JPG/PNG/WebP ≤ S-078 MB, AC-17).
+
+BlogArticleUpdateRequest:
+  type: object
+  description: Partial update. Changing `status` to `published` the first time sets `publishedAt`; a new `slug` adds a 301 from the old URLs (AC-10).
+  properties:
+    slug: {$ref: '#/PageSlug'}
+    status: {$ref: '#/BlogArticleStatus'}
+    title: {$ref: '../components/schemas.yaml#/LocalizedString'}
+    content: {$ref: '../components/schemas.yaml#/LocalizedString'}
+    seoTitle:
+      oneOf: [{$ref: '../components/schemas.yaml#/LocalizedString'}, {type: 'null'}]
+    seoDescription:
+      oneOf: [{$ref: '../components/schemas.yaml#/LocalizedString'}, {type: 'null'}]
+    coverFileId:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+
+AdminBlogComment:
+  type: object
+  required: [id, article, user, authorName, body, status, moderatedBy, createdAt]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    article:
+      type: object
+      required: [id, slug, title]
+      properties:
+        id: {$ref: '../components/schemas.yaml#/Uuid'}
+        slug: {type: string}
+        title: {type: string}
+    user:
+      oneOf: [{$ref: '../components/schemas.yaml#/UserSummary'}, {type: 'null'}]
+    authorName: {type: string}
+    body: {type: string}
+    status: {$ref: '#/BlogCommentStatus'}
+    moderatedBy:
+      oneOf: [{$ref: '../components/schemas.yaml#/StaffSummary'}, {type: 'null'}]
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+AdminBlogCommentPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/AdminBlogComment'}
+
+# ═════════════════════════ Contact / support (spec 17 D) ═════════════════════════
+ContactMessageCreateRequest:
+  type: object
+  description: Contact form (spec 17 AC-23). Field errors use the legacy validator messages.
+  required: [name, email, subject, message]
+  properties:
+    name: {type: string, minLength: 1, maxLength: 60}
+    email:
+      type: string
+      format: email
+      maxLength: 60
+    subject: {type: string, minLength: 1, maxLength: 120}
+    message: {type: string, minLength: 1, maxLength: 2500}
+    captchaToken:
+      type: [string, 'null']
+      maxLength: 4096
+      description: reCAPTCHA token; required from web while S-061 is ON. Mobile sends null and is protected by the rate limits (AC-23).
+
+ContactMessageReceipt:
+  type: object
+  required: [id, createdAt]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+SupportMessageStatus:
+  type: string
+  enum: [new, replied, closed]
+
+AdminSupportMessage:
+  type: object
+  description: A contact message in the staff support inbox (spec 17 AC-26). `ipAddress` and `userAgent` are null after 12 months (AC-27).
+  required: [id, name, email, subject, message, locale, user, status, seenAt, replyText, repliedBy, repliedAt, closedAt, ipAddress, userAgent, createdAt]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    name: {type: string}
+    email: {type: string}
+    subject: {type: string}
+    message: {type: string}
+    locale:
+      $ref: '../components/schemas.yaml#/Locale'
+      description: Page language of the message; the reply email uses it.
+    user:
+      oneOf: [{$ref: '../components/schemas.yaml#/UserSummary'}, {type: 'null'}]
+    status: {$ref: '#/SupportMessageStatus'}
+    seenAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    replyText: {type: [string, 'null']}
+    repliedBy:
+      oneOf: [{$ref: '../components/schemas.yaml#/StaffSummary'}, {type: 'null'}]
+    repliedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    closedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    ipAddress: {type: [string, 'null']}
+    userAgent: {type: [string, 'null']}
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+AdminSupportMessagePage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/AdminSupportMessage'}
+
+SupportMessageReplyRequest:
+  type: object
+  description: The subject defaults to `t_re_subject_short` + the original subject (in the message's language) when omitted.
+  required: [text]
+  properties:
+    subject:
+      type: [string, 'null']
+      minLength: 1
+      maxLength: 200
+    text: {type: string, minLength: 1}
+
+# ═════════════════════════ Newsletter (spec 17 E) ═════════════════════════
+NewsletterSubscriberStatus:
+  type: string
+  enum: [pending, confirmed, unsubscribed]
+
+NewsletterSubscriptionCreateRequest:
+  type: object
+  required: [email]
+  properties:
+    email: {$ref: '../components/schemas.yaml#/EmailAddress'}
+    locale:
+      $ref: '../components/schemas.yaml#/Locale'
+      description: Page language; the confirmation email (EV-118) uses it. Defaults to `Accept-Language`.
+
+NewsletterSubscriptionResult:
+  type: object
+  description: Always the same answer whatever the state of the address (spec 17 AC-30, P-131).
+  required: [messageKey]
+  properties:
+    messageKey:
+      type: string
+      const: t_we_sent_verification_link_newsletter
+
+NewsletterTokenRequest:
+  type: object
+  required: [token]
+  properties:
+    token:
+      type: string
+      minLength: 1
+      maxLength: 200
+      description: From `/newsletter/verify?token=…` (the legacy `?id=…` form is passed the same way) or `/newsletter/unsubscribe?token=…`.
+
+NewsletterTokenResult:
+  type: object
+  required: [status, messageKey]
+  properties:
+    status: {$ref: '#/NewsletterSubscriberStatus'}
+    messageKey:
+      type: string
+      enum: [t_newsletter_confirmed, t_newsletter_unsubscribed]
+
+AdminNewsletterSubscriber:
+  type: object
+  required: [id, email, locale, status, createdAt, confirmedAt, unsubscribedAt, lastConfirmationSentAt]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    email: {type: string}
+    locale: {$ref: '../components/schemas.yaml#/Locale'}
+    status: {$ref: '#/NewsletterSubscriberStatus'}
+    createdAt:
+      $ref: '../components/schemas.yaml#/Timestamp'
+      description: Sign-up date (kept from legacy, AC-34).
+    confirmedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    unsubscribedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    lastConfirmationSentAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+
+AdminNewsletterSubscriberPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/AdminNewsletterSubscriber'}
+
+NewsletterEmailCreateRequest:
+  type: object
+  description: One email to one confirmed subscriber (spec 17 AC-33, EV-120 `StaffEmail`); an unsubscribe link and `List-Unsubscribe` header are added automatically (AC-32).
+  required: [subject, body]
+  properties:
+    subject: {type: string, minLength: 1, maxLength: 200}
+    body: {type: string, minLength: 1, description: Plain text or the StaffEmail template's allowed markup (spec 15 P-113).}
+
+NewsletterEmailReceipt:
+  type: object
+  required: [subscriberId, queuedAt]
+  properties:
+    subscriberId: {$ref: '../components/schemas.yaml#/Uuid'}
+    queuedAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+# ═════════════════════════ Home (spec 03 AC-24…AC-26, spec 17 F) ═════════════════════════
+HomeCategoryRow:
+  type: object
+  required: [category, gigs]
+  properties:
+    category: {$ref: '../components/schemas.yaml#/CategoryRef'}
+    gigs:
+      type: array
+      maxItems: 4
+      items: {$ref: '#/GigCard'}
+
+HomeFeaturedCategory:
+  type: object
+  required: [category, image]
+  properties:
+    category: {$ref: '../components/schemas.yaml#/CategoryRef'}
+    image:
+      oneOf: [{$ref: '../components/schemas.yaml#/ImageVariants'}, {type: 'null'}]
+
+HomeBestSeller:
+  type: object
+  required: [user, skills, rating, salesCount]
+  properties:
+    user: {$ref: '../components/schemas.yaml#/UserSummary'}
+    skills:
+      type: array
+      maxItems: 3
+      items: {$ref: '#/SellerSkill'}
+    rating:
+      $ref: '#/ReviewRatingSummary'
+      description: As a freelancer.
+    salesCount: {type: integer, minimum: 0, description: 'Completed sales (the ranking value, spec 03 AC-26).'}
+
+HomeLogo:
+  type: object
+  required: [id, name, linkUrl, image]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    name: {type: string}
+    linkUrl:
+      oneOf: [{$ref: '../components/schemas.yaml#/HttpUrl'}, {type: 'null'}]
+    image: {$ref: '../components/schemas.yaml#/ImageVariants'}
+
+Home:
+  type: object
+  description: |
+    Data blocks of the home page (web and mobile). A block governed by a switched-off setting is
+    `null` (not an empty list), so clients hide it: `featuredCategories` S-107, `bestSellers` S-108,
+    `logos` S-109, `recentArticles` S-117 + S-119. Hero (S-113), announcement (S-112), footer (S-114)
+    and SEO defaults (S-115) are settings delivered by `getPublicConfig` (D1). Empty rows are
+    returned empty and hidden by clients (spec 03 screens "hidden when empty").
+  required: [topGigs, categoryRows, featuredCategories, bestSellers, logos, recentArticles]
+  properties:
+    topGigs:
+      type: array
+      maxItems: 4
+      description: '"Top gigs": active-Premium owners'' gigs first (random), topped up with random others (spec 03 AC-24).'
+      items: {$ref: '#/GigCard'}
+    categoryRows:
+      type: array
+      description: One row per visible top-level category, random order, up to 4 gigs each with Premium owners' gigs first (spec 03 AC-25).
+      items: {$ref: '#/HomeCategoryRow'}
+    featuredCategories:
+      type: [array, 'null']
+      description: Featured-categories tiles (visible top-level categories) while S-107 is ON (spec 17 AC-35; legacy `home.blade.php:165`).
+      items: {$ref: '#/HomeFeaturedCategory'}
+    bestSellers:
+      type: [array, 'null']
+      maxItems: 12
+      description: Up to 12 listable users with the most completed sales while S-108 is ON (spec 03 AC-26).
+      items: {$ref: '#/HomeBestSeller'}
+    logos:
+      type: [array, 'null']
+      description: Active logo-cloud logos in order while S-109 is ON (spec 17 AC-35).
+      items: {$ref: '#/HomeLogo'}
+    recentArticles:
+      type: [array, 'null']
+      maxItems: 3
+      description: The 3 newest published articles while S-117 and S-119 are ON (spec 17 AC-21).
+      items: {$ref: '#/BlogArticleCard'}
+
+AdminHomeLogo:
+  type: object
+  required: [id, name, linkUrl, image, position, isActive, createdAt, updatedAt]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    name: {type: string}
+    linkUrl:
+      oneOf: [{$ref: '../components/schemas.yaml#/HttpUrl'}, {type: 'null'}]
+    image: {$ref: '../components/schemas.yaml#/ImageVariants'}
+    position: {type: integer}
+    isActive: {type: boolean}
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    updatedAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+AdminHomeLogoList:
+  type: object
+  required: [logos]
+  properties:
+    logos:
+      type: array
+      items: {$ref: '#/AdminHomeLogo'}
+
+HomeLogoCreateRequest:
+  type: object
+  required: [fileId, name]
+  properties:
+    fileId:
+      $ref: '../components/schemas.yaml#/Uuid'
+      description: A `ready` `home_logo` file from `adminCreateFileUpload`.
+    name: {type: string, minLength: 1, maxLength: 100}
+    linkUrl:
+      oneOf: [{$ref: '../components/schemas.yaml#/HttpUrl'}, {type: 'null'}]
+    position: {type: integer, minimum: 0}
+    isActive: {type: boolean, default: true}
+
+HomeLogoUpdateRequest:
+  type: object
+  properties:
+    fileId: {$ref: '../components/schemas.yaml#/Uuid'}
+    name: {type: string, minLength: 1, maxLength: 100}
+    linkUrl:
+      oneOf: [{$ref: '../components/schemas.yaml#/HttpUrl'}, {type: 'null'}]
+    position: {type: integer, minimum: 0}
+    isActive: {type: boolean}
+
+# ═════════════════════════ SEO: sitemap, redirects, outbound links (spec 17 A, H, I) ═════════════════════════
+SitemapPartName:
+  type: string
+  pattern: '^(static|pages|categories|hire|blog|(gigs|projects|profiles)-[1-9][0-9]*)$'
+  description: The parts of url-map §9 (`gigs-{n}`, `projects-{n}`, `profiles-{n}` are split every 10,000 URLs, spec 17 EC-7).
+
+SitemapPartRef:
+  type: object
+  required: [name, lastModifiedAt]
+  properties:
+    name: {$ref: '#/SitemapPartName'}
+    lastModifiedAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+SitemapIndex:
+  type: object
+  required: [parts]
+  properties:
+    parts:
+      type: array
+      items: {$ref: '#/SitemapPartRef'}
+
+SitemapEntry:
+  type: object
+  description: One `<url>`. `path` is the Georgian (unprefixed) path; `hasEnglish` adds the `en` alternate (`/en` + path) — only when English content exists (spec 17 AC-43, url-map §8).
+  required: [path, hasEnglish, lastModifiedAt]
+  properties:
+    path:
+      type: string
+      pattern: '^/'
+    hasEnglish: {type: boolean}
+    lastModifiedAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+SitemapPart:
+  type: object
+  required: [name, entries]
+  properties:
+    name: {$ref: '#/SitemapPartName'}
+    entries:
+      type: array
+      maxItems: 10000
+      items: {$ref: '#/SitemapEntry'}
+
+RedirectResolution:
+  type: object
+  description: |
+    Result of a legacy/old-URL lookup for the web middleware (url-map §4, §5, §10). `status` 301/302
+    with `location` (a path with the same language prefix, tracking parameters kept by the web);
+    404/410 with `location` null.
+  required: [status, location]
+  properties:
+    status:
+      type: integer
+      enum: [301, 302, 404, 410]
+    location:
+      type: [string, 'null']
+      pattern: '^/'
+
+OutboundLinkVerification:
+  type: object
+  description: A valid signed outbound link for the `/redirect` interstitial (spec 17 AC-47). The page shows `url` and `t_redirecting_notification_alert` with Continue/Back; it never redirects on its own.
+  required: [url, host]
+  properties:
+    url: {$ref: '../components/schemas.yaml#/HttpUrl'}
+    host: {type: string, description: 'For `t_redirect_continue` (":host").'}
+
+OutboundLinkSignatureRequest:
+  type: object
+  required: [urls]
+  properties:
+    urls:
+      type: array
+      minItems: 1
+      maxItems: 50
+      items: {$ref: '../components/schemas.yaml#/HttpUrl'}
+
+OutboundSignedLink:
+  type: object
+  required: [url, href]
+  properties:
+    url: {$ref: '../components/schemas.yaml#/HttpUrl'}
+    href:
+      type: string
+      pattern: '^/redirect\?to='
+      description: 'Language-free path to render, `/redirect?to={url}&sig={signature}` (web adds `/en` on English pages).'
+
+OutboundLinkSignatureList:
+  type: object
+  required: [links]
+  properties:
+    links:
+      type: array
+      items: {$ref: '#/OutboundSignedLink'}
