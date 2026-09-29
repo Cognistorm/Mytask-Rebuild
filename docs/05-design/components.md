@@ -197,7 +197,7 @@ Canonical icon names (one icon per meaning, so web and mobile match):
 
 ### 5.3 PriceInput and QuantityInput
 - **PriceInput:** Input with a `₾` prefix, `inputmode="decimal"`, accepts `,` or `.` and normalises to 2 decimals on blur (spec 04 AC-8 format `^\d+(\.\d{1,2})?$`); value handed to the API in tetri by the app, not by the component. Shows a read-only "You will receive" companion field when needed (proposal form, spec 11).
-- **QuantityInput:** − / value / + with IconButtons (44 hit area each), min/max, typed input allowed, `role="spinbutton"` semantics on the value. **Not used on the gig page or in the cart at launch:** quantity is always 1 (spec 06 P-46, spec 04 AC-26 as revised). Kept in the library only for a future use; do not build it in Phase 3 unless a spec asks for it. (Updated in P2-C3, 2026-09-29.)
+- **QuantityInput:** − / value / + with IconButtons (44 hit area each), min/max, typed input allowed, `role="spinbutton"` semantics on the value. **Not used on the gig page or in the cart at launch:** quantity is always 1 (spec 06 P-46, spec 04 AC-26 as revised). It **is** needed at launch for the "number of revisions" field (0…S-041): gig wizard pricing (spec 04 AC-9) and proposal form (spec 11 screens: "revisions (stepper 0…S-041)"). (Updated in P2-C3; revisions use added in P2-C4, 2026-09-29.)
 - **Used by:** gig wizard pricing/upgrades (04), proposal (11), withdrawals (14), top-up (05).
 
 ### 5.4 Textarea
@@ -541,7 +541,7 @@ Canonical icon names (one icon per meaning, so web and mobile match):
 - **A11y:** the message list is `role="log"` with `aria-live="polite"` for new incoming messages (legacy had no live region); each message has sender + time in its accessible text.
 
 ### 9.3 Composer
-- Textarea auto-growing 1–6 lines (16 px text), attach IconButton (`Paperclip`, label `t_ui_attach_file`), optional emoji IconButton, Send IconButton (`primary`, `PaperPlaneRight`, label `t_ui_send`, disabled when empty); Enter sends and Shift+Enter adds a line on desktop, the Send button on mobile; attachments preview row above the input with remove buttons; offline/"sending" state with retry per message.
+- Textarea auto-growing 1–6 lines (16 px text), attach IconButton (`Paperclip`, label `t_ui_attach_file`), optional emoji IconButton, Send IconButton (`primary`, `PaperPlaneRight`, label `t_ui_send`, disabled when empty); Enter inserts a new line and Ctrl/Cmd+Enter or the Send button sends on desktop; on mobile the return key inserts a new line and the Send button sends (spec 08 AC-11; corrected in P2-C4, 2026-09-29); attachments preview row above the input with remove buttons; offline/"sending" state with retry per message.
 - **Mobile:** pinned above the keyboard and the safe area; the conversation uses `100dvh` layout (legacy `100vh` hid the input under the browser toolbar).
 - **Used by:** Inbox (08), order/project/refund threads (06, 11, 13), admin read-only view (16, composer hidden, banner "Read-only staff view").
 
@@ -646,4 +646,13 @@ Built-in component texts, English first + Georgian (Q-058). Keys proposed with a
 | `t_ui_retry` | Try again | ხელახლა ცდა |
 | `t_ui_discard_changes` | Discard changes? | გავაუქმოთ ცვლილებები? |
 | `t_ui_as_freelancer` / `t_ui_as_client` | As a freelancer / As a client | როგორც ფრილანსერი / როგორც დამკვეთი |
+| `t_ui_sending` | Sending… | იგზავნება… |
+| `t_ui_message_not_sent` | Not sent. Try again. | არ გაიგზავნა. სცადეთ ხელახლა. |
+| `t_ui_send_shortcut_hint` | Press Ctrl+Enter to send | გასაგზავნად დააჭირეთ Ctrl+Enter-ს |
+| `t_ui_staff_read_only_view` | Read-only staff view | პერსონალის ხედი, მხოლოდ წასაკითხად |
+| `t_ui_client_name_hidden` | Client name hidden | დამკვეთის სახელი დამალულია |
+| `t_ui_form_progress` | Form progress | ფორმის შევსების პროგრესი |
+| `t_ui_purchase` | Purchase | შეძენა |
+(Rows `t_ui_sending` … `t_ui_purchase` added in P2-C4, 2026-09-29, for the key screen layouts.)
+
 Georgian values are designer drafts for the Owner's review.
