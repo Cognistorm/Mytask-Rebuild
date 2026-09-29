@@ -3,7 +3,7 @@ Status: **approved** (Owner 2026-09-28; P-38…P-65 accepted)
 Author: product-analyst (P2-A3) | Date: 2026-09-28
 Legacy reference: `docs/01-discovery/features.md` BR-030…BR-035, BR-100, BR-101 (balances), BR-111; `integrations.md` (BOG); `notifications.md` (payment rows); `risks-and-debt.md` R-001, R-004, R-012, R-015, R-017. Owner decisions: Q-002, Q-006, Q-007, Q-008, Q-010, Q-011, Q-016, Q-030, Q-038, Q-039, Q-052, Q-053, Q-064, Q-070, Q-081, Q-087. Platform rules: `00-platform-rules.md` §3 (money glossary, R-3.1…R-3.9), §4.2 (S-010…S-018), §4.3 (S-019…S-024), X-07, X-10, X-19, EC-1, EC-7; ADR-003 (ledger), ADR-004 (BOG), ADR-005 (fees), ADR-016 (mobile).
 
-Tags: **LEGACY**, **CHANGE** (Q-ID), **NEW** (Q-ID), **PROPOSED** (P-38…P-45, see "Open questions").
+Tags: **LEGACY**, **CHANGE** (Q-ID), **NEW** (Q-ID), **PROPOSED** (P-38…P-45, see "Open questions"). **P-135** (AC-44…AC-47, EC-11…EC-14, S-128) was added after approval on 2026-09-29 to close parity gap G-1 and awaits Owner sign-off at the Phase 2 gate.
 
 Legacy code traced for this spec (read-only):
 - **BOG client** `legacy/APP/app/Services/Bog/BogPayment.php`: create order `payment()` `:10-51` (hosted page, redirect URLs `success?key=…&type=…` / `fail?…` `:35-38`; `callback_url` points to `https://mytask.ge/callback`, a route that does not exist `:14`; junk payload `total_discount_amount: 7`, `delivery.amount: 5`, dummy basket `product123` `:23-33`; `test_amount` sends 0.01 GEL `:22`); receipt/details `getPaymentDetails()` `:91-113`; save card `saveSubscription()` `:115-123`; charge saved card `offlinePayment()` `:59-84`; OAuth with **hard-coded client credentials** `auth()` `:130-144` (R-001; not repeated here). Endpoints: `config/bog.php:5-13`.
@@ -102,6 +102,21 @@ Give every payment on MyTask one safe, simple path: pay by BOG card (with the 2.
 - AC-42 Given a debit adjustment larger than the user's Available balance, When it is saved, Then it is refused with `t_adjustment_would_go_negative`. (R-3.6)
 - AC-43 Given a staff member with the points permission, When they add or deduct points for a user (whole number > 0, required reason, optional public note), Then a points-ledger journal is posted (`admin_grant` or `admin_deduct`), audited, visible in the user's points history (spec 09) and notified in-app `t_points_adjusted`. A deduction larger than the user's points is refused. (NEW Q-016; ADR-003 §9; notification ACCEPTED P-41)
 
+### Nightly ledger/BOG reconciliation (ADR-003 §10; data-model §6 "REC") — **PROPOSED P-135** (added 2026-09-29, parity gap G-1; awaiting Owner sign-off)
+- AC-44 Given the daily time in S-128 `ledger.reconciliation.run_time` (PROPOSED, default 03:00 Georgian time, UTC+4), When that time is reached, Then the worker starts one reconciliation run for the previous Georgian calendar day (the "run day", 00:00–24:00 Georgian time) and records it: run day, start and end time, status (`no differences` | `differences found` | `failed`), number of checks and number of differences. There is at most one completed run per run day: a retry or a second start for the same run day does not create a second run. The run only reads data: it never posts, reverses or corrects a journal, balance, escrow, payment or withdrawal. (NEW ADR-003 §10, ADR-008 §5; schedule and one-run-per-day PROPOSED P-135)
+- AC-45 Given a run, When it checks the books, Then it performs checks C-1…C-9 below with exact equality in tetri (a difference is any gap other than 0, even 1 tetri; there is no tolerance), and stores every difference with: check code, subject (journal, ledger account, escrow, user, withdrawal or payment, with its id), expected value, actual value and the gap. (NEW ADR-003 §10; checks = the invariants marked REC in data-model §6; PROPOSED P-135)
+  - C-1 Every journal posted on the run day has at least 2 entries, no entry of 0, and its entries sum to 0 (I-1).
+  - C-2 Every ledger account's stored balance equals the sum of all its entries, and the latest entry's running balance equals that sum (I-3).
+  - C-3 The sum of all ledger account balances is 0 (I-4).
+  - C-4 Every closed escrow has balance 0; no escrow is below 0 except a migrated legacy hold; each freelancer's HOLD equals the sum of their open escrow balances (I-6, I-13).
+  - C-5 Each user's Withdrawn, Used for purchases and Net income figures equal the values recomputed from their migrated opening values and the journals (R-P7; data-model §5.4).
+  - C-6 The `withdrawals_payable` balance equals the total payout amount of withdrawals that are pending or processing, and it is not below 0 (I-14).
+  - C-7 For each card payment verified on the run day (paid or unapplied, AC-10, AC-15): the amount BOG confirmed = the payment total = the amount taken from `bog_clearing` by its journal. A verified card payment without a journal, or a card-payment journal without a verified payment, is also a difference (I-12).
+  - C-8 The total taken from `bog_clearing` by journals of the run day equals the total of card payments verified on the run day (I-17).
+  - C-9 When a BOG settlement report for the run day is available to the platform (how it is obtained is finalised against the BOG documentation, Q-087), each payment in it and its total match the card payments verified on the run day; a payment found on only one side is a difference. When no report is available, C-9 is recorded as "not available", which is not a difference.
+- AC-46 Given a run ends with 1 or more differences, When it is recorded, Then EV-32 `Admin/ReconciliationDifference` (spec 15) is sent once for that run to every S-100 address, with `:count` = the number of differences of the run and `:date` = the run day, linking to the run in the admin panel. A run with no differences sends nothing. A retry of the same run day never sends EV-32 a second time. Given a run fails (it cannot finish after the worker's retries, ADR-008 §4), Then it is recorded as `failed`, shown in System health (spec 16 AC-69), EV-125 `Admin/SystemAlert` is sent at most once per run day, and EV-32 is not sent. (NEW ADR-003 §10; once-per-run and failure alert PROPOSED P-135)
+- AC-47 Given staff with `payments.read` open Money → Reconciliation in the admin web app (spec 16 AC-44), When the list loads, Then runs are listed newest first, one row per run day: run day, start and end time, status (`t_admin_recon_status_*`), checks, differences, and how many differences are not yet reviewed; filters: status and date range; empty state `t_admin_recon_no_runs`. When staff open a run, Then each difference shows the check name (`t_admin_recon_check_*`), the subject with a link (ledger viewer 16 AC-45, payment detail 16 AC-36, escrow list 16 AC-39, withdrawal 16 AC-42, user), expected, actual and gap in GEL. Staff can mark a difference "reviewed" with a required note; this is audited and moves no money (same pattern as 16 AC-37). Reviewing does not remove a difference: if the cause remains, the next run reports it again. (NEW; screen named in 16 AC-44 and the `payments.read` row of 16 §permissions; review marking PROPOSED P-135)
+
 ---
 
 ## Business rules
@@ -161,6 +176,7 @@ Subscription payments (no surcharge, promo discounts) are MM-09-xx in spec 09; w
 | Payment methods `/account/cards` | card list with delete | Account → Payment methods | empty `t_no_saved_cards`; delete confirmation (with renewal warning) |
 | Billing `/account/billing` | form | form | validation errors; saved toast |
 | Admin (spec 16): payments and callbacks list, bank-transfer confirmations, balance adjustment form, points adjustment form, fee rules editor | | | |
+| Admin (spec 16 AC-44): Money → Reconciliation (AC-47, PROPOSED P-135) | run list (one row per run day) with status and filters; run detail with the differences table and "Mark as reviewed" dialog (required note) | – (admin is web only) | loading; empty `t_admin_recon_no_runs`; error (retry); success; run status `failed` shown with the error summary |
 
 Accessibility: every amount has a text label (not colour only); the card-fee line reads the percentage; the Pay button shows the total in its label.
 
@@ -176,7 +192,8 @@ Accessibility: every amount has a text label (not colour only); the card-fee lin
 | `t_payment_credited_to_wallet` | in-app + push + email | buyer | unapplied payment credited (AC-15) | **NEW, ACCEPTED P-40** |
 | `t_balance_adjusted` | in-app + push | user | staff balance adjustment (AC-41) | **NEW, ACCEPTED P-41** |
 | `t_points_adjusted` | in-app + push | user | staff points grant/deduction (AC-43) | **NEW, ACCEPTED P-41** |
-| Reconciliation difference alert | email | all S-100 | nightly ledger/BOG check finds a difference (ADR-003 §10) | NEW (architecture) |
+| Reconciliation difference alert, spec 15 EV-32 `Admin/ReconciliationDifference` (`t_subject_admin_reconciliation_difference`, body `t_admin_reconciliation_difference_body`) | email | all S-100 | a nightly run ends with 1 or more differences; once per run, with the count (AC-46) | NEW (architecture ADR-003 §10); trigger rule **PROPOSED P-135** |
+| System alert, spec 15 EV-125 `Admin/SystemAlert` | email | all S-100 | a reconciliation run fails (AC-46), at most once per run day | NEW trigger on an ACCEPTED event (P-111); **PROPOSED P-135** |
 
 Item-specific payment notifications (new order, offer funded, project funded) are in specs 06, 11, 12; subscription notifications in spec 09. **Not carried over:** `User/Buyer/WebhookPaymentFailed` (sent only by the removed foreign gateways' callback controllers, X-07); a failed BOG payment is shown on the result page (AC-12).
 
@@ -261,6 +278,32 @@ NEW keys (English first, Georgian alongside, Q-058):
 | `t_points_adjusted` | Your points were changed by :points. :note | თქვენი ქულები შეიცვალა :points-ით. :note |
 | `t_adjustment_would_go_negative` | This correction would make the balance negative. | ეს კორექტირება ბალანსს უარყოფითს გახდის. |
 
+NEW admin keys for the reconciliation report (AC-47; **PROPOSED P-135**; English first, Georgian alongside, Q-058). The menu label `t_admin_reconciliation` and the EV-32 email keys already exist (spec 16 Texts, spec 15 Texts).
+| Key | en | ka |
+|---|---|---|
+| `t_admin_recon_run_day` | Day checked | შემოწმებული დღე |
+| `t_admin_recon_status_ok` | No differences | განსხვავება არ არის |
+| `t_admin_recon_status_differences` | Differences found | აღმოჩენილია განსხვავებები |
+| `t_admin_recon_status_failed` | Run failed | შემოწმება ვერ შესრულდა |
+| `t_admin_recon_not_available` | Not available | მიუწვდომელია |
+| `t_admin_recon_no_runs` | No reconciliation runs yet. | შეჯერება ჯერ არ ჩატარებულა. |
+| `t_admin_recon_expected` | Expected | მოსალოდნელი |
+| `t_admin_recon_actual` | Actual | ფაქტობრივი |
+| `t_admin_recon_gap` | Difference | სხვაობა |
+| `t_admin_recon_unreviewed` | Not reviewed | განუხილველი |
+| `t_admin_recon_mark_reviewed` | Mark as reviewed | განხილულად მონიშვნა |
+| `t_admin_recon_reviewed` | Reviewed by :name on :date | განიხილა :name, :date |
+| `t_admin_recon_review_note` | Review note | განხილვის შენიშვნა |
+| `t_admin_recon_check_journal_sum` | Journal does not balance to zero | ჟურნალის ჩანაწერის ჯამი ნულის ტოლი არ არის |
+| `t_admin_recon_check_account_balance` | Account balance differs from its entries | ანგარიშის ნაშთი არ ემთხვევა მის ჩანაწერებს |
+| `t_admin_recon_check_books_total` | Ledger total is not zero | ლეჯერის საერთო ჯამი ნულის ტოლი არ არის |
+| `t_admin_recon_check_escrow` | Escrow or HOLD balance is wrong | დაბლოკილი თანხის ნაშთი არასწორია |
+| `t_admin_recon_check_user_totals` | User totals differ from the ledger | მომხმარებლის ჯამები არ ემთხვევა ლეჯერს |
+| `t_admin_recon_check_withdrawals_payable` | Withdrawals payable differ from open withdrawal requests | გასატანი თანხა არ ემთხვევა ღია მოთხოვნებს |
+| `t_admin_recon_check_card_payment` | Card payment differs from its ledger entry | ბარათით გადახდა არ ემთხვევა ლეჯერის ჩანაწერს |
+| `t_admin_recon_check_bog_day_total` | Card payments of the day differ from BOG clearing | დღის ბარათით გადახდები არ ემთხვევა BOG-ის ანგარიშსწორებას |
+| `t_admin_recon_check_bog_settlement` | BOG settlement report differs | BOG-ის ანგარიშსწორების ამონაწერი განსხვავდება |
+
 ## Edge cases
 - EC-1 The buyer closes the BOG tab after paying: the callback or the background check confirms the payment (AC-10, AC-13); the item becomes paid and the buyer is notified by the item's own notification (e.g. `OrderPlaced`, spec 06).
 - EC-2 The buyer pays, then the gig is edited or its price changes: the order keeps the price in its quote (spec 06).
@@ -272,6 +315,10 @@ NEW keys (English first, Georgian alongside, Q-058):
 - EC-8 Bank transfer is switched OFF while orders are awaiting a transfer: staff can still confirm or reject them (00 EC-1).
 - EC-9 A staff member posts the same adjustment twice by double click: the idempotency key makes it one journal (R-P4).
 - EC-10 A migrated legacy BOG payment that was never marked paid: imported as history only; no money effect in the new platform.
+- EC-11 (PROPOSED P-135) The worker is down at the S-128 time: when it is running again, it runs every run day that has no completed run yet, oldest first, each with its own result and its own EV-32 (AC-46).
+- EC-12 (PROPOSED P-135) S-128 is changed: the next run uses the new time; a run day is never run twice and never skipped (AC-44, EC-11).
+- EC-13 (PROPOSED P-135) The same broken balance persists for several days: each run lists it again and each such run sends its own EV-32; marking it reviewed (AC-47) does not silence later runs. Fixing it is a staff adjustment (AC-41) or a developer correction journal, never an edit by the reconciliation job.
+- EC-14 (PROPOSED P-135) A card payment is verified just after midnight for a BOG payment made before midnight: it belongs to the run day of its verification time (C-7, C-8); if the BOG settlement report (C-9) puts it on the other day, that difference is listed like any other and staff can mark it reviewed.
 
 ## Legacy defects not carried over
 | # | Legacy defect | Evidence | Prevented by |
@@ -309,3 +356,6 @@ No new questions for `open-questions.md`. Proposed items for Owner approval:
 - **P-43 Top-up confirmation.** The user gets an in-app (and push) notification when a top-up is credited. Legacy sent nothing and redirected to the home page.
 - **P-44 Balance figures.** Net income = money released to the user as a freelancer (from the ledger) plus the migrated legacy `balance_net` value (a column legacy only changed by admin edit). Used for purchases = what the user paid for gig orders, project payments and custom offers, card fee excluded, refunds not deducted (legacy meaning). Transactions replace the legacy deposit history with one list of every movement.
 - **P-45 Deleting the renewal card.** Deleting the saved card used for Premium auto-renewal shows a warning; after deletion the plan does not renew and ends on its end date (legacy: the renewal would fail and cancel the plan silently).
+
+Added after approval (2026-09-29, parity gap G-1) — **PROPOSED, awaiting Owner sign-off at the Phase 2 gate:**
+- **P-135 Nightly money check.** Every night at 03:00 Georgian time (new admin setting **S-128 `ledger.reconciliation.run_time`**, register row added to spec 00 as PROPOSED) the system checks the previous day's books: every journal balances, every balance equals its entries, the books total 0, closed escrows are 0, users' Withdrawn / Used for purchases / Net income figures match, withdrawals payable match open withdrawal requests, each verified card payment matches its ledger entry, the day's card payments match BOG clearing, and, once BOG settlement reports are available, match those too. Any gap, even 1 tetri, is a difference. The check never changes money. If there is at least one difference, the admin recipients get one email per run with the count (EV-32); if the run fails, they get the system alert (EV-125). Staff with `payments.read` see every run and difference in Money → Reconciliation and can mark a difference "reviewed" with a note; it is reported again the next night while the cause remains. Missed nights are caught up, oldest first. (Legacy had no reconciliation; this makes ADR-003 §10 testable.)

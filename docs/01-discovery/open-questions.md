@@ -111,6 +111,8 @@ Agents add questions here. The Owner answers directly under each one and changes
 | Q-106 | On dark and teal backgrounds the wordmark's dark-teal letters disappear, so the preview puts it on a light plate. Is there a vector master (SVG/AI/PDF) of the logo, so a white/dark-mode wordmark can be made? | ui-ux-designer (P2-C3) | answered |
 | Q-107 | Some component widths are fixed numbers in components.md but not tokens yet (tooltip 280, menu ~320, Buying/Selling switcher 400, empty state 480, drawer 320). Add them as size tokens at the start of Phase 3? | ui-ux-designer (P2-C3) | answered |
 | Q-108 | The "old" side of the preview comparisons is an HTML reconstruction, not screenshots (to avoid real users' photos and names). Will you add live-site screenshots to `docs/05-design/screenshots/` so the designer can check it (also asked in Q-080)? | ui-ux-designer (P2-C3) | answered |
+| Q-109 | Georgian title/description: which characters besides letters and digits? Legacy projects allowed only `- _ . , ! ? ( )`; legacy gigs allowed any character except Latin letters. One list for both (P-136), or keep "no list" for gigs? | product-analyst (G-2) | open |
+| Q-110 | "You may also like": legacy compared against old database columns that newer gigs leave empty, so in practice mostly "same sub-category" was shown. Compare the real titles/descriptions (P-137), or use "same sub-category" only? | product-analyst (G-3) | open |
 
 ## Answers
 Owner answers received 2026-09-28 (given in one batch in the chat, recorded here verbatim in substance). "Admin-configurable" means the value is editable in the new Admin Panel, never hard-coded. Items marked NEW are new requirements, not legacy behaviour.
@@ -592,3 +594,27 @@ Recommendation: Yes, add them in Phase 3.
 The "old" side of the preview comparisons is an HTML reconstruction, not screenshots (to avoid real users' photos and names). Will you add live-site screenshots to `docs/05-design/screenshots/` so the designer can check it (also asked in Q-080)?
 Recommendation: Optional; screenshots would let the designer verify the reconstruction.
 **Answer (Owner, 2026-09-29):** Recommendation accepted. Screenshots are optional; if the Owner adds them to `docs/05-design/screenshots/`, the designer checks the reconstruction against them.
+
+## Parity gap questions (product-analyst, G-1…G-3, 2026-09-29) — open
+Raised while closing parity gaps G-2 and G-3 (`docs/06-qa/plans/00-parity-master.md` §10). Each has a testable default written into the specs as a PROPOSED item, so no slice is blocked; the Owner's answer confirms or replaces it.
+
+### Q-109
+Georgian title and description of gigs and projects: which characters are allowed besides Georgian letters, Latin letters and digits?
+Evidence (legacy disagrees with itself):
+- Projects: only Georgian letters, digits, whitespace and `- _ . , ! ? ( )` (`legacy/APP/app/Http/Validators/Main/Post/ProjectValidator.php:38, 42`; BR-051). The English project fields had the same list with Latin letters (`:36, 40`).
+- Gigs: no character list. `legacy/APP/app/Rules/GeorgianTextOnly.php:9-25` (used by `Create/OverviewValidator.php:49, 61`) only required one Georgian letter and no Latin letter, so `: ; " ' / % + & ₾ №`, dashes, quotes and emoji were all accepted.
+- Q-022 allowed Latin letters but did not decide punctuation.
+Options:
+(a) One list for gigs and projects: Georgian + Latin letters, digits, whitespace and `- _ . , ! ? ( )` (spec 00 R-5.3a as written, P-136). Simple and identical on web, mobile and API; gig owners lose characters they could use before (e.g. `ფასი: 50₾` is refused), and migrated gig descriptions containing them must be cleaned at the next edit.
+(b) As (a) for titles; descriptions of gigs and projects accept any printable character (no list).
+(c) Keep legacy per feature: projects use the list in (a); gigs have no list.
+Sub-question: English project fields — keep the approved gig rule (no Georgian letters, no list; spec 10 AC-3/AC-4) or return to the legacy project list?
+Recommendation: (a), with the English project fields as approved (no list). It is the only explicit list in legacy and matches how Q-022 was put to you ("limited punctuation").
+
+### Q-110
+"You may also like" on the gig page: how is "similar" decided?
+Evidence: legacy (`legacy/APP/app/Livewire/Main/Service/ServiceComponent.php:136-162`) shows up to 40 random active gigs that are in the same sub-category **or** whose title contains this gig's title, or whose description contains this gig's title or whole description. But it compares against the old `gigs.title`/`gigs.description` columns. Since gig texts moved to `gig_translations` (migrations `2024_02_03_200258`, `2024_03_31_161355`), new gigs save their texts only there (`Create/CreateComponent.php:741-745`), so for them the old columns are empty and in practice only "same sub-category" matches. Without the production database (Q-003/Q-049) we cannot tell how many older gigs still have the old columns.
+Options:
+(a) Apply the legacy rule to the real texts in the page language, with the Georgian fallback (spec 04 AC-32 as written, P-137).
+(b) "Same sub-category" only (what most newer gigs effectively got).
+Recommendation: (a). It is what the legacy code was written to do, and it only adds matches on top of (b).

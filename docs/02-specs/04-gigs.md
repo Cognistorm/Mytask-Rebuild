@@ -3,7 +3,7 @@ Status: **approved** (Owner 2026-09-28; P-14…P-37 accepted)
 Author: product-analyst (P2-A2) | Date: 2026-09-28
 Legacy reference: `docs/01-discovery/features.md` BR-020…BR-024, BR-013, BR-036; `routes-and-pages.md` (`/create`, `/post/service`, `/seller/gigs/*`, `/service/{slug}`, `/account/favorite`); `notifications.md` (gig rows); `data-model.md` (gigs and children); `docs/05-design/audit.md` §3.4. Owner decisions: Q-013, Q-021, Q-022, Q-023, Q-045, Q-055, Q-056, Q-061, Q-068, Q-069. Platform rules: `00-platform-rules.md` (§2 plans, R-2.3…R-2.5, R-5.2…R-5.5, R-5.9; settings S-001, S-002, S-041, S-070, S-077…S-083, S-100; P-1).
 
-Tags: **LEGACY**, **CHANGE** (Q-ID), **NEW** (Q-ID), **PROPOSED** (P-32…P-37, see "Open questions").
+Tags: **LEGACY**, **CHANGE** (Q-ID), **NEW** (Q-ID), **PROPOSED** (P-32…P-37, see "Open questions"). **P-136** (AC-5, EC-12) and **P-137** (AC-32, EC-13) were added after approval on 2026-09-29 to close parity gaps G-2 and G-3 and await Owner sign-off at the Phase 2 gate.
 
 Legacy code traced for this spec (read-only). Discovery only surveyed the wizard; these are the actual rules:
 - **Create wizard** `/create`: `legacy/APP/app/Livewire/Main/Create/CreateComponent.php` with view `resources/views/livewire/main/create/create.blade.php`. It is **one page** with four blocks: Overview (title ka/en, category → sub-category → child category, description ka/en), Pricing (price, delivery time), Gallery (thumbnail, images, documents), and an "SEO meta tags" modal (`create.blade.php:76-352`). Save: `create()` `:652-863`.
@@ -44,7 +44,7 @@ Let every user publish gigs ("I will design a logo") through a simple wizard, wi
 
 ### Wizard content — Overview
 - AC-4 Given the Overview block, When the user fills it, Then these fields exist: Georgian title (required, 3–100 chars), English title (optional, 3–100), category, sub-category and child category (all required; each list shows only children of the level above and resets the lower levels when a higher one changes), Georgian description (required, ≥ 10 chars, formatted text: bold, italic, lists, line breaks) and English description (optional, ≥ 10). (LEGACY BR-020)
-- AC-5 Given a Georgian title such as `Logo დიზაინი Photoshop-ში`, When it is saved, Then it is accepted: Latin letters, digits and normal punctuation are allowed next to Georgian. A Georgian field with no Georgian letter at all (for example `Logo design`) is refused with `t_validator_georgian_letter_required`. (CHANGE Q-022, R-5.3; "at least one Georgian letter" ACCEPTED P-37)
+- AC-5 Given a Georgian title such as `Logo დიზაინი Photoshop-ში`, When it is saved, Then it is accepted: Latin letters, digits and normal punctuation are allowed next to Georgian. A Georgian field with no Georgian letter at all (for example `Logo design`) is refused with `t_validator_georgian_letter_required`. (CHANGE Q-022, R-5.3; "at least one Georgian letter" ACCEPTED P-37) "Normal punctuation" is exactly the character set of spec 00 R-5.3a, applied to the Georgian title and the Georgian description (after removing formatting): Georgian letters ა–ჰ, Latin letters a–z/A–Z, digits 0–9, whitespace and `- _ . , ! ? ( )`. Any other character (for example `ფასი: 50₾`) is refused with `t_validator_georgian_field_characters` naming the refused characters (`:`, `₾`). (**PROPOSED P-136**, added 2026-09-29 for parity gap G-2; CHANGE for gigs, legacy `GeorgianTextOnly.php:9-25` had no character list; scope Q-109)
 - AC-6 Given an English title or description that contains a Georgian letter, or no Latin letter, When it is saved, Then it is refused with `t_validator_english_only`. (LEGACY R-5.4, `EnglishTextOnly.php`)
 - AC-7 Given the wizard, When it opens, Then a language notice says that English is optional and that, without it, English visitors see the Georgian text (`t_english_fields_optional_notice_v2`). (CHANGE Q-023: the legacy notice said the gig would not appear in English)
 
@@ -83,7 +83,17 @@ Let every user publish gigs ("I will design a logo") through a simple wizard, wi
 - AC-29 Given the seller has set "unavailable until" (spec 02), or is restricted, When a buyer presses "Add to cart", Then it is refused with `t_seller_wont_be_able_to_receive_orders_date` (with the date when known), and the page shows the notice. (LEGACY `:314-326`; restricted owner ACCEPTED with spec 03 P-29)
 - AC-30 Given the viewer owns the gig, When they press "Add to cart", Then it is refused with `t_u_cant_add_ur_own_gigs_to_shopping_cart`. The owner sees "Edit gig" instead of the favourite button. (LEGACY; 00 R-1.3)
 - AC-31 Given "Contact seller", When a logged-in user presses it, Then the chat with the seller opens (spec 08). Guests go to login. (LEGACY; chat not Premium-gated, Q-069)
-- AC-32 Given "You may also like", When the page loads, Then up to 40 other listable gigs from the same sub-category or with a similar title are shown as a carousel in random order (no Premium boost). (LEGACY `:136-162`)
+- AC-32 Given "You may also like", When the page loads, Then up to 40 other listable gigs from the same sub-category or with a similar title are shown as a carousel in random order (no Premium boost). (LEGACY `:136-162`) "Similar title" and the selection are exactly as follows (**PROPOSED P-137**, added 2026-09-29 for parity gap G-3; comparison texts Q-110):
+  - **Candidates**: every gig other than the viewed one (`legacy/APP/app/Livewire/Main/Service/ServiceComponent.php:146`) that is active (`:147`, `Gig::scopeActive`, `legacy/APP/app/Models/Gig.php:75-78`; legacy "featured/boosted/trending" statuses do not exist in the new platform), not deleted (legacy soft delete), and whose owner is listable (spec 03 P-29). Gigs of the same seller are not excluded (legacy has no such filter).
+  - **Match** — a candidate is shown if at least one of these is true (`:139-145`, all joined by OR, no weighting):
+    - M1 it is in the same sub-category as the viewed gig (`:144`);
+    - M2 its title contains the viewed gig's whole title (`:140`);
+    - M3 its description contains the viewed gig's whole title (`:141`, repeated at `:143`);
+    - M4 its description contains the viewed gig's whole description (`:142`).
+    "Contains" = substring match, ignoring letter case (legacy MySQL `LIKE '%…%'` with collation `utf8mb4_unicode_ci`, `legacy/APP/config/database.php:56`); descriptions are compared as plain text without formatting. `%` and `_` in a title are matched as ordinary characters (legacy passed them unescaped, so they acted as wildcards: CHANGE, defect fix). The texts compared are those of the page language: the Georgian title/description on Georgian pages; on `/en/` pages the English text, or the Georgian text where the English one is missing (R-5.5) — on both the viewed gig and the candidates.
+  - **English pages**: legacy showed only gigs that have an English translation (`:150-154`); with the Georgian fallback (Q-023) all candidates are eligible on `/en/` too. (CHANGE Q-023)
+  - **Order and count**: random order, new on every page load (`:156` `RAND()`), at most 40 (`:157`). No Premium boost and no priority between M1…M4.
+  - **Fewer than 40 matches**: all matches are shown; the carousel is not filled with other gigs (LEGACY). **No match**: the whole "You may also like" section is hidden. (CHANGE: legacy rendered the heading with an empty carousel because `@if ($related_gigs)` is always true for a collection, `legacy/APP/resources/views/livewire/main/service/service.blade.php:1263`)
 - AC-33 Given a gig, When its URL is built, Then the slug is the transliterated slug of the Georgian title (≤ 138 chars) + `-` + the gig's unique id (for example `/service/logo-dizaini-a1b2c3…`). The slug changes only when the Georgian title changes; any older slug of the same gig redirects (301) to the current one, found by the unique id at the end. (LEGACY BR-024, R-5.9; stable slug and redirect ACCEPTED P-33)
 - AC-34 Given a gig page view by someone other than the owner, When it loads, Then the gig's visit counter increases and the visit is recorded for analytics (device, browser, OS, referrer, country/city from a local source, no third-party IP lookup). (LEGACY; CHANGE Q-055, X-09)
 
@@ -239,6 +249,7 @@ NEW keys (English first, Georgian alongside, Q-058):
 | `t_reorder_images_hint` | Drag images to change their order. | სურათების რიგის შესაცვლელად გადაათრიეთ ისინი. |
 | `t_subject_admin_gig_reported` | Gig reported | განცხადება გასაჩივრებულია |
 | `t_create_new_gig` | see 02 | see 02 |
+| `t_validator_georgian_field_characters` (**PROPOSED P-136**) | see 00 (R-5.3a) | see 00 |
 
 ## Edge cases
 - EC-1 A Standard user deletes their only gig and creates a new one: allowed (deleted gigs do not count, R-G3).
@@ -252,6 +263,8 @@ NEW keys (English first, Georgian alongside, Q-058):
 - EC-9 The wizard is left half-filled: nothing is saved (LEGACY has no drafts). On mobile, leaving asks for confirmation.
 - EC-10 Reporting a gig that was deleted after the page opened: refused with 404.
 - EC-11 The same user favourites a gig that later becomes pending: it is hidden from the favourites list and returns when it is active again (AC-36).
+- EC-12 (PROPOSED P-136) A migrated gig whose Georgian description contains characters outside R-5.3a (for example `:` or `₾`): it is imported and shown unchanged; when the owner next saves the description, it is refused with `t_validator_georgian_field_characters` until those characters are removed.
+- EC-13 (PROPOSED P-137) A gig is the only one in its sub-category and no other gig's title or description contains its title or description: "You may also like" is hidden (AC-32).
 
 ## Out of scope
 - Cart, checkout, order requirements, delivery, revision counting and auto-release (spec 06). Reviews (spec 07). Chat (spec 08). Custom offers (spec 12). Admin moderation queue and report screens (spec 16). SEO meta/JSON-LD output (spec 17).
@@ -267,3 +280,7 @@ No new questions for `open-questions.md`. Proposed items for Owner approval:
 - **P-35 Plan-limit check on opening and a minimum price.** (a) The wizard checks the gig limit when it opens, so users do not fill it in for nothing (legacy checked only on submit; the server still checks on submit). (b) The price and each upgrade price must be at least 1.00 GEL (legacy accepted 0).
 - **P-36 Admin email for gig reports.** Legacy sends admin emails for reported profiles, projects and bids, but not for gigs. Proposal: add `Admin/GigReported` to the S-100 recipients.
 - **P-37 Georgian field needs Georgian letters.** The Georgian title and description must contain at least one Georgian letter. Latin words, digits and punctuation are allowed alongside (Q-022). This mirrors the English rule, which needs at least one Latin letter, and stops a whole title being written only in Latin letters in the Georgian field.
+
+Added after approval (2026-09-29, parity gaps G-2 and G-3) — **PROPOSED, awaiting Owner sign-off at the Phase 2 gate** (new questions **Q-109**, **Q-110** in `open-questions.md`):
+- **P-136 Exact characters in Georgian fields** (AC-5; defined once in spec 00 R-5.3a). The Georgian title and description accept Georgian letters, Latin letters, digits, spaces/line breaks and `- _ . , ! ? ( )` — the list legacy used for projects. Other characters are refused with a message that names them. Legacy gigs had no such list (anything except Latin letters was accepted), so this is a change for gigs; Q-109 asks whether gigs should keep "no list".
+- **P-137 "You may also like" rule** (AC-32). Same as legacy `ServiceComponent.php:136-162`: other active gigs of listable owners that are in the same sub-category, or whose title or description contains this gig's title, or whose description contains this gig's description; random order, at most 40, no filling up when fewer match. Changes: texts are compared in the page language with the Georgian fallback (legacy compared old database columns that newer gigs leave empty, see Q-110); English pages no longer require an English translation (Q-023); `%` and `_` are no longer wildcards; the section is hidden when nothing matches (legacy showed an empty heading).

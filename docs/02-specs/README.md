@@ -26,6 +26,8 @@ Source of the list: `docs/03-architecture/phase-2-plan.md` §1 (spec list) and �
 | Slice 15 | 16 | Admin panel (admin.mytask.ge): staff accounts, RBAC with 4 default roles, audit log, moderation queues, users, money screens, Commission & Fee UI, settings register UI, plans/promo, catalog, translations, conversations, analytics, logs/health, maintenance, custom code (S-127) | [16-admin-panel.md](16-admin-panel.md) | P2-A5 | approved 2026-09-29 (P-114…P-126 accepted; AC-8 on P-115 default until Q-097) |
 | Slice 16 | 17 | Content and SEO: CMS pages, Terms & Privacy clause, blog + comments, contact, newsletter, home content, `/gita`, meta/OG/JSON-LD, hreflang/canonical/noindex, sitemap index, robots, 301s | [17-content-and-seo.md](17-content-and-seo.md) | P2-A5 | approved 2026-09-29 (P-127…P-134 accepted) |
 
+Pending after approval (2026-09-29, parity gaps G-1…G-3 from `docs/06-qa/plans/00-parity-master.md` §10): **P-135** (spec 05 AC-44…AC-47 nightly reconciliation; S-128 in 00; references in 15 EV-32/EV-125 and 16 AC-44), **P-136** (00 R-5.3a Georgian-field character set; 04 AC-5, 10 AC-3/AC-4), **P-137** (04 AC-32 "You may also like" rule) are PROPOSED for Owner sign-off at the Phase 2 gate, with open questions Q-109 and Q-110. The approved status of the specs is unchanged.
+
 Notes on order:
 - 00 is the base for every spec and for the platform core built in Phase 3 (settings register, Commission & Fee config, staff RBAC skeleton, notification infrastructure, ledger core).
 - 05 comes before 06 because every escrow flow needs the ledger and BOG.

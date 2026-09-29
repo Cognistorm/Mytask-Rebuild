@@ -142,7 +142,7 @@ One row per event. Legend — **E** email, **I** in-app, **P** push (NEW P-11; o
 | EV-29 | Unapplied payment credited to the wallet | buyer | ✓ | ✓ | ✓ | o | `PaymentCreditedToWallet` `t_payment_credited_to_wallet` | – | **NEW** (P-40) | T | 05 AC-15 |
 | EV-30 | Staff balance adjustment | user | – | ✓ | ✓ | o | `t_balance_adjusted` | – | **NEW** (P-41) | T | 05 AC-41 |
 | EV-31 | Staff points grant or deduction | user | – | ✓ | ✓ | o | `t_points_adjusted` | – | **NEW** (P-41) | T | 05 AC-43; 09 |
-| EV-32 | Nightly ledger/BOG reconciliation finds a difference | S-100 | ✓ | – | – | – | `Admin/ReconciliationDifference` `t_subject_admin_reconciliation_difference` | – | **NEW** (ADR-003 §10) | A | 05 (Notifications) |
+| EV-32 | Nightly ledger/BOG reconciliation run ends with 1 or more differences (once per run, `:count` = differences, `:date` = run day) | S-100 | ✓ | – | – | – | `Admin/ReconciliationDifference` `t_subject_admin_reconciliation_difference` | – | **NEW** (ADR-003 §10) | A | 05 AC-46 (run: AC-44, checks: AC-45, report: AC-47; **PROPOSED P-135**, added 2026-09-29 for gap G-1) |
 
 ### D. Gig orders (spec 06)
 | # | Event | Recipient(s) | E | I | P | SMS | Template / keys | Covers | Status | Cat | Spec |
@@ -275,7 +275,7 @@ One row per event. Legend — **E** email, **I** in-app, **P** push (NEW P-11; o
 | EV-122 | Maintenance mode switched ON (S-121) | S-100 | ✓ | – | – | – | `Admin/SiteIsDown` `t_hi_admin`, body `t_admin_maintenance_on_body` | E-18 | kept (CHANGE: no secret, P-112) | A | 15 AC-37; 16 AC-70 |
 | EV-123 | Staff account created | staff member | ✓ | – | – | – | `StaffInvitation` `t_subject_staff_invitation` | – | **NEW** (ACCEPTED P-111) | S | 16 AC-3 |
 | EV-124 | Critical setting changed (any fee rule, S-100, S-110, S-127, S-033, S-025, S-056/S-060, social-login keys) | S-100 (old and new list when S-100 changes) | ✓ | – | – | – | `Admin/CriticalSettingChanged` `t_subject_admin_critical_setting_changed` | – | **NEW** (ACCEPTED P-111) | A | 16 AC-55, AC-56 |
-| EV-125 | Timer job stuck for 15 minutes, or email failure rate above 20% in an hour | S-100 | ✓ | – | – | – | `Admin/SystemAlert` `t_subject_admin_system_alert` | – | **NEW** (ACCEPTED P-111) | A | 15 AC-39; 16 AC-69 |
+| EV-125 | Timer job stuck for 15 minutes, or email failure rate above 20% in an hour; also a failed nightly reconciliation run, at most once per run day (**PROPOSED P-135**, added 2026-09-29) | S-100 | ✓ | – | – | – | `Admin/SystemAlert` `t_subject_admin_system_alert` | – | **NEW** (ACCEPTED P-111) | A | 15 AC-39; 16 AC-69; 05 AC-46 (P-135) |
 
 Rule for push (P-11): push accompanies the in-app notification of the same event **only where the trigger spec lists push**; this matrix copies the trigger specs (EV-108 and EV-114 have no push because specs 13 and 14 list none).
 
@@ -579,3 +579,5 @@ No new questions for `open-questions.md`. Proposed items for Owner approval:
 - **P-111 NEW staff/system emails.** (a) Invitation email for new staff accounts with a 48-hour set-password link. (b) "Critical setting changed" email to all admin addresses when a fee rule, the admin recipient list (sent to the old and the new list), custom code, allowed script hosts, payout provider, auto-release or 2FA switches, or social-login keys change. (c) System alert when a timer job (auto-release, award expiry, refund auto-reject, renewal, reminders, offer expiry) has not succeeded for 15 minutes, or when more than 20% of emails fail within an hour; at most once per problem per hour.
 - **P-112 Maintenance email.** Keep `SiteIsDown`, but say who switched maintenance on and when, without the secret bypass link (staff can preview the public site from their admin session).
 - **P-113 Legacy items without an earlier decision.** The dead `Welcome` email is not built (it was never sent). The two "send an email" mailables (to a user, to a newsletter subscriber) become one `StaffEmail` template. The SMTP test becomes "Send test email", which tests the SendGrid configuration from `.env`.
+
+Added after approval (2026-09-29, parity gap G-1) — **PROPOSED, awaiting Owner sign-off:** **P-135** (defined in spec 05) gives EV-32 its owning AC (05 AC-46: one email per run with 1 or more differences, with the count and the day) and adds one trigger to EV-125 (a failed reconciliation run, at most once per run day). No new templates or keys in this spec.
