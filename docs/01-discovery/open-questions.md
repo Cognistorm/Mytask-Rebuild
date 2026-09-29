@@ -107,6 +107,10 @@ Agents add questions here. The Owner answers directly under each one and changes
 | Q-102 | Social login keys: re-enter them in the new admin panel instead of copying them from the legacy database? | solution-architect (P2-B2/B3) | answered |
 | Q-103 | Confirm the SEO choices: `/search` pages are noindex; English pages that fall back to Georgian have the Georgian page as canonical (noindex until English text exists); `/ka/gita` redirects to `/gita` (important if `/ka/gita` is printed on marketing material or QR codes). | solution-architect (P2-B2/B3) | answered |
 | Q-104 | Old usernames: add a 301 from an old username to the new profile URL when a user changes their username? (Not a blocker.) | solution-architect (P2-B2/B3) | deferred |
+| Q-105 | The gig and project pages label their action menu "აქციები" (`t_actions`), which in Georgian reads like "promotions". Keep the legacy text, or change the Georgian value to "მოქმედებები"? | ui-ux-designer (P2-C3) | open |
+| Q-106 | On dark and teal backgrounds the wordmark's dark-teal letters disappear, so the preview puts it on a light plate. Is there a vector master (SVG/AI/PDF) of the logo, so a white/dark-mode wordmark can be made? | ui-ux-designer (P2-C3) | open |
+| Q-107 | Some component widths are fixed numbers in components.md but not tokens yet (tooltip 280, menu ~320, Buying/Selling switcher 400, empty state 480, drawer 320). Add them as size tokens at the start of Phase 3? | ui-ux-designer (P2-C3) | open |
+| Q-108 | The "old" side of the preview comparisons is an HTML reconstruction, not screenshots (to avoid real users' photos and names). Will you add live-site screenshots to `docs/05-design/screenshots/` so the designer can check it (also asked in Q-080)? | ui-ux-designer (P2-C3) | open |
 
 ## Answers
 Owner answers received 2026-09-28 (given in one batch in the chat, recorded here verbatim in substance). "Admin-configurable" means the value is editable in the new Admin Panel, never hard-coded. Items marked NEW are new requirements, not legacy behaviour.
@@ -565,3 +569,26 @@ Recommendation: No recommendation given; please confirm or change.
 Old usernames: add a 301 from an old username to the new profile URL when a user changes their username? (Not a blocker.)
 Recommendation: No recommendation given; not a blocker.
 **Status (2026-09-29):** deferred. No recommendation existed and it is not a blocker; revisit in spec 02 / slice 1.
+
+## Design preview questions (ui-ux-designer, P2-C3, 2026-09-29) — open
+Copied by the main session from docs/handoffs/2026-09-29-ui-ux-designer-to-orchestrator-p2-c3.md. See docs/05-design/preview/index.html.
+
+### Q-105
+The gig and project pages label their action menu "აქციები" (`t_actions`), which in Georgian reads like "promotions". Keep the legacy text, or change the Georgian value to "მოქმედებები"?
+Recommendation: Change to "მოქმედებები" (the preview keeps the legacy text until you decide).
+**Answer:**
+
+### Q-106
+On dark and teal backgrounds the wordmark's dark-teal letters disappear, so the preview puts it on a light plate. Is there a vector master (SVG/AI/PDF) of the logo, so a white/dark-mode wordmark can be made?
+Recommendation: Please provide one if it exists; otherwise keep the light plate.
+**Answer:**
+
+### Q-107
+Some component widths are fixed numbers in components.md but not tokens yet (tooltip 280, menu ~320, Buying/Selling switcher 400, empty state 480, drawer 320). Add them as size tokens at the start of Phase 3?
+Recommendation: Yes, add them in Phase 3.
+**Answer:**
+
+### Q-108
+The "old" side of the preview comparisons is an HTML reconstruction, not screenshots (to avoid real users' photos and names). Will you add live-site screenshots to `docs/05-design/screenshots/` so the designer can check it (also asked in Q-080)?
+Recommendation: Optional; screenshots would let the designer verify the reconstruction.
+**Answer:**

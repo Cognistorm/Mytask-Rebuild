@@ -197,8 +197,8 @@ Canonical icon names (one icon per meaning, so web and mobile match):
 
 ### 5.3 PriceInput and QuantityInput
 - **PriceInput:** Input with a `₾` prefix, `inputmode="decimal"`, accepts `,` or `.` and normalises to 2 decimals on blur (spec 04 AC-8 format `^\d+(\.\d{1,2})?$`); value handed to the API in tetri by the app, not by the component. Shows a read-only "You will receive" companion field when needed (proposal form, spec 11).
-- **QuantityInput:** − / value / + with IconButtons (44 hit area each), min/max (gig quantity 1–10, spec 04 AC-26), typed input allowed, `role="spinbutton"` semantics on the value.
-- **Used by:** gig wizard pricing/upgrades (04), purchase box (04), proposal (11), withdrawals (14), top-up (05).
+- **QuantityInput:** − / value / + with IconButtons (44 hit area each), min/max, typed input allowed, `role="spinbutton"` semantics on the value. **Not used on the gig page or in the cart at launch:** quantity is always 1 (spec 06 P-46, spec 04 AC-26 as revised). Kept in the library only for a future use; do not build it in Phase 3 unless a spec asks for it. (Updated in P2-C3, 2026-09-29.)
+- **Used by:** gig wizard pricing/upgrades (04), proposal (11), withdrawals (14), top-up (05).
 
 ### 5.4 Textarea
 - As Input, min height 120 (4 lines), auto-grows up to 320 then scrolls; Counter optional (contact message 0/2500, FAQ answer ≤ 300, spec 04). Native: `multiline` with `textAlignVertical="top"`.
@@ -331,7 +331,7 @@ Canonical icon names (one icon per meaning, so web and mobile match):
 - **Keep (audit §3.9/3.10):** fixed 240 px left sidebar (logo, nav), top bar 64 (hamburger on mobile, RoleSwitcher centre, AccountMenu right), role badge on top of the nav.
 - **SidebarNav items:** icon 20 + label (`text.bodySm` 500), height 44, radius `control`; active = `bg.selected` + `text.brand` + 3 px left indicator `border.brand` + `aria-current="page"` (legacy used colour only); count badges (new orders, unread) on the right. Groups with headings (`text.caption` `text.muted`, not uppercase).
 - **Buying nav:** Projects, Orders ("შეძენილი სერვისები"), Personal offers, My reviews, Refunds, Favourites. **Selling nav:** Home, Orders, Gigs, Projects (awarded / proposals), Offers, Reviews, Refunds, Unblock requests, Portfolio, Withdrawals. (Labels from legacy; one source of truth for mobile and desktop, fixing the duplicated sidebars that already differ.)
-- **Role badge:** Badge `role` variant ("მყიდველის პანელი" / "ფრილანსერის პანელი"), fixing the `bg-cpx-2` typo.
+- **Role badge:** Badge `role` variant with the **legacy texts** `t_buyer_dashboard` "დამკვეთის პროფილი" / "Buyer dashboard" and `t_seller_dashboard` "ფრილანსერის პროფილი" / "Seller dashboard" (`legacy/APP/lang/ka/messages.php`), fixing the `bg-cpx-2` typo. Sidebar labels also use the legacy keys (e.g. `t_portfolio` "ჩემი ნამუშევრები", `t_withdrawals` "განაღდება", `t_offers` "მორგებული შეთავაზებები", `t_unblock_money_requests` "ფულის განბლოკვის მოთხოვნები"). (Corrected in P2-C3: the earlier draft invented new Georgian labels.)
 - **Mobile web:** sidebar inside a left NavDrawer. **Native:** the Account tab shows the RoleSwitcher and the nav items as a grouped list (spec 02 "each dashboard is a list of sections").
 - **Used by:** all `/account/*` and `/seller/*` screens (02, 04 My gigs, 06, 10–14).
 
@@ -573,7 +573,7 @@ Canonical icon names (one icon per meaning, so web and mobile match):
 | 11 | Field (Label, HelpText, ErrorText, Counter, ErrorSummary) | Forms | yes | yes | 01–04 |
 | 12 | Input / PasswordInput | Forms | yes | yes | 01–04 |
 | 13 | PriceInput | Forms | yes | yes | 04, 05, 11, 14 |
-| 14 | QuantityInput | Forms | yes | yes | 04 |
+| 14 | QuantityInput | Forms | reserved | reserved | none at launch (P-46) |
 | 15 | Textarea | Forms | yes | yes | 01, 02, 04, 11 |
 | 16 | RichTextEditor | Forms | yes | simplified | 04, 10, 17 |
 | 17 | Select / Combobox / MultiSelect | Forms | yes | sheet | 02, 03, 04 |
