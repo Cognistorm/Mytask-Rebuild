@@ -1,0 +1,206 @@
+/* Auth screens: design tokens only (CLAUDE.md). Layout keeps the live centred panel (audit §3.8). */
+.auth-page {
+  min-height: 100dvh;
+  display: grid;
+  place-items: start center;
+  padding: var(--mt-space-8) var(--mt-space-4);
+  background: var(--mt-bg-canvas);
+}
+
+.auth-card {
+  width: 100%;
+  max-width: calc(var(--mt-space-24) * 4.5);
+  background: var(--mt-bg-surface);
+  border: var(--mt-border-width-hairline) solid var(--mt-border-default);
+  border-radius: var(--mt-radius-card);
+  padding: var(--mt-space-8) var(--mt-space-6);
+  display: grid;
+  gap: var(--mt-space-4);
+}
+
+.auth-logo {
+  height: var(--mt-space-8);
+  width: auto;
+}
+
+.auth-muted {
+  color: var(--mt-text-secondary);
+  margin: 0;
+}
+
+.auth-card form {
+  display: grid;
+  gap: var(--mt-space-4);
+}
+
+.auth-field {
+  display: grid;
+  gap: var(--mt-space-1);
+}
+
+.auth-field label {
+  font-weight: var(--mt-font-weight-medium);
+  font-size: var(--mt-font-size-sm);
+}
+
+.auth-input-wrap {
+  position: relative;
+}
+
+.auth-field input {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  font-size: var(--mt-font-size-md);
+  padding: var(--mt-space-3);
+  border: var(--mt-border-width-hairline) solid var(--mt-border-strong);
+  border-radius: var(--mt-radius-control);
+  background: var(--mt-bg-surface);
+  color: var(--mt-text-primary);
+}
+
+.auth-field input:focus-visible,
+.auth-code input:focus-visible,
+.auth-button:focus-visible,
+.auth-link-button:focus-visible {
+  outline: var(--mt-border-width-strong) solid var(--mt-border-brand);
+  outline-offset: var(--mt-space-0-5);
+}
+
+.auth-field input[aria-invalid='true'] {
+  border-color: var(--mt-border-danger);
+}
+
+.auth-eye {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: var(--mt-space-2);
+  background: none;
+  border: 0;
+  color: var(--mt-text-secondary);
+  cursor: pointer;
+}
+
+.auth-error {
+  color: var(--mt-text-danger);
+  font-size: var(--mt-font-size-sm);
+  margin: 0;
+}
+
+.auth-button {
+  font: inherit;
+  font-weight: var(--mt-font-weight-semibold);
+  padding: var(--mt-space-3);
+  border: 0;
+  border-radius: var(--mt-radius-control);
+  background: var(--mt-action-primary);
+  color: var(--mt-action-on-primary);
+  cursor: pointer;
+}
+
+.auth-button:hover {
+  background: var(--mt-action-primary-hover);
+}
+
+.auth-button[disabled] {
+  background: var(--mt-action-disabled);
+  color: var(--mt-action-on-disabled);
+  cursor: progress;
+}
+
+.auth-link-button {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--mt-text-link);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.auth-link-button[disabled] {
+  color: var(--mt-text-disabled);
+  cursor: default;
+}
+
+.auth-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--mt-space-2);
+  flex-wrap: wrap;
+}
+
+.auth-check {
+  display: flex;
+  gap: var(--mt-space-2);
+  align-items: flex-start;
+}
+
+.auth-alert {
+  padding: var(--mt-space-3);
+  border-radius: var(--mt-radius-control);
+  border: var(--mt-border-width-hairline) solid;
+}
+
+.auth-alert-error {
+  background: var(--mt-feedback-danger-bg);
+  color: var(--mt-feedback-danger-text);
+  border-color: var(--mt-feedback-danger-border);
+}
+
+.auth-alert-success {
+  background: var(--mt-feedback-success-bg);
+  color: var(--mt-feedback-success-text);
+  border-color: var(--mt-feedback-success-border);
+}
+
+.auth-alert-info {
+  background: var(--mt-feedback-info-bg);
+  color: var(--mt-feedback-info-text);
+  border-color: var(--mt-feedback-info-border);
+}
+
+.auth-code {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: var(--mt-space-2);
+}
+
+.auth-code input {
+  text-align: center;
+  font-size: var(--mt-font-size-2xl);
+  font-variant-numeric: tabular-nums;
+  padding: var(--mt-space-3) 0;
+  border: var(--mt-border-width-hairline) solid var(--mt-border-strong);
+  border-radius: var(--mt-radius-control);
+  min-width: 0;
+}
+
+.auth-footer {
+  text-align: center;
+  color: var(--mt-text-secondary);
+}
+
+.auth-footer a,
+.auth-card a {
+  color: var(--mt-text-link);
+}
+
+.account-list {
+  display: grid;
+  gap: var(--mt-space-2);
+  margin: 0;
+}
+
+.account-list dt {
+  color: var(--mt-text-secondary);
+  font-size: var(--mt-font-size-sm);
+}
+
+.account-list dd {
+  margin: 0 0 var(--mt-space-2);
+}

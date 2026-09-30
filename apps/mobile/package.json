@@ -23,6 +23,7 @@
     "expo-font": "~57.0.4",
     "expo-linking": "~57.0.11",
     "expo-router": "~57.0.24",
+    "expo-secure-store": "~57.0.4",
     "expo-status-bar": "~57.0.1",
     "i18next": "26.4.2",
     "react": "19.2.3",
@@ -36,6 +37,7 @@
   "devDependencies": {
     "@mytask/config": "workspace:*",
     "@react-native/metro-config": "0.86.3",
+    "@types/node": "24.19.0",
     "@types/react": "19.2.18",
     "eslint": "10.11.0",
     "typescript": "5.9.3"

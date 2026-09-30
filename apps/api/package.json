@@ -5,7 +5,7 @@
   "description": "MyTask.ge API: NestJS HTTP + realtime (main.ts) and worker (worker.ts). All business logic lives here (architecture §1).",
   "scripts": {
     "build": "prisma generate && nest build",
-    "dev": "prisma generate && nest start --watch",
+    "dev": "prisma generate && concurrently -k -n api,worker \"nest start --watch --preserveWatchOutput\" \"node scripts/dev-worker.mjs\"",
     "dev:worker": "nest start --watch --entryFile worker",
     "start": "node dist/main.js",
     "start:worker": "node dist/worker.js",

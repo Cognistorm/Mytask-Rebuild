@@ -48,34 +48,41 @@ export class OutboxDispatcher implements OnApplicationBootstrap, OnApplicationSh
     if (this.running) return 0;
     this.running = true;
     try {
-      return await this.prisma.$transaction(async (tx) => {
-        const rows = await tx.$queryRaw<
-          { id: bigint; event_type: string; payload: EmailPayload }[]
-        >`
-          SELECT id, event_type, payload FROM outbox_events
+      // 1) Claim a batch in a SHORT transaction (never hold a transaction while talking to SMTP).
+      const rows = await this.prisma.$queryRaw<
+        { id: bigint; event_type: string; payload: EmailPayload }[]
+      >`
+        UPDATE outbox_events SET dispatched_at = now()
+        WHERE id IN (
+          SELECT id FROM outbox_events
           WHERE dispatched_at IS NULL AND attempts < ${MAX_ATTEMPTS}
-          ORDER BY id LIMIT ${BATCH} FOR UPDATE SKIP LOCKED`;
-        let sent = 0;
-        for (const row of rows) {
-          try {
-            await this.deliver(row.event_type, row.payload);
-            const scrubbed = { ...row.payload, params: this.scrub(row.payload.params) };
-            await tx.outboxEvent.update({
-              where: { id: row.id },
-              data: { dispatchedAt: new Date(), payload: scrubbed as never },
-            });
-            sent++;
-          } catch (err) {
-            this.logger.warn({ err, event: row.event_type, id: String(row.id) }, 'delivery failed');
-            await tx.outboxEvent.update({
-              where: { id: row.id },
-              data: { attempts: { increment: 1 } },
-            });
-          }
+          ORDER BY id LIMIT ${BATCH} FOR UPDATE SKIP LOCKED)
+        RETURNING id, event_type, payload`;
+      // 2) Deliver outside any transaction; release the row again when delivery fails (retried later).
+      let sent = 0;
+      for (const row of rows.sort((a, b) => Number(a.id - b.id))) {
+        try {
+          await this.deliver(row.event_type, row.payload);
+          const scrubbed = { ...row.payload, params: this.scrub(row.payload.params) };
+          await this.prisma.outboxEvent.update({
+            where: { id: row.id },
+            data: { payload: scrubbed as never },
+          });
+          sent++;
+        } catch (err) {
+          this.logger.warn({ err, event: row.event_type, id: String(row.id) }, 'delivery failed');
+          await this.prisma.outboxEvent.update({
+            where: { id: row.id },
+            data: { dispatchedAt: null, attempts: { increment: 1 } },
+          });
         }
-        this.lastRunAt = new Date();
-        return sent;
-      });
+      }
+      this.lastRunAt = new Date();
+      return sent;
+    } catch (err) {
+      // Database hiccup: log and try again on the next tick; the worker must not crash.
+      this.logger.error({ err }, 'outbox pass failed');
+      return 0;
     } finally {
       this.running = false;
     }

@@ -27,7 +27,8 @@
     "i18n:import-legacy": "pnpm --filter @mytask/i18n import:legacy",
     "i18n:check": "pnpm --filter @mytask/i18n check",
     "infra:up": "docker compose up -d",
-    "infra:down": "docker compose down"
+    "infra:down": "docker compose down",
+    "preview": "node scripts/preview.mjs"
   },
   "devDependencies": {
     "prettier": "3.9.9",

@@ -84,6 +84,10 @@ Your phone and computer must be on the **same Wi-Fi**.
 4. A QR code appears. iPhone: scan it with the Camera app. Android: scan it inside Expo Go.
 5. The app shows **"API მუშაობს"** when it can reach the API. If it says "API მიუწვდომელია", check the address in step 2 and allow Node.js through the Windows firewall when Windows asks.
 
+## 4b. Quick look without Docker (`pnpm preview`)
+
+If Docker is not installed yet, run `pnpm preview` instead of steps 3A–3C. It starts a built-in test database, the API, the website and the admin panel. Emails (for example the 6-digit login code) are **printed in the same window** instead of being sent. Open http://localhost:3100/auth/register to create an account and http://localhost:3100/auth/login to log in. Data is kept in `apps/api/.pglite` (delete that folder to start fresh). This is for looking around only — never for real data.
+
 ## 5. Run everything in containers (optional, closer to production)
 
 Instead of `pnpm dev`, you can run the built apps behind the same kind of proxy (Caddy) as production:

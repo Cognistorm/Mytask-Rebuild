@@ -1,4 +1,10 @@
+import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
 import type { ExpoConfig } from 'expo/config';
+
+// The monorepo keeps ONE .env at the root (docs/SETUP-LOCAL.md); Expo only reads apps/mobile/.env by itself.
+const rootEnv = resolve(__dirname, '../../.env');
+if (!process.env.EXPO_PUBLIC_API_URL && existsSync(rootEnv)) process.loadEnvFile(rootEnv);
 
 // Store identifiers (ios.bundleIdentifier, android.package) are set in Phase 6 with the Owner: they cannot
 // be changed after the first store release.

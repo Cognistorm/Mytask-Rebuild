@@ -25,7 +25,8 @@ Phase: 3 — Foundation (platform core) **IN PROGRESS** | Phase 3 gate: not read
 ## In progress (agent → task)
 - **Phase 3 plan**: docs/03-architecture/phase-3-plan.md (P3-1…P3-9, gate criteria)
 - **P3-1…P3-7 done on branch `feat/platform-core`, not pushed, awaiting review** (devops, 2026-09-30): pnpm + Turborepo monorepo (TS 5.9 strict, NestJS 11, Prisma 7, Next 16, Expo SDK 57), generated `packages/types` + `packages/api-client` from openapi.yaml, `packages/i18n` (legacy keys imported, IMPORT-REPORT.md), API/web/admin/mobile skeletons calling `getHealth`, docker compose + Caddy + Dockerfiles, CI workflow, docs/SETUP-LOCAL.md. Everything verified locally **except Docker** (not installed on this machine; first run = CI). Handoff: docs/handoffs/2026-09-30-devops-engineer-to-orchestrator-p3-platform-core.md
-- Next: Owner pushes the branch + opens a PR (CI); `/review` (QA + security) of P3-1…P3-7; then P3-8 = `/feature 01-auth.md` incl. ADR-013 §19 client-IP tests; P3-9 S-110 isolation study (architect, Q-146)
+- P3-1…P3-7: pushed; **CI green on all 5 jobs** incl. Docker (after 4 fixes: tokens dist in Docker context, gitleaks note, migrate command, smoke-test line). QA review: FAIL (1 blocker = the Docker context bug, since fixed; 2 major, fixed on `feat/auth`; 11 minor open) — docs/06-qa/reports/P3-platform-core-2026-09-30.md. **Security review of P3 not completed** (review agent hit a usage limit) — must be re-run
+- **P3-8 slice 01 part A (auth core) done on `feat/auth`**, awaiting QA + security: 16 auth operations, web + mobile Login/Register/OTP, 43 API tests + 6 browser tests green; `pnpm preview` runs everything without Docker. Part B (social login, restrictions/appeals, staff login/IP bans) still to do. Handoff: docs/handoffs/2026-09-30-backend-web-mobile-to-qa-security-slice-01a-auth.md
 
 ## Blocked (reason, who must act)
 - none

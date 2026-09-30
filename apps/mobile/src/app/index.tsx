@@ -1,9 +1,11 @@
-// Phase 3 placeholder home: proves tokens, fonts, i18n and the generated API client on a device.
+// Home tab placeholder for slice 01: signed in -> account summary + logout; signed out -> login screen.
+import { Redirect, router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Image, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Text } from 'react-native';
 import { lightTheme as theme } from '@mytask/tokens/native';
-import { mobileApi } from '../lib/api';
+import type { components } from '@mytask/types';
+import { Button, Screen } from '../components/form';
+import { clearSession, loadSession, mobileApi } from '../lib/api';
 import { createT } from '../lib/i18n';
 
 const locale = 'ka' as const;
@@ -11,42 +13,41 @@ const t = createT(locale);
 const api = mobileApi(locale);
 
 export default function Home() {
-  const [apiUp, setApiUp] = useState<boolean | null>(null);
+  const [state, setState] = useState<'loading' | 'signed-out' | components['schemas']['Me']>(
+    'loading',
+  );
 
   useEffect(() => {
-    api
-      .GET('/health', { signal: AbortSignal.timeout(3000) })
-      .then(({ data }) => setApiUp(data?.status === 'ok'))
-      .catch(() => setApiUp(false));
+    void (async () => {
+      if (!(await loadSession())) return setState('signed-out');
+      const res = await api.GET('/me');
+      setState(res.data ?? 'signed-out');
+    })();
   }, []);
 
+  if (state === 'signed-out') return <Redirect href="/login" />;
+  if (state === 'loading') {
+    return (
+      <Screen title={t('t_home')}>
+        <Text accessibilityRole="progressbar">{t('t_ui_loading')}</Text>
+      </Screen>
+    );
+  }
+
+  async function logout() {
+    await api.POST('/auth/logout', { body: {} });
+    await clearSession();
+    router.replace('/login');
+  }
+
+  const line = { ...theme.text.body, color: theme.colors.text.primary };
   return (
-    <SafeAreaView style={styles.screen}>
-      <View style={styles.content}>
-        <Image
-          source={require('../../../../packages/assets/logo/mytask-logo-wordmark-trimmed.png')}
-          style={styles.logo}
-          resizeMode="contain"
-          accessibilityLabel="MyTask.ge"
-        />
-        <Text style={styles.title} accessibilityRole="header">
-          {t('t_home')}
-        </Text>
-        {apiUp !== null && (
-          <Text testID="api-status" style={apiUp ? styles.ok : styles.down}>
-            {t(apiUp ? 't_platform_api_status_ok' : 't_platform_api_status_unreachable')}
-          </Text>
-        )}
-      </View>
-    </SafeAreaView>
+    <Screen title={t('t_account_settings')}>
+      <Text style={line}>{state.fullName}</Text>
+      <Text style={line}>{state.username}</Text>
+      <Text style={line}>{state.email}</Text>
+      <Text style={line}>{t(state.twoFactorEnabled ? 't_2fa_enabled' : 't_2fa_disabled')}</Text>
+      <Button label={t('t_logout')} onPress={logout} />
+    </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: theme.colors.bg.canvas },
-  content: { padding: theme.space[4], gap: theme.space[4] },
-  logo: { height: 40, width: 160 },
-  title: { ...theme.text.h2, color: theme.colors.text.primary },
-  ok: { ...theme.text.body, color: theme.colors.text.success },
-  down: { ...theme.text.body, color: theme.colors.text.danger },
-});
