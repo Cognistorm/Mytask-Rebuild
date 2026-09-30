@@ -6,10 +6,10 @@ Date: 2026-09-28 | Status: accepted (Owner 2026-09-30)
 ## Context
 - Files: gig images/documents/video links, avatars, portfolio images, category/blog images, project thumbnails and shared files, buyer requirement files, delivered work, chat and custom-offer attachments, refund evidence, restriction-appeal files, KYC selfie + ID front/back (Q-048).
 - Legacy: local `public/storage` or S3/Wasabi/Cloudinary chosen in admin (`integrations.md`); KYC images web-accessible by filename (R-039); upload limits in settings (now S-077…S-099, S-037…S-040; delivered-work and appeal types unknown, Q-068).
-- Must run locally (MinIO) and be affordable in production.
+- Must run locally (MinIO at the time; SeaweedFS since ADR-017) and be affordable in production.
 
 ## Decision
-1. **S3 API only.** The API uses the AWS S3 SDK against a configurable endpoint: MinIO locally (docker compose, buckets created by an init container), an S3-compatible provider in production (ADR-015 proposes one with low egress cost, e.g. Cloudflare R2 or Hetzner Object Storage). Credentials and endpoint in `.env`.
+1. **S3 API only.** The API uses the AWS S3 SDK against a configurable endpoint: an S3-compatible server locally — SeaweedFS since ADR-017 (docker compose service `s3`, buckets created by an init container), an S3-compatible provider in production (ADR-015 proposes one with low egress cost, e.g. Cloudflare R2 or Hetzner Object Storage). Credentials and endpoint in `.env`.
 2. **Three buckets.**
    | Bucket | Contents | Access |
    |---|---|---|

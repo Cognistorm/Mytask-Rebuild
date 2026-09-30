@@ -710,10 +710,17 @@ Default in spec 14: (a) 7 days before the request was created; the detail also a
 Recommendation: accept both defaults. If you want the window editable in the admin, it becomes a new register row next to S-129.
 When: slice 14.
 
-## Phase 3 platform-core questions (orchestrator/devops, 2026-09-30) — open
+## Phase 3 platform-core questions (orchestrator/devops, 2026-09-30) — Q-152 answered by Owner 2026-09-30
 
 ### Q-152
 MinIO, the local file storage named in ADR-009/ADR-015, no longer publishes a ready-to-run image, so it cannot be started with `docker compose up`. This only affects your computer (production storage is unchanged). Proposed replacement: SeaweedFS (free, Apache-2.0), with RustFS as the fallback; details and alternatives in `docs/03-architecture/adr/017-local-object-storage-after-minio.md`.
 Options: (a) accept ADR-017 (SeaweedFS locally); (b) RustFS locally; (c) something else.
 Recommendation: (a). The compose file already uses SeaweedFS under the neutral name `s3`, so any answer is a one-line change.
 When: before the files slice (first uploads: slice 02 avatars).
+**Answer (Owner, 2026-09-30): (a) accept ADR-017 — SeaweedFS locally.**
+
+### Q-153
+The mobile app must tell the API its version so that very old app versions can be asked to update (the "update required" screen promised in ADR-014). The contract has no header for this, and no setting holds the minimum version. Proposal in `docs/03-architecture/adr/018-mobile-app-version-header.md`: the app sends `X-MyTask-App-Version`; a new admin setting **S-130 `mobile.min_app_version`** (per platform, default 0.0.0 = gate off) decides; older apps get "update required".
+Options: (a) accept ADR-018 and S-130 as proposed; (b) accept without the admin setting (minimum version changed only by a code release); (c) no version gate.
+Recommendation: (a).
+When: before the mobile app is published (Phase 6); the contract edit can be done any time after approval.

@@ -57,7 +57,7 @@ services:
 
   s3:
     # S3-compatible object storage for local development. MinIO (ADR-009) no longer publishes a server
-    # image; SeaweedFS is the stand-in PROPOSED in ADR-017 (awaiting Owner). Same S3_* variables either way.
+    # image; SeaweedFS replaces it locally (ADR-017, accepted Q-152). Same S3_* variables either way.
     image: chrislusf/seaweedfs:4.48
     entrypoint: ['/bin/sh', '-c']
     command:

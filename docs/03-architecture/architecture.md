@@ -88,7 +88,7 @@ flowchart TB
   subgraph Data["Data (private network)"]
     pg[("PostgreSQL 17<br/>system of record + ledger<br/>+ full-text search")]
     redis[("Redis 7<br/>queues (BullMQ), cache,<br/>rate limits, Socket.IO adapter")]
-    s3[("S3-compatible object storage<br/>MinIO locally<br/>buckets: public-media, private, kyc")]
+    s3[("S3-compatible object storage<br/>SeaweedFS locally (ADR-017)<br/>buckets: public-media, private, kyc")]
   end
 
   subgraph External
@@ -135,7 +135,7 @@ flowchart TB
 | `apps/mobile` | React Native + Expo (Expo Router, EAS Build) (ADR-001) | iOS + Android app with the same flows as the web dashboards and public browsing | Same as web |
 | PostgreSQL | PostgreSQL 17 (ADR-001, ADR-003, ADR-011) | System of record, double-entry ledger, settings versions, full-text search (`pg_trgm`), later `pgvector` for AI | – |
 | Redis | Redis 7 (Valkey-compatible) | Queues, cache (settings, sessions deny-list), rate limits, Socket.IO fan-out | Be a system of record (everything in Redis can be rebuilt) |
-| Object storage | S3 API; MinIO locally (ADR-009) | Files: public media, private deliveries/attachments, KYC | Be publicly listable; private objects are only reachable through short-lived signed URLs |
+| Object storage | S3 API; SeaweedFS locally (ADR-009, ADR-017) | Files: public media, private deliveries/attachments, KYC | Be publicly listable; private objects are only reachable through short-lived signed URLs |
 | Reverse proxy | Caddy 2 (ADR-013) | TLS (automatic certificates), routing, security headers, request size limits; the **only** container with public ports | Serve any directory from the repository |
 
 ---
@@ -237,7 +237,7 @@ The return URL never changes state (fixes R-004). If the callback is lost, the w
 
 | Environment | When | What runs | Payments | Email |
 |---|---|---|---|---|
-| **local** | Phase 3 onward, on the Owner's computer | `docker compose up`: postgres, redis, minio (+ bucket init), mailpit, clamav (profile `scan`, optional because it needs ~1.5 GB RAM), bog-mock. Apps run with `pnpm dev` (hot reload) or as compose services (`--profile apps`). Mobile: Expo Go / dev build pointing at the computer's LAN address | `tools/bog-mock` only. No real BOG credentials locally | Mailpit (http://localhost:8025), nothing leaves the computer |
+| **local** | Phase 3 onward, on the Owner's computer | `docker compose up`: postgres, redis, s3 = SeaweedFS (+ bucket init, ADR-017), mailpit, clamav (profile `scan`, optional because it needs ~1.5 GB RAM), bog-mock. Apps run with `pnpm dev` (hot reload) or as compose services (`--profile apps`). Mobile: Expo Go / dev build pointing at the computer's LAN address | `tools/bog-mock` only. No real BOG credentials locally | Mailpit (http://localhost:8025), nothing leaves the computer |
 | **staging** | Phase 5–6, only after Owner approval | Same compose file on a small VPS, separate database/buckets/keys, `noindex`, basic-auth in front of web and admin | BOG test environment if BOG provides one for the merchant; otherwise real 0.01 GEL tests only with explicit Owner approval (the legacy `staging` practice) | SendGrid sandbox mode or a restricted recipient allowlist |
 | **production** | Phase 6, explicit Owner approval (CLAUDE.md) | Same containers; hosting proposal in ADR-015 (one VPS + managed/external object storage + off-site backups) | BOG live | SendGrid live |
 
@@ -433,7 +433,7 @@ R-031 unscheduled crons → worker sweeper with monitoring (ADR-008). R-032 awar
 | Clean codebase | One language (TypeScript strict), one API, domain modules with explicit boundaries, generated types, tests required per endpoint (CLAUDE.md) |
 | SEO | SSR HTML, stable legacy URL patterns, `/en/` prefix with hreflang/canonical, working sitemap, JSON-LD (spec 17, url-map.md) |
 | Scalability for AI features | Translation rows with `source` + source hash for AI listing translation; chat messages stored with `locale` for later AI chat translation; `pgvector` available in PostgreSQL for semantic search; AI calls go through a worker queue (never from clients) |
-| Runs on the Owner's computer | `docker compose up` + `pnpm dev`; no paid service needed locally (bog-mock, Mailpit, MinIO) |
+| Runs on the Owner's computer | `docker compose up` + `pnpm dev`; no paid service needed locally (bog-mock, Mailpit, SeaweedFS) |
 | Affordable hosting | One VPS runs everything except object storage and email (ADR-015); every component is open source |
 | Mobile app | Same API; Expo push; deep links; offline-tolerant list caching in the app (read-only) |
 
@@ -450,7 +450,7 @@ R-031 unscheduled crons → worker sweeper with monitoring (ADR-008). R-032 awar
 | [006](adr/006-i18n-urls-and-content.md) | Georgian unprefixed, English under `/en/`; shared i18next JSON with DB overrides; per-locale content rows with human/machine provenance; Georgian fallback with `contentLocale` |
 | [007](adr/007-realtime-chat-and-notifications.md) | Self-hosted Socket.IO (writes via REST, UUIDv7 ids), admin read-only chat access with audit; one notification catalogue → in-app, SendGrid email, Expo push, SMS interface; S-100 admin recipients |
 | [008](adr/008-background-jobs-and-timers.md) | Timers are DB deadline columns processed by per-minute `SKIP LOCKED` sweepers in the worker (fresh 72h restart per Q-071; fresh 72h for overdue items when auto-release is switched back ON, Q-084); BullMQ for work; no HTTP-triggered jobs; sitemap served and cached, not regenerated per minute |
-| [009](adr/009-file-storage-and-uploads.md) | S3-compatible storage (MinIO locally), buckets public-media / private / kyc; presigned direct uploads to quarantine → magic-byte check, ClamAV, image re-encode → ready; presigned downloads after policy check |
+| [009](adr/009-file-storage-and-uploads.md) | S3-compatible storage (SeaweedFS locally, ADR-017), buckets public-media / private / kyc; presigned direct uploads to quarantine → magic-byte check, ClamAV, image re-encode → ready; presigned downloads after policy check |
 | [010](adr/010-admin-app-and-staff-rbac.md) | Separate `apps/admin` on `admin.mytask.ge` using the same API; staff accounts; code-defined permission catalogue, data-defined roles, deny-by-default guard, append-only audit log |
 | [011](adr/011-search-and-premium-ranking.md) | PostgreSQL full-text (`simple`) + `pg_trgm` over `search_documents`; one ranking function including the Q-069 Premium boost (rule from spec 03); `SearchProvider` interface for a later Meilisearch |
 | [012](adr/012-analytics-without-third-party-ip-lookup.md) | First-party events; local UA parsing and local GeoIP file (GeoLite2/DB-IP); daily-salted IP hash only; aggregates for the admin dashboard; findip/ip-api removed |
@@ -458,3 +458,5 @@ R-031 unscheduled crons → worker sweeper with monitoring (ADR-008). R-032 awar
 | [014](adr/014-api-contract-first-and-generated-clients.md) | OpenAPI 3.1 written first; `openapi-typescript` + `openapi-fetch` generate `packages/types` and `packages/api-client`; request/response validation in tests; Redocly lint + oasdiff in CI; `/api/v1` with additive changes only |
 | [015](adr/015-environments-hosting-and-observability.md) | Local docker compose → staging → production on one VPS + S3-compatible storage + Cloudflare; GitHub Actions deploys; nightly encrypted backups + WAL archiving; Sentry-compatible errors, health checks, money alarms |
 | [016](adr/016-mobile-payments-and-store-rules.md) | All payments in the app via BOG, **including Premium (Q-081)**; app-store billing risk documented; S-126 switches the in-app card purchase of Premium off without an app release; store billing provider possible later |
+| [017](adr/017-local-object-storage-after-minio.md) | Local object storage: SeaweedFS replaces MinIO (no longer published); S3 API and `S3_*` names unchanged; production unchanged (accepted, Q-152) |
+| [018](adr/018-mobile-app-version-header.md) | **Proposed**: mobile sends `X-MyTask-App-Version`; S-130 minimum version per platform; `426 APP_VERSION_UNSUPPORTED` with exemptions (Q-153) |

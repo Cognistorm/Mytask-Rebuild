@@ -54,12 +54,12 @@ Phase: 3 — Foundation (platform core) **IN PROGRESS** | Phase 3 gate: not read
 
 ## Next up
 - **Phase 3**: review P3-1…P3-7 → slice 01 auth (P3-8) → Phase 3 gate: login works on web AND the app (docs/03-architecture/phase-3-plan.md)
-- Architect items from the P3 handoff: ADR-017 follow-up (after Q-152), contract gap = no request header carries the mobile app version for `426 APP_VERSION_UNSUPPORTED` (needs an ADR), P3-9 S-110 isolation study
+- Architect items: ADR-018 contract edit after Q-153 (draft written, proposed); P3-9 S-110 isolation study
 - Security conditions carried into Phase 3: backend implements the ADR-013 §19 client-IP tests before slice 01's review; SEC-31/SEC-32 notes in their slices; social-login binding reviewed before any provider is switched ON
 - Contract rule from now on: every change to openapi.yaml / data model needs an ADR + handoff (CLAUDE.md rule 2)
 
 ## Decisions waiting for Owner
-- **Q-152 (new, Phase 3)**: MinIO no longer publishes an image; accept ADR-017 (SeaweedFS as the local file storage, RustFS fallback; production unchanged)? Needed before the files slice. Also: install Docker Desktop, follow docs/SETUP-LOCAL.md, push `feat/platform-core` so CI runs
+- **Q-153 (new)**: accept ADR-018 (mobile sends `X-MyTask-App-Version`; new setting S-130 minimum app version per platform; old apps see "update required")? Needed before the app is published. Done 2026-09-30: **Q-152 answered (a) — ADR-017 accepted, SeaweedFS locally**
 - Q-097 legacy admin accounts + roles (by Phase 5); Q-147 data retention/erasure (before the Phase 5 KYC import); Q-151 withdrawal flag look-back 7 days + first payout-details save starts the pause (defaults applied, before slice 14); whether a "100% promo code" includes a fixed discount ≥ the Premium price (contract assumes yes); slice items Q-116, Q-118, Q-122…Q-136, Q-138…Q-143, Q-148…Q-150; Q-104 deferred; ADR-015 hosting provider before Phase 6
 - Owner action (SEC-28): revoke the Binance and findip keys and remove the Binance bot from the legacy server (Owner doing it by hand)
 - Approve ADR-001…016 (as revised in Step 4), the design audit, tokens and components (with the P2-C3 preview) at the Phase 2 gate
