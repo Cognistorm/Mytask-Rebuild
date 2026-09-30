@@ -159,15 +159,21 @@ const nonStandardKeys = [...new Set([...enKeys, ...kaKeys])]
   .sort();
 const emptyKa = [...kaKeys].filter((k) => !ka.entries[k].trim()).sort();
 
+// legacy-gaps.json lists only the gaps still open in en.json / ka.json (e.g. after
+// translations/*-ka-drafts.json were applied), so `i18n:check` keeps failing on any new gap.
+const filled = (locale, key) =>
+  String(JSON.parse(readFileSync(join(pkg, `${locale}.json`), 'utf8'))[key] ?? '').trim() !== '';
+const openGaps = (locale, keys) => keys.filter((k) => !filled(locale, k));
+
 writeFileSync(
   join(pkg, 'legacy-gaps.json'),
   JSON.stringify(
     {
-      onlyEn: missingInKa,
-      onlyKa: missingInEn,
+      onlyEn: openGaps('ka', missingInKa),
+      onlyKa: openGaps('en', missingInEn),
       placeholderMismatch: paramMismatch.map((x) => x.split(':')[0]),
       nonStandardKeys: nonStandardKeys,
-      emptyKa: emptyKa,
+      emptyKa: openGaps('ka', emptyKa),
     },
     null,
     2,
@@ -192,13 +198,14 @@ Merge into en.json / ka.json: en added ${merged.en.added}, kept edited ${merged.
 ## Legacy keys outside the \`t_*\` pattern (${nonStandardKeys.length}; kept as-is)
 ${list(nonStandardKeys.map((k) => JSON.stringify(k)))}
 
-## Legacy keys with an empty Georgian value (${emptyKa.length})
+## Legacy keys with an empty Georgian value (${emptyKa.length}; still empty in ka.json: ${openGaps('ka', emptyKa).length})
 ${list(emptyKa)}
 
-## Keys only in English (${missingInKa.length}; Georgian fallback not possible — the client shows English)
+## Keys only in English (${missingInKa.length}; still missing in ka.json: ${openGaps('ka', missingInKa).length})
+Georgian UI does NOT fall back to English (\`fallbackLng: 'ka'\`): a key missing in ka.json shows as the raw key, and an empty value shows as empty text. These gaps are filled by Georgian drafts in \`translations/*-ka-drafts.json\` (applied to ka.json; the Owner refines them), and \`pnpm i18n:check\` fails on any gap not listed in \`legacy-gaps.json\`.
 ${list(missingInKa)}
 
-## Keys only in Georgian (${missingInEn.length}; English falls back to Georgian, Q-023/ADR-006 §6)
+## Keys only in Georgian (${missingInEn.length}; still missing in en.json: ${openGaps('en', missingInEn).length}; English falls back to Georgian, Q-023/ADR-006 §6)
 ${list(missingInEn)}
 
 ## Placeholder differences between en and ka (${paramMismatch.length})
