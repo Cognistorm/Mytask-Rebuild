@@ -628,16 +628,26 @@
       `state` without a stored nonce (web) or challenge (mobile) never passes — no "null equals null" match
       (SEC-32(a), ADR-002 §7). The `state` is deleted at the first use (success or not) and the binding
       cookie is cleared. The API exchanges the code (with the verifier) and runs the same
-      login pipeline as `login` (ADR-002 §4). Only provider emails marked verified may create or match an
-      account; an unverified email is treated as missing (`AUTH_SOCIAL_EMAIL_MISSING`, ADR-002 §7):
+      login pipeline as `login` (ADR-002 §4).
+      **Trusted emails (Owner 2026-09-30, Q-156 (a), ADR-002 §7).** Only a provider email that the provider
+      marks verified may create or match an account, and only for `google` and `linkedin` (OpenID Connect
+      `email_verified = true`) and `github` (an address with `verified: true` from `/user/emails`; the
+      primary verified address is used). `facebook` and `twitter` (X) emails are **never trusted**: these two
+      providers never create an account and never match or link one by email; they log in only to an account
+      that already has a link for that provider (provider + provider user id; in practice links migrated from
+      legacy `users.provider_name` / `provider_id`). An untrusted email is treated as missing (`422
+      AUTH_SOCIAL_EMAIL_MISSING`). There is no operation to add a login-provider link from account settings.
       - Account found by provider + provider user id → status checks: pending → `403 ACCOUNT_PENDING`, banned
         → `403 ACCOUNT_SUSPENDED`, deleted → `401 AUTH_INVALID_CREDENTIALS` (spec 01 AC-40, fixes R-020).
-      - First login with an unregistered email → account created `active`, email verified, both roles,
+      - No link found, provider `google` / `linkedin` / `github`, first login with an unregistered trusted
+        email → account created `active`, email verified, both roles,
         provider avatar, username from nickname/name (lower-case Latin, `_`, 4-character suffix if taken),
         referral code; a `?ref=` code carried in `state` is applied as in AC-6 (AC-38); `isNewAccount = true`.
-      - Email already used by an account with a password or another provider → `409 AUTH_SOCIAL_EMAIL_EXISTS`
-        (AC-39). No email from the provider, or one it does not mark verified → `422
-        AUTH_SOCIAL_EMAIL_MISSING` (`t_social_email_missing`, AC-41).
+      - No link found, trusted email already used by an account with a password or another provider → `409
+        AUTH_SOCIAL_EMAIL_EXISTS` (AC-39).
+      - No link found and no trusted email — the provider sent no email, one it does not mark verified, or the
+        provider is `facebook` / `twitter` (whatever email it sent, even one that matches an account) → `422
+        AUTH_SOCIAL_EMAIL_MISSING` (`t_social_email_missing`, AC-41); no account is created or linked.
       - 2FA ON and device not trusted → `202 TwoFactorChallenge` (AC-30).
       - Provider disabled or without keys → `403 FEATURE_DISABLED` (AC-37); bad/expired `state` or a refused
         code exchange → `422 AUTH_SOCIAL_FAILED`.

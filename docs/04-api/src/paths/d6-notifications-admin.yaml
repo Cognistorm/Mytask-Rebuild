@@ -1808,7 +1808,7 @@
       Validation per register row (00 AC-10; out of range → `400 VALIDATION_FAILED` with
       `t_setting_invalid_value`, old value kept). `expectedVersion` → `409 STATE_CONFLICT` if someone
       else saved first (EC-3). Effective for web, mobile and API within 60 seconds, no deployment
-      (00 AC-8, P-123); audited with old/new (secrets redacted); V rows get a new version.
+      (00 AC-8, P-123); audited with old/new (secrets never written); V rows get a new version.
       Row-specific rules:
       - **Re-authentication** (AC-7) within 15 minutes in the same staff session for S-100, S-110, S-127,
         S-065…S-069 and (Owner 2026-09-30, Q-145) the plan prices S-008/S-009 and the security rows S-052,
@@ -1816,8 +1816,15 @@
       - **Critical rows** (S-025, S-033, S-056, S-060, S-065…S-069, S-100, S-110, S-127) send EV-124 to every
         S-100 address; for S-100 to the old and the new list (AC-55, AC-56; spec 15 AC-31).
       - **S-100**: at least one valid address (00 EC-9); test email with `adminSendTestEmail`.
-      - **Secrets** S-065…S-069: string replaces, `null` clears; the value is never returned or audited;
-        enabling a provider without keys → `422 BUSINESS_RULE_VIOLATION` (00 EC-10, AC-54).
+      - **Social login** S-065…S-069 (type `structured`; ADR-005 §8, Owner 2026-09-30 Q-155 (a)): the request
+        value is `SettingSocialProviderUpdate` `{isEnabled, clientId, clientSecret?}`, the response value
+        `SettingSocialProviderValue` with `clientSecret: {isSet, updatedAt}`. `clientSecret` is write-only:
+        omitted → the stored secret is kept; a string → replaces it; `null` → clears it. The secret is never
+        returned, logged or audited (the audit row carries `isEnabled` and `clientId` old/new and, for the
+        secret, only `isSet` before/after and whether it was replaced). Enabling a provider — or keeping it
+        enabled — without a `clientId` and a stored secret after the change → `422 BUSINESS_RULE_VIOLATION`
+        and nothing is saved (00 EC-10, AC-54). Re-authentication, critical row and EV-124 as above; one
+        change = one version, one audit row, one EV-124.
       - **S-102** ON without an SMS provider → `422 BUSINESS_RULE_VIOLATION` `t_sms_provider_not_configured` (spec 15 AC-26).
       - **S-110** (value `CustomCodeValue`) and **S-127**: Super-admin only (`settings.custom_code.write`,
         non-grantable); every external host in the code must be in S-127 and S-127 cannot drop a host
@@ -1931,7 +1938,7 @@
   post:
     operationId: adminRestoreSettingVersion
     summary: Restore an earlier value as a new change
-    description: '"Restore" creates a new change with the old value (spec 16 AC-53); same permission, validation, re-authentication, audit and EV-124 rules as `adminUpdateSetting`. Secret rows cannot be restored (`422 BUSINESS_RULE_VIOLATION`).'
+    description: '"Restore" creates a new change with the old value (spec 16 AC-53); same permission, validation, re-authentication, audit and EV-124 rules as `adminUpdateSetting`. Rows with a secret (S-065…S-069) cannot be restored (`422 BUSINESS_RULE_VIOLATION`); staff enter the keys again.'
     tags: [Admin Settings]
     security:
       - staffBearer: []

@@ -7,6 +7,8 @@ Date: 2026-09-28 | Status: accepted (Owner 2026-09-30)
 
 > **Revised 2026-09-30 (Owner Phase 2 gate answers and P2-B5 re-check).** Accepted by the Owner. §5: the emailed code for accounts without a password is confirmed (Q-144), the two security emails are spec 15 EV-128 / EV-129, and a change of email, password or payout details starts the withdrawal pause S-129 (Q-144, spec 14 AC-21; timestamps in `data-model.md` §3.A). §6: slow-mode slot bypass for trusted devices and passed reCAPTCHA, refused attempts never use the slot (SEC-30, spec 01 AC-53); password reset stays outside every counter and Redis is security-critical (SEC-32(b), (c)). §7: the binding check is chosen from the client kind stored with `state` (SEC-32(a)). Staff step-up list extended (Q-145, ADR-010 §2).
 
+> **Revised 2026-09-30 (Owner answer Q-156 (a), strict).** §7: the adapter list of providers whose email is trusted is fixed: Google, LinkedIn, GitHub. Facebook and X never create, match or link an account by email; they log in only to an account that already has that provider linked. Contract 1.2.0: `completeSocialLogin` description (error codes unchanged).
+
 ## Context
 - Web and mobile must use the same API and the same login rules. Legacy uses Laravel session cookies (`config/auth.php:38-50`), which do not suit a mobile app.
 - Vision "must not break": existing users log in with their current passwords. Legacy stores bcrypt hashes, 10 rounds (`config/hashing.php:18,32`, BR-005), PHP prefix `$2y$`. Staff accounts (`admins`) also use bcrypt.
@@ -58,6 +60,17 @@ Date: 2026-09-28 | Status: accepted (Owner 2026-09-30)
    - **Web** (`X-MyTask-Client: web`): the API keeps the PKCE `code_verifier` server-side and, in the `startSocialLogin` response, sets a short-lived binding cookie `__Host-mt_oauth` (HttpOnly, Secure, SameSite=Lax, Path `/`, host-only, Max-Age 600) holding a random nonce whose hash is stored with `state`. `completeSocialLogin` requires that cookie to match the `state`'s nonce, else `422 AUTH_SOCIAL_FAILED`; the cookie is cleared in the response. A callback link crafted by an attacker therefore cannot sign a victim's browser into the attacker's account (login CSRF).
    - **Mobile** (`ios`/`android`): the app creates the PKCE pair itself (`expo-auth-session`), sends only `codeChallenge` (S256) to `startSocialLogin`, keeps `codeVerifier` in memory and sends it to `completeSocialLogin`. The API stores the challenge with `state`, checks `BASE64URL(SHA256(codeVerifier)) = codeChallenge`, and passes the verifier to the provider's token endpoint. Another app that intercepts the redirect has `code` + `state` but not the verifier. The mobile redirect URI is a verified **https App Link / Universal Link** (`https://mytask.ge/app-return/auth/{provider}`, url-map §7), not a custom scheme, wherever the provider allows it.
    - Only provider emails marked verified (`email_verified = true` for OIDC providers; providers that return only verified emails are listed in the adapter) may create or match an account; an unverified email is treated like a missing one (`422 AUTH_SOCIAL_EMAIL_MISSING`, spec 01 AC-41).
+   - **Adapter list of trusted-email providers (Owner 2026-09-30, Q-156 (a), strict):**
+
+     | Provider | Email trusted for create / match? | Verified signal |
+     |---|---|---|
+     | Google (S-065) | yes | OIDC ID token `email_verified = true` |
+     | LinkedIn (S-068) | yes | OIDC userinfo `email_verified = true` |
+     | GitHub (S-067) | yes | `GET /user/emails` entry with `verified: true` (the primary verified address) |
+     | Facebook (S-066) | **no, never** | no documented verified flag |
+     | X / Twitter (S-069) | **no, never** | no documented verified flag |
+
+     Facebook and X never create an account and never match or auto-link one by email, even when the email they share equals an existing account's email. They log in only to an account that already has a `social_accounts` row for that provider (provider + provider user id); today such rows exist only for users migrated from legacy `users.provider_name` / `provider_id`. Otherwise `completeSocialLogin` answers `422 AUTH_SOCIAL_EMAIL_MISSING` (unchanged code). There is **no** operation to link a login provider from account settings (`putMyLinkedAccounts` is the S-123 profile-URL list, and legacy had none); adding one would be a new feature (spec + contract + ADR) if the Owner wants it. Adding a provider to the trusted list needs an Owner decision and a security review.
 8. **Passwords.** Legacy rules kept (8–60 chars, one uppercase, one digit, BR-001); reset tokens single-use, hashed, TTL S-055; password change notifies the user (legacy `PasswordChanged`).
 
 ## Alternatives considered

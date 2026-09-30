@@ -5,12 +5,16 @@
 openapi: 3.1.0
 info:
   title: MyTask.ge API
-  version: 1.1.0
+  version: 1.2.0
   summary: One API for the MyTask.ge website, mobile apps (iOS, Android) and admin panel.
   description: |
     **Status: approved by the Owner 2026-09-30 as the contract** (Phase 2 gate, version 1.0.0, including
     the Owner's gate answers Q-109…Q-121, Q-137, Q-144…Q-146). From now on every change needs an ADR in
     `docs/03-architecture/adr/` and a handoff to the backend, web and mobile engineers (CLAUDE.md rule 2).
+    Changes since approval (all additive): **1.1.0** mobile version gate (ADR-018, Q-153); **1.2.0**
+    social-login settings S-065…S-069 as `structured` values `SettingSocialProviderValue` /
+    `SettingSocialProviderUpdate` (ADR-005 §8, Q-155) and the trusted-email rule of `completeSocialLogin`
+    (ADR-002 §7, Q-156).
 
     **The contract is the law** (CLAUDE.md). Web (`apps/web`), mobile (`apps/mobile`) and admin
     (`apps/admin`) use only this API through the generated `packages/types` + `packages/api-client`

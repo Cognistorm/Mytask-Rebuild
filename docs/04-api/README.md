@@ -3,6 +3,8 @@
 
 **Status: approved by the Owner on 2026-09-30 as the contract (Phase 2 gate), version 1.0.0.** From now on **every change to the contract needs an ADR** in `docs/03-architecture/adr/` (Context / Decision / Alternatives / Consequences) **and a handoff to the backend, web and mobile engineers** (CLAUDE.md golden rule 2). Additive changes only within `/api/v1` (ADR-014 §5); breaking changes are checked with `oasdiff` in CI. The approved 1.0.0 baseline already contains the Owner's gate answers (Q-109…Q-121, Q-137, Q-144…Q-146) and the P2-B5 re-check fixes SEC-30, SEC-31 and SEC-32, applied on 2026-09-30 (`docs/handoffs/2026-09-30-solution-architect-to-orchestrator-gate-answers.md`).
 
+Changes after approval (additive, each with an ADR and a handoff): **1.1.0** mobile version gate (ADR-018, Q-153); **1.2.0** social-login settings S-065…S-069 as `structured` values `SettingSocialProviderValue` / `SettingSocialProviderUpdate` / `SettingSecretStatus` (ADR-005 §8, Q-155) and the trusted-email rule in `completeSocialLogin` (ADR-002 §7, Q-156) — `docs/handoffs/2026-09-30-solution-architect-to-backend-engineer-social-settings-contract.md`.
+
 Status (2026-09-30): **approved, 1.0.0** — P2-B4 (foundation, six group runs D1…D6, integration run), the P2-B5 security fixes and the Owner's gate answers. The contract has **477 operations on 398 paths, 768 component schemas, 34 realtime events** (+ `file.processed`), and covers **all 715 acceptance criteria of the 18 specs** (707 at P2-B4 + NEW 01 AC-53…AC-55, 02 AC-42, 14 AC-21…AC-23, 16 AC-74a). P-135, P-136 and P-137 are accepted. `npm run verify:final`: 0 errors, 0 warnings.
 
 ## What lives where

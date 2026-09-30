@@ -254,11 +254,11 @@ Per-code fields (set on each promo code when the admin creates it; not global se
 | S-062 | `auth.login_throttle.max_attempts` | Failed user logins (per account + IP) within the window before a temporary lock | integer | 5 per 15 minutes | R-043 | NEW, ACCEPTED P-8 |
 | S-063 | `auth.login_throttle.lock_minutes` | Lock duration after S-062 is reached | minutes | 15 | R-043 | NEW, ACCEPTED P-8 |
 | S-064 | `security.staff_login.ip_ban_threshold` | Failed staff logins from one IP before the IP is banned from the staff login | integer | 3 | BR-004, `isIpBanned.php:26`, Q-057 | LEGACY |
-| S-065 | `auth.social.google` | Google login: enabled + client ID + client secret (write-only) | boolean + keys | OFF until keys are entered | Q-032, BR-006 | LEGACY architecture, keys in Admin |
-| S-066 | `auth.social.facebook` | Facebook login, same fields | boolean + keys | OFF until keys | Q-032 | LEGACY |
-| S-067 | `auth.social.github` | GitHub login, same fields | boolean + keys | OFF until keys | Q-032 | LEGACY |
-| S-068 | `auth.social.linkedin` | LinkedIn login, same fields | boolean + keys | OFF until keys | Q-032 | LEGACY |
-| S-069 | `auth.social.twitter` | Twitter/X login, same fields | boolean + keys | OFF until keys | Q-032 | LEGACY |
+| S-065 | `auth.social.google` | Google login: enabled + client ID + client secret (write-only) | structured (`isEnabled`, `clientId`, write-only `clientSecret`; Q-155) | OFF until keys are entered | Q-032, BR-006 | LEGACY architecture, keys in Admin |
+| S-066 | `auth.social.facebook` | Facebook login, same fields | structured, as S-065 | OFF until keys | Q-032 | LEGACY |
+| S-067 | `auth.social.github` | GitHub login, same fields | structured, as S-065 | OFF until keys | Q-032 | LEGACY |
+| S-068 | `auth.social.linkedin` | LinkedIn login, same fields | structured, as S-065 | OFF until keys | Q-032 | LEGACY |
+| S-069 | `auth.social.twitter` | Twitter/X login, same fields | structured, as S-065 | OFF until keys | Q-032 | LEGACY |
 
 #### 4.11 Moderation (auto-approve)
 | # | Key | Meaning | Type / unit | Default | Source | Tag |
