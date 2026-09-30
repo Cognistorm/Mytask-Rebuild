@@ -3,5 +3,5 @@
 830076fd68a052b1b6aa79942f278ea10488f358:docs/03-architecture/adr/010-admin-app-and-staff-rbac.md:generic-api-key:15
 # The first version of this file quoted that prose in a comment.
 21bcd453fb425332d812176f442ee339e002ca52:.gitleaksignore:generic-api-key:2
-# tokens.service.ts line 1 is a comment ("Access tokens: Ed25519-signed JWT ..."), not a key.
+# tokens.service.ts line 1 is a code comment about access tokens, not a key.
 1fdcc27eeebd961e5ab765770db0416f177bcb2a:apps/api/src/modules/auth/tokens.service.ts:generic-api-key:1

@@ -11,4 +11,6 @@ paths = [
   # Generated lockfiles contain integrity hashes, not secrets.
   '''pnpm-lock\.yaml$''',
   '''package-lock\.json$''',
+  # Holds only reviewed finding fingerprints and short notes, never secrets.
+  '''^\.gitleaksignore$''',
 ]
