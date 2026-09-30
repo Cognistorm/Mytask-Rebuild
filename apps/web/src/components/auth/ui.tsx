@@ -80,6 +80,38 @@ export function Field(props: {
   );
 }
 
+export function TextArea(props: {
+  label: string;
+  name: string;
+  error?: string;
+  value: string;
+  onChange: (v: string) => void;
+  maxLength?: number;
+  rows?: number;
+}) {
+  const id = useId();
+  return (
+    <div className="auth-field">
+      <label htmlFor={id}>{props.label}</label>
+      <textarea
+        id={id}
+        name={props.name}
+        rows={props.rows ?? 5}
+        maxLength={props.maxLength}
+        value={props.value}
+        aria-invalid={!!props.error}
+        aria-describedby={props.error ? `${id}-err` : undefined}
+        onChange={(e) => props.onChange(e.target.value)}
+      />
+      {props.error && (
+        <p id={`${id}-err`} className="auth-error" role="alert">
+          {props.error}
+        </p>
+      )}
+    </div>
+  );
+}
+
 export function Submit({ busy, children }: { busy: boolean; children: ReactNode }) {
   return (
     <button type="submit" className="auth-button" disabled={busy} aria-busy={busy}>

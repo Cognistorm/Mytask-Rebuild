@@ -725,3 +725,9 @@ Options: (a) accept ADR-018 and S-130 as proposed; (b) accept without the admin 
 Recommendation: (a).
 When: before the mobile app is published (Phase 6); the contract edit can be done any time after approval.
 **Answer (Owner, 2026-09-30): (a) accept ADR-018 and S-130.**
+
+### Q-154
+Which file types may a restricted user attach to an appeal (setting S-093 `media.appeal.allowed_extensions`)? The old code had no default (the setting is empty in the legacy database migration), and Q-068 recorded the types as unknown. Until this is answered, appeals for restrictions that require files cannot be submitted; appeals without files work.
+Options: (a) images and PDF: jpg, jpeg, png, webp, pdf; (b) (a) plus doc, docx; (c) the value from the production database, if you can check it (legacy admin → Settings → Media → "Restrictions allowed extensions").
+Recommendation: (c) if available, otherwise (a).
+When: before file uploads ship (files foundation, slice 02).

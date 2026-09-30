@@ -444,3 +444,43 @@ model SettingVersion {
   @@index([key, effectiveFrom(sort: Desc)])
   @@map("setting_versions")
 }
+
+// ---------------------------------------------------------------- 3.A Restrictions and appeals (spec 01 AC-46…AC-50, R-A8)
+
+enum RestrictionStatus {
+  pending
+  submitted
+  approved
+  rejected
+
+  @@map("restriction_status")
+}
+
+model UserRestriction {
+  id                 String            @id @default(uuid(7)) @db.Uuid
+  legacyId           BigInt?           @map("legacy_id")
+  userId             String            @map("user_id") @db.Uuid
+  message            String
+  filesRequired      Boolean           @map("files_required")
+  status             RestrictionStatus @default(pending)
+  /// Reason of a rejected appeal, shown to the user (contract AdminRestriction.decisionReason; not in data-model §3.A).
+  decisionReason     String?           @map("decision_reason")
+  createdByStaffId   String?           @map("created_by_staff_id") @db.Uuid
+  createdAt          DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  resolvedByStaffId  String?           @map("resolved_by_staff_id") @db.Uuid
+  resolvedAt         DateTime?         @map("resolved_at") @db.Timestamptz(6)
+  deletedAt          DateTime?         @map("deleted_at") @db.Timestamptz(6)
+  appeal             RestrictionAppeal?
+
+  @@map("user_restrictions")
+}
+
+model RestrictionAppeal {
+  id            String          @id @default(uuid(7)) @db.Uuid
+  restrictionId String          @unique @map("restriction_id") @db.Uuid
+  message       String          @db.VarChar(1500)
+  createdAt     DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  restriction   UserRestriction @relation(fields: [restrictionId], references: [id])
+
+  @@map("restriction_appeals")
+}

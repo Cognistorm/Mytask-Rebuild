@@ -47,7 +47,8 @@
   position: relative;
 }
 
-.auth-field input {
+.auth-field input,
+.auth-field textarea {
   width: 100%;
   box-sizing: border-box;
   font: inherit;
@@ -60,6 +61,7 @@
 }
 
 .auth-field input:focus-visible,
+.auth-field textarea:focus-visible,
 .auth-code input:focus-visible,
 .auth-button:focus-visible,
 .auth-link-button:focus-visible {
@@ -67,7 +69,8 @@
   outline-offset: var(--mt-space-0-5);
 }
 
-.auth-field input[aria-invalid='true'] {
+.auth-field input[aria-invalid='true'],
+.auth-field textarea[aria-invalid='true'] {
   border-color: var(--mt-border-danger);
 }
 
@@ -203,4 +206,50 @@
 
 .account-list dd {
   margin: 0 0 var(--mt-space-2);
+}
+
+/* Restrictions removal center (legacy resources/views/livewire/restricted/index.blade.php). */
+.restriction-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--mt-space-3);
+}
+
+.restriction-item {
+  border: var(--mt-border-width-hairline) solid var(--mt-border-default);
+  border-radius: var(--mt-radius-control);
+  padding: var(--mt-space-3);
+  display: grid;
+  gap: var(--mt-space-2);
+}
+
+.restriction-status {
+  font-weight: 600;
+  margin: 0;
+}
+
+.restriction-status[data-status='pending'],
+.restriction-status[data-status='submitted'] {
+  color: var(--mt-text-warning);
+}
+
+.restriction-status[data-status='approved'] {
+  color: var(--mt-text-success);
+}
+
+.restriction-status[data-status='rejected'] {
+  color: var(--mt-text-danger);
+}
+
+.restriction-item summary {
+  cursor: pointer;
+  color: var(--mt-text-link);
+}
+
+.restriction-message {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin: var(--mt-space-2) 0 0;
 }

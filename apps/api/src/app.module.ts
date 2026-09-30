@@ -1,5 +1,6 @@
 import { type MiddlewareConsumer, Module, type NestModule } from '@nestjs/common';
 import { AuthModule } from './modules/auth/auth.module';
+import { RestrictionsModule } from './modules/restrictions/restrictions.module';
 import { StaffModule } from './modules/staff/staff.module';
 import { AuditModule } from './platform/audit/audit.service';
 import { IdempotencyModule } from './platform/idempotency/idempotency.service';
@@ -28,6 +29,7 @@ import { SettingsModule } from './platform/settings/settings.module';
     IdempotencyModule,
     AuthModule,
     StaffModule,
+    RestrictionsModule,
   ],
   controllers: [HealthController],
 })

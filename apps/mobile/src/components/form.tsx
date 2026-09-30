@@ -31,6 +31,8 @@ export function Input(props: {
   onChangeText: (v: string) => void;
   error?: string;
   secure?: boolean;
+  multiline?: boolean;
+  maxLength?: number;
   keyboardType?: 'default' | 'email-address' | 'number-pad';
   textContentType?:
     'emailAddress' | 'password' | 'newPassword' | 'username' | 'name' | 'oneTimeCode';
@@ -39,12 +41,14 @@ export function Input(props: {
     <View style={s.field}>
       <Text style={s.label}>{props.label}</Text>
       <TextInput
-        style={[s.input, props.error ? s.inputError : null]}
+        style={[s.input, props.multiline ? s.multiline : null, props.error ? s.inputError : null]}
         value={props.value}
         onChangeText={props.onChangeText}
         secureTextEntry={props.secure}
-        autoCapitalize="none"
-        autoCorrect={false}
+        multiline={props.multiline}
+        maxLength={props.maxLength}
+        autoCapitalize={props.multiline ? 'sentences' : 'none'}
+        autoCorrect={!!props.multiline}
         keyboardType={props.keyboardType ?? 'default'}
         textContentType={props.textContentType}
         accessibilityLabel={props.label}
@@ -124,6 +128,7 @@ const s = StyleSheet.create({
     borderRadius: theme.radius.control,
     padding: theme.space[3],
   },
+  multiline: { minHeight: theme.space[24], textAlignVertical: 'top' },
   inputError: { borderColor: theme.colors.border.danger },
   error: { ...theme.text.bodySm, color: theme.colors.text.danger },
   button: {

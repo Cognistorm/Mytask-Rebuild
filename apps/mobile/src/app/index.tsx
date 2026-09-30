@@ -26,6 +26,8 @@ export default function Home() {
   }, []);
 
   if (state === 'signed-out') return <Redirect href="/login" />;
+  // Restricted users only reach the restrictions removal center (spec 01 AC-19).
+  if (state !== 'loading' && state.isRestricted) return <Redirect href="/restricted" />;
   if (state === 'loading') {
     return (
       <Screen title={t('t_home')}>

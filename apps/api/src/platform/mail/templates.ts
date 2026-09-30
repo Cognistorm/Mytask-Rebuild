@@ -1,4 +1,4 @@
-// Email texts for the events of slice 01 part A (spec 15 catalogue; legacy mail classes kept their keys:
+// Email texts for the events of slice 01 (spec 15 catalogue; legacy mail classes kept their keys:
 // e.g. legacy/APP/app/Notifications/User/Everyone/VerifyEmail.php:52-60). All texts come from packages/i18n.
 import { translate } from '../errors/messages';
 
@@ -114,6 +114,42 @@ export function renderEmail(i: TemplateInput): RenderedEmail {
       );
     case 'EV-06':
       return layout(i.locale, t('t_2fa_email_subject'), hello, [t('t_2fa_email_body', i.params)]);
+    case 'EV-07':
+      // legacy/APP/app/Mail/Admin/Users/RestrictEmail.php:26-39 (subject + the staff message)
+      return layout(
+        i.locale,
+        t('t_subject_admin_account_restricted'),
+        hello,
+        [String(i.params.message ?? '')],
+        {
+          label: t('t_restrictions_removal_center'),
+          url: link(i.appUrl, i.locale, '/restricted'),
+        },
+      );
+    case 'EV-08':
+      // legacy/APP/app/Notifications/Admin/NewRestrictionAppeal.php:38-44
+      return layout(
+        i.locale,
+        t('t_subject_admin_new_restriction_appeal'),
+        t('t_hi_admin'),
+        [String(i.params.message ?? '')],
+        {
+          label: t('t_user_restrictions'),
+          url: `${i.adminUrl.replace(/\/$/, '')}/restrictions?userId=${encodeURIComponent(String(i.params.userId ?? ''))}`,
+        },
+      );
+    case 'EV-09':
+    case 'EV-10': {
+      // legacy/APP/app/Notifications/User/Everyone/AppealAccepted.php, AppealRejected.php:40-46
+      const ok = i.event === 'EV-09';
+      return layout(
+        i.locale,
+        t(ok ? 't_subject_user_appeal_accepted' : 't_subject_user_appeal_rejected'),
+        hello,
+        [t(ok ? 't_ur_appeal_has_been_accepted' : 't_ur_appeal_has_been_rejected')],
+        { label: t('t_restrictions_removal_center'), url: link(i.appUrl, i.locale, '/restricted') },
+      );
+    }
     case 'EV-124':
       return layout(i.locale, t('t_subject_admin_critical_setting_changed'), t('t_hi_admin'), [
         t('t_admin_critical_setting_changed_body', i.params),

@@ -388,3 +388,190 @@ describe('part B-2a: IP bans, own password, activate, ban', () => {
     expect(res.status).toBe(409);
   });
 });
+
+describe('part B-2b: restrictions and appeals (spec 01 AC-19, AC-46…AC-50; spec 16 AC-19, AC-29)', () => {
+  const api = () => request(app.getHttpServer());
+  async function restrictedUser(auth: Record<string, string>, filesRequired = false) {
+    const reg = await api()
+      .post('/api/v1/auth/register')
+      .set({ 'X-MyTask-Client': 'ios' })
+      .send({
+        fullName: 'R R R',
+        username: `r_${Date.now()}${Math.floor(Math.random() * 1000)}`,
+        email: `r${Date.now()}${Math.floor(Math.random() * 1000)}@example.com`,
+        password: 'Secret123',
+        acceptTerms: true,
+      });
+    const userId: string = reg.body.session.user.id;
+    const created = await api()
+      .post('/api/v1/admin/restrictions')
+      .set(auth)
+      .send({ userId, message: 'Please explain the reviews.', filesRequired });
+    expect(created.status).toBe(201);
+    return {
+      userId,
+      restrictionId: created.body.id as string,
+      user: { Authorization: `Bearer ${reg.body.session.accessToken}` },
+    };
+  }
+
+  it('restrict → only restriction operations are allowed; appeal → reject → no second appeal', async () => {
+    const auth = { Authorization: `Bearer ${await login(await makeStaff())}` };
+    const r = await restrictedUser(auth);
+    expect(
+      await prisma.outboxEvent.count({
+        where: { eventType: 'EV-07', aggregateId: r.restrictionId },
+      }),
+    ).toBe(1);
+    expect(
+      await prisma.auditLog.count({ where: { action: 'restriction.create', targetId: r.userId } }),
+    ).toBe(1);
+
+    const blocked = await api().get('/api/v1/me/sessions').set(r.user);
+    expect(blocked.status).toBe(403);
+    expect(blocked.body.code).toBe('ACCOUNT_RESTRICTED');
+    const mine = await api().get('/api/v1/me/restrictions').set(r.user);
+    expect(mine.status).toBe(200);
+    expect(mine.body.data[0]).toMatchObject({
+      id: r.restrictionId,
+      status: 'pending',
+      canAppeal: true,
+      appeal: null,
+    });
+
+    const files = await api()
+      .post('/api/v1/restriction-appeals')
+      .set(r.user)
+      .send({
+        restrictionId: r.restrictionId,
+        message: 'x',
+        fileIds: ['0190f5c2-7d3a-7cc1-9b1e-000000000009'],
+      });
+    expect(files.status).toBe(422);
+    const appeal = await api()
+      .post('/api/v1/restriction-appeals')
+      .set(r.user)
+      .send({ restrictionId: r.restrictionId, message: 'It was a mistake.' });
+    expect(appeal.status).toBe(201);
+    expect(appeal.body).toMatchObject({
+      status: 'submitted',
+      canAppeal: false,
+      appeal: { message: 'It was a mistake.' },
+    });
+    const ev08 = await prisma.outboxEvent.findFirstOrThrow({
+      where: { eventType: 'EV-08', aggregateId: r.restrictionId },
+    });
+    expect((ev08.payload as { to: string[] }).to.length).toBeGreaterThan(0);
+    const twice = await api()
+      .post('/api/v1/restriction-appeals')
+      .set(r.user)
+      .send({ restrictionId: r.restrictionId, message: 'Again.' });
+    expect(twice.status).toBe(409);
+
+    const queue = await api().get('/api/v1/admin/restriction-appeals').set(auth);
+    const item = queue.body.data.find(
+      (a: { restriction: { id: string } }) => a.restriction.id === r.restrictionId,
+    );
+    expect(item.owner.isRestricted).toBe(true);
+    const noReason = await api()
+      .post(`/api/v1/admin/restriction-appeals/${item.id}/reject`)
+      .set(auth)
+      .send({});
+    expect(noReason.status).toBe(400);
+    const rejected = await api()
+      .post(`/api/v1/admin/restriction-appeals/${item.id}/reject`)
+      .set(auth)
+      .send({ reason: 'Not convincing.' });
+    expect(rejected.status).toBe(200);
+    expect(rejected.body.restriction).toMatchObject({
+      status: 'rejected',
+      decisionReason: 'Not convincing.',
+    });
+    const late = await api()
+      .post(`/api/v1/admin/restriction-appeals/${item.id}/approve`)
+      .set(auth)
+      .send({});
+    expect(late.status).toBe(409);
+    expect(late.body.details.messageKey).toBe('t_item_already_decided');
+    expect(
+      await prisma.outboxEvent.count({
+        where: { eventType: 'EV-10', aggregateId: r.restrictionId },
+      }),
+    ).toBe(1);
+    expect((await prisma.user.findUniqueOrThrow({ where: { id: r.userId } })).isRestricted).toBe(
+      true,
+    );
+    const after = await api().get('/api/v1/me/restrictions').set(r.user);
+    expect(after.body.data[0]).toMatchObject({ status: 'rejected', canAppeal: false });
+  });
+
+  it('approve lifts the flag only when no other restriction is open; delete lifts it too', async () => {
+    const auth = { Authorization: `Bearer ${await login(await makeStaff())}` };
+    const r = await restrictedUser(auth);
+    const second = await api()
+      .post('/api/v1/admin/restrictions')
+      .set(auth)
+      .send({ userId: r.userId, message: 'Second one.', filesRequired: false });
+    await api()
+      .post('/api/v1/restriction-appeals')
+      .set(r.user)
+      .send({ restrictionId: r.restrictionId, message: 'Sorry.' });
+    const appeal = await prisma.restrictionAppeal.findUniqueOrThrow({
+      where: { restrictionId: r.restrictionId },
+    });
+    const ok = await api()
+      .post(`/api/v1/admin/restriction-appeals/${appeal.id}/approve`)
+      .set(auth)
+      .send({ note: 'fine' });
+    expect(ok.status).toBe(200);
+    expect(ok.body.restriction).toMatchObject({ status: 'approved', decisionReason: null });
+    expect(
+      await prisma.outboxEvent.count({
+        where: { eventType: 'EV-09', aggregateId: r.restrictionId },
+      }),
+    ).toBe(1);
+    expect((await prisma.user.findUniqueOrThrow({ where: { id: r.userId } })).isRestricted).toBe(
+      true,
+    );
+
+    const del = await api().delete(`/api/v1/admin/restrictions/${second.body.id}`).set(auth);
+    expect(del.status).toBe(204);
+    expect((await prisma.user.findUniqueOrThrow({ where: { id: r.userId } })).isRestricted).toBe(
+      false,
+    );
+    expect((await api().get('/api/v1/me/sessions').set(r.user)).status).toBe(200);
+    const list = await api()
+      .get('/api/v1/admin/restrictions')
+      .query({ userId: r.userId })
+      .set(auth);
+    expect(list.body.data.map((x: { status: string }) => x.status)).toEqual(['approved']);
+  });
+
+  it('files required: an appeal without files is refused (spec 01 AC-47)', async () => {
+    const auth = { Authorization: `Bearer ${await login(await makeStaff())}` };
+    const r = await restrictedUser(auth, true);
+    const res = await api()
+      .post('/api/v1/restriction-appeals')
+      .set(r.user)
+      .send({ restrictionId: r.restrictionId, message: 'x' });
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe('VALIDATION_FAILED');
+  });
+
+  it('staff without users.restrict cannot restrict; other users cannot appeal someone else’s restriction', async () => {
+    const auth = { Authorization: `Bearer ${await login(await makeStaff())}` };
+    const r = await restrictedUser(auth);
+    const other = await restrictedUser(auth);
+    const foreign = await api()
+      .post('/api/v1/restriction-appeals')
+      .set(other.user)
+      .send({ restrictionId: r.restrictionId, message: 'x' });
+    expect(foreign.status).toBe(404);
+    const plain = { Authorization: `Bearer ${await login(await makeStaff(false))}` };
+    const denied = await api()
+      .post('/api/v1/admin/restrictions')
+      .set(plain)
+      .send({ userId: r.userId, message: 'x', filesRequired: false });
+    expect(denied.status).toBe(403);
+  });
+});

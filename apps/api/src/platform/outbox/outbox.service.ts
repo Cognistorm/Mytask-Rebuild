@@ -4,7 +4,7 @@ import { Injectable } from '@nestjs/common';
 import type { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../db/prisma.service';
 
-/** Spec 15 events emitted by slice 01 part A. */
+/** Spec 15 events emitted by slice 01. */
 export type OutboxEventType =
   | 'EV-01' // VerifyEmail
   | 'EV-02' // Admin/PendingUser
@@ -12,6 +12,10 @@ export type OutboxEventType =
   | 'EV-04' // PasswordReset
   | 'EV-05' // PasswordChanged
   | 'EV-06' // TwoFactorCode
+  | 'EV-07' // RestrictEmail (staff message)
+  | 'EV-08' // Admin/NewRestrictionAppeal
+  | 'EV-09' // AppealAccepted
+  | 'EV-10' // AppealRejected
   | 'EV-124' // Admin/CriticalSettingChanged
   | 'EV-128' // LoginSlowMode
   | 'EV-129'; // TwoFactorLocked

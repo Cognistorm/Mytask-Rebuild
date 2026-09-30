@@ -28,6 +28,7 @@ Phase: 3 — Foundation (platform core) **IN PROGRESS** | Phase 3 gate: not read
 - P3-1…P3-7: pushed; **CI green on all 5 jobs** incl. Docker (after 4 fixes: tokens dist in Docker context, gitleaks note, migrate command, smoke-test line). QA review: FAIL (1 blocker = the Docker context bug, since fixed; 2 major, fixed on `feat/auth`; 11 minor open) — docs/06-qa/reports/P3-platform-core-2026-09-30.md. **Security review of P3 not completed** (review agent hit a usage limit) — must be re-run
 - **P3-8 slice 01 part A (auth core) done on `feat/auth`**, awaiting QA + security: 16 auth operations, web + mobile Login/Register/OTP, 43 API tests + 6 browser tests green; `pnpm preview` runs everything without Docker. Part B (social login, restrictions/appeals, staff login/IP bans) still to do. Handoff: docs/handoffs/2026-09-30-backend-web-mobile-to-qa-security-slice-01a-auth.md
 - **Slice 01 part B-1 done on `feat/auth`** (2026-09-30): staff login (IP ban, staff 2FA, step-up), admin settings screen with the 2FA switches (versioned, audited, EV-124); security review PASS with conditions — Medium SEC-33…SEC-36 fixed; 53 API tests + browser tests green. Handoff: docs/handoffs/2026-09-30-backend-web-to-qa-security-slice-01b1-staff-settings.md. **Next: part B-2** (social login, restrictions/appeals + file uploads, banned-IP screen)
+- **Slice 01 part B-2a + B-2b done on `feat/auth`** (2026-09-30): banned-IP screen, staff own password, activate/ban users, default roles (B-2a, CI green); restrictions + appeals end to end: 8 operations, EV-07…EV-10, web `/restricted`, mobile restricted screen, admin `/restrictions` (B-2b). 63 API tests + admin/web browser tests green. Appeal files blocked by Q-154 + files foundation F0. Handoff: docs/handoffs/2026-09-30-backend-web-mobile-to-qa-security-slice-01b2-restrictions.md. **Next: B-2c social login**
 - Owner 2026-09-30: Q-153 accepted (ADR-018, S-130, contract 1.1.0); 51 Georgian drafts for English-only keys (Owner to refine); email 2FA OFF locally until switched on in the admin panel
 
 ## Blocked (reason, who must act)
@@ -57,7 +58,7 @@ Phase: 3 — Foundation (platform core) **IN PROGRESS** | Phase 3 gate: not read
 
 ## Next up
 - **Phase 3**: review P3-1…P3-7 → slice 01 auth (P3-8) → Phase 3 gate: login works on web AND the app (docs/03-architecture/phase-3-plan.md)
-- Architect items: data-model gaps staff.full_name + staff re-auth code purpose (B-1 handoff); P3-9 S-110 isolation study
+- Architect items: data-model gaps staff.full_name + staff re-auth code purpose (B-1 handoff) + user_restrictions.decision_reason (B-2 handoff); P3-9 S-110 isolation study
 - Security conditions carried into Phase 3: backend implements the ADR-013 §19 client-IP tests before slice 01's review; SEC-31/SEC-32 notes in their slices; social-login binding reviewed before any provider is switched ON
 - Contract rule from now on: every change to openapi.yaml / data model needs an ADR + handoff (CLAUDE.md rule 2)
 

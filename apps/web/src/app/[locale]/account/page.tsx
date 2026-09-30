@@ -27,6 +27,11 @@ export default function AccountPage() {
       router.replace(`${href(locale, '/auth/login')}?next=${href(locale, '/account')}`);
       return;
     }
+    // Restricted users only reach the restrictions removal center (spec 01 AC-19).
+    if (res.data.isRestricted) {
+      router.replace(href(locale, '/restricted'));
+      return;
+    }
     setMe(res.data);
   }, [api, router, locale]);
 
