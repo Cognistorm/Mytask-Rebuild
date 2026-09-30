@@ -43,7 +43,7 @@ Done so far:
 
 Remaining:
 - [x] 3.1 Security re-review of platform core P3-1…P3-7 (the earlier run hit a usage limit) → `docs/06-qa/security/`. Done: review 03 PASS with conditions (1 Medium SEC-49, 7 Low SEC-50…56).
-- [ ] 3.2 Fix P3 QA minor findings BUG-04…BUG-08: import-report text, raw sizes, admin title, Playwright server reuse, hand-typed enums.
+- [x] 3.2 Fix P3 QA minor findings BUG-04…BUG-08: import-report text, raw sizes, admin title, Playwright server reuse, hand-typed enums.
 - [ ] 3.3 Fix P3 QA minor findings BUG-09…BUG-14: SETUP-LOCAL notes, `s3-init` check, `/ka/` double redirect, error nits, second agent-rules file, stale docs.
 - [ ] 3.4 `getPublicConfig` part 1: registry rows for every `PublicConfig` field, using spec 00 defaults (approved values only).
 - [ ] 3.5 `getPublicConfig` part 2: endpoint + contract/response tests.

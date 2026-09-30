@@ -58,12 +58,13 @@ Phase: 3 — Foundation (platform core) **IN PROGRESS** | Phase 3 gate: not read
 
 ## Micro-task workflow (Owner rule 2026-09-30)
 The plan lives in **docs/ROADMAP.md** (checkbox per micro-task). One micro-task at a time; when it is done and tests pass, tick it there and add one line below.
-**Next micro-task: 3.2** (fix P3 QA minor findings BUG-04…BUG-08).
+**Next micro-task: 3.3** (fix P3 QA minor findings BUG-09…BUG-14).
 
 ### Micro-task log
 - 2026-09-30 ROADMAP.md created: Phase 3 remaining 3.1–3.19, Phase 4 slices 4.1–4.16 (+ gate 4.17), Phase 5 5.1–5.19, Phase 6 6.1–6.18.
 - 2026-09-30 3.1 done: security re-check of platform core at HEAD → docs/06-qa/security/03-platform-core-recheck-2026-09-30.md, **PASS with conditions** (0 Critical/High; Medium SEC-49 per-IP-only limiter, due before first server-side data slice; Low SEC-50…56). Before slice 01 done: SEC-39, rest of SEC-35, SEC-50, SEC-51, SEC-45 tests (added to 3.17). Question for product-analyst: 120 writes/IP/min behind carrier NAT + per-IP register limit. API tests 73/73 green.
 - 2026-10-01 Q-157 answered by Owner: 120 writes/IP/min kept (carrier NAT OK); registration limit 10/hour/IP → built in 3.17.
+- 2026-10-01 3.2 done: BUG-04 IMPORT-REPORT now states the real fallback (Georgian shows the raw key; all 56 en-only + 4 empty ka filled by drafts) and the import keeps only still-open gaps in legacy-gaps.json; BUG-05 shell/auth sizes → `layout.prose`/`layout.logoHeight` tokens (mobile/admin logos already gone); BUG-06 admin title → new key `t_platform_admin_document_title` (en + ka); BUG-07 Playwright reuses a running server only with `PW_REUSE=1` (busy port now fails loudly; SETUP-LOCAL 4b note); BUG-08 `Locale`/`ClientKind` derived from the contract in `@mytask/types`, used by api-client and 7 API files. lint/typecheck 17/17, API 73/73, api-client 3/3, i18n check, web/admin shell E2E 4/4 + 1/1 green. QA re-test pending (3.15).
 
 ## Next up
 - **Phase 3**: review P3-1…P3-7 → slice 01 auth (P3-8) → Phase 3 gate: login works on web AND the app (docs/03-architecture/phase-3-plan.md)
