@@ -1,0 +1,13 @@
+// MyTask.ge database schema. Design source: docs/03-architecture/data-model.md (the architect owns it).
+// Models are added slice by slice (Phase 4); never invent a table or column that data-model.md lacks.
+// Extensions (data-model.md §1): pg_trgm, btree_gist, citext, vector — created by migration 00000000000000_extensions.
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
