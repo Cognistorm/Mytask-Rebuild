@@ -8,6 +8,7 @@
 **/.expo
 **/.turbo
 **/dist
+!packages/tokens/dist
 **/coverage
 **/playwright-report
 **/test-results

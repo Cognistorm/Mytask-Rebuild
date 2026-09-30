@@ -1,3 +1,5 @@
-# False positives (reviewed). Format: <commit>:<file>:<rule>:<line>
-# ADR-010 prose "social-login secrets, balance/points adjustments" is not a key.
+# Reviewed false positives. Format: <commit>:<file>:<rule>:<line>
+# ADR-010 line 15 is prose about staff re-authentication, not a key.
 830076fd68a052b1b6aa79942f278ea10488f358:docs/03-architecture/adr/010-admin-app-and-staff-rbac.md:generic-api-key:15
+# The first version of this file quoted that prose in a comment.
+21bcd453fb425332d812176f442ee339e002ca52:.gitleaksignore:generic-api-key:2
