@@ -1,0 +1,23 @@
+{
+  "name": "@mytask/types",
+  "version": "1.0.0",
+  "private": true,
+  "description": "GENERATED TypeScript types of the MyTask.ge API contract (docs/04-api/openapi.yaml) and its realtime events (ADR-014). Never hand-edit src/generated.",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "gen": "node scripts/generate.mjs",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint ."
+  },
+  "devDependencies": {
+    "@mytask/config": "workspace:*",
+    "eslint": "10.11.0",
+    "openapi-typescript": "7.13.0",
+    "typescript": "5.9.3",
+    "yaml": "2.8.1"
+  }
+}
