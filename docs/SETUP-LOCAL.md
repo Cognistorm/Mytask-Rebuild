@@ -88,6 +88,8 @@ Your phone and computer must be on the **same Wi-Fi**.
 
 If Docker is not installed yet, run `pnpm preview` instead of steps 3A–3C. It starts a built-in test database, the API, the website and the admin panel. Emails (for example the 6-digit login code) are **printed in the same window** instead of being sent. Open http://localhost:3100/auth/register to create an account and http://localhost:3100/auth/login to log in. Data is kept in `apps/api/.pglite` (delete that folder to start fresh). This is for looking around only — never for real data.
 
+Browser tests start their own website/admin server and **stop with "port is already used"** if something already runs on 3100/3200. To test against a running `pnpm preview` on purpose, add `PW_REUSE=1` (PowerShell: `$env:PW_REUSE='1'; pnpm --filter @mytask/admin test:e2e`).
+
 ## 5. Run everything in containers (optional, closer to production)
 
 Instead of `pnpm dev`, you can run the built apps behind the same kind of proxy (Caddy) as production:

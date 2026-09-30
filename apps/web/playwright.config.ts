@@ -9,7 +9,9 @@ export default defineConfig({
   webServer: {
     command: 'pnpm start',
     url: 'http://localhost:3100',
-    reuseExistingServer: !process.env.CI,
+    // Reusing a running server is opt-in (PW_REUSE=1, e.g. against `pnpm preview`): otherwise a busy port
+    // fails loudly instead of silently testing another checkout's build (QA BUG-07).
+    reuseExistingServer: process.env.PW_REUSE === '1',
     timeout: 120_000,
   },
 });
