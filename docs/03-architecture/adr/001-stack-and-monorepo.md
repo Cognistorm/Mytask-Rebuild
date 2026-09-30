@@ -1,5 +1,5 @@
 # ADR-001: Technology stack and monorepo
-Date: 2026-09-28 | Status: proposed
+Date: 2026-09-28 | Status: accepted (Owner 2026-09-30)
 
 ## Context
 - The vision needs one backend API for a website and an iOS/Android app, high performance, strong SEO, a clean codebase and room for AI features (`docs/00-vision.md` Goals 1–3).

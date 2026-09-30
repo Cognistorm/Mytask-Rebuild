@@ -1,5 +1,5 @@
 # ADR-009: File storage and uploads — S3-compatible buckets, private by default, signed URLs, type and virus checks
-Date: 2026-09-28 | Status: proposed
+Date: 2026-09-28 | Status: accepted (Owner 2026-09-30)
 
 > **Revised 2026-09-30** after the P2-B5 security review: §3.1 the purpose check runs before the presigned POST and `completeFileUpload` re-checks the stored purpose (review item 12). KYC retention stays open (SEC-12, Owner question).
 

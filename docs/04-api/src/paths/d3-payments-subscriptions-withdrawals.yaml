@@ -251,15 +251,21 @@
     summary: BOG payment callback (trigger for a verified status check)
     description: |
       BOG's callback (URL `https://mytask.ge/api/v1/webhooks/bog`, ADR-004 §3, CONVENTIONS §10).
-      1. The raw body and headers are stored in `payment_events` (`event_kind = callback`) before anything
-         else; the handler answers **200 with an empty body** quickly and processes asynchronously (job
-         `bog-callback`). A body that is not JSON → 400.
-         **Flood hardening (ADR-004 §3, SEC-10):** bodies over 64 KB are refused before parsing and not
-         stored. Our payment is looked up by the BOG order id **before any BOG call**. Unknown order ids never
-         call BOG and are never queued: they are kept in a capped log (at most 100 stored events with
-         `result = unknown_order` per hour, then only a counter and one alert per hour to S-100) and still
-         answered 200 (no retry storm). Payments that are no longer `created`/`pending` are stored for staff
-         and not queued. Pending payments enqueue **one** verification job per payment (job id
+      1. Order of the steps (ADR-004 §3, SEC-10, SEC-31): (a) bodies over 64 KB are refused before parsing
+         and not stored; a body that is not JSON → 400, not stored; (b) the BOG order id is read and **our**
+         payment is looked up by it **before any BOG call and before anything is stored**; (c) the raw body
+         and headers are stored in `payment_events` (`event_kind = callback`) within the caps below; (d) the
+         handler answers **200 with an empty body** quickly and processes asynchronously (job
+         `bog-callback`).
+         **Storage caps.** Unknown order ids never call BOG and are never queued: they are kept in a capped
+         log (at most 100 stored events with `result = unknown_order` per hour, then only a counter and one
+         alert per hour to S-100) and still answered 200 (no retry storm). For a **known** payment (any
+         status, including final ones), a callback whose body is identical (SHA-256) to one already stored
+         for that payment is not stored again: that row's `repeatCount` and `lastReceivedAt` are updated;
+         at most 20 distinct callback events are stored per payment per hour, above that only the
+         `repeatCount` of the payment's latest stored callback grows (SEC-31). Payments that are no longer
+         `created`/`pending` are stored for staff this way (`result = duplicate` / `ignored`), never queued,
+         and BOG is not called. Pending payments enqueue **one** verification job per payment (job id
          `bog-verify:{paymentId}`, shared with the 5-minute reconciliation and staff "Check status"), however
          many callbacks arrive.
       2. `Callback-Signature` is checked by the adapter hook `verifyCallback` only if the lead developer
@@ -800,20 +806,26 @@
       AC-1). Needs the current password → wrong password `400 VALIDATION_FAILED` field `currentPassword`
       messageKey `t_ur_current_pass_does_not_match` (AC-3, P-63; same as D1 `updateMe`). Accounts without a
       password send `challengeId` + `code` of a `payout_details` challenge (D1 `createMyTwoFactorChallenge`,
-      code sent to the current address; SEC-05, ADR-002 §5); wrong code → `422 TWO_FACTOR_CODE_INVALID`
-      (code errors as in `verifyTwoFactorLogin`). Saving replaces the migrated text; pending requests keep
-      their copied details (EC-4). Sends `PayoutDetailsChanged` + in-app notice (EV-114).
-      Throttle (SEC-04, ADR-002 §6): wrong current passwords and codes count per account; after S-062 within
-      15 minutes every password/code check of the account answers `429 RATE_LIMITED`
-      (`t_too_many_login_attempts`) for S-063 minutes. A payout cooling period after a change is an Owner
-      question (SEC-05); it would be enforced in `createWithdrawal`, not here.
-      Errors: 400 VALIDATION_FAILED (incl. wrong current password); 422 TWO_FACTOR_CODE_*; 429 RATE_LIMITED.
+      code sent to the current address; SEC-05, ADR-002 §5, Owner 2026-09-30 Q-144); wrong code → `422
+      TWO_FACTOR_CODE_INVALID`, expired → `TWO_FACTOR_CODE_EXPIRED` (code errors as in
+      `verifyTwoFactorLogin`); nothing is saved. Saving replaces the migrated text; pending requests keep
+      their copied details (EC-4) and from now on show the approver flag (AC-23, EC-10). Sends
+      `PayoutDetailsChanged` + in-app notice (EV-114).
+      **Security pause (spec 14 AC-21, R-W9, S-129; Owner 2026-09-30 Q-144).** Every successful save —
+      including the first structured save (Q-151 default; migrated free text is not a change, EC-9) — sets
+      `payoutDetailsChangedAt`; `createWithdrawal` refuses new requests until that time + S-129 hours.
+      Throttle (SEC-04, ADR-002 §6, spec 01 AC-55): wrong current passwords and codes count per account;
+      after S-062 within 15 minutes every password/code check of the account answers `429 RATE_LIMITED`
+      (`t_too_many_login_attempts`) for S-063 minutes. Wrong codes also count towards the per-account code
+      cap (`429 TWO_FACTOR_LOCKED`, spec 01 AC-54).
+      Errors: 400 VALIDATION_FAILED (incl. wrong current password); 422 TWO_FACTOR_CODE_*; 429 RATE_LIMITED,
+      TWO_FACTOR_LOCKED.
     tags: [Withdrawals]
     x-permission:
       audience: user
       ownership: self
-    x-covers: ['14 AC-1', '14 AC-3']
-    x-settings: [S-057, S-058, S-062, S-063]
+    x-covers: ['14 AC-1', '14 AC-3', '14 AC-21', '01 AC-55']
+    x-settings: [S-057, S-058, S-062, S-063, S-129]
     x-notifications: [EV-114]
     x-rate-limit: 'S-062 wrong current passwords or codes per account in 15 minutes → every password/code check of the account refused for S-063 minutes (429 RATE_LIMITED, ADR-002 §6, SEC-04); global write limit'
     requestBody:
@@ -844,13 +856,17 @@
       receive" A − F (spec 14 AC-5, AC-8). `eligibility` gives the first failing rule in the order of AC-6
       (no payout details → `PAYOUT_DETAILS_REQUIRED` / `t_add_payout_details_first`, AC-4; nothing available
       → `t_nothing_to_withdraw`, AC-11). Stores nothing. Called while the user types.
+      During a security pause (spec 14 AC-21, AC-22; S-129, Q-144) `securityPauseUntil` is set and
+      `eligibility` is `WITHDRAWAL_SECURITY_PAUSE` / `t_cant_withdraw_reason_security_pause` with
+      `nextAllowedAt` = `securityPauseUntil`; the fee preview still works. The client shows the notice with
+      the end time and disables "Request withdrawal"; after that time a reload shows the normal form.
       Errors: 400 VALIDATION_FAILED.
     tags: [Withdrawals]
     x-permission:
       audience: user
       ownership: self
-    x-covers: ['14 AC-4', '14 AC-5', '14 AC-6', '14 AC-8', '14 AC-11', '05 AC-37', '00 AC-16']
-    x-settings: [S-010, S-011, S-031, S-032]
+    x-covers: ['14 AC-4', '14 AC-5', '14 AC-6', '14 AC-8', '14 AC-11', '14 AC-22', '05 AC-37', '00 AC-16']
+    x-settings: [S-010, S-011, S-031, S-032, S-129]
     requestBody:
       required: true
       content:
@@ -877,8 +893,12 @@
       VALIDATION_FAILED` `t_validator_regex`); payout details present (`422 PAYOUT_DETAILS_REQUIRED`, AC-4);
       A ≤ Available (`422 INSUFFICIENT_FUNDS` `t_withdrawal_money_not_enough`; a zero or negative migrated
       balance refuses any amount, AC-11); no other pending/processing request (`409
-      WITHDRAWAL_PENDING_EXISTS`); period S-032 since the creation of the latest **paid** request (`422
-      WITHDRAWAL_PERIOD_NOT_ELAPSED`; rejected requests do not count, EC-3); A ≥ S-031 (`422
+      WITHDRAWAL_PENDING_EXISTS`); **no security pause** — now < latest of the account's `emailChangedAt`,
+      `passwordChangedAt`, `payoutDetailsChangedAt` + S-129 hours, read at request time (`422
+      WITHDRAWAL_SECURITY_PAUSE`, `details.pausedUntil`, messageKey `t_cant_withdraw_reason_security_pause`
+      with `:datetime` in Georgian time; spec 14 AC-21, R-W9, EC-11, EC-12; Owner 2026-09-30 Q-144; S-129 = 0
+      → no pause; changes before the migration do not exist, EC-9); period S-032 since the creation of the
+      latest **paid** request (`422 WITHDRAWAL_PERIOD_NOT_ELAPSED`; rejected requests do not count, EC-3); A ≥ S-031 (`422
       WITHDRAWAL_BELOW_MINIMUM`); A − F > 0 (`422 WITHDRAWAL_PAYOUT_TOO_LOW`).
       Then in one transaction (AC-7): status `pending`; F from the fee rule of the caller's plan **now**
       (percent half up or fixed) with its version, plan and payout details copied onto the request; journal
@@ -889,8 +909,8 @@
       (AC-12). With S-033 = `bog_payout` (future) the request is sent to the payout provider and becomes
       `processing` (AC-17).
       Errors: 400 VALIDATION_FAILED, IDEMPOTENCY_KEY_REQUIRED; 409 WITHDRAWAL_PENDING_EXISTS,
-      IDEMPOTENCY_IN_PROGRESS; 422 PAYOUT_DETAILS_REQUIRED, INSUFFICIENT_FUNDS, WITHDRAWAL_PERIOD_NOT_ELAPSED,
-      WITHDRAWAL_BELOW_MINIMUM, WITHDRAWAL_PAYOUT_TOO_LOW, IDEMPOTENCY_KEY_REUSED.
+      IDEMPOTENCY_IN_PROGRESS; 422 PAYOUT_DETAILS_REQUIRED, INSUFFICIENT_FUNDS, WITHDRAWAL_SECURITY_PAUSE,
+      WITHDRAWAL_PERIOD_NOT_ELAPSED, WITHDRAWAL_BELOW_MINIMUM, WITHDRAWAL_PAYOUT_TOO_LOW, IDEMPOTENCY_KEY_REUSED.
     tags: [Withdrawals]
     parameters:
       - $ref: '../components/parameters.yaml#/IdempotencyKey'
@@ -898,9 +918,9 @@
     x-permission:
       audience: user
       ownership: self
-      notes: 'Restricted users are refused (403 ACCOUNT_RESTRICTED). No KYC requirement (Q-048).'
-    x-covers: ['14 AC-4', '14 AC-6', '14 AC-7', '14 AC-8', '14 AC-10', '14 AC-11', '14 AC-12', '14 AC-17', '05 AC-30', '05 AC-37', '00 AC-16']
-    x-settings: [S-010, S-011, S-031, S-032, S-033, S-100]
+      notes: 'Restricted users are refused (403 ACCOUNT_RESTRICTED). No KYC requirement (Q-048). Refused during the security pause (S-129, 422 WITHDRAWAL_SECURITY_PAUSE).'
+    x-covers: ['14 AC-4', '14 AC-6', '14 AC-7', '14 AC-8', '14 AC-10', '14 AC-11', '14 AC-12', '14 AC-17', '14 AC-21', '05 AC-30', '05 AC-37', '00 AC-16']
+    x-settings: [S-010, S-011, S-031, S-032, S-033, S-100, S-129]
     x-notifications: [EV-110, EV-111]
     x-emits: [wallet.balance_changed]
     x-jobs: [payout-sync]
@@ -1560,11 +1580,14 @@
     description: |
       One journal from the user's `legacy_hold` escrow to their Available balance for the whole residual,
       reference `legacy_hold:{userId}:settle` (one settlement per user, spec 16 "Money movements"), reason
-      required, audited (spec 16 AC-44, Q-096). Step-up re-authentication (treated as a balance adjustment,
-      spec 16 AC-7; see D3 handoff Q). A negative residual cannot be released if it would take Available
-      below 0 → `422 INSUFFICIENT_FUNDS` (I-5; see D3 handoff Q).
+      required, audited (spec 16 AC-44, Q-096). Step-up re-authentication within 15 minutes in the same staff
+      session (spec 16 AC-7, Owner 2026-09-30 Q-119). Only a **positive** residual can be released: a
+      negative residual is refused with `422 LEDGER_LEGACY_HOLD_WRITE_OFF_ONLY` (messageKey
+      `t_admin_negative_residual_write_off_only`) and nothing changes; it can only be written off
+      (`adminWriteOffLegacyHold`; Owner 2026-09-30 Q-120, spec 16 EC-12). The admin UI does not offer
+      "Released to Available" for negative residuals (cosmetic; the API decides).
       Errors: 400 VALIDATION_FAILED; 403 REAUTH_REQUIRED; 404 NOT_FOUND; 409 STATE_CONFLICT (already
-      settled), IDEMPOTENCY_IN_PROGRESS; 422 INSUFFICIENT_FUNDS, IDEMPOTENCY_KEY_REUSED.
+      settled), IDEMPOTENCY_IN_PROGRESS; 422 LEDGER_LEGACY_HOLD_WRITE_OFF_ONLY, IDEMPOTENCY_KEY_REUSED.
     tags: [Admin Ledger]
     security: [{staffBearer: []}, {staffCookie: []}]
     parameters:
@@ -1609,7 +1632,10 @@
     description: |
       One journal from the user's `legacy_hold` escrow to `platform:adjustments`, reference
       `legacy_hold:{userId}:settle`, reason required, audited (spec 16 AC-44, Q-096). Step-up
-      re-authentication as for balance adjustments (see D3 handoff Q).
+      re-authentication within 15 minutes in the same staff session (spec 16 AC-7, Owner 2026-09-30 Q-119).
+      Works for positive and negative residuals; for a **negative** residual it is the only settlement
+      (Q-120): the journal moves the amount between `platform:adjustments` and the user's `legacy_hold`
+      escrow only, and the user's Available balance never changes (spec 16 EC-12).
       Errors: 400 VALIDATION_FAILED; 403 REAUTH_REQUIRED; 404 NOT_FOUND; 409 STATE_CONFLICT,
       IDEMPOTENCY_IN_PROGRESS; 422 IDEMPOTENCY_KEY_REUSED.
     tags: [Admin Ledger]
@@ -1643,7 +1669,7 @@
       '409': {$ref: '../components/responses.yaml#/Conflict'}
       '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
 
-# ═════════════════════════ Admin: reconciliation (spec 05 AC-44…AC-47, PROPOSED P-135; spec 16 AC-44) ═════════════════════════
+# ═════════════════════════ Admin: reconciliation (spec 05 AC-44…AC-47, P-135 ACCEPTED Q-111; spec 16 AC-44) ═════════════════════════
 /admin/reconciliation/runs:
   parameters:
     - $ref: '../components/parameters.yaml#/AcceptLanguage'
@@ -1810,7 +1836,11 @@
       Pending (and processing) requests first, oldest first, then the rest newest first; user, amount, fee,
       payout, plan at request, payout details snapshot, date and status; filters status, dates, `userId`
       (spec 14 AC-13, spec 16 AC-31, AC-42). Banned users' requests stay listed (EC-7). `totalCount` =
-      pending count (admin home counter).
+      pending count (admin home counter). Every row carries the approver flag `detailsChangedRecently` with
+      `recentChangeKinds` and the latest change dates (spec 14 AC-23, spec 16 AC-42; Q-144).
+      Permission `withdrawals.approve` (Owner 2026-09-30 Q-113, closes SEC-08): the rows contain IBANs and
+      holder names, so staff with only `payments.read` (e.g. Customer Support) get `403 FORBIDDEN` and no
+      data; they see withdrawal amounts only as ledger lines (`adminListLedgerJournals`, spec 16 EC-14).
     tags: [Admin Withdrawals]
     security: [{staffBearer: []}, {staffCookie: []}]
     parameters:
@@ -1829,10 +1859,11 @@
           items: {$ref: '../schemas/d3.yaml#/WithdrawalStatus'}
     x-permission:
       audience: staff
-      permission: payments.read
+      permission: withdrawals.approve
       ownership: none
-      notes: 'payments.read per the spec 16 catalogue ("withdrawals and refunds lists"); spec 14 AC-13 / 16 AC-42 name withdrawals.approve for the screen — see D3 handoff Q.'
-    x-covers: ['14 AC-13', '16 AC-31', '16 AC-42']
+      notes: 'withdrawals.approve, not payments.read (Owner 2026-09-30 Q-113; spec 14 AC-13, spec 16 AC-42): the list shows IBANs and holder names.'
+    x-covers: ['14 AC-13', '14 AC-23', '16 AC-31', '16 AC-42']
+    x-settings: [S-129]
     responses:
       '200':
         description: Page of withdrawals.
@@ -1853,14 +1884,16 @@
   get:
     operationId: adminGetWithdrawal
     summary: Staff withdrawal detail
-    description: The request with both the copied and the current payout details (EC-4) and the user's Available balance; the user's recent transactions come from `adminListLedgerJournals?userId=` (spec 14 AC-13).
+    description: The request with both the copied and the current payout details (EC-4) and the user's Available balance; the user's recent transactions come from `adminListLedgerJournals?userId=` (spec 14 AC-13). Shows the approver flag and the date of the latest email, password and payout-details change, or `t_admin_security_change_none` when a date is null (spec 14 AC-23, EC-10, EC-12; Q-144). Permission `withdrawals.approve` (Owner 2026-09-30 Q-113); staff without it get `403 FORBIDDEN` and no IBAN or holder name.
     tags: [Admin Withdrawals]
     security: [{staffBearer: []}, {staffCookie: []}]
     x-permission:
       audience: staff
-      permission: payments.read
+      permission: withdrawals.approve
       ownership: none
-    x-covers: ['14 AC-13', '16 AC-42']
+      notes: 'withdrawals.approve, not payments.read (Owner 2026-09-30 Q-113): the detail shows IBANs and holder names.'
+    x-covers: ['14 AC-13', '14 AC-23', '16 AC-42']
+    x-settings: [S-129]
     responses:
       '200':
         description: The withdrawal.
@@ -2347,13 +2380,20 @@
       Code (unique, case-insensitive, 4–20 of A–Z 0–9 "-"), internal name, discount S-047 (percent 1–100 or
       fixed GEL > 0), applies to S-048 (Premium monthly and/or yearly), uses per user S-049 (default 1),
       total cap S-050 (required), active, optional valid-from / valid-until (spec 09 AC-27, P-59, P-10).
-      Errors: 400 VALIDATION_FAILED; 409 DUPLICATE (code taken).
+      **Conditional step-up (spec 16 AC-7, EC-13; Owner 2026-09-30 Q-145).** A code that makes a covered
+      service free — percent discount = 100 (`discountRate` 10000), or a fixed `discountAmount` ≥ the current
+      Premium price (S-008 / S-009) of any period in `appliesTo` — is created only if the staff member
+      re-authenticated within 15 minutes in the same session; otherwise `403 REAUTH_REQUIRED` and nothing is
+      created. Other codes need no re-authentication.
+      Errors: 400 VALIDATION_FAILED; 403 REAUTH_REQUIRED; 409 DUPLICATE (code taken).
     tags: [Admin Subscriptions]
     security: [{staffBearer: []}, {staffCookie: []}]
     x-permission:
       audience: staff
       permission: promo_codes.write
       ownership: none
+      notes: 'Conditional step-up: 403 REAUTH_REQUIRED without re-authentication in the last 15 minutes (same session) when the code makes a covered service free (percent 100, or fixed ≥ current S-008/S-009 price); spec 16 AC-7, Q-145.'
+    x-settings: [S-008, S-009, S-047, S-048, S-049, S-050]
     x-audit: promo_code.create
     x-covers: ['09 AC-27', '16 AC-58']
     requestBody:
@@ -2405,13 +2445,18 @@
       Before the first redemption every field may change. After it only `isActive`, `validUntil` and
       `maxTotalRedemptions` (not below redemptions so far) → other fields `422 BUSINESS_RULE_VIOLATION` with
       `details.fields` (spec 09 AC-27, P-59). Changes under the row lock used by redemptions (AC-31, EC-6).
-      Errors: 400 VALIDATION_FAILED; 404 NOT_FOUND; 422 BUSINESS_RULE_VIOLATION.
+      An edit (before the first redemption) that turns the code into one that makes a covered service free
+      (percent 100, or fixed ≥ the current S-008/S-009 price) needs the same re-authentication as creating
+      such a code (spec 16 AC-7, Q-145; otherwise `403 REAUTH_REQUIRED`), so the create rule cannot be
+      bypassed by editing.
+      Errors: 400 VALIDATION_FAILED; 403 REAUTH_REQUIRED; 404 NOT_FOUND; 422 BUSINESS_RULE_VIOLATION.
     tags: [Admin Subscriptions]
     security: [{staffBearer: []}, {staffCookie: []}]
     x-permission:
       audience: staff
       permission: promo_codes.write
       ownership: none
+      notes: 'Conditional step-up as adminCreatePromoCode when the edit makes the code free (spec 16 AC-7, Q-145).'
     x-audit: promo_code.update
     x-covers: ['09 AC-27', '16 AC-58']
     requestBody:
@@ -2433,7 +2478,7 @@
   delete:
     operationId: adminDeletePromoCode
     summary: Delete an unused promo code
-    description: 'Only before its first redemption (reservations included); afterwards `409 STATE_CONFLICT` — deactivate it instead (`isActive = false`) so redemptions stay visible (spec 09 AC-33; see D3 handoff Q). Audited.'
+    description: 'Only before its first redemption (reservations included); afterwards `409 STATE_CONFLICT` — deactivate it instead (`isActive = false`) so redemptions stay visible (spec 09 AC-33; contract default, slice item Q-133). Audited.'
     tags: [Admin Subscriptions]
     security: [{staffBearer: []}, {staffCookie: []}]
     x-permission:

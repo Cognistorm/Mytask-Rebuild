@@ -1,6 +1,6 @@
 {
   "name": "@mytask/api-contract",
-  "version": "1.0.0-draft",
+  "version": "1.0.0",
   "private": true,
   "description": "MyTask.ge API contract sources (OpenAPI 3.1). Only the solution-architect edits src/. openapi.yaml is generated.",
   "type": "module",

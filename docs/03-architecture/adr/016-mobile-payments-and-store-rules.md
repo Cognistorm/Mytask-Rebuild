@@ -1,5 +1,5 @@
 # ADR-016: Payments inside the mobile apps (App Store / Google Play rules)
-Date: 2026-09-28 | Status: proposed
+Date: 2026-09-28 | Status: accepted (Owner 2026-09-30)
 
 > **Revised 2026-09-28** to match Owner decision Q-081: Premium is **also sold by BOG card inside the mobile apps**, not only on the web or with points. The earlier recommendation (web-only Premium sales) is withdrawn. The app-store billing risk is documented below, and setting **S-126 `subscriptions.mobile_card_purchase.enabled`** (spec 00, spec 09 AC-7, P-60) is the fallback switch. Changed: whole Decision, Consequences.
 

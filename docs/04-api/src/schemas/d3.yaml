@@ -25,6 +25,8 @@ D3ErrorCode:
     - WITHDRAWAL_PERIOD_NOT_ELAPSED
     - WITHDRAWAL_BELOW_MINIMUM
     - WITHDRAWAL_PAYOUT_TOO_LOW
+    - WITHDRAWAL_SECURITY_PAUSE
+    - LEDGER_LEGACY_HOLD_WRITE_OFF_ONLY
   x-enumDescriptions:
     QUOTE_CHANGED: '[409] The server recomputed the quote and its total for the chosen method differs from `quoteId` (fee rule, S-012, price or promo changed). Nothing was started. `details.quote` holds the new `CheckoutQuote` to confirm (spec 05 AC-8); messageKey t_quote_changed'
     CHECKOUT_METHOD_NOT_AVAILABLE: '[422] The method is never offered for this purpose (spec 05 R-P1: bank transfer only for gig orders and top-ups, wallet never for Premium or top-ups). A method switched OFF is `403 FEATURE_DISABLED` instead; messageKey t_payment_method_not_available (NEW, requested in the D3 handoff)'
@@ -42,6 +44,8 @@ D3ErrorCode:
     WITHDRAWAL_PERIOD_NOT_ELAPSED: '[422] Less than 24h / 168h / 720h (S-032) since the creation of the latest paid request; `details.nextAllowedAt` (spec 14 AC-6); messageKey t_cant_withdraw_reason_period_24_hours | t_cant_withdraw_reason_period_7_days | t_cant_withdraw_reason_period_monthly'
     WITHDRAWAL_BELOW_MINIMUM: '[422] A below S-031; `details.min` is Money (spec 14 AC-6); messageKey t_cant_withdraw_reason_min_amount'
     WITHDRAWAL_PAYOUT_TOO_LOW: '[422] Payout A − F would be 0 or less (spec 14 AC-6); messageKey t_withdrawal_amount_too_low'
+    WITHDRAWAL_SECURITY_PAUSE: '[422] Security pause: less than S-129 hours (value at request time, default 24; 0 = never) since the latest email, password or payout-details change of the account, by the user or started by staff (spec 14 AC-21, R-W9; Owner 2026-09-30 Q-144). `details.pausedUntil` (Timestamp = latest change + S-129) and `details.params.datetime` (the same moment formatted in Georgian time, UTC+4); messageKey t_cant_withdraw_reason_security_pause'
+    LEDGER_LEGACY_HOLD_WRITE_OFF_ONLY: '[422] A negative legacy-hold residual cannot be released to Available; it can only be written off (spec 16 AC-44, EC-12; Owner 2026-09-30 Q-120); messageKey t_admin_negative_residual_write_off_only'
 
 # ═════════════════════════ Checkout (spec 05 AC-1…AC-8, AC-21, AC-22, AC-37, AC-40; 09 AC-3, AC-28…AC-30) ═════════════════════════
 CheckoutPromoCodeInput:
@@ -918,13 +922,14 @@ WithdrawalEligibility:
     canWithdraw: {type: boolean}
     reasonCode:
       type: [string, 'null']
-      description: The error code `createWithdrawal` would return (e.g. `PAYOUT_DETAILS_REQUIRED`, `INSUFFICIENT_FUNDS`, `WITHDRAWAL_PENDING_EXISTS`, `WITHDRAWAL_PERIOD_NOT_ELAPSED`).
+      description: The error code `createWithdrawal` would return (e.g. `PAYOUT_DETAILS_REQUIRED`, `INSUFFICIENT_FUNDS`, `WITHDRAWAL_PENDING_EXISTS`, `WITHDRAWAL_SECURITY_PAUSE`, `WITHDRAWAL_PERIOD_NOT_ELAPSED`).
     messageKey:
       type: [string, 'null']
       pattern: '^t_[a-z0-9_]+$'
-      description: e.g. `t_add_payout_details_first`, `t_nothing_to_withdraw` (AC-11).
+      description: e.g. `t_add_payout_details_first`, `t_nothing_to_withdraw` (AC-11), `t_cant_withdraw_reason_security_pause` (AC-22).
     nextAllowedAt:
       oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+      description: When the failing time rule ends (period S-032 or security pause S-129); null for other reasons.
 
 WithdrawalQuoteRequest:
   type: object
@@ -936,8 +941,11 @@ WithdrawalQuoteRequest:
 WithdrawalQuote:
   type: object
   description: Everything the withdraw form shows; the client never computes the fee (spec 14 AC-5).
-  required: [available, minimum, periodRule, plan, feeLine, feeRate, amount, fee, payout, payoutDetails, eligibility]
+  required: [available, minimum, periodRule, plan, feeLine, feeRate, amount, fee, payout, payoutDetails, eligibility, securityPauseUntil]
   properties:
+    securityPauseUntil:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+      description: End of the running security pause (latest email, password or payout-details change + S-129 hours, spec 14 AC-21, AC-22; Q-144); null when no pause runs. While set, the form shows `t_cant_withdraw_reason_security_pause` with this time and disables the request button; the fee preview stays available.
     available: {$ref: '../components/schemas.yaml#/Money'}
     minimum:
       $ref: '../components/schemas.yaml#/Money'
@@ -1011,8 +1019,30 @@ AdminWithdrawal:
   allOf:
     - $ref: '#/Withdrawal'
     - type: object
-      required: [user, currentPayoutDetails, processedBy, userAvailable]
+      required: [user, currentPayoutDetails, processedBy, userAvailable, detailsChangedRecently, recentChangeKinds, lastEmailChangedAt, lastPasswordChangedAt, lastPayoutDetailsChangedAt]
       properties:
+        detailsChangedRecently:
+          type: boolean
+          description: |
+            Approver flag `t_admin_details_changed_recently` (spec 14 AC-23, spec 16 AC-42; Owner 2026-09-30
+            Q-144 option (d)): true when the user had a security change (email became active, password changed
+            or reset, payout details saved; by the user or started by staff) in the 7 days before `createdAt`,
+            or at any time after `createdAt` while the request is `pending` or `processing` (7-day window =
+            Q-151 default). Information only: it never blocks "Mark as paid" or "Reject". Computed by the API.
+        recentChangeKinds:
+          type: array
+          uniqueItems: true
+          description: The kinds of change that raised the flag (`t_admin_security_change_email` / `_password` / `_payout_details`); empty when the flag is false.
+          items: {$ref: '#/WithdrawalSecurityChangeKind'}
+        lastEmailChangedAt:
+          oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+          description: Latest time the user's new email became active on the new platform (null = none recorded, `t_admin_security_change_none`; migration sets null, spec 14 EC-9).
+        lastPasswordChangedAt:
+          oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+          description: Latest password change or reset on the new platform (null = none recorded).
+        lastPayoutDetailsChangedAt:
+          oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+          description: Latest save of payout details on the new platform, including the first structured save (null = none recorded).
         user: {$ref: '../components/schemas.yaml#/UserSummary'}
         currentPayoutDetails:
           oneOf: [{$ref: '#/PayoutDetailsSnapshot'}, {type: 'null'}]
@@ -1022,6 +1052,11 @@ AdminWithdrawal:
         userAvailable:
           $ref: '../components/schemas.yaml#/Money'
           description: The user's current Available balance (detail context, AC-13).
+
+WithdrawalSecurityChangeKind:
+  type: string
+  enum: [email, password, payout_details]
+  description: Kind of account security change that starts the withdrawal pause (S-129) and raises the approver flag (spec 14 AC-21, AC-23; Q-144).
 
 AdminWithdrawalPage:
   allOf:
@@ -1060,11 +1095,18 @@ PaymentEventKind:
 AdminPaymentEvent:
   type: object
   description: One raw provider event or status check of a payment (`payment_events`, spec 16 AC-36).
-  required: [id, kind, receivedAt, processedAt, signatureValid, result, error, rawBody]
+  required: [id, kind, receivedAt, lastReceivedAt, repeatCount, processedAt, signatureValid, result, error, rawBody]
   properties:
     id: {type: integer, format: int64}
     kind: {$ref: '#/PaymentEventKind'}
     receivedAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    lastReceivedAt:
+      $ref: '../components/schemas.yaml#/Timestamp'
+      description: Last time an identical callback (or, above the per-payment hourly cap, any further callback) was counted on this row; equals `receivedAt` when never repeated (ADR-004 §3, SEC-31).
+    repeatCount:
+      type: integer
+      minimum: 0
+      description: Callbacks counted on this row but not stored again (identical body, or over the cap of 20 stored callbacks per payment per hour; SEC-31).
     processedAt:
       oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
     signatureValid: {type: [boolean, 'null']}
@@ -1365,7 +1407,7 @@ AdminLegacyHoldPage:
           type: array
           items: {$ref: '#/AdminLegacyHold'}
 
-# ═════════════════════════ Admin: reconciliation (spec 05 AC-44…AC-47, PROPOSED P-135) ═════════════════════════
+# ═════════════════════════ Admin: reconciliation (spec 05 AC-44…AC-47, P-135 ACCEPTED Q-111) ═════════════════════════
 ReconciliationRunStatus:
   type: string
   enum: [running, no_differences, differences_found, failed]

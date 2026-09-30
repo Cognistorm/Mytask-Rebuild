@@ -1,5 +1,5 @@
 # ADR-014: API contract first — OpenAPI 3.1 as the law, generated types and client, contract tests, versioning
-Date: 2026-09-28 | Status: proposed
+Date: 2026-09-28 | Status: accepted (Owner 2026-09-30)
 
 ## Context
 - CLAUDE.md: `docs/04-api/openapi.yaml` is the law; only the Architect changes it, with an ADR; shared types in `packages/types` are generated from it, never hand-written.

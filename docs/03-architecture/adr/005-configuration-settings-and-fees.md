@@ -1,5 +1,5 @@
 # ADR-005: Configuration — settings register, Commission & Fee module, versioning
-Date: 2026-09-28 | Status: proposed
+Date: 2026-09-28 | Status: accepted (Owner 2026-09-30)
 
 ## Context
 - The Owner wants every fee, limit, timer and toggle editable in the admin panel without a developer (spec 00 user story; register S-001…S-122 approved).

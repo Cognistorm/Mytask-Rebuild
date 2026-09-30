@@ -60,7 +60,8 @@ export function loadSpecs() {
     for (const line of text.split(/\r?\n/)) {
       if (/^## /.test(line)) inAc = /^## Acceptance criteria/.test(line);
       if (!inAc) continue;
-      const m = line.match(/^\s*[-*]\s+\**(AC-\d+)\**\b(.*)$/);
+      // a letter suffix marks an AC inserted later between two numbers (e.g. spec 16 AC-74a)
+      const m = line.match(/^\s*[-*]\s+\**(AC-\d+[a-z]?)\**\b(.*)$/);
       if (m && !acs.has(m[1])) acs.set(m[1], m[2].trim());
     }
     out[num] = { file, title, acs };

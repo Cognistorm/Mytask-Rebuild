@@ -1,5 +1,5 @@
 # ADR-015: Environments, hosting proposal, backups and observability
-Date: 2026-09-28 | Status: proposed (hosting choice needs Owner approval before Phase 6)
+Date: 2026-09-28 | Status: accepted (Owner 2026-09-30; the concrete hosting provider still needs Owner approval before Phase 6)
 
 > **Revised 2026-09-30** after the P2-B5 security review: §2 staging cookie isolation (SEC-15); §3 edge and client-IP rule, normative text in ADR-013 §14–§19 (SEC-01); §6 Bull Board read-only, admin host only, `system.health.read` (SEC-20).
 
@@ -30,6 +30,7 @@ Date: 2026-09-28 | Status: proposed (hosting choice needs Owner approval before 
    - Logs: pino JSON to stdout; request id in every line and in the `X-Request-Id` response header; warnings/errors also in `system_log` for the admin page (ADR-013).
    - Errors: Sentry-compatible SDK in api, worker, web, admin and mobile; PII scrubbing; no IPs (ADR-012).
    - Health: public `/api/v1/health` (liveness only); internal readiness (DB, Redis, storage, sweepers' last run); external uptime checks on web, API and the BOG webhook path.
+   - **Redis is security-critical (SEC-32(c)).** It holds the session deny-list, every auth counter (slow mode, code lock, in-session throttle) and social-login `state`; authenticated requests fail closed (`503`) without it (ADR-002 §1). It is therefore monitored like the database: readiness check, memory and eviction alerts (`maxmemory-policy noeviction` for the security keys), persistence (AOF) and an alert to S-100 when it is unreachable for more than 1 minute.
    - Queue dashboard (SEC-20): Bull Board runs in **read-only mode** (`readOnlyMode: true`: no retry, clean, promote or remove), is served only on `admin.mytask.ge` under the admin CSP and CSRF rules, and needs the staff permission `system.health.read` (spec 16 catalogue: "job health, queues"). Retrying work is possible only through contract operations that are audited (e.g. the email retry of spec 16 P-121).
    - Metrics: request latency and error rate per route, queue depth and failures (read-only Bull Board in admin), sweeper last-run times, payment intents pending > N minutes, reconciliation results. Alerts go to the admin recipients (S-100) by email.
 7. **Performance budget** (checked in Phase 4 QA): public page TTFB < 500 ms from Tbilisi on cached pages; API p95 < 300 ms for reads; Lighthouse performance ≥ 90 on mobile for home, gig page and project page.

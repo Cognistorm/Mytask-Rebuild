@@ -1,5 +1,5 @@
 # ADR-003: Double-entry ledger, integer tetri, idempotency and the HOLD model
-Date: 2026-09-28 | Status: proposed
+Date: 2026-09-28 | Status: accepted (Owner 2026-09-30)
 
 ## Context
 - Vision "must not break": payment/transaction history and balances preserved exactly. Money is the area with the most legacy defects: varchar balances with float maths and non-atomic updates (R-017), inconsistent escrow bookkeeping across code paths (R-012), swapped commissions (R-013), negative pending from deleting unpaid orders (R-014), refunds of a non-existent column (R-015), free top-ups through a replayable return URL (R-004), cancel-unpaid-order credit (R-005), client-supplied points (R-006).

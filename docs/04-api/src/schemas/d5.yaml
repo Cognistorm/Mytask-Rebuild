@@ -511,7 +511,7 @@ ProjectTitleInput:
   type: object
   description: |
     Title in both languages (write form). `ka` 3–100 characters: Georgian letters, Latin letters,
-    digits, whitespace and `- _ . , ! ? ( )` (spec 00 R-5.3a, PROPOSED P-136) with at least one Georgian
+    digits, whitespace and `- _ . , ! ? ( )` (spec 00 R-5.3a, P-136 accepted, Q-109) with at least one Georgian
     letter; other characters → `VALIDATION_FAILED`, field `title.ka`, messageKey
     `t_validator_georgian_field_characters` (naming them) or `t_validator_georgian_letter_required`
     (shared validation error defined by D1). `en` optional, 3–100 characters, no Georgian letters
@@ -531,7 +531,7 @@ ProjectDescriptionInput:
   type: object
   description: |
     Description in both languages (write form), plain text, line breaks kept, HTML refused. `ka` 10–10,000
-    characters with the same character set as the Georgian title (spec 10 AC-4, R-5.3a, PROPOSED P-136;
+    characters with the same character set as the Georgian title (spec 10 AC-4, R-5.3a, P-136 accepted, Q-109;
     `t_project_description_too_long` above the maximum). `en` optional, 10–10,000, no Georgian letters.
   required: [ka]
   properties:

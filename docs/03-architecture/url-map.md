@@ -1,5 +1,5 @@
 # URL map — legacy → new (SEO, redirects, hreflang, sitemap, deep links)
-Status: **proposed** (waiting for Owner review) | Author: solution-architect (P2-B3) | Date: 2026-09-28
+Status: **accepted (Owner 2026-09-30)** | Author: solution-architect (P2-B3) | Date: 2026-09-28
 Inputs: `docs/01-discovery/routes-and-pages.md` (every legacy route, `legacy/APP/routes/web.php`, `routes/admin.php`), a read-only check of https://mytask.ge (2026-09-28: no hreflang or canonical tags on the live home page; gig URLs `/service/{slug}-{UID20}`, project URLs `/project/{pid}/{slug}`, `?locale=` and `?theme=` links in the header), ADR-006, ADR-008, ADR-010, specs 00 (R-5.6, AC-3, AC-24), 02 (EC-4), 03 (AC-12, AC-29, AC-35…AC-37), 04 (AC-33, P-33), 05 (AC-11), 06; Owner answers Q-013, Q-023, Q-024, Q-025, Q-088.
 Items that depend on specs 08, 10–13 and 17 (being written) are marked "to confirm against spec NN".
 

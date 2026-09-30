@@ -632,7 +632,7 @@ Gig:
     revisionsAllowed:
       type: [integer, 'null']
       minimum: 0
-      description: 'Number of revisions included (`t_revisions_included` / `t_no_revisions` for 0). Null only for migrated gigs without a value (data-model §3.D, Owner question 1).'
+      description: 'Number of revisions included (`t_revisions_included` / `t_no_revisions` for 0). Null only for migrated gigs without a value (data-model §3.D; display: slice item Q-142).'
     upgrades:
       type: array
       maxItems: 10
@@ -664,7 +664,7 @@ Gig:
 
 GigRelatedList:
   type: object
-  description: '"You may also like" (spec 04 AC-32, P-137): at most 40 gigs in random order; an empty list means the section is hidden.'
+  description: '"You may also like" (spec 04 AC-32, P-137 accepted, Q-110): at most 40 gigs in random order; an empty list means the section is hidden.'
   required: [gigs]
   properties:
     gigs:

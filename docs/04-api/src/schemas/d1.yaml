@@ -31,7 +31,7 @@ D1ErrorCode:
   x-enumDescriptions:
     AUTH_INVALID_CREDENTIALS: '[401] Wrong email or password, unknown email or a soft-deleted account (same answer for all, spec 01 AC-11, AC-15); messageKey t_invalid_login_credentials_pls_try_again'
     AUTH_LOGIN_LOCKED: '[429] Account + IP locked after S-062 failed logins for S-063 minutes (spec 01 AC-16); `details.retryAfterSeconds`, `details.params.minutes`; messageKey t_too_many_login_attempts'
-    AUTH_LOGIN_THROTTLED: '[429] Slow mode after 20 failed logins for this account within one hour from any IPs: one attempt per 30 seconds is evaluated (ADR-002 §6, SEC-02; no hard lock). `details.retryAfterSeconds`; messageKey t_too_many_login_attempts'
+    AUTH_LOGIN_THROTTLED: '[429] Slow mode after 20 failed logins for this account within one hour from any IPs: one attempt per 30 seconds is evaluated (ADR-002 §6, SEC-02, spec 01 AC-53; no hard lock; trusted-device and passed-reCAPTCHA attempts bypass the slot, SEC-30). `details.retryAfterSeconds`, `details.params.seconds` (= retryAfterSeconds); messageKey t_login_slow_mode'
     AUTH_LINK_INVALID: '[422] Unknown or already used verification / reset / email-change link (spec 01 AC-8, AC-34); messageKey t_verification_email_not_exists (reset links: the client goes to login)'
     AUTH_LINK_EXPIRED: '[422] The link is older than S-054 / S-055 minutes (spec 01 AC-8, AC-34; spec 02 AC-30); messageKey t_verification_email_link_expired or t_password_reset_link_expired'
     AUTH_ALREADY_VERIFIED: '[409] Resend verification for an account that is not pending (spec 01 AC-9); messageKey t_already_verified_user'
@@ -43,7 +43,7 @@ D1ErrorCode:
     TWO_FACTOR_CODE_INVALID: '[422] Wrong 2FA code; `details.attemptsLeft` (spec 01 AC-25); messageKey t_2fa_code_invalid'
     TWO_FACTOR_CODE_EXPIRED: '[422] Code older than S-057 minutes (spec 01 AC-26); messageKey t_2fa_code_expired'
     TWO_FACTOR_TOO_MANY_ATTEMPTS: '[422] S-058 wrong codes: this code no longer works, ask for a new one (spec 01 AC-25); messageKey t_2fa_too_many_attempts'
-    TWO_FACTOR_LOCKED: '[429] 10 wrong codes for this account within one hour across all challenges: code checks are refused for S-063 minutes, even for a correct code (ADR-002 §5, SEC-03). `details.retryAfterSeconds`; messageKey t_too_many_login_attempts'
+    TWO_FACTOR_LOCKED: '[429] 10 wrong codes for this account within one hour across all challenges: code checks are refused for S-063 minutes, even for a correct code (ADR-002 §5, SEC-03, spec 01 AC-54; owner emailed once per lock, EV-129). `details.retryAfterSeconds`, `details.params.minutes` (remaining minutes, rounded up); messageKey t_2fa_locked'
     TWO_FACTOR_RESEND_THROTTLED: '[429] Resend inside the 60-second cooldown or above 5 codes per 15 minutes (spec 01 AC-27); `details.retryAfterSeconds`, `details.params.seconds`; messageKey t_2fa_resend_wait'
 
 # ═════════════════════════ Platform ═════════════════════════
@@ -352,6 +352,7 @@ PublicConfigWebCustomCode:
     footer: {type: [string, 'null']}
     allowedHosts:
       type: array
+      description: The hostnames of S-127 (each confirmed as a fixed-code vendor, spec 16 AC-74a, Q-146) for the CSP; the confirmation data stays in the admin API.
       items: {type: string, maxLength: 253}
 
 # ═════════════════════════ Auth ═════════════════════════
@@ -1119,12 +1120,14 @@ PortfolioStatus:
   enum: [pending, active, rejected]
   description: |
     `pending` = waiting for review (S-071 OFF), visible only to the owner; `active` = public.
-    `rejected` = staff rejected it with a reason shown to the owner (spec 16 AC-21 / AC-19). data-model
-    §3.B lists only `pending` and `active`: see D1 handoff question on the rejected state.
+    `rejected` = staff rejected it with a reason shown only to the owner (spec 02 AC-42, spec 16 AC-21;
+    Owner 2026-09-30 Q-117; data-model §3.B). A rejected item is never public (404 for everyone but the
+    owner); the owner's next edit sends it back per spec 02 AC-25 (`pending`, or `active` with S-071 ON).
+    Migrated items are never `rejected` (spec 02 EC-11).
 
 PortfolioItem:
   type: object
-  required: [id, uid, slug, title, description, projectUrl, videoUrl, thumbnail, images, status, rejectionReason, owner, isOwn, publishedAt, createdAt, updatedAt]
+  required: [id, uid, slug, title, description, projectUrl, videoUrl, thumbnail, images, status, rejectionReason, rejectedAt, owner, isOwn, publishedAt, createdAt, updatedAt]
   properties:
     id: {$ref: '../components/schemas.yaml#/Uuid'}
     uid: {type: string, description: Public id; part of the slug (url-map §4.3).}
@@ -1142,7 +1145,11 @@ PortfolioItem:
     status: {$ref: '#/PortfolioStatus'}
     rejectionReason:
       type: [string, 'null']
-      description: Only for the owner (and staff) when `rejected`.
+      maxLength: 1000
+      description: Only for the owner (and staff) while `rejected` (`t_portfolio_rejected_reason`, spec 02 AC-42); null otherwise. After the owner's next edit it is no longer returned (it stays in the audit log).
+    rejectedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+      description: When staff rejected it; only for the owner (and staff) while `rejected`, else null.
     owner: {$ref: '../components/schemas.yaml#/UserSummary'}
     isOwn: {type: boolean}
     publishedAt:

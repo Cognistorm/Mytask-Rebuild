@@ -156,7 +156,7 @@ FieldError:
     One invalid field of a `VALIDATION_FAILED` error (CONVENTIONS §7.1). `params` carries the values of the
     placeholders of `messageKey` (e.g. `{max: 80}` for `:max`), so clients that render from their own
     bundle get the same text as `message`.
-    **Georgian fields** (spec 00 R-5.3/R-5.3a, PROPOSED P-136, scope Q-109; gig title/description D2,
+    **Georgian fields** (spec 00 R-5.3/R-5.3a, P-136 ACCEPTED 2026-09-30, scope Q-109; gig title/description D2,
     project title/description D5): `code = georgian_field_characters` when the normalised text contains
     characters outside the allowed set — `refusedCharacters` lists each refused character once, in order
     of first appearance, at most 10, and `params.chars` is the same list joined by a space (placeholder

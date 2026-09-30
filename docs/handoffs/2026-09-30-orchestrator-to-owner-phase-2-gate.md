@@ -1,4 +1,6 @@
 # Phase 2 gate: what the Owner approves
+
+> **Result: APPROVED by the Owner on 2026-09-30.** All nine items were approved and every gate question was answered as recommended (see `docs/01-discovery/open-questions.md`, "Owner answers at the Phase 2 gate"). The answers were applied to the specs, contract and data model the same day (715/715 ACs covered, lint clean), and `feat/blueprint` was merged into `main`.
 From: orchestrator · To: Owner · Date: 2026-09-30 · Branch: `feat/blueprint`
 
 ## What I did
@@ -12,15 +14,15 @@ Nothing is merged to `main`, nothing is in production, and `/legacy` was not cha
 ## Gate checklist (plan §4)
 | # | Item | State | Where to look |
 |---|---|---|---|
-| 1 | Specs 00…17 approved | Done. **New:** P-135, P-136, P-137 need your OK (Q-111, Q-109, Q-110) | `docs/02-specs/`, `docs/01-discovery/open-questions.md` |
-| 2 | Open questions answered | Q-058…Q-108 done. **New "Gate" questions below** | `open-questions.md`, last three sections |
-| 3 | Parity master | Ready for you | `docs/06-qa/plans/00-parity-master.md` |
-| 4 | Architecture + ADR-001…016 | Ready for you (ADR-002, 004, 008, 009, 010, 012, 013, 015 revised in Steps 7–8) | `docs/03-architecture/architecture.md`, `adr/` |
-| 5 | Data model | Ready for you (now 122 entities; reconciliation tables PROPOSED with P-135) | `docs/03-architecture/data-model.md` |
-| 6 | URL map | Ready for you | `docs/03-architecture/url-map.md` |
-| 7 | API contract | Lint clean, 707/707 covered. **Approve as the contract** | `docs/04-api/README.md` (coverage table), `openapi.yaml`, `CONVENTIONS.md` |
-| 8 | Design | Ready for you. One point to decide: the checkout column order | `docs/05-design/` (preview: `preview/index.html`; `screens/00-README.md`) |
-| 9 | Security | **PASS with conditions** | `docs/06-qa/security/01-blueprint-recheck-2026-09-30.md` |
+| 1 | Specs 00…17 approved | **Approved** (P-135…P-137 accepted 2026-09-30) | `docs/02-specs/`, `docs/01-discovery/open-questions.md` |
+| 2 | Open questions answered | **Answered** (Gate questions 2026-09-30; slice items open) | `open-questions.md`, last three sections |
+| 3 | Parity master | **Approved** | `docs/06-qa/plans/00-parity-master.md` |
+| 4 | Architecture + ADR-001…016 | **Approved** (accepted 2026-09-30) | `docs/03-architecture/architecture.md`, `adr/` |
+| 5 | Data model | **Approved** | `docs/03-architecture/data-model.md` |
+| 6 | URL map | **Approved** | `docs/03-architecture/url-map.md` |
+| 7 | API contract | **Approved** as the contract, v1.0.0 (715/715 covered after the gate answers) | `docs/04-api/README.md` (coverage table), `openapi.yaml`, `CONVENTIONS.md` |
+| 8 | Design | **Approved** (checkout column order as proposed) | `docs/05-design/` (preview: `preview/index.html`; `screens/00-README.md`) |
+| 9 | Security | **PASS with conditions, approved** | `docs/06-qa/security/01-blueprint-recheck-2026-09-30.md` |
 
 ## Questions to answer at the gate
 Each one has a recommendation and a safe default already in the contract. Answering "as recommended" is enough.

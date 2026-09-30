@@ -3,9 +3,13 @@
 openapi: 3.1.0
 info:
   title: MyTask.ge API
-  version: 1.0.0-draft
+  version: 1.0.0
   summary: One API for the MyTask.ge website, mobile apps (iOS, Android) and admin panel.
   description: |
+    **Status: approved by the Owner 2026-09-30 as the contract** (Phase 2 gate, version 1.0.0, including
+    the Owner's gate answers Q-109…Q-121, Q-137, Q-144…Q-146). From now on every change needs an ADR in
+    `docs/03-architecture/adr/` and a handoff to the backend, web and mobile engineers (CLAUDE.md rule 2).
+
     **The contract is the law** (CLAUDE.md). Web (`apps/web`), mobile (`apps/mobile`) and admin
     (`apps/admin`) use only this API through the generated `packages/types` + `packages/api-client`
     (ADR-014). Business rules and permission checks live only in the API.
@@ -552,8 +556,9 @@ paths:
         `STAFF_TWO_FACTOR_TOO_MANY_ATTEMPTS` (S-058); 404 unknown challenge.
         Cap across challenges (ADR-002 §5, SEC-03): 10 wrong codes for one staff account within one hour (login
         and re-authentication codes together) → code checks refused for S-063 minutes with
-        `429 STAFF_TWO_FACTOR_LOCKED`, and the staff member is emailed; every wrong login code also counts as a
-        failed staff login towards the S-064 IP ban.
+        `429 STAFF_TWO_FACTOR_LOCKED` (messageKey `t_2fa_locked` with `minutes`), and the staff member gets the
+        security email EV-129 once per lock (spec 01 AC-54); every wrong login code also counts as a failed
+        staff login towards the S-064 IP ban.
       tags:
         - Admin Auth
       security: []
@@ -563,12 +568,15 @@ paths:
       x-covers:
         - 16 AC-2
         - 01 AC-29
+        - 01 AC-54
       x-settings:
         - S-057
         - S-058
         - S-059
         - S-063
         - S-064
+      x-notifications:
+        - EV-129
       x-rate-limit: S-058 wrong codes per challenge; 10 wrong codes per staff account per hour across challenges → blocked S-063 minutes (STAFF_TWO_FACTOR_LOCKED); wrong codes count towards the S-064 IP ban
       x-audit: staff.login
       requestBody:
@@ -830,7 +838,8 @@ paths:
         sessions of the same staff member do not inherit it, and it ends with the session (ADR-002 §6).
         Throttle (SEC-04): wrong passwords and codes count per staff account; after S-062 within 15 minutes
         every password/code check of the account answers `429 RATE_LIMITED` (`t_too_many_login_attempts`)
-        for S-063 minutes; wrong codes also count towards the SEC-03 cap (`429 STAFF_TWO_FACTOR_LOCKED`).
+        for S-063 minutes (spec 01 AC-55); wrong codes also count towards the SEC-03 cap (`429
+        STAFF_TWO_FACTOR_LOCKED`, `t_2fa_locked`, EV-129; spec 01 AC-54).
         Errors: 422 `STAFF_CURRENT_PASSWORD_WRONG`, `STAFF_TWO_FACTOR_CODE_*`; 429.
       tags:
         - Admin Auth
@@ -843,10 +852,14 @@ paths:
         ownership: own session only
       x-covers:
         - 16 AC-7
+        - 01 AC-54
+        - 01 AC-55
       x-settings:
         - S-060
         - S-062
         - S-063
+      x-notifications:
+        - EV-129
       x-rate-limit: S-062 wrong passwords or codes per staff account in 15 minutes → password/code checks refused for S-063 minutes (429 RATE_LIMITED, SEC-04)
       x-audit: staff.reauth
       requestBody:
@@ -2874,7 +2887,7 @@ paths:
         buyer, amount, status, delivered at, auto-release deadline or the pause reason (revision, refund
         request, dispute, auto-release OFF). `totalAmount` sums all matching escrows; with the default
         filter it equals the platform HOLD balance. Newest first.
-        `overdue=true` (safest reading of AC-39, see D4 handoff Q): funded escrows whose auto-release
+        `overdue=true` (safest reading of AC-39, slice item Q-122): funded escrows whose auto-release
         deadline has passed (e.g. while S-025 is OFF) or whose item is past its expected delivery date
         without a delivery.
       tags:
@@ -3088,9 +3101,10 @@ paths:
         (gig queue −1), P to the buyer's Available balance (card fee and buyer fees not returned), an open
         request `accepted_by_admin`, a pending unblock request `closed`; both parties notified with the
         public note (EV-109). A second attempt gets `409` (AC-31). Step-up re-authentication (spec 16
-        AC-7). Audited. With an open dispute, staff decide it with `adminResolveDispute` instead
-        (`422` DISPUTE_OPEN; see D4 handoff Q).
-        Errors: `409` STATE_CONFLICT (messageKey t_order_status_changed); `422` DISPUTE_OPEN.
+        AC-7). Audited. With an open dispute it is refused and nothing changes (`422` DISPUTE_OPEN with
+        messageKey `t_admin_refund_blocked_dispute_open`; Owner 2026-09-30 Q-121: kept); staff decide the
+        dispute with `adminResolveDispute` (spec 13 AC-15…AC-22).
+        Errors: `409` STATE_CONFLICT (messageKey t_order_status_changed); `422` DISPUTE_OPEN (messageKey t_admin_refund_blocked_dispute_open).
       tags:
         - Admin Escrows
       security:
@@ -3965,7 +3979,7 @@ paths:
       description: |
         Only gigs removed by staff (`deletedBy = staff`), within 30 days of the removal (spec 16 AC-20);
         the gig returns to `active` (the status it had when removed). Later → 422 GIG_RESTORE_WINDOW_EXPIRED;
-        not a staff removal → 409 STATE_CONFLICT. Plan-limit and re-moderation effects: see D2 handoff question.
+        not a staff removal → 409 STATE_CONFLICT. Plan-limit and re-moderation effects: contract default, slice item Q-123.
       tags:
         - Admin Gigs
       security:
@@ -4882,11 +4896,14 @@ paths:
       description: |
         One journal from the user's `legacy_hold` escrow to their Available balance for the whole residual,
         reference `legacy_hold:{userId}:settle` (one settlement per user, spec 16 "Money movements"), reason
-        required, audited (spec 16 AC-44, Q-096). Step-up re-authentication (treated as a balance adjustment,
-        spec 16 AC-7; see D3 handoff Q). A negative residual cannot be released if it would take Available
-        below 0 → `422 INSUFFICIENT_FUNDS` (I-5; see D3 handoff Q).
+        required, audited (spec 16 AC-44, Q-096). Step-up re-authentication within 15 minutes in the same staff
+        session (spec 16 AC-7, Owner 2026-09-30 Q-119). Only a **positive** residual can be released: a
+        negative residual is refused with `422 LEDGER_LEGACY_HOLD_WRITE_OFF_ONLY` (messageKey
+        `t_admin_negative_residual_write_off_only`) and nothing changes; it can only be written off
+        (`adminWriteOffLegacyHold`; Owner 2026-09-30 Q-120, spec 16 EC-12). The admin UI does not offer
+        "Released to Available" for negative residuals (cosmetic; the API decides).
         Errors: 400 VALIDATION_FAILED; 403 REAUTH_REQUIRED; 404 NOT_FOUND; 409 STATE_CONFLICT (already
-        settled), IDEMPOTENCY_IN_PROGRESS; 422 INSUFFICIENT_FUNDS, IDEMPOTENCY_KEY_REUSED.
+        settled), IDEMPOTENCY_IN_PROGRESS; 422 LEDGER_LEGACY_HOLD_WRITE_OFF_ONLY, IDEMPOTENCY_KEY_REUSED.
       tags:
         - Admin Ledger
       security:
@@ -4944,7 +4961,10 @@ paths:
       description: |
         One journal from the user's `legacy_hold` escrow to `platform:adjustments`, reference
         `legacy_hold:{userId}:settle`, reason required, audited (spec 16 AC-44, Q-096). Step-up
-        re-authentication as for balance adjustments (see D3 handoff Q).
+        re-authentication within 15 minutes in the same staff session (spec 16 AC-7, Owner 2026-09-30 Q-119).
+        Works for positive and negative residuals; for a **negative** residual it is the only settlement
+        (Q-120): the journal moves the amount between `platform:adjustments` and the user's `legacy_hold`
+        escrow only, and the user's Available balance never changes (spec 16 EC-12).
         Errors: 400 VALIDATION_FAILED; 403 REAUTH_REQUIRED; 404 NOT_FOUND; 409 STATE_CONFLICT,
         IDEMPOTENCY_IN_PROGRESS; 422 IDEMPOTENCY_KEY_REUSED.
       tags:
@@ -5099,7 +5119,7 @@ paths:
     post:
       operationId: adminChangeMyPassword
       summary: Change own password (with the current password)
-      description: 'Spec 16 AC-6. Other sessions of the staff member end (deny-listed at once), the current one stays, trusted devices are forgotten. Throttle (SEC-04): wrong current passwords count per staff account with the re-authentication checks; after S-062 within 15 minutes → `429 RATE_LIMITED` for S-063 minutes. Errors: 400 `VALIDATION_FAILED` (R-A2, confirmation); 422 `STAFF_CURRENT_PASSWORD_WRONG`; 429.'
+      description: 'Spec 16 AC-6. Other sessions of the staff member end (deny-listed at once), the current one stays, trusted devices are forgotten. Throttle (SEC-04): wrong current passwords count per staff account with the re-authentication checks; after S-062 within 15 minutes → `429 RATE_LIMITED` for S-063 minutes (spec 01 AC-55). Errors: 400 `VALIDATION_FAILED` (R-A2, confirmation); 422 `STAFF_CURRENT_PASSWORD_WRONG`; 429.'
       tags:
         - Admin Auth
       security:
@@ -5111,6 +5131,7 @@ paths:
         ownership: self
       x-covers:
         - 16 AC-6
+        - 01 AC-55
       x-settings:
         - S-062
         - S-063
@@ -6385,7 +6406,7 @@ paths:
     post:
       operationId: adminRejectPortfolioItem
       summary: Reject a pending portfolio item (reason shown to the owner)
-      description: Reason required ≤ 1,000, shown to the owner (spec 16 AC-19, AC-21). The item becomes `rejected` (not public) and keeps the reason; see the D1 handoff question on this state and on the (missing) owner notification. First decision wins → `409 STATE_CONFLICT`.
+      description: 'Reason required ≤ 1,000, shown to the owner (spec 16 AC-19, AC-21; spec 02 AC-42; Owner 2026-09-30 Q-117). Only a `pending` item can be rejected. The item becomes `rejected` (not deleted, not public: public reads answer 404 to everyone but the owner) with `rejectionReason` and `rejectedAt`; the owner gets EV-126 `PortfolioRejected` (email + in-app `t_ur_portfolio_title_has_been_rejected` + push), queued through the notification outbox in the same transaction. First decision wins → `409 STATE_CONFLICT` (`t_item_already_decided`).'
       tags:
         - Admin Portfolio
       security:
@@ -6398,6 +6419,10 @@ paths:
       x-covers:
         - 16 AC-19
         - 16 AC-21
+        - 02 AC-26
+        - 02 AC-42
+      x-notifications:
+        - EV-126
       x-audit: portfolio.reject
       requestBody:
         required: true
@@ -7026,7 +7051,12 @@ paths:
         Code (unique, case-insensitive, 4–20 of A–Z 0–9 "-"), internal name, discount S-047 (percent 1–100 or
         fixed GEL > 0), applies to S-048 (Premium monthly and/or yearly), uses per user S-049 (default 1),
         total cap S-050 (required), active, optional valid-from / valid-until (spec 09 AC-27, P-59, P-10).
-        Errors: 400 VALIDATION_FAILED; 409 DUPLICATE (code taken).
+        **Conditional step-up (spec 16 AC-7, EC-13; Owner 2026-09-30 Q-145).** A code that makes a covered
+        service free — percent discount = 100 (`discountRate` 10000), or a fixed `discountAmount` ≥ the current
+        Premium price (S-008 / S-009) of any period in `appliesTo` — is created only if the staff member
+        re-authenticated within 15 minutes in the same session; otherwise `403 REAUTH_REQUIRED` and nothing is
+        created. Other codes need no re-authentication.
+        Errors: 400 VALIDATION_FAILED; 403 REAUTH_REQUIRED; 409 DUPLICATE (code taken).
       tags:
         - Admin Subscriptions
       security:
@@ -7036,6 +7066,14 @@ paths:
         audience: staff
         permission: promo_codes.write
         ownership: none
+        notes: 'Conditional step-up: 403 REAUTH_REQUIRED without re-authentication in the last 15 minutes (same session) when the code makes a covered service free (percent 100, or fixed ≥ current S-008/S-009 price); spec 16 AC-7, Q-145.'
+      x-settings:
+        - S-008
+        - S-009
+        - S-047
+        - S-048
+        - S-049
+        - S-050
       x-audit: promo_code.create
       x-covers:
         - 09 AC-27
@@ -7104,7 +7142,11 @@ paths:
         Before the first redemption every field may change. After it only `isActive`, `validUntil` and
         `maxTotalRedemptions` (not below redemptions so far) → other fields `422 BUSINESS_RULE_VIOLATION` with
         `details.fields` (spec 09 AC-27, P-59). Changes under the row lock used by redemptions (AC-31, EC-6).
-        Errors: 400 VALIDATION_FAILED; 404 NOT_FOUND; 422 BUSINESS_RULE_VIOLATION.
+        An edit (before the first redemption) that turns the code into one that makes a covered service free
+        (percent 100, or fixed ≥ the current S-008/S-009 price) needs the same re-authentication as creating
+        such a code (spec 16 AC-7, Q-145; otherwise `403 REAUTH_REQUIRED`), so the create rule cannot be
+        bypassed by editing.
+        Errors: 400 VALIDATION_FAILED; 403 REAUTH_REQUIRED; 404 NOT_FOUND; 422 BUSINESS_RULE_VIOLATION.
       tags:
         - Admin Subscriptions
       security:
@@ -7114,6 +7156,7 @@ paths:
         audience: staff
         permission: promo_codes.write
         ownership: none
+        notes: Conditional step-up as adminCreatePromoCode when the edit makes the code free (spec 16 AC-7, Q-145).
       x-audit: promo_code.update
       x-covers:
         - 09 AC-27
@@ -7144,7 +7187,7 @@ paths:
     delete:
       operationId: adminDeletePromoCode
       summary: Delete an unused promo code
-      description: Only before its first redemption (reservations included); afterwards `409 STATE_CONFLICT` — deactivate it instead (`isActive = false`) so redemptions stay visible (spec 09 AC-33; see D3 handoff Q). Audited.
+      description: Only before its first redemption (reservations included); afterwards `409 STATE_CONFLICT` — deactivate it instead (`isActive = false`) so redemptions stay visible (spec 09 AC-33; contract default, slice item Q-133). Audited.
       tags:
         - Admin Subscriptions
       security:
@@ -8942,7 +8985,7 @@ paths:
         All register rows grouped by area (spec 16 AC-51; fixed list, not paginated), searchable by id, key or
         meaning (`q`). Secret rows show only "set / not set" (AC-54). S-110 and S-127 are returned only to
         holders of `settings.custom_code.write` (AC-72). Fee rules S-010…S-018 appear read-only with
-        `area: fees` (edited in `/admin/fee-rules`). Proposed rows (S-128, P-135) carry `registerStatus: proposed`.
+        `area: fees` (edited in `/admin/fee-rules`). Every row of the register S-001…S-129 is `registerStatus: approved` since the Owner gate of 2026-09-30 (P-135 and S-128 accepted, Q-111/Q-137; S-129 added, Q-144); `proposed` is kept for rows added later and not yet accepted.
       tags:
         - Admin Settings
       security:
@@ -9034,7 +9077,9 @@ paths:
         else saved first (EC-3). Effective for web, mobile and API within 60 seconds, no deployment
         (00 AC-8, P-123); audited with old/new (secrets redacted); V rows get a new version.
         Row-specific rules:
-        - **Re-authentication** (AC-7) for S-100, S-110, S-127 and S-065…S-069 → else `403 REAUTH_REQUIRED`.
+        - **Re-authentication** (AC-7) within 15 minutes in the same staff session for S-100, S-110, S-127,
+          S-065…S-069 and (Owner 2026-09-30, Q-145) the plan prices S-008/S-009 and the security rows S-052,
+          S-053, S-056…S-064, S-124 → else `403 REAUTH_REQUIRED` (`stepUpFor`; spec 16 EC-13).
         - **Critical rows** (S-025, S-033, S-056, S-060, S-065…S-069, S-100, S-110, S-127) send EV-124 to every
           S-100 address; for S-100 to the old and the new list (AC-55, AC-56; spec 15 AC-31).
         - **S-100**: at least one valid address (00 EC-9); test email with `adminSendTestEmail`.
@@ -9045,6 +9090,15 @@ paths:
           non-grantable); every external host in the code must be in S-127 and S-127 cannot drop a host
           still used → `422 CUSTOM_CODE_HOST_NOT_ALLOWED` with `details.hosts` (AC-74, EC-10); full
           before/after audited; `enabled: false` = "Disable custom code" (AC-75).
+        - **S-127 fixed-code vendors only** (spec 16 AC-74a, R-A10; Owner 2026-09-30 Q-146 (c)): the value is
+          `CustomCodeAllowedHostsValue`; every host added by the save must carry `fixedCodeConfirmed: true`
+          (the Super-admin ticked `t_custom_code_fixed_vendor_confirm`: the host serves fixed vendor code such
+          as an analytics or advertising pixel, version-pinned where possible, not a tag manager) → else `422
+          CUSTOM_CODE_FIXED_VENDOR_REQUIRED` (`details.hosts`, messageKey `t_custom_code_fixed_vendor_required`)
+          and nothing is saved. The API stores `confirmedBy` / `confirmedAt` per host (kept for hosts already
+          in the list) and audits them. Isolating custom code in its own origin is a Phase 3 study (ADR-013 §7).
+        - **S-129** `withdrawals.security_change_pause_hours` (area `withdrawals`, integer ≥ 0; spec 14 AC-21,
+          EC-11): the new value applies to every later withdrawal request, including pauses already running.
         - **S-121** → `422 SETTING_MANAGED_ELSEWHERE` (use `adminUpdateMaintenance`); fee rows S-010…S-018 →
           `422 SETTING_MANAGED_ELSEWHERE` (use `/admin/fee-rules`).
         - Switching a toggle OFF blocks new items only (00 AC-11, EC-1); the confirmation text is client-side.
@@ -9078,6 +9132,19 @@ paths:
             custom_code: settings.custom_code.write
             system: settings.system.write
         stepUpFor:
+          - S-008
+          - S-009
+          - S-052
+          - S-053
+          - S-056
+          - S-057
+          - S-058
+          - S-059
+          - S-060
+          - S-061
+          - S-062
+          - S-063
+          - S-064
           - S-065
           - S-066
           - S-067
@@ -9085,9 +9152,10 @@ paths:
           - S-069
           - S-100
           - S-110
+          - S-124
           - S-127
         ownership: none
-        notes: the permission is chosen by the row's area (registry, ADR-005 §1); `permission` shows the area of S-121/S-122/S-103 and S-128 (proposed default, see D6 handoff)
+        notes: the permission is chosen by the row's area (registry, ADR-005 §1); `permission` shows the area of S-121/S-122/S-103; S-128 is in area `payments` (Owner 2026-09-30 Q-137) and S-129 in area `withdrawals` (Q-144)
       x-covers:
         - 16 AC-7
         - 16 AC-52
@@ -9096,6 +9164,7 @@ paths:
         - 16 AC-56
         - 16 AC-72
         - 16 AC-74
+        - 16 AC-74a
         - 16 AC-75
         - 15 AC-26
         - 15 AC-31
@@ -9216,8 +9285,27 @@ paths:
             custom_code: settings.custom_code.write
             system: settings.system.write
         stepUpFor:
+          - S-008
+          - S-009
+          - S-052
+          - S-053
+          - S-056
+          - S-057
+          - S-058
+          - S-059
+          - S-060
+          - S-061
+          - S-062
+          - S-063
+          - S-064
+          - S-065
+          - S-066
+          - S-067
+          - S-068
+          - S-069
           - S-100
           - S-110
+          - S-124
           - S-127
         ownership: none
       x-covers:
@@ -11230,7 +11318,7 @@ paths:
     post:
       operationId: adminDisableUserTwoFactor
       summary: Switch a user's 2FA off (after an identity check)
-      description: 'Spec 01 EC-8: when the 2FA email does not arrive, staff can switch the user''s 2FA off after checking identity; trusted devices are forgotten; the reason is audited. 2FA already off → `409 STATE_CONFLICT`.'
+      description: 'Spec 01 EC-8, spec 16 AC-32: when the 2FA email does not arrive, staff can switch the user''s 2FA off after checking identity; reason required; trusted devices are forgotten; audited. Needs re-authentication within 15 minutes in the same staff session (spec 16 AC-7, Owner 2026-09-30 Q-145; else `403 REAUTH_REQUIRED`). The user gets EV-127 `TwoFactorDisabledByStaff` (email + in-app, security category: never capped or suppressed as marketing, no push). 2FA already off → `409 STATE_CONFLICT`. Permission `users.edit` is the contract default until slice item Q-132.'
       tags:
         - Admin Users
       security:
@@ -11240,8 +11328,11 @@ paths:
         audience: staff
         permission: users.edit
         ownership: none
-      x-covers: []
-      x-covers-note: 'Implements spec 01 EC-8 (edge case, not an AC); permission per spec 16 catalogue ("users.edit: … reset devices").'
+        stepUp: true
+      x-covers:
+        - 16 AC-32
+      x-notifications:
+        - EV-127
       x-audit: user.two_factor_disable
       requestBody:
         required: true
@@ -11277,7 +11368,7 @@ paths:
     post:
       operationId: adminChangeUserEmail
       summary: Start an email change for a user (confirmation flow)
-      description: 'Same flow as spec 02 AC-30 (spec 16 AC-32): the new address becomes active only when the link sent to it is opened (`confirmEmailChange`); the old address gets the notice (EV-11, EV-12). Taken address → `VALIDATION_FAILED` field `newEmail` (`t_validator_unique`).'
+      description: 'Same flow as spec 02 AC-30 (spec 16 AC-32): the new address becomes active only when the link sent to it is opened (`confirmEmailChange`); the old address gets the notice (EV-11, EV-12). Taken address → `VALIDATION_FAILED` field `newEmail` (`t_validator_unique`). Needs re-authentication within 15 minutes in the same staff session (spec 16 AC-7, Owner 2026-09-30 Q-145; else `403 REAUTH_REQUIRED`). When the new email becomes active, the withdrawal pause of spec 14 AC-21 starts (Q-144); the audit entry records the staff actor.'
       tags:
         - Admin Users
       security:
@@ -11287,6 +11378,7 @@ paths:
         audience: staff
         permission: users.edit
         ownership: none
+        stepUp: true
       x-covers:
         - 16 AC-32
       x-audit: user.email_change
@@ -11626,7 +11718,11 @@ paths:
         Pending (and processing) requests first, oldest first, then the rest newest first; user, amount, fee,
         payout, plan at request, payout details snapshot, date and status; filters status, dates, `userId`
         (spec 14 AC-13, spec 16 AC-31, AC-42). Banned users' requests stay listed (EC-7). `totalCount` =
-        pending count (admin home counter).
+        pending count (admin home counter). Every row carries the approver flag `detailsChangedRecently` with
+        `recentChangeKinds` and the latest change dates (spec 14 AC-23, spec 16 AC-42; Q-144).
+        Permission `withdrawals.approve` (Owner 2026-09-30 Q-113, closes SEC-08): the rows contain IBANs and
+        holder names, so staff with only `payments.read` (e.g. Customer Support) get `403 FORBIDDEN` and no
+        data; they see withdrawal amounts only as ledger lines (`adminListLedgerJournals`, spec 16 EC-14).
       tags:
         - Admin Withdrawals
       security:
@@ -11649,13 +11745,16 @@ paths:
               $ref: '#/components/schemas/WithdrawalStatus'
       x-permission:
         audience: staff
-        permission: payments.read
+        permission: withdrawals.approve
         ownership: none
-        notes: payments.read per the spec 16 catalogue ("withdrawals and refunds lists"); spec 14 AC-13 / 16 AC-42 name withdrawals.approve for the screen — see D3 handoff Q.
+        notes: 'withdrawals.approve, not payments.read (Owner 2026-09-30 Q-113; spec 14 AC-13, spec 16 AC-42): the list shows IBANs and holder names.'
       x-covers:
         - 14 AC-13
+        - 14 AC-23
         - 16 AC-31
         - 16 AC-42
+      x-settings:
+        - S-129
       responses:
         '200':
           description: Page of withdrawals.
@@ -11680,7 +11779,7 @@ paths:
     get:
       operationId: adminGetWithdrawal
       summary: Staff withdrawal detail
-      description: The request with both the copied and the current payout details (EC-4) and the user's Available balance; the user's recent transactions come from `adminListLedgerJournals?userId=` (spec 14 AC-13).
+      description: The request with both the copied and the current payout details (EC-4) and the user's Available balance; the user's recent transactions come from `adminListLedgerJournals?userId=` (spec 14 AC-13). Shows the approver flag and the date of the latest email, password and payout-details change, or `t_admin_security_change_none` when a date is null (spec 14 AC-23, EC-10, EC-12; Q-144). Permission `withdrawals.approve` (Owner 2026-09-30 Q-113); staff without it get `403 FORBIDDEN` and no IBAN or holder name.
       tags:
         - Admin Withdrawals
       security:
@@ -11688,11 +11787,15 @@ paths:
         - staffCookie: []
       x-permission:
         audience: staff
-        permission: payments.read
+        permission: withdrawals.approve
         ownership: none
+        notes: 'withdrawals.approve, not payments.read (Owner 2026-09-30 Q-113): the detail shows IBANs and holder names.'
       x-covers:
         - 14 AC-13
+        - 14 AC-23
         - 16 AC-42
+      x-settings:
+        - S-129
       responses:
         '200':
           description: The withdrawal.
@@ -11953,8 +12056,9 @@ paths:
         `403 ACCOUNT_SUSPENDED`).
         Cap across challenges (ADR-002 §5, SEC-03): 10 wrong codes for one account within one hour, over any
         number of challenges and purposes → code checks for that account are refused for S-063 minutes with
-        `429 TWO_FACTOR_LOCKED` (`details.retryAfterSeconds`), even for a correct code; the owner gets one
-        security email (NEW, to be added to spec 15).
+        `429 TWO_FACTOR_LOCKED` (`details.retryAfterSeconds`, messageKey `t_2fa_locked` with `minutes`), even
+        for a correct code; the owner gets the security email EV-129 `TwoFactorLocked` once per lock (spec 01
+        AC-54). The per-code limit S-058 still applies.
       tags:
         - Auth
       security: []
@@ -11966,12 +12070,15 @@ paths:
         - 01 AC-25
         - 01 AC-26
         - 01 AC-30
+        - 01 AC-54
       x-settings:
         - S-057
         - S-058
         - S-059
         - S-063
         - S-124
+      x-notifications:
+        - EV-129
       x-rate-limit: S-058 wrong codes per challenge; 10 wrong codes per account per hour across all challenges → code checks blocked S-063 minutes (TWO_FACTOR_LOCKED); global write limit per IP
       parameters:
         - $ref: '#/components/parameters/XMyTaskClient'
@@ -12010,6 +12117,9 @@ paths:
         spec 02 EC-5); answer `t_email_changed_success`. Works with or without a session (the link may be
         opened on another device). Expired → `422 AUTH_LINK_EXPIRED`; unknown/used → `422 AUTH_LINK_INVALID`;
         the address was taken meanwhile → `409 DUPLICATE` (`t_validator_unique`).
+        When the new email becomes active the account's `emailChangedAt` is set — also when the change was
+        started by staff (`adminChangeUserEmail`) — which starts the withdrawal pause of spec 14 AC-21 (S-129,
+        Q-144) and is shown to approvers (spec 14 AC-23).
       tags:
         - Auth
       security: []
@@ -12017,6 +12127,7 @@ paths:
         audience: public
       x-covers:
         - 02 AC-30
+        - 14 AC-21
       x-settings:
         - S-054
       x-emits:
@@ -12054,7 +12165,7 @@ paths:
         (spec 01 AC-7). No session is created. Expired → `422 AUTH_LINK_EXPIRED`
         (`t_verification_email_link_expired`, show the resend form); unknown/used → `422 AUTH_LINK_INVALID`
         (`t_verification_email_not_exists`) (AC-8). A link of an account that is not `pending` (e.g. banned)
-        changes nothing and gets `AUTH_LINK_INVALID` (see D1 handoff question).
+        changes nothing and gets `AUTH_LINK_INVALID` (contract default; slice item Q-130).
       tags:
         - Auth
       security: []
@@ -12097,7 +12208,7 @@ paths:
         `VerifyEmail` (EV-01) is sent; answer `t_a_new_verification_link_has_been_sent_to_ur_email` (spec 01
         AC-9). Account not pending → `409 AUTH_ALREADY_VERIFIED` (`t_already_verified_user`). Fixed limit R-A9:
         at most 3 emails per email address and per IP per hour; above it no email is sent but the answer does
-        not change (P-19). Unknown emails get the same success answer (see D1 handoff question).
+        not change (P-19). Unknown emails get the same success answer (contract default; slice item Q-130).
         Also used by the "resend verification email" action of AC-13.
       tags:
         - Auth
@@ -12148,13 +12259,23 @@ paths:
           `403 ACCOUNT_SUSPENDED` (AC-14); `429 AUTH_LOGIN_LOCKED` after S-062 failures per account + IP within
           15 minutes, for S-063 minutes, even with the right password (AC-16, AC-17); `400 VALIDATION_FAILED`
           field `recaptchaToken` (AC-18). A successful login resets the counters.
-        - Per-account counter across all IPs (ADR-002 §6, SEC-02): after 20 failed logins for one account within
-          one hour, from any IPs, the account is in **slow mode** for the rest of that hour: one attempt per
-          30 seconds is evaluated, others get `429 AUTH_LOGIN_THROTTLED` (`details.retryAfterSeconds`); web
-          requires `recaptchaToken` for that account while S-061 is ON; the owner gets one security email per
-          hour (NEW, to be added to spec 15). No hard lock: the right password still works in slow mode.
+        - Per-account counter across all IPs (ADR-002 §6, SEC-02, spec 01 AC-53): after 20 failed logins for
+          one account within one hour, from any IPs, the account is in **slow mode** for the rest of that hour:
+          one attempt per 30 seconds (the account's "slot") is evaluated, others get `429 AUTH_LOGIN_THROTTLED`
+          (`details.retryAfterSeconds`, messageKey `t_login_slow_mode` with `seconds` = `retryAfterSeconds`)
+          without checking the password; web requires `recaptchaToken` for that account while S-061 is ON; the
+          owner gets the security email EV-128 `LoginSlowMode` at most once per hour. No hard lock: the right
+          password still works in slow mode.
+        - Slot bypass (ADR-002 §6, SEC-30): an attempt that presents a **trusted device** of this account
+          (web cookie `__Host-mt_did`, mobile `deviceToken`; trusted per S-059) is evaluated without using the
+          slot; on web an attempt with a passed reCAPTCHA (S-061 ON) is also evaluated without using it. Such
+          attempts still count towards the per-account + IP lock (S-062/S-063) and, when wrong, towards the
+          per-account counter. Attempts refused by slow mode (`AUTH_LOGIN_THROTTLED`) or by the per-account + IP
+          lock (`AUTH_LOGIN_LOCKED`) never use the slot. So slow mode only slows unknown devices and cannot
+          lock the real user out.
         - The client IP is the one resolved per ADR-013 §14–§19. An unknown email still costs one hash
           verification (no timing difference, SEC-25). Legacy hashes: `$2y$`, `$2a$`, `$2b$` (ADR-002 §3).
+          Password reset by email link (`completePasswordReset`) is outside these counters (SEC-32(b)).
         Web: `rememberMe` (default true) makes the refresh cookie persistent (AC-10).
       tags:
         - Auth
@@ -12174,6 +12295,7 @@ paths:
         - 01 AC-22
         - 01 AC-24
         - 01 AC-28
+        - 01 AC-53
       x-settings:
         - S-056
         - S-057
@@ -12184,7 +12306,8 @@ paths:
         - S-124
       x-notifications:
         - EV-06
-      x-rate-limit: S-062 failed attempts per account + IP in 15 minutes → lock S-063 minutes (AUTH_LOGIN_LOCKED); 20 failures per account (any IP) per hour → 1 attempt per 30 s for that account (AUTH_LOGIN_THROTTLED, no hard lock); global write limit per IP
+        - EV-128
+      x-rate-limit: S-062 failed attempts per account + IP in 15 minutes → lock S-063 minutes (AUTH_LOGIN_LOCKED); 20 failures per account (any IP) per hour → 1 evaluated attempt per 30 s for that account (AUTH_LOGIN_THROTTLED, no hard lock; trusted-device and passed-reCAPTCHA attempts bypass the slot, refused attempts never use it, SEC-30); global write limit per IP
       parameters:
         - $ref: '#/components/parameters/XMyTaskClient'
       requestBody:
@@ -12302,7 +12425,10 @@ paths:
         deleted, `PasswordChanged` (EV-05) is sent, **every** session of the user ends (web and mobile), all
         trusted devices are forgotten (AC-31), and the answer is `t_password_has_been_updated` (the client shows
         login). Expired/unknown link → `422 AUTH_LINK_EXPIRED` / `AUTH_LINK_INVALID`, nothing changes (AC-34).
-        A pending user can reset but still cannot log in until verified (EC-2).
+        A pending user can reset but still cannot log in until verified (EC-2). The reset sets the account's
+        `passwordChangedAt`, which starts the withdrawal pause of spec 14 AC-21 (S-129, Q-144).
+        This operation is outside the login, code and in-session counters (spec 01 AC-55, ADR-002 §6,
+        SEC-32(b)): it stays available to the real owner during slow mode or a lock, and ends every session.
       tags:
         - Auth
       security: []
@@ -12312,6 +12438,7 @@ paths:
         - 01 AC-31
         - 01 AC-33
         - 01 AC-34
+        - 14 AC-21
       x-notifications:
         - EV-05
       x-emits:
@@ -12553,8 +12680,11 @@ paths:
         The client forwards `code` and `state` from the provider's redirect. `code` + `state` alone never log
         anyone in (SEC-09): web must also present the `__Host-mt_oauth` cookie set by `startSocialLogin` for that
         `state`; mobile must send `codeVerifier`, whose S256 hash must equal the stored `codeChallenge`.
-        Missing or wrong binding → `422 AUTH_SOCIAL_FAILED`. The `state` is deleted at the first use (success or
-        not) and the binding cookie is cleared. The API exchanges the code (with the verifier) and runs the same
+        Missing or wrong binding → `422 AUTH_SOCIAL_FAILED`. Which binding is checked is decided by the **client
+        kind stored with `state`** at `startSocialLogin`, never by the callback's `X-MyTask-Client` header; a
+        `state` without a stored nonce (web) or challenge (mobile) never passes — no "null equals null" match
+        (SEC-32(a), ADR-002 §7). The `state` is deleted at the first use (success or not) and the binding
+        cookie is cleared. The API exchanges the code (with the verifier) and runs the same
         login pipeline as `login` (ADR-002 §4). Only provider emails marked verified may create or match an
         account; an unverified email is treated as missing (`AUTH_SOCIAL_EMAIL_MISSING`, ADR-002 §7):
         - Account found by provider + provider user id → status checks: pending → `403 ACCOUNT_PENDING`, banned
@@ -12563,7 +12693,8 @@ paths:
           provider avatar, username from nickname/name (lower-case Latin, `_`, 4-character suffix if taken),
           referral code; a `?ref=` code carried in `state` is applied as in AC-6 (AC-38); `isNewAccount = true`.
         - Email already used by an account with a password or another provider → `409 AUTH_SOCIAL_EMAIL_EXISTS`
-          (AC-39). No email from the provider → `422 AUTH_SOCIAL_EMAIL_MISSING` (AC-41).
+          (AC-39). No email from the provider, or one it does not mark verified → `422
+          AUTH_SOCIAL_EMAIL_MISSING` (`t_social_email_missing`, AC-41).
         - 2FA ON and device not trusted → `202 TwoFactorChallenge` (AC-30).
         - Provider disabled or without keys → `403 FEATURE_DISABLED` (AC-37); bad/expired `state` or a refused
           code exchange → `422 AUTH_SOCIAL_FAILED`.
@@ -14896,7 +15027,7 @@ paths:
         direct conversation (D5); the buyer is notified (EV-80).
         Errors: `403` FEATURE_DISABLED (S-034); `422` PLAN_LIMIT_REACHED (messageKey
         t_plan_offer_limit_reached), OFFER_USER_UNAVAILABLE, BUSINESS_RULE_VIOLATION (no direct
-        conversation and no open request of the recipient; see D4 handoff Q), FILE_*; `409`
+        conversation and no open request of the recipient; slice item Q-116), FILE_*; `409`
         STATE_CONFLICT (request no longer open).
       tags:
         - Custom Offers
@@ -15970,7 +16101,7 @@ paths:
         - titles/descriptions: lengths (AC-4); Georgian fields need a Georgian letter
           (`georgian_letter_required`, `t_validator_georgian_letter_required`) and only the R-5.3a
           character set (`georgian_field_characters`, `t_validator_georgian_field_characters`,
-          shared `FieldError.refusedCharacters` / `params.chars` — P-136 PROPOSED, spec 00
+          shared `FieldError.refusedCharacters` / `params.chars` — P-136 ACCEPTED (Q-109, Q-111), spec 00
           R-5.3a); English fields refuse Georgian letters and need a Latin letter
           (`georgian_letters_not_allowed`, `t_validator_english_only`, AC-6);
         - category chain: sub-category under category, child under sub-category;
@@ -16363,7 +16494,7 @@ paths:
       operationId: listRelatedGigs
       summary: '"You may also like" for a gig'
       description: |
-        Spec 04 AC-32 (P-137 PROPOSED, Q-110). Candidates: other active gigs of listable owners (same seller
+        Spec 04 AC-32 (P-137 ACCEPTED by the Owner 2026-09-30, Q-110). Candidates: other active gigs of listable owners (same seller
         not excluded). Shown if at least one of: M1 same sub-category; M2 its title contains the viewed
         gig's whole title; M3 its description contains the viewed gig's whole title; M4 its description
         contains the viewed gig's whole description. "Contains" = case-insensitive substring on plain text
@@ -16734,13 +16865,17 @@ paths:
         confirmation link valid S-054 minutes goes to the new address (EV-11) and a notice to the old one
         (EV-12); `pendingEmail` is set and the client shows `t_email_change_pending` (AC-30, P-18). A new
         username moves the profile to `/profile/{new}`; the old URL returns 404 (AC-31, EC-4).
-        Accounts without a password: a new `email` needs `challengeId` + `code` of an `email_change` challenge
-        (`createMyTwoFactorChallenge`, code sent to the current address; SEC-05, ADR-002 §5); missing →
-        `VALIDATION_FAILED` field `code`; wrong code → `422 TWO_FACTOR_CODE_INVALID` (code errors as in
-        `verifyTwoFactorLogin`). Other fields need no code.
-        Throttle (SEC-04, ADR-002 §6): wrong current passwords and wrong codes count per account; after S-062
-        within 15 minutes every password/code check of the account answers `429 RATE_LIMITED`
-        (`messageKey t_too_many_login_attempts`, `details.retryAfterSeconds`) for S-063 minutes.
+        Accounts without a password (Owner 2026-09-30, Q-144 / SEC-05): a new `email` needs `challengeId` +
+        `code` of an `email_change` challenge (`createMyTwoFactorChallenge`, code sent to the **current**
+        address; ADR-002 §5); missing → `VALIDATION_FAILED` field `code`; wrong code → `422
+        TWO_FACTOR_CODE_INVALID`, expired → `TWO_FACTOR_CODE_EXPIRED` (code errors as in
+        `verifyTwoFactorLogin`); nothing is saved. A save that does not change the email needs no code, and a
+        code sent for it stays unused until it expires (spec 02 EC-12). The pause of spec 14 AC-21 starts only
+        when the new email becomes active (`confirmEmailChange`), not here.
+        Throttle (SEC-04, ADR-002 §6, spec 01 AC-55): wrong current passwords and wrong codes count per
+        account; after S-062 within 15 minutes every password/code check of the account answers `429
+        RATE_LIMITED` (`messageKey t_too_many_login_attempts`, `details.retryAfterSeconds`) for S-063 minutes.
+        Wrong codes also count towards the per-account code cap (`429 TWO_FACTOR_LOCKED`, spec 01 AC-54).
       tags:
         - Account
       x-permission:
@@ -16750,6 +16885,7 @@ paths:
         - 02 AC-29
         - 02 AC-30
         - 02 AC-31
+        - 01 AC-55
       x-settings:
         - S-054
         - S-057
@@ -17132,10 +17268,11 @@ paths:
         stays; trusted devices are forgotten (AC-31). Wrong current password → `VALIDATION_FAILED` field
         `currentPassword` (`t_ur_current_pass_does_not_match`). Social-only account (no password) →
         `409 STATE_CONFLICT` (the page shows the social notice instead, EC-3). Ended sessions are deny-listed
-        at once (ADR-002 §1).
-        Throttle (SEC-04, ADR-002 §6): wrong current passwords and wrong codes count per account; after S-062
-        within 15 minutes every password/code check of the account answers `429 RATE_LIMITED`
-        (`messageKey t_too_many_login_attempts`, `details.retryAfterSeconds`) for S-063 minutes.
+        at once (ADR-002 §1). The change sets the account's `passwordChangedAt`, which starts the withdrawal
+        pause of spec 14 AC-21 (S-129, Q-144) and is shown to approvers (`AdminWithdrawal`, spec 14 AC-23).
+        Throttle (SEC-04, ADR-002 §6, spec 01 AC-55): wrong current passwords and wrong codes count per
+        account; after S-062 within 15 minutes every password/code check of the account answers `429
+        RATE_LIMITED` (`messageKey t_too_many_login_attempts`, `details.retryAfterSeconds`) for S-063 minutes.
       tags:
         - Account
       x-permission:
@@ -17144,6 +17281,8 @@ paths:
       x-covers:
         - 01 AC-31
         - 01 AC-35
+        - 01 AC-55
+        - 14 AC-21
       x-settings:
         - S-062
         - S-063
@@ -17344,11 +17483,13 @@ paths:
         "Log out other browser sessions" (spec 01 AC-44): with the correct current password every other session
         ends (deny-listed at once, ADR-002 §1) and the current one stays. Wrong password → `VALIDATION_FAILED`
         field `currentPassword` (`t_ur_current_pass_does_not_match`). Accounts without a password send
-        `challengeId` + `code` of a `revoke_sessions` challenge (SEC-05, ADR-002 §5; code errors as in
-        `verifyTwoFactorLogin`).
-        Throttle (SEC-04, ADR-002 §6): wrong current passwords and wrong codes count per account; after S-062
-        within 15 minutes every password/code check of the account answers `429 RATE_LIMITED`
-        (`messageKey t_too_many_login_attempts`, `details.retryAfterSeconds`) for S-063 minutes.
+        `challengeId` + `code` of a `revoke_sessions` challenge sent to the current address (SEC-05, ADR-002
+        §5, Owner 2026-09-30 Q-144; wrong → `TWO_FACTOR_CODE_INVALID`, expired → `TWO_FACTOR_CODE_EXPIRED`, as
+        in `verifyTwoFactorLogin`); nothing ends on a wrong answer.
+        Throttle (SEC-04, ADR-002 §6, spec 01 AC-55): wrong current passwords and wrong codes count per
+        account; after S-062 within 15 minutes every password/code check of the account answers `429
+        RATE_LIMITED` (`messageKey t_too_many_login_attempts`, `details.retryAfterSeconds`) for S-063 minutes.
+        Wrong codes also count towards the per-account code cap (`429 TWO_FACTOR_LOCKED`, spec 01 AC-54).
       tags:
         - Account
       x-permission:
@@ -17356,6 +17497,7 @@ paths:
         ownership: self
       x-covers:
         - 01 AC-44
+        - 01 AC-55
       x-settings:
         - S-057
         - S-058
@@ -17497,7 +17639,8 @@ paths:
         Throttle (SEC-04, ADR-002 §6): wrong current passwords and wrong codes count per account; after S-062
         within 15 minutes every password/code check of the account answers `429 RATE_LIMITED`
         (`messageKey t_too_many_login_attempts`, `details.retryAfterSeconds`) for S-063 minutes.
-        Wrong codes also count towards the per-account code cap (`429 TWO_FACTOR_LOCKED`, SEC-03).
+        Wrong codes also count towards the per-account code cap (`429 TWO_FACTOR_LOCKED`, SEC-03, spec 01
+        AC-54).
       tags:
         - Account
       x-permission:
@@ -17509,6 +17652,7 @@ paths:
         - 01 AC-20
         - 01 AC-21
         - 01 AC-31
+        - 01 AC-55
       x-settings:
         - S-056
         - S-057
@@ -17551,8 +17695,8 @@ paths:
         - `toggle_two_factor` — confirm the 2FA switch (spec 01 AC-21, P-15); only while S-056 is ON (else
           `403 FEATURE_DISABLED`).
         - `email_change`, `payout_details`, `revoke_sessions` — confirm `updateMe` with a new email,
-          `putPayoutDetails` and `revokeMyOtherSessions` (SEC-05 technical part, ADR-002 §5; independent of
-          S-056). The product-analyst records this in specs 02 and 14.
+          `putPayoutDetails` and `revokeMyOtherSessions` (SEC-05, ADR-002 §5; independent of S-056; confirmed
+          by the Owner 2026-09-30, Q-144; spec 01 AC-44, spec 02 AC-29, spec 14 AC-3).
         Accounts with a password → `409 STATE_CONFLICT` (use the password). Same TTL/attempt rules (S-057,
         S-058), resend limits (60 s, 5 per 15 min) and per-account code cap (SEC-03) as the login code. A code
         is accepted only by the operation of its purpose, once.
@@ -17564,6 +17708,9 @@ paths:
         notes: S-056 must be ON only for purpose toggle_two_factor (403 FEATURE_DISABLED)
       x-covers:
         - 01 AC-21
+        - 01 AC-44
+        - 02 AC-29
+        - 14 AC-3
       x-settings:
         - S-056
         - S-057
@@ -18814,14 +18961,20 @@ paths:
         AC-1). Needs the current password → wrong password `400 VALIDATION_FAILED` field `currentPassword`
         messageKey `t_ur_current_pass_does_not_match` (AC-3, P-63; same as D1 `updateMe`). Accounts without a
         password send `challengeId` + `code` of a `payout_details` challenge (D1 `createMyTwoFactorChallenge`,
-        code sent to the current address; SEC-05, ADR-002 §5); wrong code → `422 TWO_FACTOR_CODE_INVALID`
-        (code errors as in `verifyTwoFactorLogin`). Saving replaces the migrated text; pending requests keep
-        their copied details (EC-4). Sends `PayoutDetailsChanged` + in-app notice (EV-114).
-        Throttle (SEC-04, ADR-002 §6): wrong current passwords and codes count per account; after S-062 within
-        15 minutes every password/code check of the account answers `429 RATE_LIMITED`
-        (`t_too_many_login_attempts`) for S-063 minutes. A payout cooling period after a change is an Owner
-        question (SEC-05); it would be enforced in `createWithdrawal`, not here.
-        Errors: 400 VALIDATION_FAILED (incl. wrong current password); 422 TWO_FACTOR_CODE_*; 429 RATE_LIMITED.
+        code sent to the current address; SEC-05, ADR-002 §5, Owner 2026-09-30 Q-144); wrong code → `422
+        TWO_FACTOR_CODE_INVALID`, expired → `TWO_FACTOR_CODE_EXPIRED` (code errors as in
+        `verifyTwoFactorLogin`); nothing is saved. Saving replaces the migrated text; pending requests keep
+        their copied details (EC-4) and from now on show the approver flag (AC-23, EC-10). Sends
+        `PayoutDetailsChanged` + in-app notice (EV-114).
+        **Security pause (spec 14 AC-21, R-W9, S-129; Owner 2026-09-30 Q-144).** Every successful save —
+        including the first structured save (Q-151 default; migrated free text is not a change, EC-9) — sets
+        `payoutDetailsChangedAt`; `createWithdrawal` refuses new requests until that time + S-129 hours.
+        Throttle (SEC-04, ADR-002 §6, spec 01 AC-55): wrong current passwords and codes count per account;
+        after S-062 within 15 minutes every password/code check of the account answers `429 RATE_LIMITED`
+        (`t_too_many_login_attempts`) for S-063 minutes. Wrong codes also count towards the per-account code
+        cap (`429 TWO_FACTOR_LOCKED`, spec 01 AC-54).
+        Errors: 400 VALIDATION_FAILED (incl. wrong current password); 422 TWO_FACTOR_CODE_*; 429 RATE_LIMITED,
+        TWO_FACTOR_LOCKED.
       tags:
         - Withdrawals
       x-permission:
@@ -18830,11 +18983,14 @@ paths:
       x-covers:
         - 14 AC-1
         - 14 AC-3
+        - 14 AC-21
+        - 01 AC-55
       x-settings:
         - S-057
         - S-058
         - S-062
         - S-063
+        - S-129
       x-notifications:
         - EV-114
       x-rate-limit: S-062 wrong current passwords or codes per account in 15 minutes → every password/code check of the account refused for S-063 minutes (429 RATE_LIMITED, ADR-002 §6, SEC-04); global write limit
@@ -18964,8 +19120,9 @@ paths:
       summary: A user's portfolio items
       description: |
         `/profile/{username}/portfolio` and the profile preview (spec 02 AC-28): only `active` items of that user,
-        newest first. When the caller is that user, pending items (marked "Pending") and rejected items are
-        included, for the Selling → Portfolio page. Unknown/hidden profile → `404`.
+        newest first. When the caller is that user, pending items (marked "Pending") and rejected items (marked
+        `t_portfolio_status_rejected` with `rejectionReason`, spec 02 AC-42) are included, for the Selling →
+        Portfolio page (web and mobile). Unknown/hidden profile → `404`.
       tags:
         - Portfolio
       security:
@@ -18977,6 +19134,7 @@ paths:
         ownership: none; the owner also sees own pending/rejected items
       x-covers:
         - 02 AC-28
+        - 02 AC-42
       parameters:
         - name: username
           in: query
@@ -19095,7 +19253,7 @@ paths:
     get:
       operationId: getPortfolioItem
       summary: Get a portfolio item
-      description: Thumbnail, gallery, description and links (spec 02 AC-28). Pending/rejected → `404` except for the owner.
+      description: Thumbnail, gallery, description and links (spec 02 AC-28). Pending/rejected → `404` except for the owner, who also gets `rejectionReason` and `rejectedAt` of a rejected item (spec 02 AC-42).
       tags:
         - Portfolio
       security:
@@ -19107,6 +19265,7 @@ paths:
         ownership: none for active items; owner only for pending/rejected (others 404)
       x-covers:
         - 02 AC-28
+        - 02 AC-42
       responses:
         '200':
           description: The item.
@@ -19119,7 +19278,7 @@ paths:
     patch:
       operationId: updatePortfolioItem
       summary: Edit a portfolio item
-      description: New data replaces the old; `imageFileIds` replaces the whole gallery (old files deleted); with S-071 OFF the item goes back to `pending` and EV-14 is sent again (spec 02 AC-25, AC-27).
+      description: New data replaces the old; `imageFileIds` replaces the whole gallery (old files deleted); with S-071 OFF the item goes back to `pending` and EV-14 is sent again (spec 02 AC-25, AC-27). Editing a `rejected` item follows the same rule (`pending`, or `active` at once with S-071 ON) and clears `rejectionReason`/`rejectedAt` for the owner; the old reason stays in the audit log (spec 02 AC-42).
       tags:
         - Portfolio
       x-permission:
@@ -19128,6 +19287,7 @@ paths:
       x-covers:
         - 02 AC-25
         - 02 AC-27
+        - 02 AC-42
       x-settings:
         - S-071
         - S-089
@@ -19301,7 +19461,7 @@ paths:
       summary: Post a project
       description: |
         Post form of spec 10 (AC-2…AC-10). Validation: title and description per `ProjectTitleInput` /
-        `ProjectDescriptionInput` (Georgian-field character set of spec 00 R-5.3a, PROPOSED P-136; English
+        `ProjectDescriptionInput` (Georgian-field character set of spec 00 R-5.3a, P-136 accepted (Q-109); English
         without Georgian letters); category must be a project category; skills of that category only, each
         once, at most S-076 (`t_max_allowed_skills_reached`); thumbnail a `ready` `project_thumbnail` file
         (jpg/jpeg/png ≤ S-078 MB); budget min ≥ 1.00 GEL (`t_budget_min_too_low`) and min < max
@@ -21928,15 +22088,21 @@ paths:
       summary: BOG payment callback (trigger for a verified status check)
       description: |
         BOG's callback (URL `https://mytask.ge/api/v1/webhooks/bog`, ADR-004 §3, CONVENTIONS §10).
-        1. The raw body and headers are stored in `payment_events` (`event_kind = callback`) before anything
-           else; the handler answers **200 with an empty body** quickly and processes asynchronously (job
-           `bog-callback`). A body that is not JSON → 400.
-           **Flood hardening (ADR-004 §3, SEC-10):** bodies over 64 KB are refused before parsing and not
-           stored. Our payment is looked up by the BOG order id **before any BOG call**. Unknown order ids never
-           call BOG and are never queued: they are kept in a capped log (at most 100 stored events with
-           `result = unknown_order` per hour, then only a counter and one alert per hour to S-100) and still
-           answered 200 (no retry storm). Payments that are no longer `created`/`pending` are stored for staff
-           and not queued. Pending payments enqueue **one** verification job per payment (job id
+        1. Order of the steps (ADR-004 §3, SEC-10, SEC-31): (a) bodies over 64 KB are refused before parsing
+           and not stored; a body that is not JSON → 400, not stored; (b) the BOG order id is read and **our**
+           payment is looked up by it **before any BOG call and before anything is stored**; (c) the raw body
+           and headers are stored in `payment_events` (`event_kind = callback`) within the caps below; (d) the
+           handler answers **200 with an empty body** quickly and processes asynchronously (job
+           `bog-callback`).
+           **Storage caps.** Unknown order ids never call BOG and are never queued: they are kept in a capped
+           log (at most 100 stored events with `result = unknown_order` per hour, then only a counter and one
+           alert per hour to S-100) and still answered 200 (no retry storm). For a **known** payment (any
+           status, including final ones), a callback whose body is identical (SHA-256) to one already stored
+           for that payment is not stored again: that row's `repeatCount` and `lastReceivedAt` are updated;
+           at most 20 distinct callback events are stored per payment per hour, above that only the
+           `repeatCount` of the payment's latest stored callback grows (SEC-31). Payments that are no longer
+           `created`/`pending` are stored for staff this way (`result = duplicate` / `ignored`), never queued,
+           and BOG is not called. Pending payments enqueue **one** verification job per payment (job id
            `bog-verify:{paymentId}`, shared with the 5-minute reconciliation and staff "Check status"), however
            many callbacks arrive.
         2. `Callback-Signature` is checked by the adapter hook `verifyCallback` only if the lead developer
@@ -22071,8 +22237,12 @@ paths:
         VALIDATION_FAILED` `t_validator_regex`); payout details present (`422 PAYOUT_DETAILS_REQUIRED`, AC-4);
         A ≤ Available (`422 INSUFFICIENT_FUNDS` `t_withdrawal_money_not_enough`; a zero or negative migrated
         balance refuses any amount, AC-11); no other pending/processing request (`409
-        WITHDRAWAL_PENDING_EXISTS`); period S-032 since the creation of the latest **paid** request (`422
-        WITHDRAWAL_PERIOD_NOT_ELAPSED`; rejected requests do not count, EC-3); A ≥ S-031 (`422
+        WITHDRAWAL_PENDING_EXISTS`); **no security pause** — now < latest of the account's `emailChangedAt`,
+        `passwordChangedAt`, `payoutDetailsChangedAt` + S-129 hours, read at request time (`422
+        WITHDRAWAL_SECURITY_PAUSE`, `details.pausedUntil`, messageKey `t_cant_withdraw_reason_security_pause`
+        with `:datetime` in Georgian time; spec 14 AC-21, R-W9, EC-11, EC-12; Owner 2026-09-30 Q-144; S-129 = 0
+        → no pause; changes before the migration do not exist, EC-9); period S-032 since the creation of the
+        latest **paid** request (`422 WITHDRAWAL_PERIOD_NOT_ELAPSED`; rejected requests do not count, EC-3); A ≥ S-031 (`422
         WITHDRAWAL_BELOW_MINIMUM`); A − F > 0 (`422 WITHDRAWAL_PAYOUT_TOO_LOW`).
         Then in one transaction (AC-7): status `pending`; F from the fee rule of the caller's plan **now**
         (percent half up or fixed) with its version, plan and payout details copied onto the request; journal
@@ -22083,8 +22253,8 @@ paths:
         (AC-12). With S-033 = `bog_payout` (future) the request is sent to the payout provider and becomes
         `processing` (AC-17).
         Errors: 400 VALIDATION_FAILED, IDEMPOTENCY_KEY_REQUIRED; 409 WITHDRAWAL_PENDING_EXISTS,
-        IDEMPOTENCY_IN_PROGRESS; 422 PAYOUT_DETAILS_REQUIRED, INSUFFICIENT_FUNDS, WITHDRAWAL_PERIOD_NOT_ELAPSED,
-        WITHDRAWAL_BELOW_MINIMUM, WITHDRAWAL_PAYOUT_TOO_LOW, IDEMPOTENCY_KEY_REUSED.
+        IDEMPOTENCY_IN_PROGRESS; 422 PAYOUT_DETAILS_REQUIRED, INSUFFICIENT_FUNDS, WITHDRAWAL_SECURITY_PAUSE,
+        WITHDRAWAL_PERIOD_NOT_ELAPSED, WITHDRAWAL_BELOW_MINIMUM, WITHDRAWAL_PAYOUT_TOO_LOW, IDEMPOTENCY_KEY_REUSED.
       tags:
         - Withdrawals
       parameters:
@@ -22093,7 +22263,7 @@ paths:
       x-permission:
         audience: user
         ownership: self
-        notes: Restricted users are refused (403 ACCOUNT_RESTRICTED). No KYC requirement (Q-048).
+        notes: Restricted users are refused (403 ACCOUNT_RESTRICTED). No KYC requirement (Q-048). Refused during the security pause (S-129, 422 WITHDRAWAL_SECURITY_PAUSE).
       x-covers:
         - 14 AC-4
         - 14 AC-6
@@ -22103,6 +22273,7 @@ paths:
         - 14 AC-11
         - 14 AC-12
         - 14 AC-17
+        - 14 AC-21
         - 05 AC-30
         - 05 AC-37
         - 00 AC-16
@@ -22113,6 +22284,7 @@ paths:
         - S-032
         - S-033
         - S-100
+        - S-129
       x-notifications:
         - EV-110
         - EV-111
@@ -22192,6 +22364,10 @@ paths:
         receive" A − F (spec 14 AC-5, AC-8). `eligibility` gives the first failing rule in the order of AC-6
         (no payout details → `PAYOUT_DETAILS_REQUIRED` / `t_add_payout_details_first`, AC-4; nothing available
         → `t_nothing_to_withdraw`, AC-11). Stores nothing. Called while the user types.
+        During a security pause (spec 14 AC-21, AC-22; S-129, Q-144) `securityPauseUntil` is set and
+        `eligibility` is `WITHDRAWAL_SECURITY_PAUSE` / `t_cant_withdraw_reason_security_pause` with
+        `nextAllowedAt` = `securityPauseUntil`; the fee preview still works. The client shows the notice with
+        the end time and disables "Request withdrawal"; after that time a reload shows the normal form.
         Errors: 400 VALIDATION_FAILED.
       tags:
         - Withdrawals
@@ -22204,6 +22380,7 @@ paths:
         - 14 AC-6
         - 14 AC-8
         - 14 AC-11
+        - 14 AC-22
         - 05 AC-37
         - 00 AC-16
       x-settings:
@@ -22211,6 +22388,7 @@ paths:
         - S-011
         - S-031
         - S-032
+        - S-129
       requestBody:
         required: true
         content:
@@ -23509,7 +23687,7 @@ components:
                 - type: 'null'
             isOverdue:
               type: boolean
-              description: See `adminListEscrows` `overdue` (reading documented there; D4 handoff Q).
+              description: See `adminListEscrows` `overdue` (reading documented there; slice item Q-122).
             autoReleaseSetReason:
               oneOf:
                 - $ref: '#/components/schemas/EscrowAutoReleaseSetReason'
@@ -24349,6 +24527,8 @@ components:
         - id
         - kind
         - receivedAt
+        - lastReceivedAt
+        - repeatCount
         - processedAt
         - signatureValid
         - result
@@ -24362,6 +24542,13 @@ components:
           $ref: '#/components/schemas/PaymentEventKind'
         receivedAt:
           $ref: '#/components/schemas/Timestamp'
+        lastReceivedAt:
+          $ref: '#/components/schemas/Timestamp'
+          description: Last time an identical callback (or, above the per-payment hourly cap, any further callback) was counted on this row; equals `receivedAt` when never repeated (ADR-004 §3, SEC-31).
+        repeatCount:
+          type: integer
+          minimum: 0
+          description: Callbacks counted on this row but not stored again (identical body, or over the cap of 20 stored callbacks per payment per hour; SEC-31).
         processedAt:
           oneOf:
             - $ref: '#/components/schemas/Timestamp'
@@ -25903,7 +26090,41 @@ components:
             - currentPayoutDetails
             - processedBy
             - userAvailable
+            - detailsChangedRecently
+            - recentChangeKinds
+            - lastEmailChangedAt
+            - lastPasswordChangedAt
+            - lastPayoutDetailsChangedAt
           properties:
+            detailsChangedRecently:
+              type: boolean
+              description: |
+                Approver flag `t_admin_details_changed_recently` (spec 14 AC-23, spec 16 AC-42; Owner 2026-09-30
+                Q-144 option (d)): true when the user had a security change (email became active, password changed
+                or reset, payout details saved; by the user or started by staff) in the 7 days before `createdAt`,
+                or at any time after `createdAt` while the request is `pending` or `processing` (7-day window =
+                Q-151 default). Information only: it never blocks "Mark as paid" or "Reject". Computed by the API.
+            recentChangeKinds:
+              type: array
+              uniqueItems: true
+              description: The kinds of change that raised the flag (`t_admin_security_change_email` / `_password` / `_payout_details`); empty when the flag is false.
+              items:
+                $ref: '#/components/schemas/WithdrawalSecurityChangeKind'
+            lastEmailChangedAt:
+              oneOf:
+                - $ref: '#/components/schemas/Timestamp'
+                - type: 'null'
+              description: Latest time the user's new email became active on the new platform (null = none recorded, `t_admin_security_change_none`; migration sets null, spec 14 EC-9).
+            lastPasswordChangedAt:
+              oneOf:
+                - $ref: '#/components/schemas/Timestamp'
+                - type: 'null'
+              description: Latest password change or reset on the new platform (null = none recorded).
+            lastPayoutDetailsChangedAt:
+              oneOf:
+                - $ref: '#/components/schemas/Timestamp'
+                - type: 'null'
+              description: Latest save of payout details on the new platform, including the first structured save (null = none recorded).
             user:
               $ref: '#/components/schemas/UserSummary'
             currentPayoutDetails:
@@ -28578,6 +28799,46 @@ components:
             - 'null'
           minimum: 0
           description: Only present when the operation documents that it returns a total (e.g. admin queue counters); otherwise omitted.
+    CustomCodeAllowedHost:
+      type: object
+      description: One allowed host with its fixed-code confirmation. In requests `confirmedBy` / `confirmedAt` are ignored (the API sets them for newly added hosts and keeps them for hosts already listed); in responses they are always filled.
+      required:
+        - host
+        - fixedCodeConfirmed
+      properties:
+        host:
+          type: string
+          maxLength: 253
+          pattern: ^(\*\.)?([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$
+          description: Lower-case hostname; no wildcard except a leading `*.` for subdomains (spec 00 S-127).
+        fixedCodeConfirmed:
+          const: true
+          description: The Super-admin ticked `t_custom_code_fixed_vendor_confirm` for this host (hint `t_custom_code_fixed_vendor_hint`). A missing or false value for a newly added host → `422 CUSTOM_CODE_FIXED_VENDOR_REQUIRED`.
+        confirmedBy:
+          oneOf:
+            - $ref: '#/components/schemas/StaffSummary'
+            - type: 'null'
+        confirmedAt:
+          oneOf:
+            - $ref: '#/components/schemas/Timestamp'
+            - type: 'null'
+    CustomCodeAllowedHostsValue:
+      type: object
+      description: |
+        Shape of the S-127 `appearance.custom_code.allowed_hosts` value (type `structured`; spec 00 S-127,
+        spec 16 AC-74, AC-74a, R-A10; Owner 2026-09-30 Q-146 (c)). Only fixed-code vendors (analytics or
+        advertising pixels, version-pinned where the vendor allows it); no tag managers or other hosts whose
+        code can change outside MyTask. The public-page CSP allows exactly these hosts (ADR-013 §7). Written by
+        the Super-admin through `adminUpdateSetting` (re-authentication, critical row, audited).
+      required:
+        - hosts
+      properties:
+        hosts:
+          type: array
+          maxItems: 50
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/CustomCodeAllowedHost'
     CustomCodeValue:
       type: object
       description: |
@@ -28975,7 +29236,7 @@ components:
             - 'null'
           minimum: 1
           maximum: 365
-          description: Optional wished delivery time in days; pre-fills the offer (AC-5). Range assumed equal to the offer's 1–365 (see D4 handoff Q).
+          description: Optional wished delivery time in days; pre-fills the offer (AC-5). Range assumed equal to the offer's 1–365 (technical limit, slice item Q-141).
     CustomOfferRequestDeclineRequest:
       type: object
       properties:
@@ -29066,7 +29327,7 @@ components:
       x-enumDescriptions:
         AUTH_INVALID_CREDENTIALS: '[401] Wrong email or password, unknown email or a soft-deleted account (same answer for all, spec 01 AC-11, AC-15); messageKey t_invalid_login_credentials_pls_try_again'
         AUTH_LOGIN_LOCKED: '[429] Account + IP locked after S-062 failed logins for S-063 minutes (spec 01 AC-16); `details.retryAfterSeconds`, `details.params.minutes`; messageKey t_too_many_login_attempts'
-        AUTH_LOGIN_THROTTLED: '[429] Slow mode after 20 failed logins for this account within one hour from any IPs: one attempt per 30 seconds is evaluated (ADR-002 §6, SEC-02; no hard lock). `details.retryAfterSeconds`; messageKey t_too_many_login_attempts'
+        AUTH_LOGIN_THROTTLED: '[429] Slow mode after 20 failed logins for this account within one hour from any IPs: one attempt per 30 seconds is evaluated (ADR-002 §6, SEC-02, spec 01 AC-53; no hard lock; trusted-device and passed-reCAPTCHA attempts bypass the slot, SEC-30). `details.retryAfterSeconds`, `details.params.seconds` (= retryAfterSeconds); messageKey t_login_slow_mode'
         AUTH_LINK_INVALID: '[422] Unknown or already used verification / reset / email-change link (spec 01 AC-8, AC-34); messageKey t_verification_email_not_exists (reset links: the client goes to login)'
         AUTH_LINK_EXPIRED: '[422] The link is older than S-054 / S-055 minutes (spec 01 AC-8, AC-34; spec 02 AC-30); messageKey t_verification_email_link_expired or t_password_reset_link_expired'
         AUTH_ALREADY_VERIFIED: '[409] Resend verification for an account that is not pending (spec 01 AC-9); messageKey t_already_verified_user'
@@ -29078,7 +29339,7 @@ components:
         TWO_FACTOR_CODE_INVALID: '[422] Wrong 2FA code; `details.attemptsLeft` (spec 01 AC-25); messageKey t_2fa_code_invalid'
         TWO_FACTOR_CODE_EXPIRED: '[422] Code older than S-057 minutes (spec 01 AC-26); messageKey t_2fa_code_expired'
         TWO_FACTOR_TOO_MANY_ATTEMPTS: '[422] S-058 wrong codes: this code no longer works, ask for a new one (spec 01 AC-25); messageKey t_2fa_too_many_attempts'
-        TWO_FACTOR_LOCKED: '[429] 10 wrong codes for this account within one hour across all challenges: code checks are refused for S-063 minutes, even for a correct code (ADR-002 §5, SEC-03). `details.retryAfterSeconds`; messageKey t_too_many_login_attempts'
+        TWO_FACTOR_LOCKED: '[429] 10 wrong codes for this account within one hour across all challenges: code checks are refused for S-063 minutes, even for a correct code (ADR-002 §5, SEC-03, spec 01 AC-54; owner emailed once per lock, EV-129). `details.retryAfterSeconds`, `details.params.minutes` (remaining minutes, rounded up); messageKey t_2fa_locked'
         TWO_FACTOR_RESEND_THROTTLED: '[429] Resend inside the 60-second cooldown or above 5 codes per 15 minutes (spec 01 AC-27); `details.retryAfterSeconds`, `details.params.seconds`; messageKey t_2fa_resend_wait'
     D2ErrorCode:
       type: string
@@ -29124,6 +29385,8 @@ components:
         - WITHDRAWAL_PERIOD_NOT_ELAPSED
         - WITHDRAWAL_BELOW_MINIMUM
         - WITHDRAWAL_PAYOUT_TOO_LOW
+        - WITHDRAWAL_SECURITY_PAUSE
+        - LEDGER_LEGACY_HOLD_WRITE_OFF_ONLY
       x-enumDescriptions:
         QUOTE_CHANGED: '[409] The server recomputed the quote and its total for the chosen method differs from `quoteId` (fee rule, S-012, price or promo changed). Nothing was started. `details.quote` holds the new `CheckoutQuote` to confirm (spec 05 AC-8); messageKey t_quote_changed'
         CHECKOUT_METHOD_NOT_AVAILABLE: '[422] The method is never offered for this purpose (spec 05 R-P1: bank transfer only for gig orders and top-ups, wallet never for Premium or top-ups). A method switched OFF is `403 FEATURE_DISABLED` instead; messageKey t_payment_method_not_available (NEW, requested in the D3 handoff)'
@@ -29141,6 +29404,8 @@ components:
         WITHDRAWAL_PERIOD_NOT_ELAPSED: '[422] Less than 24h / 168h / 720h (S-032) since the creation of the latest paid request; `details.nextAllowedAt` (spec 14 AC-6); messageKey t_cant_withdraw_reason_period_24_hours | t_cant_withdraw_reason_period_7_days | t_cant_withdraw_reason_period_monthly'
         WITHDRAWAL_BELOW_MINIMUM: '[422] A below S-031; `details.min` is Money (spec 14 AC-6); messageKey t_cant_withdraw_reason_min_amount'
         WITHDRAWAL_PAYOUT_TOO_LOW: '[422] Payout A − F would be 0 or less (spec 14 AC-6); messageKey t_withdrawal_amount_too_low'
+        WITHDRAWAL_SECURITY_PAUSE: '[422] Security pause: less than S-129 hours (value at request time, default 24; 0 = never) since the latest email, password or payout-details change of the account, by the user or started by staff (spec 14 AC-21, R-W9; Owner 2026-09-30 Q-144). `details.pausedUntil` (Timestamp = latest change + S-129) and `details.params.datetime` (the same moment formatted in Georgian time, UTC+4); messageKey t_cant_withdraw_reason_security_pause'
+        LEDGER_LEGACY_HOLD_WRITE_OFF_ONLY: '[422] A negative legacy-hold residual cannot be released to Available; it can only be written off (spec 16 AC-44, EC-12; Owner 2026-09-30 Q-120); messageKey t_admin_negative_residual_write_off_only'
     D4ErrorCode:
       type: string
       description: Domain error codes of D4 (CONVENTIONS §7.3). Rule refusals without a code of their own use the common codes with `details.messageKey`.
@@ -29166,7 +29431,7 @@ components:
         ORDER_ITEMS_NO_LONGER_AVAILABLE: '[422] "Pay" again on an awaiting-payment order whose gigs can no longer be ordered (spec 06 AC-11); returned by D3 `createPayment` for `source = order`; messageKey t_order_items_no_longer_available.'
         ORDER_REQUIREMENTS_MISSING: '[422] Start pressed before the buyer sent the order details (spec 06 AC-16); messageKey t_buyer_didnt_send_requirements_yet_continue.'
         REVISION_LIMIT_REACHED: '[422] Revisions used = revisions allowed (spec 06 AC-27); messageKey t_no_revisions_left.'
-        DISPUTE_OPEN: '[422] The buyer tries to complete or request a revision while a dispute is open (spec 06 AC-31, spec 13 AC-13); messageKey t_cannot_complete_during_dispute.'
+        DISPUTE_OPEN: '[422] The buyer tries to complete or request a revision while a dispute is open (spec 06 AC-31, spec 13 AC-13; messageKey t_cannot_complete_during_dispute), or staff press "Release funds" / "Refund buyer" while a dispute is open (spec 13 AC-29, AC-30, Q-121; messageKey t_admin_refund_blocked_dispute_open for the refund).'
         OFFER_NO_LONGER_AVAILABLE: '[422] The offer is withdrawn, declined, expired or rejected (spec 12 AC-17, AC-18); also returned by D3 `createPayment` for a custom-offer target; messageKey t_offer_no_longer_available.'
         OFFER_USER_UNAVAILABLE: '[422] The other user cannot receive an offer or an offer request: unavailable (`details.availableFrom`), restricted, banned, deleted, pending, or the caller themself (spec 12 AC-4, AC-10); messageKey t_this_user_is_not_available_right_now_msg or t_user_cannot_receive_messages.'
         OFFER_PAYMENT_IN_PROGRESS: '[409] Withdraw refused while a card payment for the offer is pending (spec 12 EC-2); messageKey t_payment_in_progress.'
@@ -29215,6 +29480,7 @@ components:
         - ROLE_IN_USE
         - SETTING_MANAGED_ELSEWHERE
         - CUSTOM_CODE_HOST_NOT_ALLOWED
+        - CUSTOM_CODE_FIXED_VENDOR_REQUIRED
         - FEE_REQUIRES_PAYMENT_FLOW
         - TRANSLATION_PLACEHOLDERS_MISMATCH
         - NOTIFICATION_UNSUBSCRIBE_LINK_INVALID
@@ -29226,7 +29492,7 @@ components:
         STAFF_TWO_FACTOR_CODE_EXPIRED: '[422] Code older than S-057 minutes. messageKey t_2fa_code_expired'
         STAFF_TWO_FACTOR_TOO_MANY_ATTEMPTS: '[422] S-058 wrong attempts: the code no longer works; request a new one. messageKey t_2fa_too_many_attempts'
         STAFF_TWO_FACTOR_RESEND_WAIT: '[429] Resend cooldown (60 s) or 5 codes per 15 minutes reached (spec 01 AC-27). messageKey t_2fa_resend_wait'
-        STAFF_TWO_FACTOR_LOCKED: '[429] 10 wrong codes for this staff account within one hour across challenges (login and re-authentication): code checks refused for S-063 minutes, even for a correct code (ADR-002 §5, SEC-03). `details.retryAfterSeconds`. messageKey t_too_many_login_attempts'
+        STAFF_TWO_FACTOR_LOCKED: '[429] 10 wrong codes for this staff account within one hour across challenges (login and re-authentication): code checks refused for S-063 minutes, even for a correct code (ADR-002 §5, SEC-03, spec 01 AC-54; staff member emailed once per lock, EV-129). `details.retryAfterSeconds`, `details.params.minutes` (remaining minutes, rounded up). messageKey t_2fa_locked'
         STAFF_PASSWORD_LINK_EXPIRED: '[422] Invitation (48 h, spec 16 AC-3) or password-reset link expired or already used. messageKey t_password_reset_link_expired'
         STAFF_CURRENT_PASSWORD_WRONG: '[422] Current password wrong (own password change, re-authentication). messageKey t_ur_current_pass_does_not_match'
         STAFF_CANNOT_EDIT_OWN_ROLES: '[403] A staff member tried to change their own roles or disable their own account (spec 16 AC-5). messageKey t_cannot_edit_own_roles'
@@ -29236,6 +29502,7 @@ components:
         ROLE_IN_USE: '[409] The role is still assigned to staff and cannot be deleted (spec 16 AC-10). messageKey t_category_in_use'
         SETTING_MANAGED_ELSEWHERE: '[422] This register row is not edited through the generic settings endpoint: fee rules S-010…S-018 → `/admin/fee-rules`; S-121 → `/admin/system/maintenance`. `details.operationId` names the right operation. messageKey none (the admin UI never offers it)'
         CUSTOM_CODE_HOST_NOT_ALLOWED: '[422] Custom code (S-110) references hosts that are not in S-127, or S-127 would drop a host still used (spec 16 AC-74, EC-10). `details.hosts` lists them. messageKey t_custom_code_host_not_allowed'
+        CUSTOM_CODE_FIXED_VENDOR_REQUIRED: '[422] A host added to S-127 was not confirmed as a fixed-code vendor (`fixedCodeConfirmed: true`); nothing is saved (spec 16 AC-74a; Owner 2026-09-30 Q-146). `details.hosts` lists them. messageKey t_custom_code_fixed_vendor_required'
         FEE_REQUIRES_PAYMENT_FLOW: '[422] The project posting fee (S-016, `project.posting_fee`) cannot be switched ON while no posting-payment flow exists (spec 16 AC-49). messageKey t_fee_requires_payment_flow'
         TRANSLATION_PLACEHOLDERS_MISMATCH: '[422] The override''s placeholders differ from the base value (spec 16 AC-64). `details.placeholders` lists the expected ones. messageKey t_translation_placeholders_mismatch'
         NOTIFICATION_UNSUBSCRIBE_LINK_INVALID: '[422] The one-click unsubscribe token is invalid or older than 30 days (spec 15 AC-30). messageKey t_unsubscribe_link_invalid'
@@ -30212,7 +30479,7 @@ components:
         One invalid field of a `VALIDATION_FAILED` error (CONVENTIONS §7.1). `params` carries the values of the
         placeholders of `messageKey` (e.g. `{max: 80}` for `:max`), so clients that render from their own
         bundle get the same text as `message`.
-        **Georgian fields** (spec 00 R-5.3/R-5.3a, PROPOSED P-136, scope Q-109; gig title/description D2,
+        **Georgian fields** (spec 00 R-5.3/R-5.3a, P-136 ACCEPTED 2026-09-30, scope Q-109; gig title/description D2,
         project title/description D5): `code = georgian_field_characters` when the normalised text contains
         characters outside the allowed set — `refusedCharacters` lists each refused character once, in order
         of first appearance, at most 10, and `params.chars` is the same list joined by a space (placeholder
@@ -30469,7 +30736,7 @@ components:
             - integer
             - 'null'
           minimum: 0
-          description: Number of revisions included (`t_revisions_included` / `t_no_revisions` for 0). Null only for migrated gigs without a value (data-model §3.D, Owner question 1).
+          description: 'Number of revisions included (`t_revisions_included` / `t_no_revisions` for 0). Null only for migrated gigs without a value (data-model §3.D; display: slice item Q-142).'
         upgrades:
           type: array
           maxItems: 10
@@ -31045,7 +31312,7 @@ components:
             - type: 'null'
     GigRelatedList:
       type: object
-      description: '"You may also like" (spec 04 AC-32, P-137): at most 40 gigs in random order; an empty list means the section is hidden.'
+      description: '"You may also like" (spec 04 AC-32, P-137 accepted, Q-110): at most 40 gigs in random order; an empty list means the section is hidden.'
       required:
         - gigs
       properties:
@@ -34504,6 +34771,7 @@ components:
         - images
         - status
         - rejectionReason
+        - rejectedAt
         - owner
         - isOwn
         - publishedAt
@@ -34542,7 +34810,13 @@ components:
           type:
             - string
             - 'null'
-          description: Only for the owner (and staff) when `rejected`.
+          maxLength: 1000
+          description: Only for the owner (and staff) while `rejected` (`t_portfolio_rejected_reason`, spec 02 AC-42); null otherwise. After the owner's next edit it is no longer returned (it stays in the audit log).
+        rejectedAt:
+          oneOf:
+            - $ref: '#/components/schemas/Timestamp'
+            - type: 'null'
+          description: When staff rejected it; only for the owner (and staff) while `rejected`, else null.
         owner:
           $ref: '#/components/schemas/UserSummary'
         isOwn:
@@ -34661,8 +34935,10 @@ components:
         - rejected
       description: |
         `pending` = waiting for review (S-071 OFF), visible only to the owner; `active` = public.
-        `rejected` = staff rejected it with a reason shown to the owner (spec 16 AC-21 / AC-19). data-model
-        §3.B lists only `pending` and `active`: see D1 handoff question on the rejected state.
+        `rejected` = staff rejected it with a reason shown only to the owner (spec 02 AC-42, spec 16 AC-21;
+        Owner 2026-09-30 Q-117; data-model §3.B). A rejected item is never public (404 for everyone but the
+        owner); the owner's next edit sends it back per spec 02 AC-25 (`pending`, or `active` with S-071 ON).
+        Migrated items are never `rejected` (spec 02 EC-11).
     PresenceChangedEvent:
       type: object
       description: '`presence.changed` (room `conversation:{conversationId}` of the user''s direct conversations): online state changed (activity in the last 10 minutes, BR-012). Only the server sets presence (spec 08 AC-17).'
@@ -35073,7 +35349,7 @@ components:
       type: object
       description: |
         Description in both languages (write form), plain text, line breaks kept, HTML refused. `ka` 10–10,000
-        characters with the same character set as the Georgian title (spec 10 AC-4, R-5.3a, PROPOSED P-136;
+        characters with the same character set as the Georgian title (spec 10 AC-4, R-5.3a, P-136 accepted, Q-109;
         `t_project_description_too_long` above the maximum). `en` optional, 10–10,000, no Georgian letters.
       required:
         - ka
@@ -35290,7 +35566,7 @@ components:
       type: object
       description: |
         Title in both languages (write form). `ka` 3–100 characters: Georgian letters, Latin letters,
-        digits, whitespace and `- _ . , ! ? ( )` (spec 00 R-5.3a, PROPOSED P-136) with at least one Georgian
+        digits, whitespace and `- _ . , ! ? ( )` (spec 00 R-5.3a, P-136 accepted, Q-109) with at least one Georgian
         letter; other characters → `VALIDATION_FAILED`, field `title.ka`, messageKey
         `t_validator_georgian_field_characters` (naming them) or `t_validator_georgian_letter_required`
         (shared validation error defined by D1). `en` optional, 3–100 characters, no Georgian letters
@@ -36411,6 +36687,7 @@ components:
             - 'null'
         allowedHosts:
           type: array
+          description: The hostnames of S-127 (each confirmed as a fixed-code vendor, spec 16 AC-74a, Q-146) for the CSP; the confirmation data stays in the admin API.
           items:
             type: string
             maxLength: 253
@@ -38039,7 +38316,7 @@ components:
         One register row (spec 00 §4) as shown in the Settings screen (spec 16 AC-51). Secret rows
         (S-065…S-069) never return a value: `value` is null and `isSet` tells "set / not set" (AC-54).
         S-110 and S-127 are returned only to holders of `settings.custom_code.write` (AC-72).
-        Proposed rows not yet accepted by the Owner carry `registerStatus: proposed` (e.g. S-128).
+        Rows added after an Owner approval and not yet accepted carry `registerStatus: proposed`; at the 2026-09-30 gate every row S-001…S-129 is `approved` (S-128 accepted with P-135, Q-111; S-129 NEW, Q-144).
       required:
         - key
         - registerId
@@ -38133,7 +38410,7 @@ components:
           description: A change sends EV-124 to every S-100 address (spec 16 AC-56).
         stepUpRequired:
           type: boolean
-          description: Saving needs re-authentication within 15 minutes (S-100, S-110, S-127, S-065…S-069; spec 16 AC-7).
+          description: Saving needs re-authentication within 15 minutes in the same staff session (spec 16 AC-7; Q-145) — S-008/S-009 plan prices, security rows S-052, S-053, S-056…S-064, S-124, social-login keys S-065…S-069, S-100, S-110, S-127.
         writePermission:
           $ref: '#/components/schemas/PermissionCode'
         version:
@@ -38212,7 +38489,8 @@ components:
         JSON value whose shape follows `SettingEntry.type`: `boolean`; `integer` (or null = unlimited, R-2.2);
         `money` → `Money`; `basis_points` → integer; `enum` → string; `list`/`email_list` → string array;
         `localized_text` → `LocalizedString`; `image` → file id (uuid) of a ready public image; `time` →
-        `"HH:MM"`; `structured` → object documented by the register row (e.g. S-110 custom code slots);
+        `"HH:MM"`; `structured` → object documented by the register row (S-110 → `CustomCodeValue`, S-127 →
+        `CustomCodeAllowedHostsValue`);
         `secret` → write-only string. Never a floating-point number.
     SettingVersion:
       type: object
@@ -38616,7 +38894,7 @@ components:
           uniqueItems: true
           items:
             $ref: '#/components/schemas/Uuid'
-          description: The complete new role list. Empty removes all access without disabling the account (see D6 handoff question).
+          description: The complete new role list. Empty removes all access without disabling the account (contract default, slice item Q-140).
     StaffStatus:
       type: string
       enum:
@@ -39863,17 +40141,18 @@ components:
           type:
             - string
             - 'null'
-          description: The error code `createWithdrawal` would return (e.g. `PAYOUT_DETAILS_REQUIRED`, `INSUFFICIENT_FUNDS`, `WITHDRAWAL_PENDING_EXISTS`, `WITHDRAWAL_PERIOD_NOT_ELAPSED`).
+          description: The error code `createWithdrawal` would return (e.g. `PAYOUT_DETAILS_REQUIRED`, `INSUFFICIENT_FUNDS`, `WITHDRAWAL_PENDING_EXISTS`, `WITHDRAWAL_SECURITY_PAUSE`, `WITHDRAWAL_PERIOD_NOT_ELAPSED`).
         messageKey:
           type:
             - string
             - 'null'
           pattern: ^t_[a-z0-9_]+$
-          description: e.g. `t_add_payout_details_first`, `t_nothing_to_withdraw` (AC-11).
+          description: e.g. `t_add_payout_details_first`, `t_nothing_to_withdraw` (AC-11), `t_cant_withdraw_reason_security_pause` (AC-22).
         nextAllowedAt:
           oneOf:
             - $ref: '#/components/schemas/Timestamp'
             - type: 'null'
+          description: When the failing time rule ends (period S-032 or security pause S-129); null for other reasons.
     WithdrawalMarkPaidRequest:
       type: object
       properties:
@@ -39918,7 +40197,13 @@ components:
         - payout
         - payoutDetails
         - eligibility
+        - securityPauseUntil
       properties:
+        securityPauseUntil:
+          oneOf:
+            - $ref: '#/components/schemas/Timestamp'
+            - type: 'null'
+          description: End of the running security pause (latest email, password or payout-details change + S-129 hours, spec 14 AC-21, AC-22; Q-144); null when no pause runs. While set, the form shows `t_cant_withdraw_reason_security_pause` with this time and disables the request button; the fee preview stays available.
         available:
           $ref: '#/components/schemas/Money'
         minimum:
@@ -39974,6 +40259,13 @@ components:
           minLength: 1
           maxLength: 500
           description: Shown to the user in the email, notification and history (P-64).
+    WithdrawalSecurityChangeKind:
+      type: string
+      enum:
+        - email
+        - password
+        - payout_details
+      description: Kind of account security change that starts the withdrawal pause (S-129) and raises the approver flag (spec 14 AC-21, AC-23; Q-144).
     WithdrawalStatus:
       type: string
       enum:

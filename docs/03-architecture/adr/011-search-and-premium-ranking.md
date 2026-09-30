@@ -1,5 +1,5 @@
 # ADR-011: Search — PostgreSQL full-text + trigram first, with the Premium ranking boost
-Date: 2026-09-28 | Status: proposed
+Date: 2026-09-28 | Status: accepted (Owner 2026-09-30)
 
 ## Context
 - Vision priority 1: post and browse gigs. Search surfaces: `/search`, category pages (3 levels), `/hire/{keyword}`, `/sellers`, `/explore/projects` (+ category/skill), filters and sorting (spec 03 traces the legacy details).

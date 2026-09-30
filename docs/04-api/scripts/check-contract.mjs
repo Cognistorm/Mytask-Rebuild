@@ -112,7 +112,7 @@ for (const { path: p, method, op, item } of operations(doc)) {
   else {
     if (covers.length === 0 && !op['x-covers-note']) r.error(`${where}: empty x-covers needs x-covers-note`);
     for (const c of covers) {
-      const m = String(c).match(/^(\d{2}) (AC-\d+)$/);
+      const m = String(c).match(/^(\d{2}) (AC-\d+[a-z]?)$/);
       if (!m) { r.error(`${where}: x-covers entry "${c}" must look like "06 AC-7"`); continue; }
       if (!specs[m[1]]) r.error(`${where}: x-covers "${c}": no spec ${m[1]}`);
       else if (!specs[m[1]].acs.has(m[2])) r.error(`${where}: x-covers "${c}": spec ${m[1]} has no ${m[2]}`);

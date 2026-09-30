@@ -507,7 +507,7 @@
     summary: Post a project
     description: |
       Post form of spec 10 (AC-2…AC-10). Validation: title and description per `ProjectTitleInput` /
-      `ProjectDescriptionInput` (Georgian-field character set of spec 00 R-5.3a, PROPOSED P-136; English
+      `ProjectDescriptionInput` (Georgian-field character set of spec 00 R-5.3a, P-136 accepted (Q-109); English
       without Georgian letters); category must be a project category; skills of that category only, each
       once, at most S-076 (`t_max_allowed_skills_reached`); thumbnail a `ready` `project_thumbnail` file
       (jpg/jpeg/png ≤ S-078 MB); budget min ≥ 1.00 GEL (`t_budget_min_too_low`) and min < max

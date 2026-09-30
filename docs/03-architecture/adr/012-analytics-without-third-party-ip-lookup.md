@@ -1,5 +1,5 @@
 # ADR-012: Analytics without third-party IP geolocation
-Date: 2026-09-28 | Status: proposed
+Date: 2026-09-28 | Status: accepted (Owner 2026-09-30)
 
 > **Revised 2026-09-30** (P2-B5, SEC-01): the client IP and edge country come only from Caddy's canonical headers or the internal service credential (ADR-013 §14–§19).
 

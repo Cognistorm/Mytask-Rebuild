@@ -30,7 +30,7 @@ D4ErrorCode:
     ORDER_ITEMS_NO_LONGER_AVAILABLE: '[422] "Pay" again on an awaiting-payment order whose gigs can no longer be ordered (spec 06 AC-11); returned by D3 `createPayment` for `source = order`; messageKey t_order_items_no_longer_available.'
     ORDER_REQUIREMENTS_MISSING: '[422] Start pressed before the buyer sent the order details (spec 06 AC-16); messageKey t_buyer_didnt_send_requirements_yet_continue.'
     REVISION_LIMIT_REACHED: '[422] Revisions used = revisions allowed (spec 06 AC-27); messageKey t_no_revisions_left.'
-    DISPUTE_OPEN: '[422] The buyer tries to complete or request a revision while a dispute is open (spec 06 AC-31, spec 13 AC-13); messageKey t_cannot_complete_during_dispute.'
+    DISPUTE_OPEN: '[422] The buyer tries to complete or request a revision while a dispute is open (spec 06 AC-31, spec 13 AC-13; messageKey t_cannot_complete_during_dispute), or staff press "Release funds" / "Refund buyer" while a dispute is open (spec 13 AC-29, AC-30, Q-121; messageKey t_admin_refund_blocked_dispute_open for the refund).'
     OFFER_NO_LONGER_AVAILABLE: '[422] The offer is withdrawn, declined, expired or rejected (spec 12 AC-17, AC-18); also returned by D3 `createPayment` for a custom-offer target; messageKey t_offer_no_longer_available.'
     OFFER_USER_UNAVAILABLE: '[422] The other user cannot receive an offer or an offer request: unavailable (`details.availableFrom`), restricted, banned, deleted, pending, or the caller themself (spec 12 AC-4, AC-10); messageKey t_this_user_is_not_available_right_now_msg or t_user_cannot_receive_messages.'
     OFFER_PAYMENT_IN_PROGRESS: '[409] Withdraw refused while a card payment for the offer is pending (spec 12 EC-2); messageKey t_payment_in_progress.'
@@ -778,7 +778,7 @@ CustomOfferRequestCreateRequest:
       type: [integer, 'null']
       minimum: 1
       maximum: 365
-      description: Optional wished delivery time in days; pre-fills the offer (AC-5). Range assumed equal to the offer's 1–365 (see D4 handoff Q).
+      description: Optional wished delivery time in days; pre-fills the offer (AC-5). Range assumed equal to the offer's 1–365 (technical limit, slice item Q-141).
 
 CustomOfferRequestDeclineRequest:
   type: object
@@ -1126,7 +1126,7 @@ AdminEscrow:
           oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
         isOverdue:
           type: boolean
-          description: See `adminListEscrows` `overdue` (reading documented there; D4 handoff Q).
+          description: See `adminListEscrows` `overdue` (reading documented there; slice item Q-122).
         autoReleaseSetReason:
           oneOf: [{$ref: '#/EscrowAutoReleaseSetReason'}, {type: 'null'}]
         autoReleaseHoursUsed: {type: [integer, 'null']}

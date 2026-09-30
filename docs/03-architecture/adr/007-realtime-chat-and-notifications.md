@@ -1,5 +1,5 @@
 # ADR-007: Realtime chat and notifications — self-hosted Socket.IO, SendGrid email, Expo push, SMS interface
-Date: 2026-09-28 | Status: proposed
+Date: 2026-09-28 | Status: accepted (Owner 2026-09-30)
 
 ## Context
 - Chat and notifications are vision priority 5. Legacy chat is Chatify on Pusher (`/inbox`) with hard-coded Pusher secrets (R-003) and app-generated message ids `mt_rand + time()` (R-038); refund threads broadcast over Pusher too (`notifications.md`).

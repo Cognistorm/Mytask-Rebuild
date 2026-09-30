@@ -1,5 +1,5 @@
 # ADR-006: Internationalization — `/en/` URL prefix, shared UI strings, content translations ready for AI, Georgian fallback
-Date: 2026-09-28 | Status: proposed
+Date: 2026-09-28 | Status: accepted (Owner 2026-09-30)
 
 ## Context
 - Two languages: Georgian `ka` (default) and English `en` (CLAUDE.md, S-103).

@@ -398,15 +398,17 @@
       `STAFF_TWO_FACTOR_TOO_MANY_ATTEMPTS` (S-058); 404 unknown challenge.
       Cap across challenges (ADR-002 §5, SEC-03): 10 wrong codes for one staff account within one hour (login
       and re-authentication codes together) → code checks refused for S-063 minutes with
-      `429 STAFF_TWO_FACTOR_LOCKED`, and the staff member is emailed; every wrong login code also counts as a
-      failed staff login towards the S-064 IP ban.
+      `429 STAFF_TWO_FACTOR_LOCKED` (messageKey `t_2fa_locked` with `minutes`), and the staff member gets the
+      security email EV-129 once per lock (spec 01 AC-54); every wrong login code also counts as a failed
+      staff login towards the S-064 IP ban.
     tags: [Admin Auth]
     security: []
     x-permission:
       audience: public
       notes: bound to the challenge of a correct password
-    x-covers: ['16 AC-2', '01 AC-29']
+    x-covers: ['16 AC-2', '01 AC-29', '01 AC-54']
     x-settings: [S-057, S-058, S-059, S-063, S-064]
+    x-notifications: [EV-129]
     x-rate-limit: 'S-058 wrong codes per challenge; 10 wrong codes per staff account per hour across challenges → blocked S-063 minutes (STAFF_TWO_FACTOR_LOCKED); wrong codes count towards the S-064 IP ban'
     x-audit: staff.login
     requestBody:
@@ -518,7 +520,8 @@
       sessions of the same staff member do not inherit it, and it ends with the session (ADR-002 §6).
       Throttle (SEC-04): wrong passwords and codes count per staff account; after S-062 within 15 minutes
       every password/code check of the account answers `429 RATE_LIMITED` (`t_too_many_login_attempts`)
-      for S-063 minutes; wrong codes also count towards the SEC-03 cap (`429 STAFF_TWO_FACTOR_LOCKED`).
+      for S-063 minutes (spec 01 AC-55); wrong codes also count towards the SEC-03 cap (`429
+      STAFF_TWO_FACTOR_LOCKED`, `t_2fa_locked`, EV-129; spec 01 AC-54).
       Errors: 422 `STAFF_CURRENT_PASSWORD_WRONG`, `STAFF_TWO_FACTOR_CODE_*`; 429.
     tags: [Admin Auth]
     security:
@@ -528,8 +531,9 @@
       audience: staff
       permission: '@self'
       ownership: own session only
-    x-covers: ['16 AC-7']
+    x-covers: ['16 AC-7', '01 AC-54', '01 AC-55']
     x-settings: [S-060, S-062, S-063]
+    x-notifications: [EV-129]
     x-rate-limit: 'S-062 wrong passwords or codes per staff account in 15 minutes → password/code checks refused for S-063 minutes (429 RATE_LIMITED, SEC-04)'
     x-audit: staff.reauth
     requestBody:
@@ -742,7 +746,7 @@
   post:
     operationId: adminChangeMyPassword
     summary: Change own password (with the current password)
-    description: 'Spec 16 AC-6. Other sessions of the staff member end (deny-listed at once), the current one stays, trusted devices are forgotten. Throttle (SEC-04): wrong current passwords count per staff account with the re-authentication checks; after S-062 within 15 minutes → `429 RATE_LIMITED` for S-063 minutes. Errors: 400 `VALIDATION_FAILED` (R-A2, confirmation); 422 `STAFF_CURRENT_PASSWORD_WRONG`; 429.'
+    description: 'Spec 16 AC-6. Other sessions of the staff member end (deny-listed at once), the current one stays, trusted devices are forgotten. Throttle (SEC-04): wrong current passwords count per staff account with the re-authentication checks; after S-062 within 15 minutes → `429 RATE_LIMITED` for S-063 minutes (spec 01 AC-55). Errors: 400 `VALIDATION_FAILED` (R-A2, confirmation); 422 `STAFF_CURRENT_PASSWORD_WRONG`; 429.'
     tags: [Admin Auth]
     security:
       - staffBearer: []
@@ -751,7 +755,7 @@
       audience: staff
       permission: '@self'
       ownership: self
-    x-covers: ['16 AC-6']
+    x-covers: ['16 AC-6', '01 AC-55']
     x-settings: [S-062, S-063]
     x-rate-limit: 'S-062 wrong passwords or codes per staff account in 15 minutes → password/code checks refused for S-063 minutes (429 RATE_LIMITED, SEC-04)'
     x-audit: staff.password.change
@@ -1735,7 +1739,7 @@
       All register rows grouped by area (spec 16 AC-51; fixed list, not paginated), searchable by id, key or
       meaning (`q`). Secret rows show only "set / not set" (AC-54). S-110 and S-127 are returned only to
       holders of `settings.custom_code.write` (AC-72). Fee rules S-010…S-018 appear read-only with
-      `area: fees` (edited in `/admin/fee-rules`). Proposed rows (S-128, P-135) carry `registerStatus: proposed`.
+      `area: fees` (edited in `/admin/fee-rules`). Every row of the register S-001…S-129 is `registerStatus: approved` since the Owner gate of 2026-09-30 (P-135 and S-128 accepted, Q-111/Q-137; S-129 added, Q-144); `proposed` is kept for rows added later and not yet accepted.
     tags: [Admin Settings]
     security:
       - staffBearer: []
@@ -1806,7 +1810,9 @@
       else saved first (EC-3). Effective for web, mobile and API within 60 seconds, no deployment
       (00 AC-8, P-123); audited with old/new (secrets redacted); V rows get a new version.
       Row-specific rules:
-      - **Re-authentication** (AC-7) for S-100, S-110, S-127 and S-065…S-069 → else `403 REAUTH_REQUIRED`.
+      - **Re-authentication** (AC-7) within 15 minutes in the same staff session for S-100, S-110, S-127,
+        S-065…S-069 and (Owner 2026-09-30, Q-145) the plan prices S-008/S-009 and the security rows S-052,
+        S-053, S-056…S-064, S-124 → else `403 REAUTH_REQUIRED` (`stepUpFor`; spec 16 EC-13).
       - **Critical rows** (S-025, S-033, S-056, S-060, S-065…S-069, S-100, S-110, S-127) send EV-124 to every
         S-100 address; for S-100 to the old and the new list (AC-55, AC-56; spec 15 AC-31).
       - **S-100**: at least one valid address (00 EC-9); test email with `adminSendTestEmail`.
@@ -1817,6 +1823,15 @@
         non-grantable); every external host in the code must be in S-127 and S-127 cannot drop a host
         still used → `422 CUSTOM_CODE_HOST_NOT_ALLOWED` with `details.hosts` (AC-74, EC-10); full
         before/after audited; `enabled: false` = "Disable custom code" (AC-75).
+      - **S-127 fixed-code vendors only** (spec 16 AC-74a, R-A10; Owner 2026-09-30 Q-146 (c)): the value is
+        `CustomCodeAllowedHostsValue`; every host added by the save must carry `fixedCodeConfirmed: true`
+        (the Super-admin ticked `t_custom_code_fixed_vendor_confirm`: the host serves fixed vendor code such
+        as an analytics or advertising pixel, version-pinned where possible, not a tag manager) → else `422
+        CUSTOM_CODE_FIXED_VENDOR_REQUIRED` (`details.hosts`, messageKey `t_custom_code_fixed_vendor_required`)
+        and nothing is saved. The API stores `confirmedBy` / `confirmedAt` per host (kept for hosts already
+        in the list) and audits them. Isolating custom code in its own origin is a Phase 3 study (ADR-013 §7).
+      - **S-129** `withdrawals.security_change_pause_hours` (area `withdrawals`, integer ≥ 0; spec 14 AC-21,
+        EC-11): the new value applies to every later withdrawal request, including pauses already running.
       - **S-121** → `422 SETTING_MANAGED_ELSEWHERE` (use `adminUpdateMaintenance`); fee rows S-010…S-018 →
         `422 SETTING_MANAGED_ELSEWHERE` (use `/admin/fee-rules`).
       - Switching a toggle OFF blocks new items only (00 AC-11, EC-1); the confirmation text is client-side.
@@ -1848,10 +1863,10 @@
           content: settings.content.write
           custom_code: settings.custom_code.write
           system: settings.system.write
-      stepUpFor: [S-065, S-066, S-067, S-068, S-069, S-100, S-110, S-127]
+      stepUpFor: [S-008, S-009, S-052, S-053, S-056, S-057, S-058, S-059, S-060, S-061, S-062, S-063, S-064, S-065, S-066, S-067, S-068, S-069, S-100, S-110, S-124, S-127]
       ownership: none
-      notes: the permission is chosen by the row's area (registry, ADR-005 §1); `permission` shows the area of S-121/S-122/S-103 and S-128 (proposed default, see D6 handoff)
-    x-covers: ['16 AC-7', '16 AC-52', '16 AC-54', '16 AC-55', '16 AC-56', '16 AC-72', '16 AC-74', '16 AC-75', '15 AC-26', '15 AC-31', '00 AC-8', '00 AC-10', '00 AC-6', '09 AC-37', '16 AC-57', '06 AC-37']
+      notes: the permission is chosen by the row's area (registry, ADR-005 §1); `permission` shows the area of S-121/S-122/S-103; S-128 is in area `payments` (Owner 2026-09-30 Q-137) and S-129 in area `withdrawals` (Q-144)
+    x-covers: ['16 AC-7', '16 AC-52', '16 AC-54', '16 AC-55', '16 AC-56', '16 AC-72', '16 AC-74', '16 AC-74a', '16 AC-75', '15 AC-26', '15 AC-31', '00 AC-8', '00 AC-10', '00 AC-6', '09 AC-37', '16 AC-57', '06 AC-37']
     x-notifications: [EV-124]
     x-audit: setting.update
     requestBody:
@@ -1941,7 +1956,7 @@
           content: settings.content.write
           custom_code: settings.custom_code.write
           system: settings.system.write
-      stepUpFor: [S-100, S-110, S-127]
+      stepUpFor: [S-008, S-009, S-052, S-053, S-056, S-057, S-058, S-059, S-060, S-061, S-062, S-063, S-064, S-065, S-066, S-067, S-068, S-069, S-100, S-110, S-124, S-127]
       ownership: none
     x-covers: ['16 AC-53']
     x-notifications: [EV-124]

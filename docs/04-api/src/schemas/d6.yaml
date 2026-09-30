@@ -23,6 +23,7 @@ D6ErrorCode:
     - ROLE_IN_USE
     - SETTING_MANAGED_ELSEWHERE
     - CUSTOM_CODE_HOST_NOT_ALLOWED
+    - CUSTOM_CODE_FIXED_VENDOR_REQUIRED
     - FEE_REQUIRES_PAYMENT_FLOW
     - TRANSLATION_PLACEHOLDERS_MISMATCH
     - NOTIFICATION_UNSUBSCRIBE_LINK_INVALID
@@ -34,7 +35,7 @@ D6ErrorCode:
     STAFF_TWO_FACTOR_CODE_EXPIRED: '[422] Code older than S-057 minutes. messageKey t_2fa_code_expired'
     STAFF_TWO_FACTOR_TOO_MANY_ATTEMPTS: '[422] S-058 wrong attempts: the code no longer works; request a new one. messageKey t_2fa_too_many_attempts'
     STAFF_TWO_FACTOR_RESEND_WAIT: '[429] Resend cooldown (60 s) or 5 codes per 15 minutes reached (spec 01 AC-27). messageKey t_2fa_resend_wait'
-    STAFF_TWO_FACTOR_LOCKED: '[429] 10 wrong codes for this staff account within one hour across challenges (login and re-authentication): code checks refused for S-063 minutes, even for a correct code (ADR-002 §5, SEC-03). `details.retryAfterSeconds`. messageKey t_too_many_login_attempts'
+    STAFF_TWO_FACTOR_LOCKED: '[429] 10 wrong codes for this staff account within one hour across challenges (login and re-authentication): code checks refused for S-063 minutes, even for a correct code (ADR-002 §5, SEC-03, spec 01 AC-54; staff member emailed once per lock, EV-129). `details.retryAfterSeconds`, `details.params.minutes` (remaining minutes, rounded up). messageKey t_2fa_locked'
     STAFF_PASSWORD_LINK_EXPIRED: '[422] Invitation (48 h, spec 16 AC-3) or password-reset link expired or already used. messageKey t_password_reset_link_expired'
     STAFF_CURRENT_PASSWORD_WRONG: '[422] Current password wrong (own password change, re-authentication). messageKey t_ur_current_pass_does_not_match'
     STAFF_CANNOT_EDIT_OWN_ROLES: '[403] A staff member tried to change their own roles or disable their own account (spec 16 AC-5). messageKey t_cannot_edit_own_roles'
@@ -44,6 +45,7 @@ D6ErrorCode:
     ROLE_IN_USE: '[409] The role is still assigned to staff and cannot be deleted (spec 16 AC-10). messageKey t_category_in_use'
     SETTING_MANAGED_ELSEWHERE: '[422] This register row is not edited through the generic settings endpoint: fee rules S-010…S-018 → `/admin/fee-rules`; S-121 → `/admin/system/maintenance`. `details.operationId` names the right operation. messageKey none (the admin UI never offers it)'
     CUSTOM_CODE_HOST_NOT_ALLOWED: '[422] Custom code (S-110) references hosts that are not in S-127, or S-127 would drop a host still used (spec 16 AC-74, EC-10). `details.hosts` lists them. messageKey t_custom_code_host_not_allowed'
+    CUSTOM_CODE_FIXED_VENDOR_REQUIRED: '[422] A host added to S-127 was not confirmed as a fixed-code vendor (`fixedCodeConfirmed: true`); nothing is saved (spec 16 AC-74a; Owner 2026-09-30 Q-146). `details.hosts` lists them. messageKey t_custom_code_fixed_vendor_required'
     FEE_REQUIRES_PAYMENT_FLOW: '[422] The project posting fee (S-016, `project.posting_fee`) cannot be switched ON while no posting-payment flow exists (spec 16 AC-49). messageKey t_fee_requires_payment_flow'
     TRANSLATION_PLACEHOLDERS_MISMATCH: '[422] The override''s placeholders differ from the base value (spec 16 AC-64). `details.placeholders` lists the expected ones. messageKey t_translation_placeholders_mismatch'
     NOTIFICATION_UNSUBSCRIBE_LINK_INVALID: '[422] The one-click unsubscribe token is invalid or older than 30 days (spec 15 AC-30). messageKey t_unsubscribe_link_invalid'
@@ -859,7 +861,7 @@ StaffRolesReplaceRequest:
       type: array
       uniqueItems: true
       items: {$ref: '../components/schemas.yaml#/Uuid'}
-      description: The complete new role list. Empty removes all access without disabling the account (see D6 handoff question).
+      description: The complete new role list. Empty removes all access without disabling the account (contract default, slice item Q-140).
 
 # ═══════════════════════════ Roles and permissions (spec 16 B) ═══════════════════════════
 PermissionCode:
@@ -1291,7 +1293,8 @@ SettingValue:
     JSON value whose shape follows `SettingEntry.type`: `boolean`; `integer` (or null = unlimited, R-2.2);
     `money` → `Money`; `basis_points` → integer; `enum` → string; `list`/`email_list` → string array;
     `localized_text` → `LocalizedString`; `image` → file id (uuid) of a ready public image; `time` →
-    `"HH:MM"`; `structured` → object documented by the register row (e.g. S-110 custom code slots);
+    `"HH:MM"`; `structured` → object documented by the register row (S-110 → `CustomCodeValue`, S-127 →
+    `CustomCodeAllowedHostsValue`);
     `secret` → write-only string. Never a floating-point number.
 
 SettingEntry:
@@ -1300,7 +1303,7 @@ SettingEntry:
     One register row (spec 00 §4) as shown in the Settings screen (spec 16 AC-51). Secret rows
     (S-065…S-069) never return a value: `value` is null and `isSet` tells "set / not set" (AC-54).
     S-110 and S-127 are returned only to holders of `settings.custom_code.write` (AC-72).
-    Proposed rows not yet accepted by the Owner carry `registerStatus: proposed` (e.g. S-128).
+    Rows added after an Owner approval and not yet accepted carry `registerStatus: proposed`; at the 2026-09-30 gate every row S-001…S-129 is `approved` (S-128 accepted with P-135, Q-111; S-129 NEW, Q-144).
   required: [key, registerId, area, type, unit, meaning, value, isSet, defaultValue, allowedValues, minimum, maximum, source, tag, registerStatus, isVersioned, isSecret, isPublic, isCritical, stepUpRequired, writePermission, version, updatedAt, updatedBy]
   properties:
     key:
@@ -1350,7 +1353,7 @@ SettingEntry:
       description: A change sends EV-124 to every S-100 address (spec 16 AC-56).
     stepUpRequired:
       type: boolean
-      description: Saving needs re-authentication within 15 minutes (S-100, S-110, S-127, S-065…S-069; spec 16 AC-7).
+      description: Saving needs re-authentication within 15 minutes in the same staff session (spec 16 AC-7; Q-145) — S-008/S-009 plan prices, security rows S-052, S-053, S-056…S-064, S-124, social-login keys S-065…S-069, S-100, S-110, S-127.
     writePermission: {$ref: '#/PermissionCode'}
     version: {type: integer, minimum: 1}
     updatedAt:
@@ -1435,6 +1438,40 @@ CustomCodeValue:
     footer:
       type: [string, 'null']
       maxLength: 50000
+
+CustomCodeAllowedHostsValue:
+  type: object
+  description: |
+    Shape of the S-127 `appearance.custom_code.allowed_hosts` value (type `structured`; spec 00 S-127,
+    spec 16 AC-74, AC-74a, R-A10; Owner 2026-09-30 Q-146 (c)). Only fixed-code vendors (analytics or
+    advertising pixels, version-pinned where the vendor allows it); no tag managers or other hosts whose
+    code can change outside MyTask. The public-page CSP allows exactly these hosts (ADR-013 §7). Written by
+    the Super-admin through `adminUpdateSetting` (re-authentication, critical row, audited).
+  required: [hosts]
+  properties:
+    hosts:
+      type: array
+      maxItems: 50
+      uniqueItems: true
+      items: {$ref: '#/CustomCodeAllowedHost'}
+
+CustomCodeAllowedHost:
+  type: object
+  description: One allowed host with its fixed-code confirmation. In requests `confirmedBy` / `confirmedAt` are ignored (the API sets them for newly added hosts and keeps them for hosts already listed); in responses they are always filled.
+  required: [host, fixedCodeConfirmed]
+  properties:
+    host:
+      type: string
+      maxLength: 253
+      pattern: '^(\*\.)?([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$'
+      description: Lower-case hostname; no wildcard except a leading `*.` for subdomains (spec 00 S-127).
+    fixedCodeConfirmed:
+      const: true
+      description: The Super-admin ticked `t_custom_code_fixed_vendor_confirm` for this host (hint `t_custom_code_fixed_vendor_hint`). A missing or false value for a newly added host → `422 CUSTOM_CODE_FIXED_VENDOR_REQUIRED`.
+    confirmedBy:
+      oneOf: [{$ref: '../components/schemas.yaml#/StaffSummary'}, {type: 'null'}]
+    confirmedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
 
 # ═══════════════════════════ Commission & Fee module (spec 16 H, ADR-005 §6) ═══════════════════════════
 FeeCalcType:

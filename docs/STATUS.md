@@ -1,5 +1,5 @@
 # Status — updated 2026-09-30
-Phase: 2 — Blueprint (Steps 1–8 done) | Gate: **ready for Owner review** (Step 9) | Phase 1 gate: APPROVED by Owner 2026-09-28
+Phase: 2 — Blueprint **CLOSED** | Phase 2 gate: **APPROVED by Owner 2026-09-30** (merged into `main`) | Phase 1 gate: APPROVED by Owner 2026-09-28 | Next: Phase 3
 
 ## Done
 - Kit copied; legacy code in /legacy/APP (confirmed = legacy `main`, production logic); vision filled
@@ -23,7 +23,7 @@ Phase: 2 — Blueprint (Steps 1–8 done) | Gate: **ready for Owner review** (St
 - Security: all keys in .env; strict web-root isolation (logs/config never web-reachable); keep restrictions, appeals, IP banning, KYC
 
 ## In progress (agent → task)
-- none. Steps 7 and 8 done 2026-09-30. Waiting for the Owner's gate review (Step 9): see docs/handoffs/2026-09-30-orchestrator-to-owner-phase-2-gate.md
+- none. Phase 2 closed 2026-09-30 (gate checklist: docs/handoffs/2026-09-30-orchestrator-to-owner-phase-2-gate.md)
 
 ## Blocked (reason, who must act)
 - none
@@ -48,14 +48,16 @@ Phase: 2 — Blueprint (Steps 1–8 done) | Gate: **ready for Owner review** (St
 - P2-B4 (solution-architect, 2026-09-29/30): **docs/04-api/openapi.yaml** = proposed contract. Built from sources in docs/04-api/src (foundation + 6 domain groups D1…D6 + integration). 477 operations on 398 paths, 763 schemas, 35 realtime events (realtime.md). `npm run verify:final` (docs/04-api): Redocly lint 0 errors / 0 warnings, check-contract 0/0, check-coverage 0/0. **Coverage 707/707 ACs** (621 API or API+JOB, 86 NOT-API with reason, 0 missing): table in docs/04-api/README.md, per spec in docs/04-api/coverage/. Rules in docs/04-api/CONVENTIONS.md. data-model.md (122 entities) and ADR-008 updated. Owner questions Q-111…Q-143 added to open-questions.md. Handoffs: docs/handoffs/2026-09-29-solution-architect-to-orchestrator-p2-b4-*.md
 - P2-B5 (security-reviewer, 2026-09-30): first verdict FAIL (1 High: SEC-01 client-IP trust chain). The architect fixed SEC-01 and 20 technical findings (ADR-002/004/009/010/012/013/015, contract). **Re-check verdict: PASS with conditions**, no Critical/High open. Reports: docs/06-qa/security/00-blueprint-2026-09-30.md + 01-blueprint-recheck-2026-09-30.md. Owner questions Q-144…Q-150 (+ Q-113) added
 
+- **Phase 2 gate APPROVED by the Owner 2026-09-30**: architecture + ADR-001…016, data model, URL map, API contract (`docs/04-api/openapi.yaml` v1.0.0), design, parity master, security verdict (PASS with conditions). Gate questions answered as recommended (open-questions.md, "Owner answers at the Phase 2 gate"): Q-109…Q-115, Q-117, Q-119…Q-121, Q-137, Q-144…Q-146. Applied the same day: specs 00, 01, 02, 04, 05, 08, 10, 13, 14, 15, 16 (P-135…P-137 accepted; S-128 + new S-129 withdrawal security pause 24 h, register 129 rows; EV-126…EV-129; 8 new ACs → **715 ACs**), then the contract/data model/ADRs (verify:final 0 errors, **715/715 covered**; SEC-30 and SEC-31 fixed). Handoffs: docs/handoffs/2026-09-30-product-analyst-to-orchestrator-gate-answers.md, 2026-09-30-solution-architect-to-orchestrator-gate-answers.md
+
 ## Next up
-- **Step 9: Owner gate review** (checklist: docs/handoffs/2026-09-30-orchestrator-to-owner-phase-2-gate.md)
-- After the gate, before Phase 3 slice 01 (security conditions): product-analyst updates specs 01, 02, 14, 15 (SEC-05 emailed-code confirmation for passwordless accounts; 2 NEW security emails for SEC-02/SEC-03); architect fixes SEC-30 (ADR-002 §6); backend implements the ADR-013 §19 client-IP tests
-- Later: SEC-31 in slice 05; social-login binding reviewed before any provider is switched ON; Q-147 (data retention) before the Phase 5 KYC import
-- Owner action now (SEC-28): revoke the Binance and findip keys and remove the Binance bot from the legacy server
+- **Phase 3 (platform core)**: orchestrator plans it from docs/03-architecture/phase-2-plan.md §6 and architecture.md (monorepo, docker compose, CI, generated types from openapi.yaml, auth slice 01)
+- Security conditions carried into Phase 3: backend implements the ADR-013 §19 client-IP tests before slice 01's review; SEC-31/SEC-32 notes in their slices; social-login binding reviewed before any provider is switched ON
+- Contract rule from now on: every change to openapi.yaml / data model needs an ADR + handoff (CLAUDE.md rule 2)
 
 ## Decisions waiting for Owner
-- **Phase 2 gate (Step 9)**: approve architecture + ADR-001…016, data model, URL map, openapi.yaml as the contract, design (audit, tokens, components, preview, key screens; checkout column order), parity master, security verdict. Answer the "Gate" questions: Q-109, Q-110, Q-111 (accept P-135/P-136/P-137), Q-112…Q-115, Q-117, Q-119…Q-121, Q-137, Q-144…Q-146 (Q-113 = IBAN visibility). The others (Q-116, Q-118, Q-122…Q-143 slice items, Q-147…Q-150) can wait for their slice; Q-147 before Phase 5
+- Q-097 legacy admin accounts + roles (by Phase 5); Q-147 data retention/erasure (before the Phase 5 KYC import); Q-151 withdrawal flag look-back 7 days + first payout-details save starts the pause (defaults applied, before slice 14); whether a "100% promo code" includes a fixed discount ≥ the Premium price (contract assumes yes); slice items Q-116, Q-118, Q-122…Q-136, Q-138…Q-143, Q-148…Q-150; Q-104 deferred; ADR-015 hosting provider before Phase 6
+- Owner action (SEC-28): revoke the Binance and findip keys and remove the Binance bot from the legacy server (Owner doing it by hand)
 - Approve ADR-001…016 (as revised in Step 4), the design audit, tokens and components (with the P2-C3 preview) at the Phase 2 gate
 - At the gate: the parity master (docs/06-qa/plans/00-parity-master.md) and the key screen layouts (docs/05-design/screens/); one non-blocking design point: checkout column order (screens/00-README.md)
 - Done 2026-09-29: specs 15, 16, 17 **approved** (P-106…P-134 accepted, S-127 added); Q-105…Q-108 answered as recommended (Q-105 "მოქმედებები"; Q-106 light plate kept; Q-107 size tokens in Phase 3; Q-108 screenshots optional)

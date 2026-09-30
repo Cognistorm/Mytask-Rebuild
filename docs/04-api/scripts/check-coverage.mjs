@@ -46,7 +46,7 @@ for (const e of expected) {
   const seen = new Set();
   const lines = fs.readFileSync(fp, 'utf8').split(/\r?\n/);
   for (const [i, line] of lines.entries()) {
-    const m = line.match(/^\|\s*(AC-\d+)\s*\|([^|]*)\|\s*([^|]+?)\s*\|(.*)\|\s*$/);
+    const m = line.match(/^\|\s*(AC-\d+[a-z]?)\s*\|([^|]*)\|\s*([^|]+?)\s*\|(.*)\|\s*$/);
     if (!m) continue;
     const [, ac, , kindRaw, refs] = m;
     const where = `coverage/${e.file}:${i + 1} ${ac}`;

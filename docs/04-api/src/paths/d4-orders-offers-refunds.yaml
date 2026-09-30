@@ -695,7 +695,7 @@
       direct conversation (D5); the buyer is notified (EV-80).
       Errors: `403` FEATURE_DISABLED (S-034); `422` PLAN_LIMIT_REACHED (messageKey
       t_plan_offer_limit_reached), OFFER_USER_UNAVAILABLE, BUSINESS_RULE_VIOLATION (no direct
-      conversation and no open request of the recipient; see D4 handoff Q), FILE_*; `409`
+      conversation and no open request of the recipient; slice item Q-116), FILE_*; `409`
       STATE_CONFLICT (request no longer open).
     tags: [Custom Offers]
     x-permission:
@@ -1853,7 +1853,7 @@
       buyer, amount, status, delivered at, auto-release deadline or the pause reason (revision, refund
       request, dispute, auto-release OFF). `totalAmount` sums all matching escrows; with the default
       filter it equals the platform HOLD balance. Newest first.
-      `overdue=true` (safest reading of AC-39, see D4 handoff Q): funded escrows whose auto-release
+      `overdue=true` (safest reading of AC-39, slice item Q-122): funded escrows whose auto-release
       deadline has passed (e.g. while S-025 is OFF) or whose item is past its expected delivery date
       without a delivery.
     tags: [Admin Escrows]
@@ -2114,9 +2114,10 @@
       (gig queue −1), P to the buyer's Available balance (card fee and buyer fees not returned), an open
       request `accepted_by_admin`, a pending unblock request `closed`; both parties notified with the
       public note (EV-109). A second attempt gets `409` (AC-31). Step-up re-authentication (spec 16
-      AC-7). Audited. With an open dispute, staff decide it with `adminResolveDispute` instead
-      (`422` DISPUTE_OPEN; see D4 handoff Q).
-      Errors: `409` STATE_CONFLICT (messageKey t_order_status_changed); `422` DISPUTE_OPEN.
+      AC-7). Audited. With an open dispute it is refused and nothing changes (`422` DISPUTE_OPEN with
+      messageKey `t_admin_refund_blocked_dispute_open`; Owner 2026-09-30 Q-121: kept); staff decide the
+      dispute with `adminResolveDispute` (spec 13 AC-15…AC-22).
+      Errors: `409` STATE_CONFLICT (messageKey t_order_status_changed); `422` DISPUTE_OPEN (messageKey t_admin_refund_blocked_dispute_open).
     tags: [Admin Escrows]
     security:
       - staffBearer: []

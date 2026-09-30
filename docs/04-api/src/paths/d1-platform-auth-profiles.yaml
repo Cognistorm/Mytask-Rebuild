@@ -184,21 +184,31 @@
         `403 ACCOUNT_SUSPENDED` (AC-14); `429 AUTH_LOGIN_LOCKED` after S-062 failures per account + IP within
         15 minutes, for S-063 minutes, even with the right password (AC-16, AC-17); `400 VALIDATION_FAILED`
         field `recaptchaToken` (AC-18). A successful login resets the counters.
-      - Per-account counter across all IPs (ADR-002 §6, SEC-02): after 20 failed logins for one account within
-        one hour, from any IPs, the account is in **slow mode** for the rest of that hour: one attempt per
-        30 seconds is evaluated, others get `429 AUTH_LOGIN_THROTTLED` (`details.retryAfterSeconds`); web
-        requires `recaptchaToken` for that account while S-061 is ON; the owner gets one security email per
-        hour (NEW, to be added to spec 15). No hard lock: the right password still works in slow mode.
+      - Per-account counter across all IPs (ADR-002 §6, SEC-02, spec 01 AC-53): after 20 failed logins for
+        one account within one hour, from any IPs, the account is in **slow mode** for the rest of that hour:
+        one attempt per 30 seconds (the account's "slot") is evaluated, others get `429 AUTH_LOGIN_THROTTLED`
+        (`details.retryAfterSeconds`, messageKey `t_login_slow_mode` with `seconds` = `retryAfterSeconds`)
+        without checking the password; web requires `recaptchaToken` for that account while S-061 is ON; the
+        owner gets the security email EV-128 `LoginSlowMode` at most once per hour. No hard lock: the right
+        password still works in slow mode.
+      - Slot bypass (ADR-002 §6, SEC-30): an attempt that presents a **trusted device** of this account
+        (web cookie `__Host-mt_did`, mobile `deviceToken`; trusted per S-059) is evaluated without using the
+        slot; on web an attempt with a passed reCAPTCHA (S-061 ON) is also evaluated without using it. Such
+        attempts still count towards the per-account + IP lock (S-062/S-063) and, when wrong, towards the
+        per-account counter. Attempts refused by slow mode (`AUTH_LOGIN_THROTTLED`) or by the per-account + IP
+        lock (`AUTH_LOGIN_LOCKED`) never use the slot. So slow mode only slows unknown devices and cannot
+        lock the real user out.
       - The client IP is the one resolved per ADR-013 §14–§19. An unknown email still costs one hash
         verification (no timing difference, SEC-25). Legacy hashes: `$2y$`, `$2a$`, `$2b$` (ADR-002 §3).
+        Password reset by email link (`completePasswordReset`) is outside these counters (SEC-32(b)).
       Web: `rememberMe` (default true) makes the refresh cookie persistent (AC-10).
     tags: [Auth]
     security: []
     x-permission: {audience: public}
-    x-covers: ['01 AC-10', '01 AC-11', '01 AC-12', '01 AC-13', '01 AC-14', '01 AC-15', '01 AC-16', '01 AC-17', '01 AC-18', '01 AC-22', '01 AC-24', '01 AC-28']
+    x-covers: ['01 AC-10', '01 AC-11', '01 AC-12', '01 AC-13', '01 AC-14', '01 AC-15', '01 AC-16', '01 AC-17', '01 AC-18', '01 AC-22', '01 AC-24', '01 AC-28', '01 AC-53']
     x-settings: [S-056, S-057, S-059, S-061, S-062, S-063, S-124]
-    x-notifications: [EV-06]
-    x-rate-limit: 'S-062 failed attempts per account + IP in 15 minutes → lock S-063 minutes (AUTH_LOGIN_LOCKED); 20 failures per account (any IP) per hour → 1 attempt per 30 s for that account (AUTH_LOGIN_THROTTLED, no hard lock); global write limit per IP'
+    x-notifications: [EV-06, EV-128]
+    x-rate-limit: 'S-062 failed attempts per account + IP in 15 minutes → lock S-063 minutes (AUTH_LOGIN_LOCKED); 20 failures per account (any IP) per hour → 1 evaluated attempt per 30 s for that account (AUTH_LOGIN_THROTTLED, no hard lock; trusted-device and passed-reCAPTCHA attempts bypass the slot, refused attempts never use it, SEC-30); global write limit per IP'
     parameters:
       - $ref: '../components/parameters.yaml#/XMyTaskClient'
     requestBody:
@@ -237,13 +247,15 @@
       `403 ACCOUNT_SUSPENDED`).
       Cap across challenges (ADR-002 §5, SEC-03): 10 wrong codes for one account within one hour, over any
       number of challenges and purposes → code checks for that account are refused for S-063 minutes with
-      `429 TWO_FACTOR_LOCKED` (`details.retryAfterSeconds`), even for a correct code; the owner gets one
-      security email (NEW, to be added to spec 15).
+      `429 TWO_FACTOR_LOCKED` (`details.retryAfterSeconds`, messageKey `t_2fa_locked` with `minutes`), even
+      for a correct code; the owner gets the security email EV-129 `TwoFactorLocked` once per lock (spec 01
+      AC-54). The per-code limit S-058 still applies.
     tags: [Auth]
     security: []
     x-permission: {audience: public}
-    x-covers: ['01 AC-22', '01 AC-23', '01 AC-25', '01 AC-26', '01 AC-30']
+    x-covers: ['01 AC-22', '01 AC-23', '01 AC-25', '01 AC-26', '01 AC-30', '01 AC-54']
     x-settings: [S-057, S-058, S-059, S-063, S-124]
+    x-notifications: [EV-129]
     x-rate-limit: 'S-058 wrong codes per challenge; 10 wrong codes per account per hour across all challenges → code checks blocked S-063 minutes (TWO_FACTOR_LOCKED); global write limit per IP'
     parameters:
       - $ref: '../components/parameters.yaml#/XMyTaskClient'
@@ -370,7 +382,7 @@
       (spec 01 AC-7). No session is created. Expired → `422 AUTH_LINK_EXPIRED`
       (`t_verification_email_link_expired`, show the resend form); unknown/used → `422 AUTH_LINK_INVALID`
       (`t_verification_email_not_exists`) (AC-8). A link of an account that is not `pending` (e.g. banned)
-      changes nothing and gets `AUTH_LINK_INVALID` (see D1 handoff question).
+      changes nothing and gets `AUTH_LINK_INVALID` (contract default; slice item Q-130).
     tags: [Auth]
     security: []
     x-permission: {audience: public}
@@ -402,7 +414,7 @@
       `VerifyEmail` (EV-01) is sent; answer `t_a_new_verification_link_has_been_sent_to_ur_email` (spec 01
       AC-9). Account not pending → `409 AUTH_ALREADY_VERIFIED` (`t_already_verified_user`). Fixed limit R-A9:
       at most 3 emails per email address and per IP per hour; above it no email is sent but the answer does
-      not change (P-19). Unknown emails get the same success answer (see D1 handoff question).
+      not change (P-19). Unknown emails get the same success answer (contract default; slice item Q-130).
       Also used by the "resend verification email" action of AC-13.
     tags: [Auth]
     security: []
@@ -492,11 +504,14 @@
       deleted, `PasswordChanged` (EV-05) is sent, **every** session of the user ends (web and mobile), all
       trusted devices are forgotten (AC-31), and the answer is `t_password_has_been_updated` (the client shows
       login). Expired/unknown link → `422 AUTH_LINK_EXPIRED` / `AUTH_LINK_INVALID`, nothing changes (AC-34).
-      A pending user can reset but still cannot log in until verified (EC-2).
+      A pending user can reset but still cannot log in until verified (EC-2). The reset sets the account's
+      `passwordChangedAt`, which starts the withdrawal pause of spec 14 AC-21 (S-129, Q-144).
+      This operation is outside the login, code and in-session counters (spec 01 AC-55, ADR-002 §6,
+      SEC-32(b)): it stays available to the real owner during slow mode or a lock, and ends every session.
     tags: [Auth]
     security: []
     x-permission: {audience: public}
-    x-covers: ['01 AC-31', '01 AC-33', '01 AC-34']
+    x-covers: ['01 AC-31', '01 AC-33', '01 AC-34', '14 AC-21']
     x-notifications: [EV-05]
     x-emits: [session.revoked]
     requestBody:
@@ -525,10 +540,13 @@
       spec 02 EC-5); answer `t_email_changed_success`. Works with or without a session (the link may be
       opened on another device). Expired → `422 AUTH_LINK_EXPIRED`; unknown/used → `422 AUTH_LINK_INVALID`;
       the address was taken meanwhile → `409 DUPLICATE` (`t_validator_unique`).
+      When the new email becomes active the account's `emailChangedAt` is set — also when the change was
+      started by staff (`adminChangeUserEmail`) — which starts the withdrawal pause of spec 14 AC-21 (S-129,
+      Q-144) and is shown to approvers (spec 14 AC-23).
     tags: [Auth]
     security: []
     x-permission: {audience: public}
-    x-covers: ['02 AC-30']
+    x-covers: ['02 AC-30', '14 AC-21']
     x-settings: [S-054]
     x-emits: [account.updated]
     requestBody:
@@ -605,8 +623,11 @@
       The client forwards `code` and `state` from the provider's redirect. `code` + `state` alone never log
       anyone in (SEC-09): web must also present the `__Host-mt_oauth` cookie set by `startSocialLogin` for that
       `state`; mobile must send `codeVerifier`, whose S256 hash must equal the stored `codeChallenge`.
-      Missing or wrong binding → `422 AUTH_SOCIAL_FAILED`. The `state` is deleted at the first use (success or
-      not) and the binding cookie is cleared. The API exchanges the code (with the verifier) and runs the same
+      Missing or wrong binding → `422 AUTH_SOCIAL_FAILED`. Which binding is checked is decided by the **client
+      kind stored with `state`** at `startSocialLogin`, never by the callback's `X-MyTask-Client` header; a
+      `state` without a stored nonce (web) or challenge (mobile) never passes — no "null equals null" match
+      (SEC-32(a), ADR-002 §7). The `state` is deleted at the first use (success or not) and the binding
+      cookie is cleared. The API exchanges the code (with the verifier) and runs the same
       login pipeline as `login` (ADR-002 §4). Only provider emails marked verified may create or match an
       account; an unverified email is treated as missing (`AUTH_SOCIAL_EMAIL_MISSING`, ADR-002 §7):
       - Account found by provider + provider user id → status checks: pending → `403 ACCOUNT_PENDING`, banned
@@ -615,7 +636,8 @@
         provider avatar, username from nickname/name (lower-case Latin, `_`, 4-character suffix if taken),
         referral code; a `?ref=` code carried in `state` is applied as in AC-6 (AC-38); `isNewAccount = true`.
       - Email already used by an account with a password or another provider → `409 AUTH_SOCIAL_EMAIL_EXISTS`
-        (AC-39). No email from the provider → `422 AUTH_SOCIAL_EMAIL_MISSING` (AC-41).
+        (AC-39). No email from the provider, or one it does not mark verified → `422
+        AUTH_SOCIAL_EMAIL_MISSING` (`t_social_email_missing`, AC-41).
       - 2FA ON and device not trusted → `202 TwoFactorChallenge` (AC-30).
       - Provider disabled or without keys → `403 FEATURE_DISABLED` (AC-37); bad/expired `state` or a refused
         code exchange → `422 AUTH_SOCIAL_FAILED`.
@@ -689,16 +711,20 @@
       confirmation link valid S-054 minutes goes to the new address (EV-11) and a notice to the old one
       (EV-12); `pendingEmail` is set and the client shows `t_email_change_pending` (AC-30, P-18). A new
       username moves the profile to `/profile/{new}`; the old URL returns 404 (AC-31, EC-4).
-      Accounts without a password: a new `email` needs `challengeId` + `code` of an `email_change` challenge
-      (`createMyTwoFactorChallenge`, code sent to the current address; SEC-05, ADR-002 §5); missing →
-      `VALIDATION_FAILED` field `code`; wrong code → `422 TWO_FACTOR_CODE_INVALID` (code errors as in
-      `verifyTwoFactorLogin`). Other fields need no code.
-      Throttle (SEC-04, ADR-002 §6): wrong current passwords and wrong codes count per account; after S-062
-      within 15 minutes every password/code check of the account answers `429 RATE_LIMITED`
-      (`messageKey t_too_many_login_attempts`, `details.retryAfterSeconds`) for S-063 minutes.
+      Accounts without a password (Owner 2026-09-30, Q-144 / SEC-05): a new `email` needs `challengeId` +
+      `code` of an `email_change` challenge (`createMyTwoFactorChallenge`, code sent to the **current**
+      address; ADR-002 §5); missing → `VALIDATION_FAILED` field `code`; wrong code → `422
+      TWO_FACTOR_CODE_INVALID`, expired → `TWO_FACTOR_CODE_EXPIRED` (code errors as in
+      `verifyTwoFactorLogin`); nothing is saved. A save that does not change the email needs no code, and a
+      code sent for it stays unused until it expires (spec 02 EC-12). The pause of spec 14 AC-21 starts only
+      when the new email becomes active (`confirmEmailChange`), not here.
+      Throttle (SEC-04, ADR-002 §6, spec 01 AC-55): wrong current passwords and wrong codes count per
+      account; after S-062 within 15 minutes every password/code check of the account answers `429
+      RATE_LIMITED` (`messageKey t_too_many_login_attempts`, `details.retryAfterSeconds`) for S-063 minutes.
+      Wrong codes also count towards the per-account code cap (`429 TWO_FACTOR_LOCKED`, spec 01 AC-54).
     tags: [Account]
     x-permission: {audience: user, ownership: self}
-    x-covers: ['02 AC-29', '02 AC-30', '02 AC-31']
+    x-covers: ['02 AC-29', '02 AC-30', '02 AC-31', '01 AC-55']
     x-settings: [S-054, S-057, S-058, S-062, S-063]
     x-notifications: [EV-11, EV-12]
     x-rate-limit: 'S-062 wrong current passwords or codes per account in 15 minutes → every password/code check of the account refused for S-063 minutes (429 RATE_LIMITED, ADR-002 §6, SEC-04); global write limit'
@@ -779,13 +805,14 @@
       stays; trusted devices are forgotten (AC-31). Wrong current password → `VALIDATION_FAILED` field
       `currentPassword` (`t_ur_current_pass_does_not_match`). Social-only account (no password) →
       `409 STATE_CONFLICT` (the page shows the social notice instead, EC-3). Ended sessions are deny-listed
-      at once (ADR-002 §1).
-      Throttle (SEC-04, ADR-002 §6): wrong current passwords and wrong codes count per account; after S-062
-      within 15 minutes every password/code check of the account answers `429 RATE_LIMITED`
-      (`messageKey t_too_many_login_attempts`, `details.retryAfterSeconds`) for S-063 minutes.
+      at once (ADR-002 §1). The change sets the account's `passwordChangedAt`, which starts the withdrawal
+      pause of spec 14 AC-21 (S-129, Q-144) and is shown to approvers (`AdminWithdrawal`, spec 14 AC-23).
+      Throttle (SEC-04, ADR-002 §6, spec 01 AC-55): wrong current passwords and wrong codes count per
+      account; after S-062 within 15 minutes every password/code check of the account answers `429
+      RATE_LIMITED` (`messageKey t_too_many_login_attempts`, `details.retryAfterSeconds`) for S-063 minutes.
     tags: [Account]
     x-permission: {audience: user, ownership: self}
-    x-covers: ['01 AC-31', '01 AC-35']
+    x-covers: ['01 AC-31', '01 AC-35', '01 AC-55', '14 AC-21']
     x-settings: [S-062, S-063]
     x-notifications: [EV-05]
     x-emits: [session.revoked]
@@ -822,10 +849,11 @@
       Throttle (SEC-04, ADR-002 §6): wrong current passwords and wrong codes count per account; after S-062
       within 15 minutes every password/code check of the account answers `429 RATE_LIMITED`
       (`messageKey t_too_many_login_attempts`, `details.retryAfterSeconds`) for S-063 minutes.
-      Wrong codes also count towards the per-account code cap (`429 TWO_FACTOR_LOCKED`, SEC-03).
+      Wrong codes also count towards the per-account code cap (`429 TWO_FACTOR_LOCKED`, SEC-03, spec 01
+      AC-54).
     tags: [Account]
     x-permission: {audience: user, ownership: self, toggles: [S-056]}
-    x-covers: ['01 AC-20', '01 AC-21', '01 AC-31']
+    x-covers: ['01 AC-20', '01 AC-21', '01 AC-31', '01 AC-55']
     x-settings: [S-056, S-057, S-058, S-062, S-063]
     x-rate-limit: 'S-062 wrong current passwords or codes per account in 15 minutes → every password/code check of the account refused for S-063 minutes (429 RATE_LIMITED, ADR-002 §6, SEC-04); global write limit'
     requestBody:
@@ -857,14 +885,14 @@
       - `toggle_two_factor` — confirm the 2FA switch (spec 01 AC-21, P-15); only while S-056 is ON (else
         `403 FEATURE_DISABLED`).
       - `email_change`, `payout_details`, `revoke_sessions` — confirm `updateMe` with a new email,
-        `putPayoutDetails` and `revokeMyOtherSessions` (SEC-05 technical part, ADR-002 §5; independent of
-        S-056). The product-analyst records this in specs 02 and 14.
+        `putPayoutDetails` and `revokeMyOtherSessions` (SEC-05, ADR-002 §5; independent of S-056; confirmed
+        by the Owner 2026-09-30, Q-144; spec 01 AC-44, spec 02 AC-29, spec 14 AC-3).
       Accounts with a password → `409 STATE_CONFLICT` (use the password). Same TTL/attempt rules (S-057,
       S-058), resend limits (60 s, 5 per 15 min) and per-account code cap (SEC-03) as the login code. A code
       is accepted only by the operation of its purpose, once.
     tags: [Account]
     x-permission: {audience: user, ownership: self, notes: 'S-056 must be ON only for purpose toggle_two_factor (403 FEATURE_DISABLED)'}
-    x-covers: ['01 AC-21']
+    x-covers: ['01 AC-21', '01 AC-44', '02 AC-29', '14 AC-3']
     x-settings: [S-056, S-057, S-058]
     x-notifications: [EV-06]
     x-rate-limit: '1 per 60 s and 5 per 15 min per account (R-A6)'
@@ -918,14 +946,16 @@
       "Log out other browser sessions" (spec 01 AC-44): with the correct current password every other session
       ends (deny-listed at once, ADR-002 §1) and the current one stays. Wrong password → `VALIDATION_FAILED`
       field `currentPassword` (`t_ur_current_pass_does_not_match`). Accounts without a password send
-      `challengeId` + `code` of a `revoke_sessions` challenge (SEC-05, ADR-002 §5; code errors as in
-      `verifyTwoFactorLogin`).
-      Throttle (SEC-04, ADR-002 §6): wrong current passwords and wrong codes count per account; after S-062
-      within 15 minutes every password/code check of the account answers `429 RATE_LIMITED`
-      (`messageKey t_too_many_login_attempts`, `details.retryAfterSeconds`) for S-063 minutes.
+      `challengeId` + `code` of a `revoke_sessions` challenge sent to the current address (SEC-05, ADR-002
+      §5, Owner 2026-09-30 Q-144; wrong → `TWO_FACTOR_CODE_INVALID`, expired → `TWO_FACTOR_CODE_EXPIRED`, as
+      in `verifyTwoFactorLogin`); nothing ends on a wrong answer.
+      Throttle (SEC-04, ADR-002 §6, spec 01 AC-55): wrong current passwords and wrong codes count per
+      account; after S-062 within 15 minutes every password/code check of the account answers `429
+      RATE_LIMITED` (`messageKey t_too_many_login_attempts`, `details.retryAfterSeconds`) for S-063 minutes.
+      Wrong codes also count towards the per-account code cap (`429 TWO_FACTOR_LOCKED`, spec 01 AC-54).
     tags: [Account]
     x-permission: {audience: user, ownership: self}
-    x-covers: ['01 AC-44']
+    x-covers: ['01 AC-44', '01 AC-55']
     x-settings: [S-057, S-058, S-062, S-063]
     x-emits: [session.revoked]
     x-rate-limit: 'S-062 wrong current passwords or codes per account in 15 minutes → every password/code check of the account refused for S-063 minutes (429 RATE_LIMITED, ADR-002 §6, SEC-04); global write limit'
@@ -1379,12 +1409,13 @@
     summary: A user's portfolio items
     description: |
       `/profile/{username}/portfolio` and the profile preview (spec 02 AC-28): only `active` items of that user,
-      newest first. When the caller is that user, pending items (marked "Pending") and rejected items are
-      included, for the Selling → Portfolio page. Unknown/hidden profile → `404`.
+      newest first. When the caller is that user, pending items (marked "Pending") and rejected items (marked
+      `t_portfolio_status_rejected` with `rejectionReason`, spec 02 AC-42) are included, for the Selling →
+      Portfolio page (web and mobile). Unknown/hidden profile → `404`.
     tags: [Portfolio]
     security: [{}, {userBearer: []}, {userCookie: []}]
     x-permission: {audience: optional-user, ownership: 'none; the owner also sees own pending/rejected items'}
-    x-covers: ['02 AC-28']
+    x-covers: ['02 AC-28', '02 AC-42']
     parameters:
       - name: username
         in: query
@@ -1468,11 +1499,11 @@
   get:
     operationId: getPortfolioItem
     summary: Get a portfolio item
-    description: Thumbnail, gallery, description and links (spec 02 AC-28). Pending/rejected → `404` except for the owner.
+    description: Thumbnail, gallery, description and links (spec 02 AC-28). Pending/rejected → `404` except for the owner, who also gets `rejectionReason` and `rejectedAt` of a rejected item (spec 02 AC-42).
     tags: [Portfolio]
     security: [{}, {userBearer: []}, {userCookie: []}]
     x-permission: {audience: optional-user, ownership: 'none for active items; owner only for pending/rejected (others 404)'}
-    x-covers: ['02 AC-28']
+    x-covers: ['02 AC-28', '02 AC-42']
     responses:
       '200':
         description: The item.
@@ -1483,10 +1514,10 @@
   patch:
     operationId: updatePortfolioItem
     summary: Edit a portfolio item
-    description: New data replaces the old; `imageFileIds` replaces the whole gallery (old files deleted); with S-071 OFF the item goes back to `pending` and EV-14 is sent again (spec 02 AC-25, AC-27).
+    description: New data replaces the old; `imageFileIds` replaces the whole gallery (old files deleted); with S-071 OFF the item goes back to `pending` and EV-14 is sent again (spec 02 AC-25, AC-27). Editing a `rejected` item follows the same rule (`pending`, or `active` at once with S-071 ON) and clears `rejectionReason`/`rejectedAt` for the owner; the old reason stays in the audit log (spec 02 AC-42).
     tags: [Portfolio]
     x-permission: {audience: user, ownership: owner of the item; others 404}
-    x-covers: ['02 AC-25', '02 AC-27']
+    x-covers: ['02 AC-25', '02 AC-27', '02 AC-42']
     x-settings: [S-071, S-089, S-090, S-100]
     x-notifications: [EV-14]
     requestBody:
@@ -1967,12 +1998,12 @@
   post:
     operationId: adminDisableUserTwoFactor
     summary: Switch a user's 2FA off (after an identity check)
-    description: 'Spec 01 EC-8: when the 2FA email does not arrive, staff can switch the user''s 2FA off after checking identity; trusted devices are forgotten; the reason is audited. 2FA already off → `409 STATE_CONFLICT`.'
+    description: 'Spec 01 EC-8, spec 16 AC-32: when the 2FA email does not arrive, staff can switch the user''s 2FA off after checking identity; reason required; trusted devices are forgotten; audited. Needs re-authentication within 15 minutes in the same staff session (spec 16 AC-7, Owner 2026-09-30 Q-145; else `403 REAUTH_REQUIRED`). The user gets EV-127 `TwoFactorDisabledByStaff` (email + in-app, security category: never capped or suppressed as marketing, no push). 2FA already off → `409 STATE_CONFLICT`. Permission `users.edit` is the contract default until slice item Q-132.'
     tags: [Admin Users]
     security: [{staffBearer: []}, {staffCookie: []}]
-    x-permission: {audience: staff, permission: users.edit, ownership: none}
-    x-covers: []
-    x-covers-note: 'Implements spec 01 EC-8 (edge case, not an AC); permission per spec 16 catalogue ("users.edit: … reset devices").'
+    x-permission: {audience: staff, permission: users.edit, ownership: none, stepUp: true}
+    x-covers: ['16 AC-32']
+    x-notifications: [EV-127]
     x-audit: user.two_factor_disable
     requestBody:
       required: true
@@ -2023,10 +2054,10 @@
   post:
     operationId: adminChangeUserEmail
     summary: Start an email change for a user (confirmation flow)
-    description: 'Same flow as spec 02 AC-30 (spec 16 AC-32): the new address becomes active only when the link sent to it is opened (`confirmEmailChange`); the old address gets the notice (EV-11, EV-12). Taken address → `VALIDATION_FAILED` field `newEmail` (`t_validator_unique`).'
+    description: 'Same flow as spec 02 AC-30 (spec 16 AC-32): the new address becomes active only when the link sent to it is opened (`confirmEmailChange`); the old address gets the notice (EV-11, EV-12). Taken address → `VALIDATION_FAILED` field `newEmail` (`t_validator_unique`). Needs re-authentication within 15 minutes in the same staff session (spec 16 AC-7, Owner 2026-09-30 Q-145; else `403 REAUTH_REQUIRED`). When the new email becomes active, the withdrawal pause of spec 14 AC-21 starts (Q-144); the audit entry records the staff actor.'
     tags: [Admin Users]
     security: [{staffBearer: []}, {staffCookie: []}]
-    x-permission: {audience: staff, permission: users.edit, ownership: none}
+    x-permission: {audience: staff, permission: users.edit, ownership: none, stepUp: true}
     x-covers: ['16 AC-32']
     x-audit: user.email_change
     x-settings: [S-054]
@@ -2523,11 +2554,12 @@
   post:
     operationId: adminRejectPortfolioItem
     summary: Reject a pending portfolio item (reason shown to the owner)
-    description: 'Reason required ≤ 1,000, shown to the owner (spec 16 AC-19, AC-21). The item becomes `rejected` (not public) and keeps the reason; see the D1 handoff question on this state and on the (missing) owner notification. First decision wins → `409 STATE_CONFLICT`.'
+    description: 'Reason required ≤ 1,000, shown to the owner (spec 16 AC-19, AC-21; spec 02 AC-42; Owner 2026-09-30 Q-117). Only a `pending` item can be rejected. The item becomes `rejected` (not deleted, not public: public reads answer 404 to everyone but the owner) with `rejectionReason` and `rejectedAt`; the owner gets EV-126 `PortfolioRejected` (email + in-app `t_ur_portfolio_title_has_been_rejected` + push), queued through the notification outbox in the same transaction. First decision wins → `409 STATE_CONFLICT` (`t_item_already_decided`).'
     tags: [Admin Portfolio]
     security: [{staffBearer: []}, {staffCookie: []}]
     x-permission: {audience: staff, permission: portfolio.moderate, ownership: none}
-    x-covers: ['16 AC-19', '16 AC-21']
+    x-covers: ['16 AC-19', '16 AC-21', '02 AC-26', '02 AC-42']
+    x-notifications: [EV-126]
     x-audit: portfolio.reject
     requestBody:
       required: true
