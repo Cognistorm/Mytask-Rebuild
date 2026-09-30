@@ -6,14 +6,6 @@ body {
   font-family: var(--mt-font-family-sans);
 }
 
-.shell {
-  max-width: 40rem;
-  margin: 0 auto;
-  padding: var(--mt-space-8) var(--mt-space-4);
-  display: grid;
-  gap: var(--mt-space-4);
-}
-
 .ok {
   color: var(--mt-feedback-success-text);
 }

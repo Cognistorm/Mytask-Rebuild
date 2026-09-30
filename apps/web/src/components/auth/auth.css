@@ -19,7 +19,7 @@
 }
 
 .auth-logo {
-  height: var(--mt-space-8);
+  height: var(--mt-size-layout-logo-height);
   width: auto;
 }
 

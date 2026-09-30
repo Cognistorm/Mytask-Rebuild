@@ -7,11 +7,16 @@ body {
 }
 
 .shell {
-  max-width: 40rem;
+  max-width: var(--mt-size-layout-prose);
   margin: 0 auto;
   padding: var(--mt-space-8) var(--mt-space-4);
   display: grid;
   gap: var(--mt-space-4);
+}
+
+.shell-logo {
+  height: var(--mt-size-layout-logo-height);
+  width: auto;
 }
 
 .ok {

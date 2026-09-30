@@ -23,7 +23,7 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
   return (
     <main className="shell">
       {/* eslint-disable-next-line @next/next/no-img-element -- static brand asset, no optimizer needed */}
-      <img src="/brand/mytask-logo-wordmark-trimmed.png" alt="MyTask.ge" height={40} />
+      <img className="shell-logo" src="/brand/mytask-logo-wordmark-trimmed.png" alt="MyTask.ge" />
       <h1 className="mt-text-h2">{t('t_home')}</h1>
       <p data-testid="api-status" data-up={apiUp} className={apiUp ? 'ok' : 'down'}>
         {t(apiUp ? 't_platform_api_status_ok' : 't_platform_api_status_unreachable')}
