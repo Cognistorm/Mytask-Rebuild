@@ -56,6 +56,13 @@ Phase: 3 — Foundation (platform core) **IN PROGRESS** | Phase 3 gate: not read
 
 - **Phase 2 gate APPROVED by the Owner 2026-09-30**: architecture + ADR-001…016, data model, URL map, API contract (`docs/04-api/openapi.yaml` v1.0.0), design, parity master, security verdict (PASS with conditions). Gate questions answered as recommended (open-questions.md, "Owner answers at the Phase 2 gate"): Q-109…Q-115, Q-117, Q-119…Q-121, Q-137, Q-144…Q-146. Applied the same day: specs 00, 01, 02, 04, 05, 08, 10, 13, 14, 15, 16 (P-135…P-137 accepted; S-128 + new S-129 withdrawal security pause 24 h, register 129 rows; EV-126…EV-129; 8 new ACs → **715 ACs**), then the contract/data model/ADRs (verify:final 0 errors, **715/715 covered**; SEC-30 and SEC-31 fixed). Handoffs: docs/handoffs/2026-09-30-product-analyst-to-orchestrator-gate-answers.md, 2026-09-30-solution-architect-to-orchestrator-gate-answers.md
 
+## Micro-task workflow (Owner rule 2026-09-30)
+The plan lives in **docs/ROADMAP.md** (checkbox per micro-task). One micro-task at a time; when it is done and tests pass, tick it there and add one line below.
+**Next micro-task: 3.1** (security re-review of platform core P3-1…P3-7).
+
+### Micro-task log
+- 2026-09-30 ROADMAP.md created: Phase 3 remaining 3.1–3.19, Phase 4 slices 4.1–4.16 (+ gate 4.17), Phase 5 5.1–5.19, Phase 6 6.1–6.18.
+
 ## Next up
 - **Phase 3**: review P3-1…P3-7 → slice 01 auth (P3-8) → Phase 3 gate: login works on web AND the app (docs/03-architecture/phase-3-plan.md)
 - Architect items: data-model gaps staff.full_name + staff re-auth code purpose (B-1 handoff) (user_restrictions.decision_reason recorded in data-model 2026-09-30); P3-9 S-110 isolation study
