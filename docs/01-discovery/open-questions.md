@@ -731,3 +731,15 @@ Which file types may a restricted user attach to an appeal (setting S-093 `media
 Options: (a) images and PDF: jpg, jpeg, png, webp, pdf; (b) (a) plus doc, docx; (c) the value from the production database, if you can check it (legacy admin → Settings → Media → "Restrictions allowed extensions").
 Recommendation: (c) if available, otherwise (a).
 When: before file uploads ship (files foundation, slice 02).
+
+### Q-155
+**Contract gap for the solution-architect (blocks slice 01 part B-2c, social login).** Spec 00 describes each of S-065…S-069 as "enabled + client ID + client secret (write-only)", and spec 00 EC-10 / spec 16 AC-54 refuse "enabling a provider without keys". The contract (`adminUpdateSetting`, `SettingValue`, `SettingEntry`) models these rows as one write-only secret string ("string replaces, `null` clears", `value` always null, `isSet` only). There is no place for the on/off switch or the client ID, so EC-10 cannot be enforced or shown.
+Options: (a) one `structured` value per row, e.g. `{ enabled: boolean, clientId: string|null, clientSecret: write-only string|null }`, where reads return `clientSecret` as `{ isSet }` and a missing `clientSecret` in an update keeps the stored one; (b) split each provider into three register rows (switch, client ID, secret), adding 10 new S-ids; (c) other.
+Recommendation: (a). One row per provider, as the register already has it, and one audit/EV-124 event per change. Needs an ADR update (ADR-005 §8) and a contract change.
+When: before B-2c is built. Nothing else in slice 01 depends on it.
+
+### Q-156
+**Which social providers count as "verified email" (ADR-002 §7, SEC-09)?** Google and LinkedIn (OpenID Connect) return `email_verified`. GitHub returns a `verified` flag per address (`/user/emails`). Facebook and X (Twitter) do not return a documented "verified" flag for the email they share. Under ADR-002 §7 an unverified email is treated as missing (`AUTH_SOCIAL_EMAIL_MISSING`), so Facebook and X logins would always be refused for new accounts.
+Options: (a) strict: accept only Google, LinkedIn and GitHub emails (Facebook/X can only log in to an already linked account); (b) trust Facebook's and X's shared email as verified (they require a confirmed address before sharing it, but this is not a contractual guarantee); (c) drop Facebook and/or X from the new platform.
+Recommendation: (a), with the security-reviewer's sign-off. Legacy usage figures per provider would help decide (c).
+When: before any of S-066 / S-069 is switched ON.
