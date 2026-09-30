@@ -17,7 +17,7 @@ RUN pnpm --filter @mytask/api build \
 FROM build AS migrate
 WORKDIR /repo/apps/api
 USER node
-CMD ["pnpm", "db:deploy"]
+CMD ["./node_modules/.bin/prisma", "migrate", "deploy"]
 
 FROM node:24-alpine AS runtime
 ENV NODE_ENV=production \
