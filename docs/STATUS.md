@@ -32,7 +32,7 @@ Phase: 3 — Foundation (platform core) **IN PROGRESS** | Phase 3 gate: not read
 - Owner 2026-09-30: Q-153 accepted (ADR-018, S-130, contract 1.1.0); 51 Georgian drafts for English-only keys (Owner to refine); email 2FA OFF locally until switched on in the admin panel
 
 ## Blocked (reason, who must act)
-- Appeal files: Q-154 (Owner) + files foundation F0 (slice 02)
+- Appeal files: files foundation F0 (slice 02). Q-154 answered 2026-09-30 (14 types incl. video, 100 MB; ClamAV limits must be raised in F0)
 - Known, accepted: no production schema dump (mapping built from migrations/models)
 
 ## Done in Phase 2

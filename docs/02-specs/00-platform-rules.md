@@ -294,8 +294,8 @@ Award acceptance: S-027. Budget type: fixed only (Q-035), not a setting.
 | S-089 | `media.portfolio.max_images` | Images per portfolio item | integer | prod → 10 | `SettingsMediaTableSeeder.php` | LEGACY |
 | S-090 | `media.portfolio.max_size_mb` | Max portfolio image size | MB | prod → 5 | same | LEGACY |
 | S-091 | `media.appeal.max_files` | Files per restriction appeal | integer | prod → 2 | `2023_10_29_211112_...` | LEGACY |
-| S-092 | `media.appeal.max_size_mb` | Max appeal file size | MB | prod → 5 | same | LEGACY |
-| S-093 | `media.appeal.allowed_extensions` | Allowed appeal file types | list | prod (no seed value; **Q-068**) | same | LEGACY |
+| S-092 | `media.appeal.max_size_mb` | Max appeal file size | MB | **100** (Owner 2026-09-30, Q-154; legacy prod 5) | same | LEGACY, value CHANGE |
+| S-093 | `media.appeal.allowed_extensions` | Allowed appeal file types | list | jpg, jpeg, png, gif, webp, pdf, doc, docx, txt, mp4, mov, avi, mkv, webm (Owner 2026-09-30, Q-154) | same | LEGACY |
 
 #### 4.14 Chat (spec 08)
 | # | Key | Meaning | Type / unit | Default | Source | Tag |
