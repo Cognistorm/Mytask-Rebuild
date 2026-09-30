@@ -1,5 +1,5 @@
 # Status — updated 2026-09-30
-Phase: 2 — Blueprint **CLOSED** | Phase 2 gate: **APPROVED by Owner 2026-09-30** (merged into `main`) | Phase 1 gate: APPROVED by Owner 2026-09-28 | Next: Phase 3
+Phase: 3 — Foundation (platform core) **IN PROGRESS** | Phase 3 gate: not ready | Phase 2 gate: APPROVED by Owner 2026-09-30 | Phase 1 gate: APPROVED by Owner 2026-09-28
 
 ## Done
 - Kit copied; legacy code in /legacy/APP (confirmed = legacy `main`, production logic); vision filled
@@ -23,7 +23,9 @@ Phase: 2 — Blueprint **CLOSED** | Phase 2 gate: **APPROVED by Owner 2026-09-30
 - Security: all keys in .env; strict web-root isolation (logs/config never web-reachable); keep restrictions, appeals, IP banning, KYC
 
 ## In progress (agent → task)
-- none. Phase 2 closed 2026-09-30 (gate checklist: docs/handoffs/2026-09-30-orchestrator-to-owner-phase-2-gate.md)
+- **Phase 3 plan**: docs/03-architecture/phase-3-plan.md (P3-1…P3-9, gate criteria)
+- **P3-1…P3-7 done on branch `feat/platform-core`, not pushed, awaiting review** (devops, 2026-09-30): pnpm + Turborepo monorepo (TS 5.9 strict, NestJS 11, Prisma 7, Next 16, Expo SDK 57), generated `packages/types` + `packages/api-client` from openapi.yaml, `packages/i18n` (legacy keys imported, IMPORT-REPORT.md), API/web/admin/mobile skeletons calling `getHealth`, docker compose + Caddy + Dockerfiles, CI workflow, docs/SETUP-LOCAL.md. Everything verified locally **except Docker** (not installed on this machine; first run = CI). Handoff: docs/handoffs/2026-09-30-devops-engineer-to-orchestrator-p3-platform-core.md
+- Next: Owner pushes the branch + opens a PR (CI); `/review` (QA + security) of P3-1…P3-7; then P3-8 = `/feature 01-auth.md` incl. ADR-013 §19 client-IP tests; P3-9 S-110 isolation study (architect, Q-146)
 
 ## Blocked (reason, who must act)
 - none
@@ -51,11 +53,13 @@ Phase: 2 — Blueprint **CLOSED** | Phase 2 gate: **APPROVED by Owner 2026-09-30
 - **Phase 2 gate APPROVED by the Owner 2026-09-30**: architecture + ADR-001…016, data model, URL map, API contract (`docs/04-api/openapi.yaml` v1.0.0), design, parity master, security verdict (PASS with conditions). Gate questions answered as recommended (open-questions.md, "Owner answers at the Phase 2 gate"): Q-109…Q-115, Q-117, Q-119…Q-121, Q-137, Q-144…Q-146. Applied the same day: specs 00, 01, 02, 04, 05, 08, 10, 13, 14, 15, 16 (P-135…P-137 accepted; S-128 + new S-129 withdrawal security pause 24 h, register 129 rows; EV-126…EV-129; 8 new ACs → **715 ACs**), then the contract/data model/ADRs (verify:final 0 errors, **715/715 covered**; SEC-30 and SEC-31 fixed). Handoffs: docs/handoffs/2026-09-30-product-analyst-to-orchestrator-gate-answers.md, 2026-09-30-solution-architect-to-orchestrator-gate-answers.md
 
 ## Next up
-- **Phase 3 (platform core)**: orchestrator plans it from docs/03-architecture/phase-2-plan.md §6 and architecture.md (monorepo, docker compose, CI, generated types from openapi.yaml, auth slice 01)
+- **Phase 3**: review P3-1…P3-7 → slice 01 auth (P3-8) → Phase 3 gate: login works on web AND the app (docs/03-architecture/phase-3-plan.md)
+- Architect items from the P3 handoff: ADR-017 follow-up (after Q-152), contract gap = no request header carries the mobile app version for `426 APP_VERSION_UNSUPPORTED` (needs an ADR), P3-9 S-110 isolation study
 - Security conditions carried into Phase 3: backend implements the ADR-013 §19 client-IP tests before slice 01's review; SEC-31/SEC-32 notes in their slices; social-login binding reviewed before any provider is switched ON
 - Contract rule from now on: every change to openapi.yaml / data model needs an ADR + handoff (CLAUDE.md rule 2)
 
 ## Decisions waiting for Owner
+- **Q-152 (new, Phase 3)**: MinIO no longer publishes an image; accept ADR-017 (SeaweedFS as the local file storage, RustFS fallback; production unchanged)? Needed before the files slice. Also: install Docker Desktop, follow docs/SETUP-LOCAL.md, push `feat/platform-core` so CI runs
 - Q-097 legacy admin accounts + roles (by Phase 5); Q-147 data retention/erasure (before the Phase 5 KYC import); Q-151 withdrawal flag look-back 7 days + first payout-details save starts the pause (defaults applied, before slice 14); whether a "100% promo code" includes a fixed discount ≥ the Premium price (contract assumes yes); slice items Q-116, Q-118, Q-122…Q-136, Q-138…Q-143, Q-148…Q-150; Q-104 deferred; ADR-015 hosting provider before Phase 6
 - Owner action (SEC-28): revoke the Binance and findip keys and remove the Binance bot from the legacy server (Owner doing it by hand)
 - Approve ADR-001…016 (as revised in Step 4), the design audit, tokens and components (with the P2-C3 preview) at the Phase 2 gate

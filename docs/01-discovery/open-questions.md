@@ -709,3 +709,11 @@ Two details of the withdrawal pause and the "details changed recently" flag (Q-1
 Default in spec 14: (a) 7 days before the request was created; the detail also always shows the date of the latest email, password and payout-details change. (b) Yes, the first save also starts the pause (an attacker adding an IBAN to an account without one is the same risk; a new freelancer usually earns money for longer than 24 h before the first withdrawal).
 Recommendation: accept both defaults. If you want the window editable in the admin, it becomes a new register row next to S-129.
 When: slice 14.
+
+## Phase 3 platform-core questions (orchestrator/devops, 2026-09-30) — open
+
+### Q-152
+MinIO, the local file storage named in ADR-009/ADR-015, no longer publishes a ready-to-run image, so it cannot be started with `docker compose up`. This only affects your computer (production storage is unchanged). Proposed replacement: SeaweedFS (free, Apache-2.0), with RustFS as the fallback; details and alternatives in `docs/03-architecture/adr/017-local-object-storage-after-minio.md`.
+Options: (a) accept ADR-017 (SeaweedFS locally); (b) RustFS locally; (c) something else.
+Recommendation: (a). The compose file already uses SeaweedFS under the neutral name `s3`, so any answer is a one-line change.
+When: before the files slice (first uploads: slice 02 avatars).
