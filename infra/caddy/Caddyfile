@@ -1,0 +1,67 @@
+# Local edge proxy for `docker compose --profile apps` (ADR-013). The only container with public ports.
+#   http://localhost:8080        -> web + /api/v1 + /ws
+#   http://admin.localhost:8080  -> admin + /api/v1 (staff)
+# No Cloudflare locally, so no trusted_proxies: {client_ip} is the TCP peer (ADR-013 §14). Staging and
+# production add `trusted_proxies static <Cloudflare ranges>`, `client_ip_headers CF-Connecting-IP`
+# and `trusted_proxies_strict` (Phase 6).
+{
+	auto_https off
+	admin off
+}
+
+# ADR-013 §15: drop every client-sent forwarding / identity header, then set exactly one canonical header.
+(edge_headers) {
+	request_header -X-Forwarded-*
+	request_header -X-Real-IP
+	request_header -Forwarded
+	request_header -True-Client-IP
+	request_header -CF-*
+	request_header -X-MyTask-Client-IP
+	request_header -X-MyTask-Client-Country
+	request_header -X-MyTask-Visitor-*
+	request_header -X-MyTask-Service-Auth
+	header {
+		-Server
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		X-Frame-Options DENY
+	}
+}
+
+(to_api) {
+	reverse_proxy api:3000 {
+		header_up X-MyTask-Client-IP {client_ip}
+		# Caddy adds these by default; the API never reads them (ADR-013 §16), so do not send them.
+		header_up -X-Forwarded-For
+		header_up -X-Forwarded-Proto
+		header_up -X-Forwarded-Host
+	}
+}
+
+http://localhost:8080 {
+	import edge_headers
+	# Staff endpoints exist only on the admin host (openapi.yaml "Global rules", ADR-010).
+	handle /api/v1/admin/* {
+		respond 404
+	}
+	handle /api/* {
+		import to_api
+	}
+	handle /ws* {
+		import to_api
+	}
+	handle {
+		reverse_proxy web:3100
+	}
+}
+
+http://admin.localhost:8080 {
+	import edge_headers
+	header X-Robots-Tag "noindex, nofollow"
+	handle /api/* {
+		import to_api
+	}
+	handle {
+		reverse_proxy admin:3200
+	}
+}

@@ -1,0 +1,19 @@
+{
+  "name": "@mytask/bog-mock",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local fake Bank of Georgia payments API (ADR-004). Phase 3: health only; slice 05 adds create order, hosted page and signed callback.",
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch src/server.ts",
+    "start": "node src/server.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint ."
+  },
+  "devDependencies": {
+    "@mytask/config": "workspace:*",
+    "@types/node": "24.19.0",
+    "eslint": "10.11.0",
+    "typescript": "5.9.3"
+  }
+}
