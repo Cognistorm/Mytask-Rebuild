@@ -9,3 +9,15 @@ build/
 *.log
 legacy/db/*.sql
 !legacy/db/schema.sql
+# Tokens dist is committed on purpose (packages/tokens/README.md).
+!packages/tokens/dist/
+.turbo/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+playwright-report/
+test-results/
+apps/mobile/ios/
+apps/mobile/android/
+apps/api/src/generated/prisma/
+.pnpm-store/

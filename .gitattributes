@@ -1,0 +1,19 @@
+# LF everywhere (R-044). Binary assets untouched.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.pdf binary
+# Legacy is evidence: keep its bytes exactly as copied.
+legacy/** -text
+# Generated from docs/04-api/openapi.yaml; collapsed in diffs.
+packages/types/src/generated/** linguist-generated=true -diff
+packages/api-client/src/generated/** linguist-generated=true
+docs/04-api/openapi.yaml linguist-generated=true
