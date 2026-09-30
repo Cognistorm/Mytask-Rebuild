@@ -1,0 +1,197 @@
+// Slice 01 part A — signed-in account security operations (spec 01 AC-20, AC-21, AC-31, AC-35, AC-43,
+// AC-44, AC-55). Accounts without a password (social, part B) use emailed codes; until social login exists
+// every account has a password, so those branches answer with the contract's code flow errors.
+import { Injectable } from '@nestjs/common';
+import type { components } from '@mytask/types';
+import type { User } from '../../generated/prisma/client';
+import { PrismaService } from '../../platform/db/prisma.service';
+import { ApiException } from '../../platform/errors/api-exception';
+import { OutboxService } from '../../platform/outbox/outbox.service';
+import { SettingsService } from '../../platform/settings/settings.service';
+import { toMe } from './me.mapper';
+import { PasswordService } from './password.service';
+import type { RequestContext } from './request-context';
+import { SessionsService } from './sessions.service';
+import { ThrottleService } from './throttle.service';
+import { TwoFactorService } from './two-factor.service';
+import { parseUserAgent } from './user-agent';
+
+type S = components['schemas'];
+
+@Injectable()
+export class AccountService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly settings: SettingsService,
+    private readonly passwords: PasswordService,
+    private readonly sessions: SessionsService,
+    private readonly throttle: ThrottleService,
+    private readonly twoFactor: TwoFactorService,
+    private readonly outbox: OutboxService,
+  ) {}
+
+  async me(userId: string): Promise<S['Me']> {
+    const user = await this.prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      include: { profile: true },
+    });
+    return toMe(user, await this.settings.get('S-056'));
+  }
+
+  /** AC-35 + AC-55: change password with the current one; other sessions end, this one stays. */
+  async changePassword(
+    userId: string,
+    sessionId: string,
+    input: S['PasswordChangeRequest'],
+    ctx: RequestContext,
+  ) {
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    if (!user.passwordHash)
+      throw new ApiException(409, 'STATE_CONFLICT', 't_toast_something_went_wrong');
+    await this.checkCurrentPassword(user, input.currentPassword, ctx);
+    if (input.password !== input.passwordConfirmation) {
+      throw this.fieldError(ctx, 'passwordConfirmation', 'same', 't_validator_same');
+    }
+    const passwordHash = await this.passwords.hash(input.password);
+    await this.prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: userId },
+        data: { passwordHash, passwordAlgo: 'argon2id', passwordChangedAt: new Date() },
+      });
+      await tx.trustedDevice.deleteMany({ where: { userId } }); // AC-31
+      await this.sessions.revokeWhere({ userId, id: { not: sessionId } }, 'password_change', tx);
+      await this.outbox.add('EV-05', { type: 'user', id: userId }, { userId, params: {} }, tx);
+    });
+    return {
+      messageKey: 't_ur_account_password_updated',
+      message: ctx.t('t_ur_account_password_updated'),
+      params: {},
+    };
+  }
+
+  /** AC-43: every live session, most recently active first, with the "this device" marker. */
+  async listSessions(userId: string, currentSessionId: string): Promise<S['SessionPage']> {
+    const rows = await this.prisma.session.findMany({
+      where: { userId, revokedAt: null, expiresAt: { gt: new Date() } },
+      orderBy: { lastUsedAt: 'desc' },
+      take: 100,
+    });
+    return {
+      data: rows.map((s) => {
+        const { browser, os } = parseUserAgent(s.userAgent);
+        return {
+          id: s.id,
+          client: s.client === 'admin' ? 'web' : s.client,
+          deviceLabel: s.deviceLabel,
+          browser,
+          os,
+          ip: s.ip ?? '',
+          countryCode: null,
+          createdAt: s.createdAt.toISOString(),
+          lastActiveAt: s.lastUsedAt.toISOString(),
+          isCurrent: s.id === currentSessionId,
+        };
+      }),
+      nextCursor: null,
+    };
+  }
+
+  /** AC-44: end every other session after the current password (or an emailed code, part B). */
+  async revokeOthers(
+    userId: string,
+    sessionId: string,
+    input: S['SessionRevokeOthersRequest'],
+    ctx: RequestContext,
+  ) {
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    await this.reauthenticate(user, input, 'revoke_sessions', ctx);
+    const revokedCount = await this.sessions.revokeWhere(
+      { userId, id: { not: sessionId } },
+      'user_revoked',
+    );
+    return { revokedCount };
+  }
+
+  /** AC-20, AC-21, AC-31: switch email 2FA on or off after re-authentication. */
+  async updateTwoFactor(
+    userId: string,
+    input: S['TwoFactorSettingUpdateRequest'],
+    ctx: RequestContext,
+  ) {
+    if (!(await this.settings.get('S-056'))) {
+      throw new ApiException(403, 'FEATURE_DISABLED', 't_toast_something_went_wrong', {
+        settingId: 'S-056',
+      });
+    }
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    await this.reauthenticate(user, input, 'toggle_two_factor', ctx);
+    await this.prisma.$transaction(async (tx) => {
+      await tx.user.update({ where: { id: userId }, data: { twoFactorEnabled: input.enabled } });
+      if (!input.enabled) await tx.trustedDevice.deleteMany({ where: { userId } });
+    });
+    const key = input.enabled ? 't_2fa_enabled' : 't_2fa_disabled';
+    return {
+      enabled: input.enabled,
+      available: true,
+      notice: { messageKey: key, message: ctx.t(key), params: {} },
+    };
+  }
+
+  // ------------------------------------------------------------------ re-authentication (AC-55, SEC-04)
+
+  private async reauthenticate(
+    user: User,
+    input: { currentPassword?: string | null; challengeId?: string | null; code?: string | null },
+    purpose: 'revoke_sessions' | 'toggle_two_factor',
+    ctx: RequestContext,
+  ): Promise<void> {
+    if (user.passwordHash) {
+      if (!input.currentPassword)
+        throw this.fieldError(ctx, 'currentPassword', 'required', 't_validator_required');
+      await this.checkCurrentPassword(user, input.currentPassword, ctx);
+      return;
+    }
+    // Account without a password: a code of this purpose sent to the current address (SEC-05).
+    if (!input.challengeId || !input.code)
+      throw this.fieldError(ctx, 'code', 'required', 't_validator_required');
+    await this.guardInSession(user.id);
+    try {
+      await this.twoFactor.verify(input.challengeId, input.code, purpose, user.id);
+    } catch (e) {
+      if (e instanceof ApiException && e.code.startsWith('TWO_FACTOR_CODE'))
+        await this.throttle.inSessionFailed(user.id);
+      throw e;
+    }
+  }
+
+  private async checkCurrentPassword(
+    user: User,
+    password: string,
+    ctx: RequestContext,
+  ): Promise<void> {
+    await this.guardInSession(user.id);
+    const result = await this.passwords.verify(password, user.passwordHash, user.passwordAlgo);
+    if (!result.ok) {
+      await this.throttle.inSessionFailed(user.id);
+      // Wrong current passwords also count towards the per-account login counter (AC-55 -> AC-53).
+      await this.throttle.loginFailed(user.email, ctx.ip);
+      throw this.fieldError(ctx, 'currentPassword', 'mismatch', 't_ur_current_pass_does_not_match');
+    }
+  }
+
+  private async guardInSession(userId: string): Promise<void> {
+    const lock = await this.throttle.inSessionLockSeconds(userId);
+    if (lock > 0) {
+      throw new ApiException(429, 'RATE_LIMITED', 't_too_many_login_attempts', {
+        retryAfterSeconds: lock,
+        params: { minutes: Math.ceil(lock / 60) },
+      });
+    }
+  }
+
+  private fieldError(ctx: RequestContext, field: string, code: string, messageKey: string) {
+    return new ApiException(400, 'VALIDATION_FAILED', 't_toast_something_went_wrong', {
+      fields: [{ field, code, message: ctx.t(messageKey), messageKey }],
+    });
+  }
+}

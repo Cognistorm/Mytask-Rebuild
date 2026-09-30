@@ -59,7 +59,9 @@ describe('error body { code, message, details } (CONVENTIONS §7)', () => {
   });
 
   it('wrong method on a contract path -> 404 NOT_FOUND', async () => {
-    const res = await request(app.getHttpServer()).delete('/api/v1/health');
+    const res = await request(app.getHttpServer())
+      .delete('/api/v1/health')
+      .set('X-MyTask-Client', 'ios');
     expect(res.status).toBe(404);
     expect(res.body.code).toBe('NOT_FOUND');
   });
@@ -74,5 +76,13 @@ describe('error body { code, message, details } (CONVENTIONS §7)', () => {
 describe('client IP safety (ADR-013 §16)', () => {
   it('Express trust proxy is off', () => {
     expect(app.getHttpAdapter().getInstance().get('trust proxy')).toBe(false);
+  });
+});
+
+describe('request id on early refusals (QA P3 bug 2)', () => {
+  it('a request refused by the contract validator still carries X-Request-Id', async () => {
+    const res = await request(app.getHttpServer()).get('/api/v1/health?foo=1');
+    expect(res.status).toBe(400);
+    expect(res.headers['x-request-id']).toMatch(UUID);
   });
 });

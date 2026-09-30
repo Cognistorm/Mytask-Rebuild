@@ -6,6 +6,9 @@ const base = {
   REDIS_URL: 'redis://localhost:6379',
   APP_URL: 'http://localhost:3100',
   ADMIN_URL: 'http://localhost:3200',
+  JWT_PRIVATE_KEY: process.env.JWT_PRIVATE_KEY,
+  JWT_PUBLIC_KEY: process.env.JWT_PUBLIC_KEY,
+  INTERNAL_SERVICE_TOKEN: process.env.INTERNAL_SERVICE_TOKEN,
 };
 
 describe('loadEnv (ADR-013 §8 boot validation)', () => {

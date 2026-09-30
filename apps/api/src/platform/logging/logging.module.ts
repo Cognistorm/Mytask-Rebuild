@@ -26,7 +26,10 @@ export const REDACT_PATHS = [
           pinoHttp: {
             level: env.LOG_LEVEL,
             redact: { paths: REDACT_PATHS, censor: '[redacted]' },
-            genReqId: (_req, res) => {
+            genReqId: (req, res) => {
+              // Set by the first middleware in app.setup.ts; generated here only as a fallback.
+              const existing = (req as { id?: unknown }).id;
+              if (typeof existing === 'string') return existing;
               const id = randomUUID();
               res.setHeader('X-Request-Id', id);
               return id;

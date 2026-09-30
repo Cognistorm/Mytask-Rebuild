@@ -29,7 +29,8 @@ export const envSchema = z
     /** Internal readiness port of the worker process. */
     WORKER_READINESS_PORT: z.coerce.number().int().positive().default(3002),
     DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
-    REDIS_URL: z.url({ protocol: /^rediss?$/ }),
+    /** redis://… ; `memory://` = in-process Redis for Docker-free local previews only (refused in production). */
+    REDIS_URL: z.url({ protocol: /^(rediss?|memory)$/ }),
     APP_URL: z.url(),
     ADMIN_URL: z.url(),
     /** Caddy's fixed address(es) on the edge network (ADR-013 §16). Empty when running without Caddy. */
@@ -38,6 +39,21 @@ export const envSchema = z
     OPENAPI_SPEC_PATH: z.string().optional(),
     /** Response validation against the contract (ADR-014 §3): on in development and tests, off in production. */
     OPENAPI_VALIDATE_RESPONSES: z.enum(['true', 'false']).optional(),
+    /** Ed25519 key pair for access tokens (ADR-002 §1), base64 of the PEM text (`pnpm setup:env` creates one). */
+    JWT_PRIVATE_KEY: z.string().min(40),
+    JWT_PUBLIC_KEY: z.string().min(40),
+    /** SSR -> API visitor-IP credential (ADR-013 §17), at least 256 bits. */
+    INTERNAL_SERVICE_TOKEN: z
+      .string()
+      .min(43, 'must be at least 256 bits (e.g. openssl rand -hex 32)'),
+    /** Email: SMTP (Mailpit locally; SendGrid SMTP relay in production, spec 15). */
+    SMTP_URL: z.string().optional(),
+    /** `smtp` (default) or `log` = print emails in the worker console (Docker-free local preview; refused in production). */
+    MAIL_TRANSPORT: z.enum(['smtp', 'log']).default('smtp'),
+    MAIL_FROM_ADDRESS: z.email().default('no-reply@mytask.ge'),
+    MAIL_FROM_NAME: z.string().default('MyTask.ge'),
+    /** reCAPTCHA v3 server secret; only read while S-061 is ON (spec 01 AC-18). */
+    RECAPTCHA_SECRET_KEY: z.string().optional(),
     /** API tests only (ADR-002 §2); refused in production below. */
     STAFF_BODY_TOKENS_ENABLED: bool,
   })
@@ -47,6 +63,20 @@ export const envSchema = z
         code: 'custom',
         path: ['STAFF_BODY_TOKENS_ENABLED'],
         message: 'must be false in production (ADR-002 §2)',
+      });
+    }
+    if (env.NODE_ENV === 'production' && env.MAIL_TRANSPORT === 'log') {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['MAIL_TRANSPORT'],
+        message: 'log transport is for local previews only',
+      });
+    }
+    if (env.NODE_ENV === 'production' && env.REDIS_URL.startsWith('memory:')) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['REDIS_URL'],
+        message: 'memory:// is for local previews only; Redis is security-critical (ADR-015 §6)',
       });
     }
     if (env.NODE_ENV === 'production' && env.OPENAPI_VALIDATE_RESPONSES === 'true') {

@@ -7,6 +7,9 @@ export default defineConfig({
   test: {
     include: ['test/**/*.test.ts'],
     setupFiles: ['test/setup.ts'],
+    globalSetup: ['test/global-setup.mts'],
+    // One database for the whole run: files run one after another.
+    fileParallelism: false,
     testTimeout: 30_000,
     hookTimeout: 60_000,
   },

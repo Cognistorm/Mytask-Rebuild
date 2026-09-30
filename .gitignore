@@ -21,3 +21,6 @@ apps/mobile/ios/
 apps/mobile/android/
 apps/api/src/generated/prisma/
 .pnpm-store/
+
+# Isolated copies used by review agents
+.claude/worktrees/

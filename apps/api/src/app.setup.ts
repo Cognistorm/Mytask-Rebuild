@@ -1,8 +1,11 @@
 // HTTP pipeline shared by main.ts and the tests, so tests exercise exactly what production runs.
+import { randomUUID } from 'node:crypto';
 import type { NestExpressApplication } from '@nestjs/platform-express';
+import cookieParser from 'cookie-parser';
 import type { NextFunction, Request, Response } from 'express';
 import { Logger } from 'nestjs-pino';
 import type { Env } from './platform/config/env';
+import { csrfMiddleware } from './platform/csrf/csrf.middleware';
 import { ErrorFilter } from './platform/errors/error.filter';
 import { contractValidator } from './platform/openapi/contract';
 
@@ -22,8 +25,17 @@ export function configureApp(app: NestExpressApplication, env: Env): void {
   app.setGlobalPrefix(API_PREFIX);
   app.useGlobalFilters(new ErrorFilter());
 
-  // Contract validation runs before the routes; its errors go through the same ErrorFilter.
+  // Cookies (web sessions), then the CSRF rule (ADR-002 §2), then contract validation; errors from these
+  // middlewares go through the same ErrorFilter as the routes.
   const filter = new ErrorFilter();
+  // Request id first, so even requests refused by CSRF or the validator carry X-Request-Id (CONVENTIONS).
+  app.use((req: Request & { id?: string }, res: Response, next: NextFunction) => {
+    req.id = randomUUID();
+    res.setHeader('X-Request-Id', req.id);
+    next();
+  });
+  app.use(cookieParser());
+  app.use(csrfMiddleware(env));
   for (const handler of contractValidator(env)) {
     app.use(handler);
   }

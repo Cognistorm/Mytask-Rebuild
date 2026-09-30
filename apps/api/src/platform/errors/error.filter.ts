@@ -39,6 +39,37 @@ const STATUS_CODES: Record<number, ErrorCode> = {
   503: 'SERVICE_UNAVAILABLE',
 };
 
+/**
+ * Field messages for schema errors, from the legacy validator keys (spec 01 Texts, CONVENTIONS §7.1):
+ * field-specific patterns first, then the generic keyword.
+ */
+const PATTERN_KEYS: Record<string, string> = {
+  username: 't_validator_username',
+  password: 't_password_validation_message',
+  referralCode: 't_referral_code_invalid',
+  code: 't_2fa_code_invalid',
+};
+
+export function fieldMessage(
+  field: string,
+  keyword: string,
+  message: string,
+): { messageKey: string; params: Record<string, string | number> } {
+  const limit = Number(/(\d+)/.exec(message)?.[1] ?? 0);
+  if (keyword === 'required') return { messageKey: 't_validator_required', params: {} };
+  if (keyword === 'minLength') return { messageKey: 't_validator_min', params: { min: limit } };
+  if (keyword === 'maxLength') return { messageKey: 't_validator_max', params: { max: limit } };
+  if (keyword === 'format' && /email/i.test(message)) {
+    return { messageKey: 't_validator_email', params: {} };
+  }
+  if (keyword === 'const' && field === 'acceptTerms') {
+    return { messageKey: 't_you_must_agree_to_terms', params: {} };
+  }
+  const patternKey = PATTERN_KEYS[field];
+  if (keyword === 'pattern' && patternKey) return { messageKey: patternKey, params: {} };
+  return { messageKey: 't_toast_something_went_wrong', params: {} };
+}
+
 @Catch()
 export class ErrorFilter implements ExceptionFilter {
   private readonly logger = new Logger('ErrorFilter');
@@ -64,13 +95,23 @@ export class ErrorFilter implements ExceptionFilter {
       status = exception.status >= 500 ? 500 : (mapped[exception.status] ?? exception.status);
       code = STATUS_CODES[exception.status] ?? 'INTERNAL_ERROR';
       if (status === 400) {
-        const fields = (exception.errors ?? []).map((e) => ({
-          field:
-            e.path.replace(/^\/(body|query|params|headers)\/?/, '').replace(/\//g, '.') || e.path,
+        const fields = (exception.errors ?? []).map((e) => {
+          const field =
+            e.path.replace(/^\/(body|query|params|headers)\/?/, '').replace(/\//g, '.') || e.path;
           // Non-JSON bodies: `unsupported_content_type` (openapi.yaml "Global rules", CSRF).
-          code: exception.status === 415 ? 'unsupported_content_type' : (e.errorCode ?? 'invalid'),
-          message: e.message,
-        }));
+          const fieldCode =
+            exception.status === 415
+              ? 'unsupported_content_type'
+              : (e.errorCode ?? 'invalid').replace('.openapi.validation', '');
+          const { messageKey: key, params } = fieldMessage(field, fieldCode, e.message);
+          return {
+            field,
+            code: fieldCode,
+            message: translate(key, locale, params),
+            messageKey: key,
+            ...(Object.keys(params).length ? { params } : {}),
+          };
+        });
         details = { fields } as ErrorDetails;
       }
       if (status >= 500) this.logger.error({ err: exception }, 'contract violation');
@@ -84,9 +125,15 @@ export class ErrorFilter implements ExceptionFilter {
     if (messageKey === FALLBACK_MESSAGE_KEY && !(exception instanceof ApiException)) {
       messageKey = defaultMessageKeys[code] ?? FALLBACK_MESSAGE_KEY;
     }
-    const params = Object.fromEntries(
-      Object.entries(details).filter(([, v]) => typeof v === 'string' || typeof v === 'number'),
-    );
+    const nested = (details as { params?: Record<string, string | number> }).params ?? {};
+    const params = {
+      ...Object.fromEntries(
+        Object.entries(details).filter(([, v]) => typeof v === 'string' || typeof v === 'number'),
+      ),
+      ...nested,
+    };
+    const retryAfter = (details as { retryAfterSeconds?: number }).retryAfterSeconds;
+    if (typeof retryAfter === 'number') res.setHeader('Retry-After', String(retryAfter));
     res.status(status).json({
       code,
       message: translate(messageKey, locale, params),

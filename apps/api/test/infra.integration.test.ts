@@ -6,7 +6,7 @@ import { DbModule } from '../src/platform/db/db.module';
 import { PrismaService } from '../src/platform/db/prisma.service';
 import { RedisModule, RedisService } from '../src/platform/redis/redis.module';
 
-describe.skipIf(!process.env.RUN_INTEGRATION)('infrastructure (integration)', () => {
+describe('infrastructure (integration)', () => {
   it('reaches PostgreSQL with the data-model extensions installed', async () => {
     const ref = await Test.createTestingModule({ imports: [ConfigModule, DbModule] }).compile();
     const prisma = ref.get(PrismaService);
