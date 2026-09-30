@@ -30,7 +30,7 @@ jobs:
       - name: gitleaks (full history)
         run: >
           docker run --rm -v "$PWD:/repo" -w /repo zricethezav/gitleaks:v8.30.1
-          git --config .gitleaks.toml --redact --no-banner --exit-code 1 .
+          git --config .gitleaks.toml --redact --verbose --no-banner --exit-code 1 .
 
   contract:
     name: API contract (lint, coverage, breaking changes)
