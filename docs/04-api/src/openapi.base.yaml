@@ -28,9 +28,18 @@ info:
     - **Lists**: cursor pagination `?cursor=&limit=` → `{ data, nextCursor }`.
     - **Money operations** require `Idempotency-Key` (ADR-003 §6).
     - **Auth** (ADR-002): Ed25519 JWT access token (15 min) + rotating opaque refresh token.
-      Mobile and server-side rendering send `Authorization: Bearer`; browsers use HttpOnly cookies set by
-      the API. Cookie-authenticated POST/PUT/PATCH/DELETE must send `X-MyTask-Client: web` (or `admin`)
-      and a same-site `Origin`, otherwise `403 CSRF_CHECK_FAILED`.
+      Mobile and server-side rendering send `Authorization: Bearer`; browsers use host-only HttpOnly
+      cookies set by the API (`__Host-mt_at`, `__Secure-mt_rt`, `__Host-mt_did`; admin `__Host-mt_staff_at`,
+      `__Secure-mt_staff_rt`). A revoked session stops working at once (deny-list, ADR-002 §1).
+    - **CSRF** (ADR-002 §2): every POST/PUT/PATCH/DELETE that is not sent with `Authorization: Bearer`,
+      including the public auth operations (register, login, 2FA, refresh, logout, social login, password
+      and email links), must send `X-MyTask-Client` (`web` on `mytask.ge`, `admin` on `admin.mytask.ge`)
+      and, when it carries a cookie, is a `web`/`admin` client or has an `Origin` header, an `Origin` that
+      **exactly equals** the origin of the host it was sent to (no same-site or suffix matching); otherwise
+      `403 CSRF_CHECK_FAILED`. Request bodies are `application/json` (else `400 VALIDATION_FAILED`, code
+      `unsupported_content_type`); the only exception is the RFC 8058 one-click unsubscribe form POST.
+    - **Client IP** (ADR-013 §14–§19): every "per IP" rule uses the one client IP set by the edge proxy;
+      `X-Forwarded-For` and similar headers sent by clients are ignored.
     - **Account state** (any authenticated user operation, not listed per operation): a restricted user gets
       `403 ACCOUNT_RESTRICTED` except on operations whose `x-permission.audience` is `restricted-user`
       (restriction notice, appeals incl. `appeal_file` uploads, `/me`, logout, own notifications); a call
@@ -165,20 +174,23 @@ components:
     userCookie:
       type: apiKey
       in: cookie
-      name: mt_at
+      name: __Host-mt_at
       description: |
-        Browser session on `mytask.ge`: HttpOnly, Secure, SameSite=Lax access-token cookie set by the API
-        (refresh cookie `mt_rt`, path `/api/v1/auth`). Unsafe methods also need `X-MyTask-Client: web` and a
-        same-site `Origin` (CSRF, ADR-002 §2).
+        Browser session on `mytask.ge`: HttpOnly, Secure, SameSite=Lax, host-only (no `Domain`) access-token
+        cookie set by the API, Path `/` (refresh cookie `__Secure-mt_rt`, host-only, Path `/api/v1/auth`).
+        Unsafe methods also need `X-MyTask-Client: web` and an `Origin` exactly equal to the site origin
+        (CSRF, ADR-002 §2).
     staffBearer:
       type: http
       scheme: bearer
       bearerFormat: JWT
-      description: Staff access token (`aud = staff`). User tokens are refused on staff operations and vice versa (ADR-002 §2, ADR-010 §1).
+      description: Staff access token (`aud = staff`). User tokens are refused on staff operations and vice versa (ADR-002 §2, ADR-010 §1). Sent by the admin app's own server (the token read from the staff cookie) and by API tests; staff tokens are returned in bodies only when `STAFF_BODY_TOKENS_ENABLED=true`, which production refuses (SEC-17).
     staffCookie:
       type: apiKey
       in: cookie
-      name: mt_staff_at
+      name: __Host-mt_staff_at
       description: |
-        Admin browser session on `admin.mytask.ge` (host-only cookie; refresh cookie `mt_staff_rt`, path
-        `/api/v1/admin/auth`). Unsafe methods also need `X-MyTask-Client: admin` and the admin `Origin`.
+        Admin browser session on `admin.mytask.ge` (host-only cookie, Path `/`; refresh cookie
+        `__Secure-mt_staff_rt`, host-only, Path `/api/v1/admin/auth`). Unsafe methods also need
+        `X-MyTask-Client: admin` and an `Origin` exactly equal to the admin origin. In production the admin
+        host is cookie-only: staff tokens are never returned in response bodies (ADR-002 §2, SEC-17).

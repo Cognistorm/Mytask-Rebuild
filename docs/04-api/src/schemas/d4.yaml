@@ -350,7 +350,7 @@ OrderItemUpgrade:
 
 OrderItemRequirements:
   type: object
-  description: The buyer's order details (spec 06 AC-13, P-48). Sanitised HTML (bold, italic, lists, links).
+  description: The buyer's order details (spec 06 AC-13, P-48). Sanitised HTML (bold, italic, lists, links; profile `user_text_links`, CONVENTIONS §19).
   required: [text, sentAt, updatedAt]
   properties:
     text: {type: string}
@@ -365,7 +365,7 @@ OrderItemRequirementsPutRequest:
       type: string
       minLength: 1
       maxLength: 5000
-      description: Formatted text (allowed markup `p`, `br`, `strong`/`b`, `em`/`i`, `ul`, `ol`, `li`, `a[href=http(s)]`), 1–5,000 characters (P-48). The API sanitises it; anything else is stripped.
+      description: Formatted text (allowed markup `p`, `br`, `strong`/`b`, `em`/`i`, `ul`, `ol`, `li`, `a[href=http(s)]`), 1–5,000 characters (P-48). The API sanitises it with profile `user_text_links` (CONVENTIONS §19); anything else is stripped.
 
 OrderItemActions:
   type: object

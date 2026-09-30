@@ -1,6 +1,8 @@
 # ADR-009: File storage and uploads — S3-compatible buckets, private by default, signed URLs, type and virus checks
 Date: 2026-09-28 | Status: proposed
 
+> **Revised 2026-09-30** after the P2-B5 security review: §3.1 the purpose check runs before the presigned POST and `completeFileUpload` re-checks the stored purpose (review item 12). KYC retention stays open (SEC-12, Owner question).
+
 ## Context
 - Files: gig images/documents/video links, avatars, portfolio images, category/blog images, project thumbnails and shared files, buyer requirement files, delivered work, chat and custom-offer attachments, refund evidence, restriction-appeal files, KYC selfie + ID front/back (Q-048).
 - Legacy: local `public/storage` or S3/Wasabi/Cloudinary chosen in admin (`integrations.md`); KYC images web-accessible by filename (R-039); upload limits in settings (now S-077…S-099, S-037…S-040; delivered-work and appeal types unknown, Q-068).
@@ -15,7 +17,7 @@ Date: 2026-09-28 | Status: proposed
    | `private` | originals, deliveries, requirement files, chat/offer attachments, project shared files, refund evidence, appeal files, gig documents | no public access; presigned GET (5 minutes) after an API policy check |
    | `kyc` | ID documents and selfies | no public access; server-side encryption; presigned GET (1–2 minutes) only for staff with `kyc.review`; every access audit-logged; retention rule decided in spec 02/16 |
 3. **Upload flow (direct to storage, API-controlled).**
-   1. `POST /api/v1/files { purpose, fileName, size, contentType }` → the API checks the user may upload for this purpose (e.g. only the seller of an order can upload a delivery) and validates size/extension against the purpose's settings.
+   1. `POST /api/v1/files { purpose, fileName, size, contentType }` → the API checks the user may upload for this purpose (e.g. only the seller of an order can upload a delivery; a restricted user only `appeal_file`) and validates size/extension against the purpose's settings. **All purpose and permission checks run before the presigned POST is created** (no storage credential or URL is issued for a refused purpose), and `completeFileUpload` re-checks the purpose stored on the file row against the caller's current state (e.g. restricted → only `appeal_file`) (review item 12).
    2. The API creates a `files` row (`status = pending`) and returns a **presigned POST** limited to one key under `quarantine/`, a `content-length-range`, the declared content type, and a short expiry.
    3. The client uploads directly to storage (web and mobile use the same flow; large files never pass through the API).
    4. `POST /api/v1/files/{id}/complete` → queue `files-scan`.

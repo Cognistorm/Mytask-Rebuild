@@ -14,6 +14,7 @@ D1ErrorCode:
   enum:
     - AUTH_INVALID_CREDENTIALS
     - AUTH_LOGIN_LOCKED
+    - AUTH_LOGIN_THROTTLED
     - AUTH_LINK_INVALID
     - AUTH_LINK_EXPIRED
     - AUTH_ALREADY_VERIFIED
@@ -26,20 +27,23 @@ D1ErrorCode:
     - TWO_FACTOR_CODE_EXPIRED
     - TWO_FACTOR_TOO_MANY_ATTEMPTS
     - TWO_FACTOR_RESEND_THROTTLED
+    - TWO_FACTOR_LOCKED
   x-enumDescriptions:
     AUTH_INVALID_CREDENTIALS: '[401] Wrong email or password, unknown email or a soft-deleted account (same answer for all, spec 01 AC-11, AC-15); messageKey t_invalid_login_credentials_pls_try_again'
     AUTH_LOGIN_LOCKED: '[429] Account + IP locked after S-062 failed logins for S-063 minutes (spec 01 AC-16); `details.retryAfterSeconds`, `details.params.minutes`; messageKey t_too_many_login_attempts'
+    AUTH_LOGIN_THROTTLED: '[429] Slow mode after 20 failed logins for this account within one hour from any IPs: one attempt per 30 seconds is evaluated (ADR-002 §6, SEC-02; no hard lock). `details.retryAfterSeconds`; messageKey t_too_many_login_attempts'
     AUTH_LINK_INVALID: '[422] Unknown or already used verification / reset / email-change link (spec 01 AC-8, AC-34); messageKey t_verification_email_not_exists (reset links: the client goes to login)'
     AUTH_LINK_EXPIRED: '[422] The link is older than S-054 / S-055 minutes (spec 01 AC-8, AC-34; spec 02 AC-30); messageKey t_verification_email_link_expired or t_password_reset_link_expired'
     AUTH_ALREADY_VERIFIED: '[409] Resend verification for an account that is not pending (spec 01 AC-9); messageKey t_already_verified_user'
     AUTH_SOCIAL_EMAIL_EXISTS: '[409] Social email already belongs to an account with a password or another provider (spec 01 AC-39); messageKey t_socialite_error_email_exists'
-    AUTH_SOCIAL_EMAIL_MISSING: '[422] The provider returned no email address (spec 01 AC-41); `details.params.provider`; messageKey t_social_email_missing'
-    AUTH_SOCIAL_FAILED: '[422] OAuth state unknown/expired or the provider refused the code exchange; messageKey t_toast_something_went_wrong'
+    AUTH_SOCIAL_EMAIL_MISSING: '[422] The provider returned no email address, or one it does not mark as verified (spec 01 AC-41, ADR-002 §7); `details.params.provider`; messageKey t_social_email_missing'
+    AUTH_SOCIAL_FAILED: '[422] OAuth state unknown, expired or already used; the client binding is missing or wrong (web cookie `__Host-mt_oauth`, mobile `codeVerifier`, SEC-09); or the provider refused the code exchange; messageKey t_toast_something_went_wrong'
     ACCOUNT_PENDING: '[403] Correct credentials but the account is pending (spec 01 AC-13, AC-40); `details.verificationMethod` = email | admin; messageKey t_account_pending_verification or t_account_pending_admin_review'
     ACCOUNT_SUSPENDED: '[403] The account is banned: at login, social login, refresh, and on every call made with a session that was ended by the ban (spec 01 AC-14, AC-40, AC-45); messageKey t_account_suspended'
     TWO_FACTOR_CODE_INVALID: '[422] Wrong 2FA code; `details.attemptsLeft` (spec 01 AC-25); messageKey t_2fa_code_invalid'
     TWO_FACTOR_CODE_EXPIRED: '[422] Code older than S-057 minutes (spec 01 AC-26); messageKey t_2fa_code_expired'
     TWO_FACTOR_TOO_MANY_ATTEMPTS: '[422] S-058 wrong codes: this code no longer works, ask for a new one (spec 01 AC-25); messageKey t_2fa_too_many_attempts'
+    TWO_FACTOR_LOCKED: '[429] 10 wrong codes for this account within one hour across all challenges: code checks are refused for S-063 minutes, even for a correct code (ADR-002 §5, SEC-03). `details.retryAfterSeconds`; messageKey t_too_many_login_attempts'
     TWO_FACTOR_RESEND_THROTTLED: '[429] Resend inside the 60-second cooldown or above 5 codes per 15 minutes (spec 01 AC-27); `details.retryAfterSeconds`, `details.params.seconds`; messageKey t_2fa_resend_wait'
 
 # ═════════════════════════ Platform ═════════════════════════
@@ -377,7 +381,7 @@ AuthDeviceToken:
   maxLength: 200
   description: |
     Mobile only: the device identifier the API issued earlier (`AuthSession.deviceToken`), stored in
-    SecureStore (ADR-002 §5). Web sends nothing: its identifier travels in the HttpOnly cookie `mt_did`.
+    SecureStore (ADR-002 §5). Web sends nothing: its identifier travels in the HttpOnly cookie `__Host-mt_did`.
     Unknown or missing → the API issues a new identifier (a new, untrusted device for 2FA).
 
 PasswordValue:
@@ -460,7 +464,7 @@ AuthSession:
   type: object
   description: |
     A new session (ADR-002 §1–§2). **Web** (`X-MyTask-Client: web`): tokens are set only as HttpOnly
-    cookies (`mt_at`, `mt_rt`, device cookie `mt_did`) and the token fields below are `null`.
+    cookies (`__Host-mt_at`, `__Secure-mt_rt`, device cookie `__Host-mt_did`) and the token fields below are `null`.
     **Mobile** (`ios`/`android`): tokens are in the body; the app keeps them and `deviceToken` in
     SecureStore. A restricted user gets a session too (`user.isRestricted = true`, spec 01 AC-19).
   required: [user, accessToken, accessTokenExpiresAt, refreshToken, refreshTokenExpiresAt, deviceToken, isNewAccount]
@@ -485,12 +489,14 @@ TwoFactorChallenge:
   type: object
   description: |
     Returned with `202` when a correct password (or social callback) needs an email code (spec 01 AC-22,
-    AC-30) and by the re-authentication step of the 2FA switch (AC-21). No session exists yet.
+    AC-30) and by `createMyTwoFactorChallenge` for re-authentication of accounts without a password: the 2FA
+    switch (AC-21, P-15) and, since P2-B5 (SEC-05, ADR-002 §5), an email change, saving payout details and
+    "log out other sessions". A code works only for its `purpose` and only once.
   required: [challengeId, channel, purpose, emailMasked, codeLength, expiresAt, resendAvailableAt, notice]
   properties:
     challengeId: {$ref: '../components/schemas.yaml#/Uuid'}
     channel: {type: string, const: email}
-    purpose: {type: string, enum: [login, toggle_two_factor]}
+    purpose: {$ref: '#/TwoFactorPurpose'}
     emailMasked: {type: string, description: 'For `t_2fa_code_sent` (:email).'}
     codeLength: {type: integer, const: 6}
     expiresAt:
@@ -500,6 +506,24 @@ TwoFactorChallenge:
       $ref: '../components/schemas.yaml#/Timestamp'
       description: 60 seconds after the last send (R-A6).
     notice: {$ref: '#/AuthNotice'}
+
+TwoFactorPurpose:
+  type: string
+  enum: [login, toggle_two_factor, email_change, payout_details, revoke_sessions]
+  description: |
+    What a code confirms (data-model `twofa_purpose`). `login` comes from `login` / `completeSocialLogin`;
+    the others are re-authentication codes for accounts without a password (`createMyTwoFactorChallenge`):
+    `toggle_two_factor` → `updateMyTwoFactor`, `email_change` → `updateMe` with a new `email`,
+    `payout_details` → `putPayoutDetails`, `revoke_sessions` → `revokeMyOtherSessions`.
+
+TwoFactorChallengeCreateRequest:
+  type: object
+  description: Optional body of `createMyTwoFactorChallenge`; without a body the purpose is `toggle_two_factor` (backwards compatible).
+  properties:
+    purpose:
+      type: string
+      enum: [toggle_two_factor, email_change, payout_details, revoke_sessions]
+      default: toggle_two_factor
 
 TwoFactorVerifyRequest:
   type: object
@@ -540,7 +564,7 @@ TwoFactorSettingUpdateRequest:
 
 SessionRefreshRequest:
   type: object
-  description: Mobile sends the refresh token in the body; web sends nothing (cookie `mt_rt`, path `/api/v1/auth`).
+  description: Mobile sends the refresh token in the body; web sends nothing (cookie `__Secure-mt_rt`, path `/api/v1/auth`).
   properties:
     refreshToken: {type: [string, 'null'], maxLength: 200}
 
@@ -577,7 +601,14 @@ SessionRevokeOthersRequest:
     currentPassword:
       type: [string, 'null']
       maxLength: 1024
-      description: Required for accounts with a password; not asked for social-only accounts (spec 01 AC-44).
+      description: Required for accounts with a password (spec 01 AC-44).
+    challengeId:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+      description: Accounts without a password (SEC-05, ADR-002 §5) — a `revoke_sessions` challenge from `createMyTwoFactorChallenge`.
+    code:
+      type: [string, 'null']
+      pattern: '^[0-9]{6}$'
+      description: The emailed code of `challengeId`.
 
 SessionRevokeResult:
   type: object
@@ -644,16 +675,31 @@ SocialAuthorizeRequest:
       maxLength: 500
       description: |
         Where the provider sends the user back: the web callback page `/auth/{provider}/callback` (legacy
-        path kept, url-map §5) or the app's registered return URL (`expo-auth-session`). Must be in the
-        server-side allow-list, else `VALIDATION_FAILED`.
+        path kept, url-map §5) or, for the apps, the verified https App Link
+        `https://mytask.ge/app-return/auth/{provider}` (url-map §7; a custom scheme only where a provider
+        refuses https). Must be in the server-side allow-list for the client kind, else `VALIDATION_FAILED`.
     referralCode:
       type: [string, 'null']
       pattern: '^[A-Z0-9]{8}$'
       description: A `?ref=` code carried through the flow (spec 01 AC-38, P-17); validated like AC-6 when the account is created.
+    codeChallenge:
+      type: [string, 'null']
+      pattern: '^[A-Za-z0-9_-]{43}$'
+      description: |
+        Mobile only, **required** for `X-MyTask-Client: ios|android` (SEC-09): BASE64URL(SHA256(codeVerifier))
+        of a PKCE pair the app created and keeps. Web sends null (the API keeps the verifier and binds the
+        browser with the `__Host-mt_oauth` cookie).
+    codeChallengeMethod:
+      type: [string, 'null']
+      enum: [S256, null]
+      description: Always `S256` when `codeChallenge` is sent.
 
 SocialAuthorization:
   type: object
-  description: The client opens `authorizationUrl` (browser / system browser). PKCE verifier and `state` are kept server-side (ADR-002 §7).
+  description: |
+    The client opens `authorizationUrl` (browser / system browser). `state` is single-use and expires at
+    `expiresAt` (10 minutes). Web: the PKCE verifier stays on the server and the response sets the binding
+    cookie `__Host-mt_oauth`. Mobile: the app holds the PKCE verifier (ADR-002 §7, SEC-09).
   required: [authorizationUrl, state, expiresAt]
   properties:
     authorizationUrl: {$ref: '../components/schemas.yaml#/HttpUrl'}
@@ -666,6 +712,12 @@ SocialCallbackRequest:
   properties:
     code: {type: string, minLength: 1, maxLength: 2048}
     state: {type: string, minLength: 1, maxLength: 200}
+    codeVerifier:
+      type: [string, 'null']
+      minLength: 43
+      maxLength: 128
+      pattern: '^[A-Za-z0-9._~-]+$'
+      description: Mobile only, **required** when the flow was started with `codeChallenge` (SEC-09). Web sends null and is bound by the `__Host-mt_oauth` cookie.
     deviceToken: {$ref: '#/AuthDeviceToken'}
 
 # ═════════════════════════ Account (/me) ═════════════════════════
@@ -739,7 +791,8 @@ MeUpdateRequest:
     Account settings (spec 02 AC-29). Omitted fields are unchanged. `currentPassword` is required for
     accounts with a password (wrong → `VALIDATION_FAILED` field `currentPassword`,
     `t_ur_current_pass_does_not_match`). A new `email` starts the confirmation flow (AC-30) instead of
-    changing the address.
+    changing the address; for an account without a password a new `email` also needs `challengeId` +
+    `code` of an `email_change` challenge sent to the **current** address (SEC-05, ADR-002 §5).
   properties:
     username:
       type: string
@@ -753,6 +806,13 @@ MeUpdateRequest:
       description: From the active country list (D2 `/countries`); null clears it.
     city: {type: string, minLength: 1, maxLength: 60}
     currentPassword: {type: [string, 'null'], maxLength: 1024}
+    challengeId:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+      description: Accounts without a password changing `email` — an `email_change` challenge (SEC-05).
+    code:
+      type: [string, 'null']
+      pattern: '^[0-9]{6}$'
+      description: The emailed code of `challengeId`.
 
 MePreferencesUpdateRequest:
   type: object

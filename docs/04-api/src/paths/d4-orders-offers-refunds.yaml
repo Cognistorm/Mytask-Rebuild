@@ -317,7 +317,7 @@
     summary: Send or edit the order details (buyer)
     description: |
       "Send order details" (spec 06 AC-13, P-48): required formatted text, 1–5,000 characters,
-      sanitised. Editable until the freelancer starts; read-only afterwards (AC-14). Each save notifies
+      sanitised (profile `user_text_links`, CONVENTIONS §19). Editable until the freelancer starts; read-only afterwards (AC-14). Each save notifies
       the freelancer (AC-15, EV-36).
       Errors: `409` STATE_CONFLICT (not paid yet: messageKey t_we_are_waiting_for_payment_first; already
       started: t_u_cant_submit_requirements_for_item).
@@ -966,8 +966,8 @@
       card appears in the direct conversation with the freelancer (D5 opens it if needed); the
       freelancer is notified (EV-78). Refused while S-034 is OFF, when the freelancer is unavailable
       (with the date), restricted, banned or deleted, or is the caller. No expiry; not counted in plan
-      limits.
-      Errors: `403` FEATURE_DISABLED (S-034); `422` OFFER_USER_UNAVAILABLE.
+      limits. Anti-abuse limit (SEC-23, CONVENTIONS §14): 20 new requests per user per hour → `429 RATE_LIMITED`.
+      Errors: `403` FEATURE_DISABLED (S-034); `422` OFFER_USER_UNAVAILABLE; `429` RATE_LIMITED.
     tags: [Custom Offers]
     x-permission:
       audience: user
@@ -976,6 +976,7 @@
     x-covers: ['12 AC-1', '12 AC-3', '12 AC-4']
     x-notifications: [EV-78]
     x-emits: [offer.request_updated, message.created]
+    x-rate-limit: 20 new offer requests per user per hour (SEC-23)
     requestBody:
       required: true
       content:
@@ -992,6 +993,7 @@
       '403': {$ref: '../components/responses.yaml#/Forbidden'}
       '404': {$ref: '../components/responses.yaml#/NotFound'}
       '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+      '429': {$ref: '../components/responses.yaml#/TooManyRequests'}
 
 /custom-offer-requests/{customOfferRequestId}:
   parameters:

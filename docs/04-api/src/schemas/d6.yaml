@@ -13,6 +13,7 @@ D6ErrorCode:
     - STAFF_TWO_FACTOR_CODE_EXPIRED
     - STAFF_TWO_FACTOR_TOO_MANY_ATTEMPTS
     - STAFF_TWO_FACTOR_RESEND_WAIT
+    - STAFF_TWO_FACTOR_LOCKED
     - STAFF_PASSWORD_LINK_EXPIRED
     - STAFF_CURRENT_PASSWORD_WRONG
     - STAFF_CANNOT_EDIT_OWN_ROLES
@@ -33,6 +34,7 @@ D6ErrorCode:
     STAFF_TWO_FACTOR_CODE_EXPIRED: '[422] Code older than S-057 minutes. messageKey t_2fa_code_expired'
     STAFF_TWO_FACTOR_TOO_MANY_ATTEMPTS: '[422] S-058 wrong attempts: the code no longer works; request a new one. messageKey t_2fa_too_many_attempts'
     STAFF_TWO_FACTOR_RESEND_WAIT: '[429] Resend cooldown (60 s) or 5 codes per 15 minutes reached (spec 01 AC-27). messageKey t_2fa_resend_wait'
+    STAFF_TWO_FACTOR_LOCKED: '[429] 10 wrong codes for this staff account within one hour across challenges (login and re-authentication): code checks refused for S-063 minutes, even for a correct code (ADR-002 §5, SEC-03). `details.retryAfterSeconds`. messageKey t_too_many_login_attempts'
     STAFF_PASSWORD_LINK_EXPIRED: '[422] Invitation (48 h, spec 16 AC-3) or password-reset link expired or already used. messageKey t_password_reset_link_expired'
     STAFF_CURRENT_PASSWORD_WRONG: '[422] Current password wrong (own password change, re-authentication). messageKey t_ur_current_pass_does_not_match'
     STAFF_CANNOT_EDIT_OWN_ROLES: '[403] A staff member tried to change their own roles or disable their own account (spec 16 AC-5). messageKey t_cannot_edit_own_roles'
@@ -577,7 +579,7 @@ AdminAuthTwoFactorResendRequest:
 
 AdminAuthRefreshRequest:
   type: object
-  description: Cookie clients (the admin app) send an empty body; the refresh token comes from the `mt_staff_rt` cookie. Bearer clients send it here.
+  description: Cookie clients (the admin app) send an empty body; the refresh token comes from the `__Secure-mt_staff_rt` cookie. Only test clients with `STAFF_BODY_TOKENS_ENABLED` send it here (never in production, SEC-17).
   properties:
     refreshToken:
       type: [string, 'null']
@@ -587,10 +589,12 @@ AdminAuthSession:
   type: object
   description: |
     A started or refreshed staff session (ADR-002 §1, ADR-010 §2). The API always sets the host-only
-    cookies `mt_staff_at` and `mt_staff_rt` (path `/api/v1/admin/auth`) on `admin.mytask.ge`.
-    `accessToken`/`refreshToken` are returned in the body only to Bearer clients (requests without
-    `X-MyTask-Client: admin`, e.g. API tests); for the admin app they are null. The session ends 12 hours
-    after login whatever the refreshes (spec 16 AC-2).
+    cookies `__Host-mt_staff_at` and `__Secure-mt_staff_rt` (path `/api/v1/admin/auth`) on `admin.mytask.ge`.
+    **In production `accessToken` and `refreshToken` are always null** (the admin host is cookie-only,
+    SEC-17). They are filled only when the API runs with `STAFF_BODY_TOKENS_ENABLED=true` (API tests; the
+    API refuses to start with it when `NODE_ENV=production`) and the request is not from the admin app
+    (`X-MyTask-Client` other than `admin`). The session ends 12 hours after login whatever the refreshes
+    (spec 16 AC-2).
   required: [staff, accessToken, accessTokenExpiresAt, refreshToken, sessionExpiresAt]
   properties:
     staff: {$ref: '#/AdminMe'}
@@ -1838,7 +1842,7 @@ MaintenanceUpdateRequest:
 
 MaintenancePreviewLink:
   type: object
-  description: One-time link to `mytask.ge` that sets a short-lived, host-only bypass cookie in this browser only (no shared secret, P-112).
+  description: Single-use link (token of at least 128 bits, stored hashed, bound to the staff session, 5 minutes) to `mytask.ge`; opening it sets the host-only bypass cookie `__Host-mt_preview` bound to the staff session and redirects to a URL without the token (no shared secret, P-112; `adminCreateMaintenancePreviewLink`).
   required: [url, expiresAt]
   properties:
     url: {$ref: '../components/schemas.yaml#/HttpUrl'}

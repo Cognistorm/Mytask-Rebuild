@@ -158,6 +158,8 @@ When the API creates a BOG order it sets the redirect URLs from `payments.return
 
 The callback URL for BOG is `https://mytask.ge/api/v1/webhooks/bog` (not a page).
 
+**Social-login return for the apps (ADR-002 §7, SEC-09; added 2026-09-30).** The apps register `https://mytask.ge/app-return/auth/{provider}` (with `{provider}` = `google`, `facebook`, `github`, `linkedin`, `twitter`) as the OAuth redirect URI wherever the provider accepts https. It is covered by the verified App Link claim `/app-return/*` (§7.2), so only the MyTask app (or, without the app, the browser) can receive it; a custom scheme is used only for a provider that refuses https redirect URIs. If the app is not installed, the page shows a "open the MyTask app" notice and never processes the code. The web callback pages `/auth/{provider}/callback` stay as in §5. `noindex`, disallowed in robots.txt like the rest of `/app-return/`.
+
 ### 7.2 App links (universal links / Android App Links)
 - `https://mytask.ge/.well-known/apple-app-site-association` and `/.well-known/assetlinks.json` (served from the web app's `public/`, ADR-013) claim these paths, with and without `/en`: `/service/*`, `/project/*`, `/profile/*`, `/inbox/*`, `/account/orders/*`, `/seller/orders/*`, `/account/projects/*`, `/seller/projects/*`, `/account/offers*`, `/seller/offers*`, `/payments/*/result`, `/app-return/*`.
 - Custom scheme `mytask://` mirrors the same paths without the host (`mytask://service/{slug}`, `mytask://payments/{id}/result`). It is used for the BOG return and push notifications.

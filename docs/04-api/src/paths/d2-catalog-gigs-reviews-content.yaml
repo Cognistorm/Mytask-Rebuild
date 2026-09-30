@@ -631,11 +631,14 @@
       Errors: 400 (reason 6–500), 401, 403 FORBIDDEN `t_gig_owner_cant_report_his_gig` (own gig) or
       ACCOUNT_RESTRICTED, 404 (gig not public, incl. deleted after the page opened, EC-10), 409 DUPLICATE
       `t_looks_like_alrdy_reported_this_gig` (second report by the same user).
+      Anti-abuse limit (SEC-23, CONVENTIONS §14): 10 reports per user per hour across the four report
+      operations → `429 RATE_LIMITED`.
     tags: [Gigs]
     x-permission: {audience: user, ownership: 'anyone except the owner of the gig (403)'}
     x-covers: ['04 AC-37', '04 AC-38']
     x-settings: [S-100]
     x-notifications: [EV-22]
+    x-rate-limit: 10 reports per user per hour, shared by createUserReport, createGigReport, createProjectReport and createProposalReport (SEC-23)
     requestBody:
       required: true
       content:
@@ -652,6 +655,7 @@
       '403': {$ref: '../components/responses.yaml#/Forbidden'}
       '404': {$ref: '../components/responses.yaml#/NotFound'}
       '409': {$ref: '../components/responses.yaml#/Conflict'}
+      '429': {$ref: '../components/responses.yaml#/TooManyRequests'}
 
 # ═════════════════════════ Favourites (spec 04 AC-35, AC-36) ═════════════════════════
 /favorites:
@@ -1746,7 +1750,7 @@
   post:
     operationId: adminCreatePage
     summary: Create a CMS page
-    description: Fields of spec 17 AC-8 (content sanitised on save; per-language SEO, P-127). Slug taken or still redirecting for another page → 409 DUPLICATE.
+    description: Fields of spec 17 AC-8 (content sanitised on save, CONVENTIONS §19 profile `staff_content`; per-language SEO, P-127). Slug taken or still redirecting for another page → 409 DUPLICATE.
     tags: [Admin Content]
     security: [{staffBearer: []}, {staffCookie: []}]
     x-permission: {audience: staff, permission: content.write, ownership: none}
@@ -2770,7 +2774,20 @@
   get:
     operationId: verifyOutboundLink
     summary: Check a /redirect interstitial link
-    description: 'The `/redirect?to=&sig=` page (spec 17 AC-47, P-134) shows the destination only if `to` is http/https and `sig` is the server signature of it; otherwise 422 OUTBOUND_LINK_INVALID (`t_redirect_link_invalid`, also for legacy encrypted values). The page never redirects on its own and is noindex.'
+    description: |
+      The `/redirect?to=&sig=` page (spec 17 AC-47, P-134) shows the destination only if `to` is http/https and
+      `sig` is the server signature of it; otherwise 422 OUTBOUND_LINK_INVALID (`t_redirect_link_invalid`, also
+      for legacy encrypted values).
+      **Mandatory rules for every client (SEC-19; the signature proves only that the URL was well-formed, since
+      anyone may sign a URL, so these rules are what keeps `/redirect` from being an open redirect):**
+      1. The page **never redirects by itself** (no meta refresh, no script redirect, no timer, no HTTP 3xx);
+         only the user's click on Continue opens the destination (web: `rel="noopener noreferrer nofollow"`,
+         mobile: the warning dialog, then the system browser).
+      2. It shows the **full destination**, with the host decoded from punycode and shown prominently
+         (`host`), so look-alike domains are visible.
+      3. Only `http`/`https` destinations are accepted (the API refuses anything else).
+      4. The page is `noindex, nofollow` and excluded from the sitemap (url-map).
+      Stored content should preferably be linkified on the server (hrefs already signed) rather than by clients.
     tags: [SEO]
     security: []
     x-permission: {audience: public}
@@ -2797,8 +2814,11 @@
       Staff HTML content (pages, blog) is returned with external links already rewritten to signed
       `/redirect` hrefs. For plain-text user content that clients linkify (profile texts, messages,
       descriptions), clients send the detected http/https URLs (≤ 50) and render the returned hrefs
-      (spec 17 AC-47). Mobile shows the same warning dialog before opening the system browser. See the
-      D2 handoff question on whether this client-side signing is acceptable.
+      (spec 17 AC-47). Mobile shows the same warning dialog before opening the system browser. Anyone may sign
+      any http/https URL, so a signature proves nothing about who made the link; this is acceptable **only**
+      because the interstitial rules of `verifyOutboundLink` are mandatory (never redirects by itself, full
+      punycode-decoded destination with the host prominent, http/https only, noindex; SEC-19). Server-side
+      linkified text is preferred for stored content.
     tags: [SEO]
     security: [{}, {userBearer: []}, {userCookie: []}]
     x-permission: {audience: optional-user, ownership: none}

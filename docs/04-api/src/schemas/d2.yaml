@@ -73,7 +73,7 @@ CategoryTree:
 
 CategoryDetail:
   type: object
-  description: A category page (spec 03 AC-3, AC-4). `description`, `contentTop` and `contentBottom` are the SEO texts (sanitised HTML for the two content blocks).
+  description: A category page (spec 03 AC-3, AC-4). `description`, `contentTop` and `contentBottom` are the SEO texts (sanitised HTML, profile `staff_content`, CONVENTIONS §19, for the two content blocks).
   required: [id, slug, path, depth, name, description, contentTop, contentBottom, contentLocale, hasEnglish, icon, image, breadcrumb, children, updatedAt]
   properties:
     id: {$ref: '../components/schemas.yaml#/Uuid'}
@@ -181,10 +181,10 @@ CategoryCreateRequest:
       oneOf: [{$ref: '#/CategoryDescriptionInput'}, {type: 'null'}]
     contentTop:
       oneOf: [{$ref: '../components/schemas.yaml#/LocalizedString'}, {type: 'null'}]
-      description: SEO text above the list (sanitised HTML).
+      description: SEO text above the list (sanitised HTML, profile `staff_content`, CONVENTIONS §19).
     contentBottom:
       oneOf: [{$ref: '../components/schemas.yaml#/LocalizedString'}, {type: 'null'}]
-      description: SEO text below the list (sanitised HTML).
+      description: SEO text below the list (sanitised HTML, profile `staff_content`, CONVENTIONS §19).
     iconFileId:
       oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
       description: A `ready` `category_image` file from `adminCreateFileUpload` (top level only).
@@ -607,7 +607,7 @@ Gig:
   type: object
   description: |
     The gig page (spec 04 AC-26). Text fields are resolved in the request language with Georgian
-    fallback (`contentLocale`, AC-27). `description` is sanitised HTML. `status` is `active` for
+    fallback (`contentLocale`, AC-27). `description` is sanitised HTML (profile `user_text`, CONVENTIONS §19). `status` is `active` for
     everyone except the owner, who may also receive `pending` (banner `t_this_gig_not_activated_yet`,
     AC-28) or `rejected`.
   required: [id, uid, slug, status, title, description, contentLocale, hasEnglish, category, subcategory, childCategory, price, deliveryDays, revisionsAllowed, upgrades, faqs, thumbnail, images, documents, seller, isFeatured, rating, ordersInQueueCount, seoTitle, seoDescription, publishedAt, updatedAt, viewer]
@@ -682,7 +682,7 @@ GigTitleInput:
         en: {type: [string, 'null'], minLength: 3, maxLength: 100}
 
 GigDescriptionInput:
-  description: Gig description per language, formatted text (bold, italic, lists, line breaks), sanitised on save, at least 10 characters of text (spec 04 AC-4). Same letter rules as the title (AC-5, AC-6), checked on the text without formatting.
+  description: Gig description per language, formatted text (bold, italic, lists, line breaks), sanitised on save with profile `user_text` (CONVENTIONS §19), at least 10 characters of text (spec 04 AC-4). Same letter rules as the title (AC-5, AC-6), checked on the text without formatting.
   allOf:
     - $ref: '../components/schemas.yaml#/LocalizedString'
     - type: object
@@ -1303,7 +1303,7 @@ PageLinkList:
 PageDetail:
   type: object
   description: |
-    A public CMS page (spec 17 AC-6, AC-7, AC-11, AC-46). `content` is sanitised HTML (allowed
+    A public CMS page (spec 17 AC-6, AC-7, AC-11, AC-46). `content` is sanitised HTML (CONVENTIONS §19 profile `staff_content`; allowed
     elements of AC-8; external links already point to the signed `/redirect`, AC-47). For
     `terms-of-service` and `privacy-policy`, `showsStaffChatReviewClause` is true: clients render the
     template section `t_staff_review_section_title` + `t_terms_clause_staff_chat_review` and
@@ -1375,7 +1375,7 @@ AdminPageList:
 
 PageCreateRequest:
   type: object
-  description: Either `content` or `externalUrl` (http/https only, AC-7) is set. Content is sanitised on save to the allowed elements of AC-8 (headings, paragraphs, lists, links, bold/italic, tables, images from the public media library).
+  description: Either `content` or `externalUrl` (http/https only, AC-7) is set. Content is sanitised on save (CONVENTIONS §19, profile `staff_content`) to the allowed elements of AC-8 (headings, paragraphs, lists, links, bold/italic, tables, images from the public media library).
   required: [slug, title]
   properties:
     slug: {$ref: '#/PageSlug'}
@@ -1449,7 +1449,7 @@ BlogArticle:
     id: {$ref: '../components/schemas.yaml#/Uuid'}
     slug: {type: string}
     title: {type: string}
-    content: {type: string, description: Sanitised HTML.}
+    content: {type: string, description: 'Sanitised HTML (profile `staff_content`, CONVENTIONS §19).'}
     excerpt: {type: string, maxLength: 200}
     cover:
       oneOf: [{$ref: '../components/schemas.yaml#/ImageVariants'}, {type: 'null'}]
@@ -1546,7 +1546,9 @@ BlogArticleCreateRequest:
       $ref: '#/BlogArticleStatus'
       default: draft
     title: {$ref: '../components/schemas.yaml#/LocalizedString'}
-    content: {$ref: '../components/schemas.yaml#/LocalizedString'}
+    content:
+      $ref: '../components/schemas.yaml#/LocalizedString'
+      description: Rich text per language, sanitised on save (profile `staff_content`, CONVENTIONS §19; spec 17 R-C3).
     seoTitle:
       oneOf: [{$ref: '../components/schemas.yaml#/LocalizedString'}, {type: 'null'}]
     seoDescription:
@@ -1562,7 +1564,9 @@ BlogArticleUpdateRequest:
     slug: {$ref: '#/PageSlug'}
     status: {$ref: '#/BlogArticleStatus'}
     title: {$ref: '../components/schemas.yaml#/LocalizedString'}
-    content: {$ref: '../components/schemas.yaml#/LocalizedString'}
+    content:
+      $ref: '../components/schemas.yaml#/LocalizedString'
+      description: Rich text per language, sanitised on save (profile `staff_content`, CONVENTIONS §19; spec 17 R-C3).
     seoTitle:
       oneOf: [{$ref: '../components/schemas.yaml#/LocalizedString'}, {type: 'null'}]
     seoDescription:

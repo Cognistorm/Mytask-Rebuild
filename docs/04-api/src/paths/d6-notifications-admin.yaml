@@ -302,11 +302,19 @@
       Mobile posts `app_open` and `screen_view`; the Next.js server posts `page_view` for web requests
       (ADR-012 §1). The API enriches on its own server: user agent → device, OS, browser (bots dropped);
       IP → country and city from the local GeoIP database or the edge country header; the IP itself is
-      kept only as a daily-salted hash and never sent to any third party (spec 16 AC-67, Q-055). When
-      the web server forwards a visitor's event it authenticates as the web app and passes the visitor
-      IP/UA in trusted proxy headers (configuration, ADR-015). Server events (registration, login, gig
-      view, order paid…) are recorded by the API itself. Raw events are kept 90 days, daily aggregates
-      permanently.
+      kept only as a daily-salted hash and never sent to any third party (spec 16 AC-67, Q-055).
+      **Client IP (normative, ADR-013 §14–§19, SEC-01):** for app and browser calls the IP is the one Caddy
+      sets in `X-MyTask-Client-IP` (trusted only from Caddy); the edge country comes only from Caddy's
+      `X-MyTask-Client-Country`. When the Next.js server posts a visitor's `page_view`, it calls the API on
+      the internal network (not through Caddy) and passes the visitor's IP and user agent in
+      `X-MyTask-Visitor-IP` / `X-MyTask-Visitor-UA` together with `X-MyTask-Service-Auth` (the
+      `INTERNAL_SERVICE_TOKEN` from `.env`). The API accepts those headers only with a valid credential and
+      only from the internal network, never through Caddy (which strips them); otherwise they are ignored
+      and the caller's own address is used. `X-Forwarded-For` and `CF-*` headers are never read. Server
+      events (registration, login, gig view, order paid…) are recorded by the API itself. Raw events are
+      kept 90 days, daily aggregates permanently.
+      Rate limit: 120 requests per minute per client IP (for Next.js calls with a valid credential: per
+      visitor IP), batches of at most 50 events.
     tags: [Analytics]
     security: [{}, {userBearer: []}, {userCookie: []}]
     x-permission:
@@ -314,6 +322,7 @@
       ownership: none; a signed-in caller's user id is attached to the events
     x-covers: ['16 AC-66', '16 AC-67']
     x-jobs: [analytics-rollup]
+    x-rate-limit: 120 requests / 1 min per client IP (ADR-013 §14–§19; per visitor IP for credentialed Next.js calls)
     requestBody:
       required: true
       content:
@@ -342,8 +351,10 @@
       account `active` with a password set. Every failure answers `401 STAFF_LOGIN_FAILED` and counts
       towards the IP ban. When S-060 is ON and the device is not trusted (trigger S-124, trust S-059), the
       answer is `202` with an email-code challenge (EV-06; spec 01 AC-29); otherwise `200` with the
-      session (host-only cookies, 12-hour session). The device id is a long-lived host-only cookie on
-      `admin.mytask.ge` set by the API.
+      session (host-only cookies `__Host-mt_staff_at`, `__Secure-mt_staff_rt`, 12-hour session). The device id
+      is the long-lived host-only cookie `__Host-mt_staff_did` on `admin.mytask.ge` set by the API. The IP for
+      the ban is the client IP of ADR-013 §14–§19 (a spoofed forwarding header cannot move or cause a ban).
+      In production no tokens are returned in the body (SEC-17, `AdminAuthSession`).
     tags: [Admin Auth]
     security: []
     x-permission:
@@ -381,14 +392,22 @@
   post:
     operationId: adminVerifyTwoFactor
     summary: Complete staff login with the emailed code
-    description: 'Correct code within S-057 → session and the device (and IP) trusted for S-059 days (spec 01 AC-29, AC-23 rules). Errors: 422 `STAFF_TWO_FACTOR_CODE_INVALID`, `STAFF_TWO_FACTOR_CODE_EXPIRED`, `STAFF_TWO_FACTOR_TOO_MANY_ATTEMPTS` (S-058); 404 unknown challenge.'
+    description: |
+      Correct code within S-057 → session and the device (and IP) trusted for S-059 days (spec 01 AC-29, AC-23
+      rules). Errors: 422 `STAFF_TWO_FACTOR_CODE_INVALID`, `STAFF_TWO_FACTOR_CODE_EXPIRED`,
+      `STAFF_TWO_FACTOR_TOO_MANY_ATTEMPTS` (S-058); 404 unknown challenge.
+      Cap across challenges (ADR-002 §5, SEC-03): 10 wrong codes for one staff account within one hour (login
+      and re-authentication codes together) → code checks refused for S-063 minutes with
+      `429 STAFF_TWO_FACTOR_LOCKED`, and the staff member is emailed; every wrong login code also counts as a
+      failed staff login towards the S-064 IP ban.
     tags: [Admin Auth]
     security: []
     x-permission:
       audience: public
       notes: bound to the challenge of a correct password
     x-covers: ['16 AC-2', '01 AC-29']
-    x-settings: [S-057, S-058, S-059]
+    x-settings: [S-057, S-058, S-059, S-063, S-064]
+    x-rate-limit: 'S-058 wrong codes per challenge; 10 wrong codes per staff account per hour across challenges → blocked S-063 minutes (STAFF_TWO_FACTOR_LOCKED); wrong codes count towards the S-064 IP ban'
     x-audit: staff.login
     requestBody:
       required: true
@@ -402,8 +421,10 @@
           application/json:
             schema: {$ref: '../schemas/d6.yaml#/AdminAuthSession'}
       '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
       '404': {$ref: '../components/responses.yaml#/NotFound'}
       '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+      '429': {$ref: '../components/responses.yaml#/TooManyRequests'}
 
 /admin/auth/2fa/resend:
   parameters:
@@ -441,7 +462,7 @@
   post:
     operationId: adminRefreshSession
     summary: Refresh the staff access token
-    description: Rotates the refresh token (`mt_staff_rt` cookie or body). Reuse of an old refresh token revokes the session family (ADR-002 §1). Never extends the session beyond 12 hours after login (spec 16 AC-2); disabled staff get 401.
+    description: Rotates the refresh token (`__Secure-mt_staff_rt` cookie or body). Reuse of an old refresh token revokes the session family (ADR-002 §1). Never extends the session beyond 12 hours after login (spec 16 AC-2); disabled staff get 401.
     tags: [Admin Auth]
     security: []
     x-permission:
@@ -493,7 +514,12 @@
       Confirms the password, or the emailed 2FA code when S-060 is ON (get it with
       `adminRequestReauthCode`), and opens a 15-minute window in which operations marked
       `x-permission.stepUp` run (spec 16 AC-7, `t_reauth_required`). Without it those operations answer
-      `403 REAUTH_REQUIRED`. Errors: 422 `STAFF_CURRENT_PASSWORD_WRONG`, `STAFF_TWO_FACTOR_CODE_*`.
+      `403 REAUTH_REQUIRED`. The window is stored against this **session id**, not the staff account: other
+      sessions of the same staff member do not inherit it, and it ends with the session (ADR-002 §6).
+      Throttle (SEC-04): wrong passwords and codes count per staff account; after S-062 within 15 minutes
+      every password/code check of the account answers `429 RATE_LIMITED` (`t_too_many_login_attempts`)
+      for S-063 minutes; wrong codes also count towards the SEC-03 cap (`429 STAFF_TWO_FACTOR_LOCKED`).
+      Errors: 422 `STAFF_CURRENT_PASSWORD_WRONG`, `STAFF_TWO_FACTOR_CODE_*`; 429.
     tags: [Admin Auth]
     security:
       - staffBearer: []
@@ -503,7 +529,8 @@
       permission: '@self'
       ownership: own session only
     x-covers: ['16 AC-7']
-    x-settings: [S-060]
+    x-settings: [S-060, S-062, S-063]
+    x-rate-limit: 'S-062 wrong passwords or codes per staff account in 15 minutes → password/code checks refused for S-063 minutes (429 RATE_LIMITED, SEC-04)'
     x-audit: staff.reauth
     requestBody:
       required: true
@@ -715,7 +742,7 @@
   post:
     operationId: adminChangeMyPassword
     summary: Change own password (with the current password)
-    description: 'Spec 16 AC-6. Other sessions of the staff member end, the current one stays, trusted devices are forgotten. Errors: 400 `VALIDATION_FAILED` (R-A2, confirmation); 422 `STAFF_CURRENT_PASSWORD_WRONG`.'
+    description: 'Spec 16 AC-6. Other sessions of the staff member end (deny-listed at once), the current one stays, trusted devices are forgotten. Throttle (SEC-04): wrong current passwords count per staff account with the re-authentication checks; after S-062 within 15 minutes → `429 RATE_LIMITED` for S-063 minutes. Errors: 400 `VALIDATION_FAILED` (R-A2, confirmation); 422 `STAFF_CURRENT_PASSWORD_WRONG`; 429.'
     tags: [Admin Auth]
     security:
       - staffBearer: []
@@ -725,6 +752,8 @@
       permission: '@self'
       ownership: self
     x-covers: ['16 AC-6']
+    x-settings: [S-062, S-063]
+    x-rate-limit: 'S-062 wrong passwords or codes per staff account in 15 minutes → password/code checks refused for S-063 minutes (429 RATE_LIMITED, SEC-04)'
     x-audit: staff.password.change
     requestBody:
       required: true
@@ -736,6 +765,7 @@
       '400': {$ref: '../components/responses.yaml#/BadRequest'}
       '401': {$ref: '../components/responses.yaml#/Unauthorized'}
       '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+      '429': {$ref: '../components/responses.yaml#/TooManyRequests'}
 
 /admin/me/email-change:
   parameters:
@@ -2683,7 +2713,19 @@
   post:
     operationId: adminCreateMaintenancePreviewLink
     summary: Link that lets this browser preview the public site during maintenance
-    description: 'Any signed-in staff member (spec 16 AC-70 "staff logged in to the admin"): a one-time link (about 5 minutes) that sets a host-only bypass cookie for this browser only, valid at most until the staff session ends. No shared secret (P-112). Refused with `409 STATE_CONFLICT` when maintenance is OFF.'
+    description: |
+      Any signed-in staff member (spec 16 AC-70 "staff logged in to the admin"). No shared secret (P-112).
+      Refused with `409 STATE_CONFLICT` when maintenance is OFF. Rules (P2-B5 item 2, SEC-24):
+      - The link carries a random token of at least 128 bits. Only its SHA-256 hash is stored (Redis), bound
+        to the creating staff member's **session id**; it is **single-use** and valid **5 minutes**.
+      - Opening the link on `mytask.ge` consumes the token, sets the bypass cookie and immediately redirects
+        (303) to the same path **without the token**, so the token does not leak through `Referer`, history or
+        logs (the proxy and API loggers also redact the token parameter).
+      - The bypass cookie is HttpOnly, Secure, SameSite=Lax, host-only (`__Host-mt_preview`), holds a new
+        random value whose hash is bound server-side to the staff session id, and stops working when that
+        session ends (logout, expiry, revocation, staff disabled) or maintenance is switched OFF.
+      - It grants only the maintenance bypass for public pages and user API calls of that browser: no staff
+        rights and no user rights.
     tags: [Admin System]
     security:
       - staffBearer: []

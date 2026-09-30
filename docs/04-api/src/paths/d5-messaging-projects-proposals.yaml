@@ -65,13 +65,16 @@
       AC-2). A **new** conversation with a banned, deleted, restricted or pending account is refused with
       `422 CONVERSATION_RECIPIENT_UNAVAILABLE` (`t_user_cannot_receive_messages`); an existing one is
       returned read-only (AC-3, P-69).
+      Anti-abuse limit (SEC-23, CONVENTIONS §14): at most 20 **new** conversations (answers `201`) per user per
+      hour; opening an existing one (`200`) is not counted.
       Errors: 403 ACCOUNT_RESTRICTED; 404 NOT_FOUND (unknown username, project not visible to the
-      caller); 422 CONVERSATION_RECIPIENT_UNAVAILABLE.
+      caller); 422 CONVERSATION_RECIPIENT_UNAVAILABLE; 429 RATE_LIMITED.
     tags: [Conversations]
     x-permission:
       audience: user
       ownership: none (any active user may open a conversation with any other active or verified user, R-M1)
     x-covers: ['08 AC-1', '08 AC-2', '08 AC-3', '08 AC-4']
+    x-rate-limit: 20 new conversations per user per hour; returning an existing one is not counted (SEC-23)
     requestBody:
       required: true
       content:
@@ -93,6 +96,7 @@
       '403': {$ref: '../components/responses.yaml#/Forbidden'}
       '404': {$ref: '../components/responses.yaml#/NotFound'}
       '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+      '429': {$ref: '../components/responses.yaml#/TooManyRequests'}
 
 /conversations/lookup:
   parameters:
@@ -759,12 +763,15 @@
       (`t_u_cannot_report_ur_own_projects`); a second report by the same user while the first is not yet
       reviewed gets `409 DUPLICATE` (`t_u_already_reported_this_project`). Guests get 401 (clients show
       `t_pls_login_or_register_report_project`). Success text `t_we_have_received_bid_report_success`.
+      Anti-abuse limit (SEC-23, CONVENTIONS §14): 10 reports per user per hour across the four report
+      operations → `429 RATE_LIMITED`.
     tags: [Projects]
     x-permission:
       audience: user
       ownership: any logged-in user except the project owner
     x-covers: ['10 AC-22']
     x-notifications: [EV-60]
+    x-rate-limit: 10 reports per user per hour, shared by createUserReport, createGigReport, createProjectReport and createProposalReport (SEC-23)
     requestBody:
       required: true
       content:
@@ -781,6 +788,7 @@
       '403': {$ref: '../components/responses.yaml#/Forbidden'}
       '404': {$ref: '../components/responses.yaml#/NotFound'}
       '409': {$ref: '../components/responses.yaml#/Conflict'}
+      '429': {$ref: '../components/responses.yaml#/TooManyRequests'}
 
 /projects/{projectId}/proposals:
   parameters:
@@ -1059,12 +1067,15 @@
       `adminListReports`); `Admin/BidReported` (EV-65) goes to every S-100 address. The author gets
       `403 FORBIDDEN` (`t_u_cannot_report_ur_own_bids`); a second unreviewed report by the same user
       `409 DUPLICATE` (`t_u_already_reported_this_bid`). Success `t_we_have_received_bid_report_success`.
+      Anti-abuse limit (SEC-23, CONVENTIONS §14): 10 reports per user per hour across the four report
+      operations → `429 RATE_LIMITED`.
     tags: [Proposals]
     x-permission:
       audience: user
       ownership: a user who can see the proposal (owner, Premium), except its author; others get 404
     x-covers: ['11 AC-15']
     x-notifications: [EV-65]
+    x-rate-limit: 10 reports per user per hour, shared by createUserReport, createGigReport, createProjectReport and createProposalReport (SEC-23)
     requestBody:
       required: true
       content:
@@ -1081,6 +1092,7 @@
       '403': {$ref: '../components/responses.yaml#/Forbidden'}
       '404': {$ref: '../components/responses.yaml#/NotFound'}
       '409': {$ref: '../components/responses.yaml#/Conflict'}
+      '429': {$ref: '../components/responses.yaml#/TooManyRequests'}
 
 # ═════════════════════════ Awards (spec 11 AC-16…AC-24) ═════════════════════════
 /awards:
@@ -1522,7 +1534,8 @@
       `conversation`). Staff reads never mark messages as seen and staff are never participants.
       Permission: `chat.read`; for `refund` threads `refunds.thread.write` is accepted instead (spec 16
       AC-40, P-114: support staff read and write refund threads) — exactly one of them is checked,
-      chosen by the conversation kind (see handoff).
+      chosen by the stored conversation kind (see handoff). Every kind is listed in the map; a kind that is
+      not in the map is denied (`403`), never given a fallback (ADR-010 §2, P2-B5 item 13).
     tags: [Admin Conversations]
     security: [{staffBearer: []}, {staffCookie: []}]
     x-permission:
@@ -1530,7 +1543,7 @@
       permission: chat.read
       permissionBy:
         attribute: kind of the conversation
-        map: {refund: refunds.thread.write}
+        map: {direct: chat.read, order_item: chat.read, project: chat.read, custom_offer: chat.read, refund: refunds.thread.write}
       ownership: none
     x-covers: ['08 AC-29', '08 AC-30', '16 AC-38', '16 AC-65', '06 AC-41']
     x-audit: conversation.open
@@ -1574,7 +1587,7 @@
       permission: chat.read
       permissionBy:
         attribute: kind of the conversation
-        map: {refund: refunds.thread.write}
+        map: {direct: chat.read, order_item: chat.read, project: chat.read, custom_offer: chat.read, refund: refunds.thread.write}
       ownership: none
     x-covers: ['08 AC-25', '08 AC-29', '08 AC-31', '16 AC-65']
     x-audit: conversation.read_messages

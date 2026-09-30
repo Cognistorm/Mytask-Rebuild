@@ -1,9 +1,9 @@
 # API contract conventions — binding rules for every P2-B4 run
-Status: **binding** for everyone who changes the contract. Written 2026-09-29 by the solution-architect (P2-B4 part 1, foundation); **updated by the integration run (P2-B4 part 3, 2026-09-29)**: new shared schemas (§2.1), `PageNumber` (§2.2, §8.1), one `permissionBy` rule and `stepUpFor` (§6.1), the `@self` exception for the Owner (§6.3), checker rules (§13), restricted-user uploads for appeals (§15). After the Owner approves the contract, changes need an ADR and a handoff (CLAUDE.md).
+Status: **binding** for everyone who changes the contract. Written 2026-09-29 by the solution-architect (P2-B4 part 1, foundation); **updated by the integration run (P2-B4 part 3, 2026-09-29)**: new shared schemas (§2.1), `PageNumber` (§2.2, §8.1), one `permissionBy` rule and `stepUpFor` (§6.1), the `@self` exception for the Owner (§6.3), checker rules (§13), restricted-user uploads for appeals (§15). **Updated after the P2-B5 security review (2026-09-30)**: exact-origin CSRF rule for every unsafe non-Bearer request and JSON content type (§6.1, SEC-14); `permissionBy` denies unmapped values (§6.1, item 13); BOG callback flood hardening (§10, SEC-10); client IP and per-account throttles (§14, SEC-01…SEC-04, SEC-23); the one rich-text sanitiser (§19, SEC-22). After the Owner approves the contract, changes need an ADR and a handoff (CLAUDE.md).
 Sources: CLAUDE.md, ADR-002, 003, 004, 005, 006, 007, 009, 010, 014, 016, `architecture.md` §5, `data-model.md`, `url-map.md`, specs 00…17.
 If this document and an ADR disagree, the ADR wins; write the conflict in your handoff (do not silently choose).
 
-Contents: 1 Workflow and files · 2 Shared components · 3 Naming · 4 Ownership map · 5 Cross-group rules · 6 Security and `x-permission` · 7 Errors · 8 Pagination, filters, sorting · 9 Money and idempotency · 10 BOG webhook pattern · 11 i18n · 12 Coverage and `x-covers` · 13 Tooling and lint · 14 Rate limits · 15 Files · 16 Realtime · 17 Other extensions · 18 Group-run checklist
+Contents: 1 Workflow and files · 2 Shared components · 3 Naming · 4 Ownership map · 5 Cross-group rules · 6 Security and `x-permission` · 7 Errors · 8 Pagination, filters, sorting · 9 Money and idempotency · 10 BOG webhook pattern · 11 i18n · 12 Coverage and `x-covers` · 13 Tooling and lint · 14 Rate limits and client IP · 15 Files · 16 Realtime · 17 Other extensions · 18 Group-run checklist · 19 Rich text (sanitised HTML)
 
 ---
 
@@ -91,7 +91,7 @@ Responses: `BadRequest` 400, `Unauthorized` 401, `Forbidden` 403, `NotFound` 404
 Headers: `XRequestId`, `RetryAfter`, `IdempotentReplayed`, `ContentLanguage`, `Location`, `ETag`.
 
 ### 2.4 Security schemes (`openapi.base.yaml`)
-`userBearer` (JWT `aud=user`), `userCookie` (`mt_at`), `staffBearer` (JWT `aud=staff`), `staffCookie` (`mt_staff_at`). Refresh cookies: `mt_rt` (path `/api/v1/auth`), `mt_staff_rt` (path `/api/v1/admin/auth`). Copy-paste blocks: §6.2.
+`userBearer` (JWT `aud=user`), `userCookie` (`__Host-mt_at`), `staffBearer` (JWT `aud=staff`), `staffCookie` (`__Host-mt_staff_at`). Refresh cookies: `__Secure-mt_rt` (path `/api/v1/auth`), `__Secure-mt_staff_rt` (path `/api/v1/admin/auth`). Copy-paste blocks: §6.2.
 
 ---
 
@@ -262,10 +262,10 @@ x-permission:
 - **404 vs 403**: if a non-party must not learn that a private resource exists (orders, offers, conversations, files, hidden/pending items of others), answer `404`. Use `403` when the resource is visible but the action is not allowed (owner reporting own gig, plan/toggle/restriction refusals).
 - `@self`: staff acting only on their own session/profile (`adminGetMe`, own profile edit, `adminReauthenticate`, `adminLogout`, own file status). Spec 16 AC-9 requires one permission per admin operation; `@self` is the documented exception for these (§6.3, Owner question D6-Q1).
 - Staff mutations that change nothing (pure computations such as `adminPreviewFeeRule`) carry `x-audit-exempt: <reason>` instead of `x-audit`; `check-contract` refuses a staff POST/PUT/PATCH/DELETE with neither.
-- **One permission per call (spec 16 AC-9) — the one rule.** Every staff operation checks exactly one catalogue permission. Usually it is fixed (`permission`). Where the resource decides which screen's permission applies, `permissionBy: {attribute, map}` selects that one permission from **one** attribute of the request or resource; values not in `map` use `permission`. There are no "either/or" permissions. Uses: `adminCreateFileUpload` (by upload purpose), `adminUpdateSetting` / `adminRestoreSettingVersion` (by the register row's settings area), `adminGetConversation` / `adminListConversationMessages` (by conversation kind: refund threads need `refunds.thread.write`, all other kinds `chat.read` — Owner question Q-D5-4). `check-contract` validates every map value against the catalogue.
+- **One permission per call (spec 16 AC-9) — the one rule.** Every staff operation checks exactly one catalogue permission. Usually it is fixed (`permission`). Where the resource decides which screen's permission applies, `permissionBy: {attribute, map}` selects that one permission from **one** attribute of the request or resource. The map lists **every** allowed value explicitly; a value that is not in `map` is **denied** (`403 FORBIDDEN`), never mapped to a fallback (P2-B5 item 13). `permission` must be one of the map values (it is the value shown by tools that read only one name). There are no "either/or" permissions. Uses: `adminCreateFileUpload` (by upload purpose; purposes outside the map are also refused with `422 FILE_PURPOSE_MISMATCH`), `adminUpdateSetting` / `adminRestoreSettingVersion` (by the register row's settings area), `adminGetConversation` / `adminListConversationMessages` (by conversation kind: refund threads need `refunds.thread.write`, the other four kinds `chat.read` — Owner question Q-D5-4). `check-contract` validates every map value against the catalogue and that `permission` is a map value.
 - `stepUpFor: [S-nnn…]` is row-conditional step-up for the generic settings write (spec 16 AC-7 names S-065…S-069, S-100, S-110, S-127); it replaces `stepUp` there and also requires 403.
 - Every staff mutation writes the audit log; declare it with `x-audit: <action>` (e.g. `withdrawal.mark_paid`). Sensitive staff reads (conversation open, KYC file, exports, secret status) also carry `x-audit`.
-- CSRF: cookie sessions need `X-MyTask-Client` + same-site `Origin` on unsafe methods (global; do not add per operation).
+- CSRF (ADR-002 §2, SEC-14; global, do not add per operation): **every** POST/PUT/PATCH/DELETE that is not authenticated with `Authorization: Bearer` — including the public auth operations that read or set cookies (`register`, `login`, 2FA verify/resend, `refreshSession`, `logout`, social start/callback, password and email links, and the `/admin/auth/*` ones) — needs `X-MyTask-Client` and, when it carries a cookie, is a `web`/`admin` client or has an `Origin` header, an `Origin` **exactly equal** to the origin of the host it was sent to (`https://mytask.ge` or `https://admin.mytask.ge`; never a same-site or suffix match, because `admin.` and `staging.` are same-site). Else `403 CSRF_CHECK_FAILED`. Bodies are `application/json` (else `400 VALIDATION_FAILED`, field code `unsupported_content_type`); the only exception is the RFC 8058 one-click form POST of `unsubscribeNotificationEmail`. Webhooks never read cookies.
 - Login/refresh/2FA operations are `public` (they issue tokens). Staff login is `public` on `/admin/auth/*` (the only non-staff audience allowed under `/admin`).
 
 ### 6.2 Copy-paste security blocks
@@ -374,7 +374,8 @@ Rules the D3 run must write into the operation:
 4. Processing **always** calls BOG's payment details (`getPaymentDetails`) and applies the payment only if BOG reports it paid for the same order, amount and currency; then one DB transaction: payment CAS `pending → paid`, journal `bog:{bogOrderId}:paid` (unique), business effect; otherwise `paid_unapplied` to the wallet (spec 05 AC-15). Replays are no-ops (AC-14).
 5. A worker reconciles pending card payments after 5 minutes (ADR-004 §4) — covered as `API+JOB`/`NOT-API:job` rows with `getPayment` exposing the state.
 6. Return URLs (`/payments/{id}/result`, `mytask://payments/{id}/result`) only poll `getPayment` (spec 05 AC-11).
-7. `x-rate-limit` not applied to BOG's IPs; maintenance mode does not block it (spec 16 AC-70).
+7. Maintenance mode does not block it (spec 16 AC-70). Rate limit (ADR-004 §3, SEC-10): BOG's confirmed callback ranges are exempt; other sources 60 requests/min per IP (600/min per IP for everyone while BOG's ranges are unconfirmed) → `429`.
+8. **Flood hardening (ADR-004 §3, SEC-10).** Body cap 64 KB (refused before parsing, not stored). Our payment is looked up by the BOG order id **before** any BOG call: unknown ids never call BOG and are never queued (capped log, at most 100 stored `unknown_order` events per hour, then a counter and one alert per hour); payments that are no longer `created`/`pending` are stored for staff and not queued; pending payments queue one job with id `bog-verify:{paymentId}` (dedupe shared with the reconciliation and "Check status").
 
 ---
 
@@ -432,16 +433,19 @@ The integration run runs `npm run verify:final`, which writes `coverage/SUMMARY.
 
 ---
 
-## 14. Rate limits
+## 14. Rate limits and client IP
+- **Client IP (normative, ADR-013 §14–§19, SEC-01).** Every "per IP" key below and in any `x-rate-limit`, every IP ban check, session/device/audit IP and analytics hash uses the one client IP resolved by the API's `ClientIpResolver`: the canonical header `X-MyTask-Client-IP` set by Caddy, trusted **only** when the TCP peer is Caddy (`TRUSTED_PROXY_IPS`); Caddy itself trusts `CF-Connecting-IP` only from Cloudflare's ranges and strips every client-sent forwarding header; the origin accepts traffic only from Cloudflare (or Caddy uses the TCP peer when there is no Cloudflare). The Next.js servers may pass a visitor IP/UA (`X-MyTask-Visitor-IP` / `-UA`) only with `X-MyTask-Service-Auth` = `INTERNAL_SERVICE_TOKEN` on the internal network, never through Caddy. `X-Forwarded-For`, `X-Real-IP`, `CF-*` are never read by the API. There are no "trusted proxy headers" other than these.
 - Declare throttled operations with `x-rate-limit: '<limit> per <key>'` and a `429` response. Use the spec's numbers and register rows: login throttling S-062/S-063 (per account + IP), staff IP ban S-064, 2FA resend (60 s cooldown, 5 per 15 min, spec 01 R-A6), email-sending endpoints (spec 01 R-A9 fixed limits), contact form / newsletter / reports (spec 17 / 02 / 04), chat send (spec 08), uploads (60 / 10 min per user, foundation).
+- **Per-account auth throttles (ADR-002 §5–§6, P2-B5).** (a) `login`: besides S-062 per account + IP, a per-account counter across all IPs → slow mode (20 failures/hour → 1 attempt per 30 s, `429 AUTH_LOGIN_THROTTLED`, no hard lock; SEC-02). (b) 2FA code checks (`verifyTwoFactorLogin`, `adminVerifyTwoFactor`, code re-authentication): 10 wrong codes per account per hour across all challenges → `429 TWO_FACTOR_LOCKED` / `STAFF_TWO_FACTOR_LOCKED` for S-063 minutes (SEC-03). (c) In-session password or code checks (`updateMe`, `changeMyPassword`, `updateMyTwoFactor`, `revokeMyOtherSessions`, `putPayoutDetails`, `adminReauthenticate`, `adminChangeMyPassword`): S-062 wrong answers per account in 15 minutes → further checks refused for S-063 minutes, `429 RATE_LIMITED` with `messageKey t_too_many_login_attempts` (SEC-04). The numbers 20/30 s/10 are technical constants until spec 01 makes them register rows.
+- **Per-user anti-abuse limits (SEC-23; technical defaults, constants in code):** new conversations (`createConversation` answering `201`) 20 per hour per user; `createCustomOfferRequest` 20 per hour per user; the four report operations (`createGigReport`, `createUserReport`, `createProjectReport`, `createProposalReport`) together 10 per hour per user. Over the limit → `429 RATE_LIMITED` with `Retry-After`.
 - Global defaults (not declared per operation): 600 requests/min per user or IP for reads, 120/min for writes; staff 1,200/min. Exceeding them gives `429 RATE_LIMITED` with `Retry-After`.
-- Webhooks and health are not rate-limited per user.
+- Health is not rate-limited. Webhooks are not rate-limited per user; the BOG callback has the per-IP rule of §10.
 
 ## 15. Files (ADR-009; foundation operations in `src/paths/f0-files.yaml`)
 - Upload: `createFileUpload` (purpose, name, size, type, optional `context`) → presigned POST → client uploads → `completeFileUpload` → scan → `ready` (event `file.processed`). Staff public media: `adminCreateFileUpload`.
 - Attach by id: request bodies carry `fileId` / `fileIds` (only `ready` files of the caller with the matching purpose; else `422 FILE_NOT_READY` / `FILE_PURPOSE_MISMATCH`).
 - Show: public images as `ImageVariants`; private files as `Attachment`, downloaded by users via `getFileDownload` (404 for non-parties) and by staff via the owner's `/admin/<resource>/{id}/files/{fileId}/download` (§4.2).
-- Restricted users (ADR-002 §4) may use `createFileUpload`, `completeFileUpload`, `getFile` and `deleteFile` **only for purpose `appeal_file`** (spec 01 AC-47); any other purpose → `403 ACCOUNT_RESTRICTED` (these four operations have audience `restricted-user` with that note).
+- Restricted users (ADR-002 §4) may use `createFileUpload`, `completeFileUpload`, `getFile` and `deleteFile` **only for purpose `appeal_file`** (spec 01 AC-47); any other purpose → `403 ACCOUNT_RESTRICTED` (these four operations have audience `restricted-user` with that note). The purpose and permission checks run **before** a presigned POST is issued, and `completeFileUpload` re-checks the purpose stored on the file (ADR-009 §3, P2-B5 item 12).
 - Purposes are the shared `FilePurpose` enum; limits come from the register (S-037…S-040, S-077…S-099) — cite the rows in `x-settings`.
 
 ## 16. Realtime (ADR-007) — `docs/04-api/realtime.md`
@@ -474,3 +478,23 @@ Background jobs are never HTTP endpoints (ADR-008, R-010/R-011/R-031): no "run j
 5. `npm run verify:group -- Dn` → PASSED with 0 errors.
 6. Never invent business rules: unclear or contradictory spec text → describe it in your handoff (the orchestrator adds it to `docs/01-discovery/open-questions.md`); cover the AC with the safest reading and mark the row's reason "see handoff Q".
 7. Handoff `docs/handoffs/2026-09-29-solution-architect-to-orchestrator-p2-b4-dN.md` (CLAUDE.md format) with: operations count, coverage totals, reserved operations written, **Requests to the integration run** (shared schema changes, new reserved ops, new prefixes, new file purposes, cross-group x-covers the other group should add), open questions.
+
+---
+
+## 19. Rich text (sanitised HTML) — the one sanitiser (SEC-22)
+Every field described as "sanitised HTML" or "formatted text" is cleaned by **one server-side allow-list sanitiser** (a single module in `apps/api`, configured from one allow-list file in the shared package `packages/rich-text`, Phase 3). It runs **on every write** and in the **Phase 5 migration ETL** for every legacy HTML value (data-model §12.1). Web and mobile renderers use the same allow-list (web renders only API output; mobile passes the same list to its HTML renderer). Nothing else may render stored HTML.
+
+| Profile | Fields | Allowed elements |
+|---|---|---|
+| `user_text` | gig description (spec 04 AC-4) | `p`, `br`, `strong`, `b`, `em`, `i`, `ul`, `ol`, `li` |
+| `user_text_links` | order details / requirements (spec 06 AC-13, P-48) | `user_text` + `a` |
+| `staff_content` | CMS pages and blog articles (spec 17 AC-8, R-C3), category SEO texts `contentTop`/`contentBottom` (spec 03) | `h2`…`h6`, `p`, `br`, `strong`, `b`, `em`, `i`, `ul`, `ol`, `li`, `a`, `table`, `thead`, `tbody`, `tr`, `th`, `td`, `img` |
+
+Rules for every profile:
+- Everything not allowed is removed (element kept as text where it wraps text); comments, `script`, `style`, `iframe`, `object`, `embed`, `svg`, `math`, `form`, `input`, `button`, `base`, `meta`, `link` are dropped **with** their content.
+- Attributes: only `href` on `a`; `src`, `alt`, `width`, `height` on `img`; `colspan`, `rowspan` on `th`/`td`. No `style`, `class`, `id`, `target`, event handlers (`on*`) or `data-*`.
+- `href` schemes: `http`, `https` (plus `mailto` in `staff_content`; relative site paths only in `staff_content`). Anything else (`javascript:`, `data:`, `vbscript:`, protocol-relative `//`) removes the link, keeping its text. URLs are checked after entity decoding and whitespace/control-character stripping.
+- `img src` (`staff_content` only) must start with `PUBLIC_MEDIA_BASE_URL` (the public media library); other images are removed.
+- Links: links in the `user_*` profiles get `rel="nofollow ugc noopener noreferrer"`; `staff_content` gets `rel="noopener"`. External links in `staff_content` are rewritten to the signed `/redirect` interstitial (spec 17 AC-47); links in user text are rendered through the same interstitial by clients.
+- Length and letter rules of the owning spec are checked on the text content after sanitising.
+- Tests: an XSS corpus (OWASP cheat-sheet vectors, mutation-XSS cases) runs against the sanitiser and against both renderers in Phase 3.

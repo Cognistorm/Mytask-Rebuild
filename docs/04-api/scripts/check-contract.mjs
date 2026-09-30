@@ -79,6 +79,8 @@ for (const { path: p, method, op, item } of operations(doc)) {
         } else {
           perms.push(...Object.values(pb.map));
           if (perm.permission === '@self' || Object.values(pb.map).includes('@self')) r.error(`${where}: '@self' cannot be combined with permissionBy`);
+          // unmapped values are denied, never given a fallback (P2-B5 item 13): `permission` must be one of the map values
+          if (perm.permission && perm.permission !== '@self' && !Object.values(pb.map).includes(perm.permission)) r.error(`${where}: with permissionBy, x-permission.permission must be one of the map values (unmapped values are denied, CONVENTIONS §6.1)`);
         }
       }
       for (const x of perms.filter(Boolean)) if (x !== '@self' && !catalogue.has(x)) r.error(`${where}: staff permission "${x}" is not in the spec 16 catalogue (ownership.yaml staffPermissions)`);

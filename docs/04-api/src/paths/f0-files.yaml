@@ -14,7 +14,9 @@
       (and `context`, e.g. only the freelancer of an escrow may upload a `delivery`), validates the
       declared size and type against the purpose's register rows (S-077…S-099, S-037…S-040), creates a
       `pending` file and returns a presigned POST limited to one `quarantine/` key, the declared content
-      type and a size range. The client uploads directly to storage, then calls `completeFileUpload`.
+      type and a size range (`content-length-range`). **Every purpose and permission check (including the
+      restricted-user rule: only `appeal_file`) runs before the presigned POST is created**; a refused
+      request gets no storage URL or credential (ADR-009 §3, P2-B5 item 12). The client uploads directly to storage, then calls `completeFileUpload`.
       Unused pending files are deleted by a cleanup job after 24 hours.
     tags: [Files]
     x-permission:
@@ -101,7 +103,9 @@
       Step 2 of the upload flow. Queues the scan job (magic bytes, size, ClamAV, image re-encoding with
       EXIF removal, ADR-009 §3.5). Returns the file in status `scanning`; poll `getFile` or wait for the
       realtime event `file.processed` (realtime.md). Idempotent: calling it again for a file already
-      `scanning`/`ready` returns the current state.
+      `scanning`/`ready` returns the current state. The purpose stored on the file is re-checked against
+      the caller's current state (a restricted caller may complete only `appeal_file`, else
+      `403 ACCOUNT_RESTRICTED`; ADR-009 §3, P2-B5 item 12).
     tags: [Files]
     x-permission:
       audience: restricted-user

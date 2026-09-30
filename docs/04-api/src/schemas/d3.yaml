@@ -860,7 +860,7 @@ PayoutDetails:
       description: Migrated legacy free text, shown read-only as `t_previous_payout_details` until structured details are saved (AC-2).
     hasPasswordConfirmation:
       type: boolean
-      description: True when saving needs `currentPassword` (false for accounts without a password, spec 02 AC-29).
+      description: True when saving needs `currentPassword`; false for accounts without a password, which confirm with an emailed `payout_details` code instead (`challengeId` + `code`, SEC-05, ADR-002 §5).
     isUsable:
       type: boolean
       description: Holder + IBAN, or migrated text → withdrawals allowed (AC-4).
@@ -883,6 +883,13 @@ PayoutDetailsPutRequest:
       type: [string, 'null']
       maxLength: 200
       description: Required when `PayoutDetails.hasPasswordConfirmation` is true (P-63).
+    challengeId:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+      description: Required when `hasPasswordConfirmation` is false — a `payout_details` challenge from D1 `createMyTwoFactorChallenge` (SEC-05).
+    code:
+      type: [string, 'null']
+      pattern: '^[0-9]{6}$'
+      description: The emailed code of `challengeId`.
 
 PayoutDetailsSnapshot:
   type: object

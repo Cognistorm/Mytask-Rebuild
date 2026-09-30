@@ -1,5 +1,5 @@
 # Realtime contract (Socket.IO) — MyTask.ge API
-Status: complete (P2-B4 integration run, 2026-09-29): §6 lists every event of `src/events/d1.yaml … d6.yaml` (34 group events + the foundation `file.processed`). Not yet approved by the Owner.
+Status: complete (P2-B4 integration run, 2026-09-29): §6 lists every event of `src/events/d1.yaml … d6.yaml` (34 group events + the foundation `file.processed`). Updated 2026-09-30 after the P2-B5 security review: §2 exact-origin handshake, deny-list on every revocation, client IP (SEC-01, SEC-14, SEC-16); §3.1 per-socket limits and staff room recomputation (SEC-26). Not yet approved by the Owner.
 Source decisions: ADR-007 (realtime chat and notifications), ADR-014 §7 (events documented next to the contract), ADR-002 (auth).
 
 ## 1. The rule: REST writes, socket notifies
@@ -14,10 +14,11 @@ Source decisions: ADR-007 (realtime chat and notifications), ADR-014 §7 (events
 | Public URL | `wss://mytask.ge/ws` (Socket.IO path `/ws`), local `ws://localhost:3000/ws` |
 | Admin URL | `wss://admin.mytask.ge/ws` (staff tokens only) |
 | Transport | WebSocket only (`transports: ['websocket']`), no long-polling (no sticky sessions needed, ADR-007) |
-| Auth — web | the `mt_at` / `mt_staff_at` cookie sent with the handshake; `Origin` must be the site origin |
+| Auth — web | the `__Host-mt_at` / `__Host-mt_staff_at` cookie sent with the handshake; `Origin` must **exactly equal** the origin of the host (`https://mytask.ge` or `https://admin.mytask.ge`; no same-site matching, ADR-002 §2) |
 | Auth — mobile | `io(url, { auth: { token: '<access token>' } })` |
 | Token expiry | the server emits `session.expired` and disconnects; the client refreshes (`refreshSession`) and reconnects |
-| Banned / restricted | a revoked session (Redis deny-list, ADR-002 §1) is disconnected at once with `session.revoked` |
+| Revoked sessions | **every** revoked session (logout, password change/reset, "log out other sessions", session revoke, ban, deletion, staff disable; Redis deny-list, ADR-002 §1) is refused at the handshake and disconnected at once with `session.revoked` |
+| Client IP | the handshake uses the same `ClientIpResolver` as HTTP (canonical header from Caddy only, ADR-013 §14–§19) |
 | Scaling | Socket.IO Redis adapter; any API process can emit to any room |
 
 ## 3. Rooms (who receives what)
@@ -29,6 +30,11 @@ Source decisions: ADR-007 (realtime chat and notifications), ADR-014 §7 (events
 | `staff-permission:{permission}` | automatically, one room per permission the staff member holds | admin queue counters (spec 16 AC-17) |
 
 Client → server emits are limited to: `conversation.join`, `conversation.leave`, `typing.start {conversationId}`, `typing.stop {conversationId}`, `presence.heartbeat` (every 60 s while the app is in the foreground; "online" = active in the last 10 minutes, BR-012). All other client emits are ignored.
+
+### 3.1 Implementation notes for the gateway (P2-B5, SEC-26)
+- **Per-socket emit limits** (token bucket in the gateway, Redis-backed per user so several sockets share it): `typing.start`/`typing.stop` at most 1 per 2 seconds per conversation (extra emits are dropped silently); `conversation.join` at most 30 per minute and at most 50 joined conversation rooms per socket (over the limit → ack `{ ok: false, code: 'RATE_LIMITED' }`); `presence.heartbeat` at most 1 per 30 seconds (extra ignored). A socket that exceeds 5× any limit within one minute is disconnected; the client reconnects with back-off. The limits apply per user as well as per socket.
+- **Staff permission rooms are recomputed.** When a staff member's roles change (`adminReplaceStaffRoles`), or a role's permissions change (`adminUpdateRole`), the gateway emits `admin.permissions_changed` and then **disconnects every socket of the affected staff members**; on reconnect the `staff-permission:{permission}` rooms are rebuilt from the current permissions. A disabled staff member's sessions are revoked, so their sockets are dropped through the deny-list. Room membership is never taken from the client.
+- The handshake and every join re-check the session against the deny-list (ADR-002 §1).
 
 ## 4. Declaring events (group runs)
 Each group declares the events its operations emit in its own file `docs/04-api/src/events/d<n>.yaml` (never another group's file):

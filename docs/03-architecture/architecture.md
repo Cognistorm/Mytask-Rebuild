@@ -2,6 +2,8 @@
 Status: **proposed** (waiting for Owner review) | Author: solution-architect (P2-B1) | Date: 2026-09-28
 
 > **Revised 2026-09-28** (P2-B2/B3 step) to match the Owner answers Q-081, Q-082, Q-084, Q-085, Q-086, Q-087 and the adjusted P-4, together with the revised ADR-002, ADR-004, ADR-008, ADR-013 and ADR-016. Changed: §7.1 (2FA trigger S-124, staff 2FA S-060), §7.4 (final account list in data-model.md), §7.6 (fresh 72h when auto-release is switched back ON), §7.12 (S-110), §7.15 (standard BOG structure; Premium by card in the apps) and the ADR index.
+> **Revised 2026-09-30** after the P2-B5 security review (`docs/06-qa/security/00-blueprint-2026-09-30.md`), with ADR-002, 004, 009, 010, 012, 013 and 015. Changed: §7.1 (prefixed host-only cookies, exact-origin CSRF for every unsafe cookie-capable request, deny-list on every revocation, per-account login/2FA/re-auth throttles, client-bound social login), §7.11 (read-only Bull Board), §7.12 (S-110 trust boundary and kill switch), §7.14 and new §7.16 (client IP chain, ADR-013 §14–§19).
+
 Inputs: `docs/00-vision.md`, `docs/01-discovery/*`, Owner answers Q-002…Q-080 in `docs/01-discovery/open-questions.md` (authoritative), approved `docs/02-specs/00-platform-rules.md` (S-001…S-122, P-1…P-13), `docs/05-design/audit.md`.
 Decisions are recorded one per ADR in `docs/03-architecture/adr/` (ADR-001…ADR-016). This document ties them together. If this document and an ADR disagree, the ADR wins and this document gets fixed.
 
@@ -245,14 +247,16 @@ Same container images in every environment; only `.env` differs. Configuration i
 
 ### 7.1 Authentication and sessions (ADR-002)
 - One auth module issues tokens for all clients: **access token** = signed JWT (EdDSA/Ed25519), 15 minutes, audience `user` or `staff`; **refresh token** = opaque random 256-bit value, stored hashed in a `sessions` table, rotated on every use, with reuse detection (a reused refresh token revokes the whole session family).
-- Web: tokens in `HttpOnly; Secure; SameSite=Lax` cookies on `mytask.ge` (refresh cookie path-scoped to `/api/v1/auth`). State-changing cookie-authenticated requests must carry a custom header (`X-MyTask-Client: web`) and a matching `Origin` (CSRF defence). The Next.js server reads the cookie and forwards it as a Bearer header for SSR.
+- Web: tokens in host-only `HttpOnly; Secure; SameSite=Lax` cookies on `mytask.ge` named `__Host-mt_at`, `__Host-mt_did` and `__Secure-mt_rt` (refresh cookie path-scoped to `/api/v1/auth`). Every unsafe request that is not Bearer-authenticated, including login, register, 2FA, refresh, logout and the social callback, must carry a custom header (`X-MyTask-Client: web`) and an `Origin` **exactly equal** to the host's origin, and JSON bodies (CSRF defence, ADR-002 §2). The Next.js server reads the cookie and forwards it as a Bearer header for SSR.
 - Mobile: tokens in `expo-secure-store` (Keychain / Keystore), sent as `Authorization: Bearer`.
 - Staff: separate `staff` accounts (legacy `admins`), separate audience, host-only cookies on `admin.mytask.ge`, shorter refresh lifetime.
 - **Legacy passwords (vision "must not break"):** legacy bcrypt `$2y$10$…` hashes are migrated unchanged with `algo = bcrypt_legacy`. At login the API verifies with bcrypt (the `$2y$` prefix is normalised to `$2b$`, which is the same algorithm), and on success re-hashes the password with Argon2id and stores it. Users never notice. Social-only users (null password) log in through their provider or set a password through reset.
 - **One login pipeline** for password, social and 2FA: every path ends in the same `issueSession()` that checks status (banned / pending / trashed), restriction and IP ban (fixes R-020).
 - Email 2FA (Q-043, Q-063, Q-072, S-056…S-060, S-124): after a correct password, if 2FA applies and the device is not trusted, the API returns `202 {challengeId}` and emails a 6-digit code (hashed in DB, 10 min, 5 attempts). A successful code marks the device (and its IP) trusted for 30 days. **When** a code is asked is the admin setting S-124 `auth.two_factor.trigger` (Q-082): `new_device` (default: new or expired device only) or `new_device_or_ip` (also on a new IP). Staff 2FA is the admin toggle S-060 (default ON, never hard-coded; P-4 as adjusted by the Owner) and uses the same trigger rule.
-- Login throttling S-062/S-063 (per account + IP) and reCAPTCHA S-061 on web; mobile uses throttling plus the same reCAPTCHA-compatible challenge only when the risk score requires it (detail in spec 01).
-- Logout revokes the session; "active sessions" (legacy `/account/sessions`) lists `sessions` rows and can revoke them; password change revokes all other sessions.
+- Login throttling S-062/S-063 (per account + IP) and reCAPTCHA S-061 on web; mobile uses throttling plus the same reCAPTCHA-compatible challenge only when the risk score requires it (detail in spec 01). Added by P2-B5 (ADR-002 §5–§6): a per-account counter across all IPs with a slow mode instead of a hard lock (SEC-02), a per-account cap on wrong 2FA codes across challenges (SEC-03), and a per-account throttle on every in-session password or code check, including staff re-authentication (SEC-04). The IP used by every rule comes from §7.16.
+- Logout revokes the session; "active sessions" (legacy `/account/sessions`) lists `sessions` rows and can revoke them; password change revokes all other sessions. Every revoked session id goes to a Redis deny-list, so it stops working at once (SEC-16).
+- Social login is bound to the client that started it: a host-only binding cookie on web, an app-held PKCE verifier and a verified https App Link on mobile (ADR-002 §7, SEC-09); providers stay OFF until this is built.
+- Staff: the admin host is cookie-only in production (no tokens in bodies, SEC-17); the step-up window is bound to the session id.
 
 ### 7.2 Authorization and staff RBAC (ADR-010)
 - Users: every user is buyer and freelancer (Q-013). Rules are checks in API **policies** per resource: ownership (e.g. only the project owner may pay a project, fixes R-018), state (e.g. revision allowed only if revisions remain, P-2), plan (Premium for proposals, Q-020, fixes R-019), feature toggles (AC-11).
@@ -331,7 +335,7 @@ PostgreSQL full-text (`simple` configuration, because PostgreSQL has no Georgian
 - Logs go to stdout (collected by Docker). Warnings and errors are also written to a `system_log` table (30-day retention) so staff with `system.logs.read` can view them **inside the admin panel only** (Q-054). No log file exists under any served directory.
 - Error tracking: Sentry-compatible SDK in api, web, admin and mobile (self-hosted GlitchTip or Sentry's free tier; PII scrubbing on; DSN in `.env`). Optional, off locally.
 - Health: `/api/v1/health` (liveness, no details) and an internal readiness port (DB, Redis, storage reachability). Uptime monitoring from outside (ADR-015).
-- Queue dashboard (Bull Board) mounted inside the admin API area, permission `system.queues.read`.
+- Queue dashboard (Bull Board) mounted inside the admin API area on `admin.mytask.ge` only, in **read-only mode** (no retry, clean or remove), under the admin CSP and CSRF rules, permission `system.health.read` (spec 16 catalogue "job health, queues"; ADR-015 §6, SEC-20). Work is retried only through audited contract operations.
 - Money alarms: reconciliation job results, stuck payment intents, failed renewals are sent to the admin recipients (S-100).
 
 ### 7.12 Strict web-root isolation (ADR-013, Q-054)
@@ -339,7 +343,7 @@ PostgreSQL full-text (`simple` configuration, because PostgreSQL has no Georgian
 - Next.js serves only its build output and its `public/` folder (images, fonts, robots.txt). The API serves no static files.
 - `.env`, logs, source, `package.json`, Prisma schema and migrations are not inside any container path that is served. Containers run as non-root with a read-only root filesystem where possible.
 - Removed by design: `/update`, `/tasks/queue`, `/tasks/schedule`, `/te`, installer, web log viewer (X-20). Database migrations run as a deploy step (`prisma migrate deploy`), never from a URL.
-- S-110 custom HTML/JS is kept (Q-085): Super-admin only, rendered only on public web pages (never on auth pages, dashboards, checkout, inbox, the admin app or the mobile app), with its script hosts allow-listed in the CSP of public pages (ADR-013 §7).
+- S-110 custom HTML/JS is kept (Q-085): Super-admin only, rendered only on public web pages (never on auth pages, dashboards, checkout, inbox, the admin app or the mobile app), with its script hosts allow-listed in the CSP of public pages (ADR-013 §7). Allowed hosts are inside the trust boundary (a script from them can act as the signed-in visitor); whether tag-manager-style hosts may be listed is an Owner question (SEC-11). S-110 `enabled = false` is the incident kill switch.
 
 ### 7.13 Secrets (ADR-013, Q-041, Q-042)
 - All keys (BOG, SendGrid, reCAPTCHA, JWT signing keys, settings-encryption key, storage keys, Sentry DSN, GeoIP licence) live in `.env` (git-ignored); only the names are in `.env.example`.
@@ -348,7 +352,7 @@ PostgreSQL full-text (`simple` configuration, because PostgreSQL has no Georgian
 - The legacy keys found in code (BOG R-001, Binance R-002, Pusher and findip R-003) must be **rotated or revoked** by the Owner/host before cutover; the new system never uses the old values (Pusher and findip are not used at all).
 
 ### 7.14 Analytics without third-party IP lookup (ADR-012)
-First-party events (page view from Next.js middleware/SSR, app open/screen view from mobile, registration) are posted to the API; the API parses the user agent locally (device, browser, OS), looks up country/city in a **local GeoIP database file** (no IP leaves the server), stores only country/city and a daily-salted hash of the IP (for unique visitor counts), and rolls up daily aggregates for the admin dashboard (registrations, country/city, device, browser). findip.net and ip-api.com are gone (Q-055, R-040).
+The visitor IP used here comes only from the client-IP chain of §7.16. First-party events (page view from Next.js middleware/SSR, app open/screen view from mobile, registration) are posted to the API; the API parses the user agent locally (device, browser, OS), looks up country/city in a **local GeoIP database file** (no IP leaves the server), stores only country/city and a daily-salted hash of the IP (for unique visitor counts), and rolls up daily aggregates for the admin dashboard (registrations, country/city, device, browser). findip.net and ip-api.com are gone (Q-055, R-040).
 
 ### 7.15 Payments with BOG (ADR-004, ADR-016)
 - Standard BOG structure taken from the legacy code (OAuth token, create order → hosted page, payment details/receipt, save card, charge saved card), without over-engineering (Q-087). One `PaymentProvider` interface with clean hooks (`createPayment`, `getPaymentDetails`, `verifyCallback`, `chargeSavedCard`, `deleteSavedCard`), implemented by `BogPaymentProvider`; `tools/bog-mock` implements the same HTTP shapes for local development and tests. The lead developer finalises the signature, sandbox and endpoint details against the official BOG documentation (ADR-004 table).
@@ -358,6 +362,20 @@ First-party events (page view from Next.js middleware/SSR, app open/screen view 
 - Withdrawals: `PayoutProvider` interface with `manual` (admin marks paid, S-033 default) now and `bog_payout` later (Q-029).
 - Bank transfer (S-021 OFF): an `offline` method whose payments are confirmed by staff with permission `payments.offline.approve`.
 - Mobile apps: service payments (gigs, projects, offers, top-ups) **and Premium (Q-081)** use the same BOG hosted page in an in-app browser, returning through `https://mytask.ge/app-return/payments/{id}` → `mytask://payments/{id}/result` (url-map §7). Selling Premium by card inside the store apps carries an app-store review risk; the fallback is S-126 `subscriptions.mobile_card_purchase.enabled` (ON by default; OFF hides the card purchase in the apps only; points stay) (ADR-016).
+- The public BOG callback is hardened against floods: 64 KB body cap, our payment is looked up before any BOG call, unknown and final payments never call BOG, one verification job per payment (ADR-004 §3, SEC-10).
+
+### 7.16 Client IP chain (ADR-013 §14–§19, SEC-01)
+Every per-IP control (login counters, IP bans, email limits, global limits, sessions, audit, analytics) uses one client IP obtained in one way:
+```mermaid
+flowchart LR
+  V[Visitor] --> CF[Cloudflare]
+  CF -->|80/443, origin firewall allows only Cloudflare ranges| C[Caddy]
+  C -->|strips client forwarding headers, sets X-MyTask-Client-IP| A[API]
+  W[Next.js web/admin server] -->|internal network, X-MyTask-Visitor-IP only with X-MyTask-Service-Auth| A
+```
+- Caddy trusts only Cloudflare's ranges and reads `CF-Connecting-IP` only from them (without Cloudflare: the TCP peer); it removes `X-Forwarded-For`, `X-Real-IP`, `Forwarded`, `CF-*` and our own `X-MyTask-*` IP headers sent by clients and sets the canonical `X-MyTask-Client-IP`.
+- The API reads `X-MyTask-Client-IP` only when the TCP peer is Caddy (`TRUSTED_PROXY_IPS`); `trust proxy` is off.
+- The Next.js servers pass a visitor IP only with the `INTERNAL_SERVICE_TOKEN` credential, only on the internal network; there is no IP exemption for the web container.
 
 ---
 
@@ -433,7 +451,7 @@ R-031 unscheduled crons → worker sweeper with monitoring (ADR-008). R-032 awar
 | [010](adr/010-admin-app-and-staff-rbac.md) | Separate `apps/admin` on `admin.mytask.ge` using the same API; staff accounts; code-defined permission catalogue, data-defined roles, deny-by-default guard, append-only audit log |
 | [011](adr/011-search-and-premium-ranking.md) | PostgreSQL full-text (`simple`) + `pg_trgm` over `search_documents`; one ranking function including the Q-069 Premium boost (rule from spec 03); `SearchProvider` interface for a later Meilisearch |
 | [012](adr/012-analytics-without-third-party-ip-lookup.md) | First-party events; local UA parsing and local GeoIP file (GeoLite2/DB-IP); daily-salted IP hash only; aggregates for the admin dashboard; findip/ip-api removed |
-| [013](adr/013-web-root-isolation-and-secrets.md) | Containers with Caddy as the only public entry, nothing from the repo served as files, no HTTP maintenance endpoints, empty production CORS; secrets only in `.env`/host secret store, boot validation, gitleaks, legacy keys rotated at the final production deployment (Q-086); S-110 custom code kept for the Super-admin on public pages only (Q-085) |
+| [013](adr/013-web-root-isolation-and-secrets.md) | Containers with Caddy as the only public entry, nothing from the repo served as files, no HTTP maintenance endpoints, empty production CORS; secrets only in `.env`/host secret store, boot validation, gitleaks, legacy keys rotated at the final production deployment (Q-086); S-110 custom code kept for the Super-admin on public pages only (Q-085); normative client-IP chain (Cloudflare-only origin, Caddy canonical header, API trusts only Caddy, credentialed SSR visitor IP; §14–§19, SEC-01) |
 | [014](adr/014-api-contract-first-and-generated-clients.md) | OpenAPI 3.1 written first; `openapi-typescript` + `openapi-fetch` generate `packages/types` and `packages/api-client`; request/response validation in tests; Redocly lint + oasdiff in CI; `/api/v1` with additive changes only |
 | [015](adr/015-environments-hosting-and-observability.md) | Local docker compose → staging → production on one VPS + S3-compatible storage + Cloudflare; GitHub Actions deploys; nightly encrypted backups + WAL archiving; Sentry-compatible errors, health checks, money alarms |
 | [016](adr/016-mobile-payments-and-store-rules.md) | All payments in the app via BOG, **including Premium (Q-081)**; app-store billing risk documented; S-126 switches the in-app card purchase of Premium off without an app release; store billing provider possible later |

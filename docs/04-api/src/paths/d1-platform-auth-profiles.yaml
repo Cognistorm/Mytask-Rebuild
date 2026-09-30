@@ -140,6 +140,8 @@
       A valid `referralCode` stores a pending referral; D3's referral service credits the referrer's points
       exactly once when the account becomes active (spec 09 AC-23, journal ref
       `referral:{referredUserId}:signup`), so this operation is not an `x-money` operation (see D1 handoff).
+      All four activation paths (`register`, `verifyEmail`, `completeSocialLogin`, `adminActivateUser`) call
+      the same `ReferralService.creditSignup` inside the activation transaction (ADR-002 §4).
       reCAPTCHA is checked while S-061 is ON (AC-18). The account `locale` is taken from `Accept-Language`.
       Web: session cookies are set; mobile: tokens in the body (`AuthSession`).
     tags: [Auth]
@@ -181,7 +183,14 @@
         (same answer, AC-11, AC-15); `403 ACCOUNT_PENDING` with `details.verificationMethod` (AC-13);
         `403 ACCOUNT_SUSPENDED` (AC-14); `429 AUTH_LOGIN_LOCKED` after S-062 failures per account + IP within
         15 minutes, for S-063 minutes, even with the right password (AC-16, AC-17); `400 VALIDATION_FAILED`
-        field `recaptchaToken` (AC-18). A successful login resets the counter.
+        field `recaptchaToken` (AC-18). A successful login resets the counters.
+      - Per-account counter across all IPs (ADR-002 §6, SEC-02): after 20 failed logins for one account within
+        one hour, from any IPs, the account is in **slow mode** for the rest of that hour: one attempt per
+        30 seconds is evaluated, others get `429 AUTH_LOGIN_THROTTLED` (`details.retryAfterSeconds`); web
+        requires `recaptchaToken` for that account while S-061 is ON; the owner gets one security email per
+        hour (NEW, to be added to spec 15). No hard lock: the right password still works in slow mode.
+      - The client IP is the one resolved per ADR-013 §14–§19. An unknown email still costs one hash
+        verification (no timing difference, SEC-25). Legacy hashes: `$2y$`, `$2a$`, `$2b$` (ADR-002 §3).
       Web: `rememberMe` (default true) makes the refresh cookie persistent (AC-10).
     tags: [Auth]
     security: []
@@ -189,7 +198,7 @@
     x-covers: ['01 AC-10', '01 AC-11', '01 AC-12', '01 AC-13', '01 AC-14', '01 AC-15', '01 AC-16', '01 AC-17', '01 AC-18', '01 AC-22', '01 AC-24', '01 AC-28']
     x-settings: [S-056, S-057, S-059, S-061, S-062, S-063, S-124]
     x-notifications: [EV-06]
-    x-rate-limit: 'S-062 failed attempts per account + IP in 15 minutes → lock S-063 minutes (AUTH_LOGIN_LOCKED); global write limit per IP'
+    x-rate-limit: 'S-062 failed attempts per account + IP in 15 minutes → lock S-063 minutes (AUTH_LOGIN_LOCKED); 20 failures per account (any IP) per hour → 1 attempt per 30 s for that account (AUTH_LOGIN_THROTTLED, no hard lock); global write limit per IP'
     parameters:
       - $ref: '../components/parameters.yaml#/XMyTaskClient'
     requestBody:
@@ -226,11 +235,16 @@
       `TWO_FACTOR_CODE_EXPIRED` (AC-26), `TWO_FACTOR_TOO_MANY_ATTEMPTS` after S-058 wrong codes (AC-25); an
       unknown or already used challenge → `404`. Account status is checked again (a ban in between →
       `403 ACCOUNT_SUSPENDED`).
+      Cap across challenges (ADR-002 §5, SEC-03): 10 wrong codes for one account within one hour, over any
+      number of challenges and purposes → code checks for that account are refused for S-063 minutes with
+      `429 TWO_FACTOR_LOCKED` (`details.retryAfterSeconds`), even for a correct code; the owner gets one
+      security email (NEW, to be added to spec 15).
     tags: [Auth]
     security: []
     x-permission: {audience: public}
     x-covers: ['01 AC-22', '01 AC-23', '01 AC-25', '01 AC-26', '01 AC-30']
-    x-settings: [S-057, S-058, S-059, S-124]
+    x-settings: [S-057, S-058, S-059, S-063, S-124]
+    x-rate-limit: 'S-058 wrong codes per challenge; 10 wrong codes per account per hour across all challenges → code checks blocked S-063 minutes (TWO_FACTOR_LOCKED); global write limit per IP'
     parameters:
       - $ref: '../components/parameters.yaml#/XMyTaskClient'
     requestBody:
@@ -290,7 +304,7 @@
     operationId: refreshSession
     summary: Rotate the refresh token and get a new access token
     description: |
-      Web sends the `mt_rt` cookie (path `/api/v1/auth`), mobile sends `refreshToken` in the body. The refresh
+      Web sends the `__Secure-mt_rt` cookie (path `/api/v1/auth`), mobile sends `refreshToken` in the body. The refresh
       token is rotated; presenting an already used one revokes the whole session family (theft detection,
       ADR-002 §1) → `401`. A revoked, expired or ended session → `401 UNAUTHENTICATED` (go to login); a session
       ended by a ban → `403 ACCOUNT_SUSPENDED` (spec 01 AC-45). Mobile stays signed in until logout (AC-10);
@@ -323,7 +337,7 @@
     operationId: logout
     summary: Log out (end the current session)
     description: |
-      Ends the current session on the server (access token `sid` deny-listed, refresh token revoked, web
+      Ends the current session on the server (access token `sid` deny-listed at once, refresh token revoked, web
       cookies cleared) so the device can no longer call the API with it (spec 01 AC-42). On mobile the push
       token of this installation is removed as well (spec 15 AC-21, D6 push tokens): the app sends its
       `installationId` (the same id as `putPushToken`) so one call ends both. Allowed for restricted
@@ -350,7 +364,8 @@
     summary: Confirm the email address with the verification link
     description: |
       For a `pending` account and a valid, unexpired link: status becomes `active`, the email is marked
-      verified, the link is deleted, the pending referral is processed by D3 (spec 09 AC-23), and the answer
+      verified, the link is deleted, the pending referral is processed by D3's `ReferralService.creditSignup`
+      (spec 09 AC-23, the same call as the other activation paths, ADR-002 §4), and the answer
       carries `t_ur_account_has_been_successfully_verified_email`; the client then shows the login screen
       (spec 01 AC-7). No session is created. Expired → `422 AUTH_LINK_EXPIRED`
       (`t_verification_email_link_expired`, show the resend form); unknown/used → `422 AUTH_LINK_INVALID`
@@ -542,16 +557,26 @@
     operationId: startSocialLogin
     summary: Start a social login (authorization URL with PKCE)
     description: |
-      OAuth 2.0 authorization code + PKCE (ADR-002 §7). The API keeps the PKCE verifier, the `state` and an
-      optional `?ref=` referral code (spec 01 AC-38, P-17) and returns the provider URL. A provider that is
-      disabled or has no saved keys → `403 FEATURE_DISABLED` with `details.settingId` (AC-37). Web opens the
-      URL in the same tab (callback page `/auth/{provider}/callback`), mobile in the system browser
-      (`expo-auth-session`).
+      OAuth 2.0 authorization code + PKCE (ADR-002 §7). The API stores a single-use `state` (random, hashed,
+      10 minutes) with the provider, client kind, redirect URI and an optional `?ref=` referral code (spec 01
+      AC-38, P-17) and returns the provider URL. A provider that is disabled or has no saved keys →
+      `403 FEATURE_DISABLED` with `details.settingId` (AC-37).
+      **The flow is bound to the client that starts it (SEC-09):**
+      - Web (`X-MyTask-Client: web`): the API keeps the PKCE verifier and sets the binding cookie
+        `__Host-mt_oauth` (HttpOnly, Secure, SameSite=Lax, host-only, 10 minutes) whose nonce is stored with
+        `state`. Web opens the URL in the same tab (callback page `/auth/{provider}/callback`).
+      - Mobile (`ios`/`android`): the app generates the PKCE pair and sends `codeChallenge` (S256, required,
+        else `400 VALIDATION_FAILED`); it keeps the verifier and sends it to `completeSocialLogin`. The app
+        opens the URL in the system browser (`expo-auth-session`); `redirectUri` is the verified https App Link
+        `https://mytask.ge/app-return/auth/{provider}` wherever the provider allows it (url-map §7).
+      Every provider stays OFF (S-065…S-069) until this binding is implemented and reviewed.
     tags: [Auth]
     security: []
     x-permission: {audience: public, toggles: [S-065, S-066, S-067, S-068, S-069], notes: 'the toggle of the requested provider only'}
     x-covers: ['01 AC-37', '01 AC-38']
     x-settings: [S-065, S-066, S-067, S-068, S-069]
+    parameters:
+      - $ref: '../components/parameters.yaml#/XMyTaskClient'
     requestBody:
       required: true
       content:
@@ -577,8 +602,13 @@
     operationId: completeSocialLogin
     summary: Finish a social login (exchange the code)
     description: |
-      The client forwards `code` and `state` from the provider's redirect; the API exchanges the code and runs
-      the same login pipeline as `login` (ADR-002 §4):
+      The client forwards `code` and `state` from the provider's redirect. `code` + `state` alone never log
+      anyone in (SEC-09): web must also present the `__Host-mt_oauth` cookie set by `startSocialLogin` for that
+      `state`; mobile must send `codeVerifier`, whose S256 hash must equal the stored `codeChallenge`.
+      Missing or wrong binding → `422 AUTH_SOCIAL_FAILED`. The `state` is deleted at the first use (success or
+      not) and the binding cookie is cleared. The API exchanges the code (with the verifier) and runs the same
+      login pipeline as `login` (ADR-002 §4). Only provider emails marked verified may create or match an
+      account; an unverified email is treated as missing (`AUTH_SOCIAL_EMAIL_MISSING`, ADR-002 §7):
       - Account found by provider + provider user id → status checks: pending → `403 ACCOUNT_PENDING`, banned
         → `403 ACCOUNT_SUSPENDED`, deleted → `401 AUTH_INVALID_CREDENTIALS` (spec 01 AC-40, fixes R-020).
       - First login with an unregistered email → account created `active`, email verified, both roles,
@@ -589,7 +619,8 @@
       - 2FA ON and device not trusted → `202 TwoFactorChallenge` (AC-30).
       - Provider disabled or without keys → `403 FEATURE_DISABLED` (AC-37); bad/expired `state` or a refused
         code exchange → `422 AUTH_SOCIAL_FAILED`.
-      Referral points for a new active account are posted by D3 exactly once (spec 09 AC-23).
+      Referral points for a new active account are posted by D3 exactly once (spec 09 AC-23), through the
+      same `ReferralService.creditSignup` as every activation path (ADR-002 §4).
     tags: [Auth]
     security: []
     x-permission: {audience: public, toggles: [S-065, S-066, S-067, S-068, S-069], notes: 'the toggle of the requested provider only'}
@@ -631,9 +662,11 @@
       The own account summary: roles are implicit (every user is buyer and freelancer, spec 00 AC-1), plan,
       last chosen dashboard (spec 02 AC-3), 2FA switch state and availability (S-056, spec 01 AC-20),
       restriction flag. Allowed for restricted users (spec 01 AC-19): when `isRestricted` is true, web sends
-      every page to `/restricted` and mobile shows only the Restrictions screen; every other API call of the
-      user answers `403 ACCOUNT_RESTRICTED` except `getMe`, `listMyRestrictions`, `createRestrictionAppeal`,
-      the appeal-file upload, `refreshSession` and `logout`.
+      every page to `/restricted` and mobile shows only the Restrictions screen; every API call of the user
+      answers `403 ACCOUNT_RESTRICTED` except the operations whose audience is `restricted-user` (own account,
+      restrictions and appeals incl. `appeal_file` uploads, notifications, read-only views of the own wallet,
+      payments, payout details, saved cards, withdrawals, points, referrals, subscription and billing profile,
+      push-token removal, `logout`) and `refreshSession` (ADR-002 §4).
     tags: [Account]
     x-permission: {audience: restricted-user, ownership: self}
     x-covers: ['00 AC-1', '01 AC-19', '01 AC-20', '02 AC-3']
@@ -656,11 +689,19 @@
       confirmation link valid S-054 minutes goes to the new address (EV-11) and a notice to the old one
       (EV-12); `pendingEmail` is set and the client shows `t_email_change_pending` (AC-30, P-18). A new
       username moves the profile to `/profile/{new}`; the old URL returns 404 (AC-31, EC-4).
+      Accounts without a password: a new `email` needs `challengeId` + `code` of an `email_change` challenge
+      (`createMyTwoFactorChallenge`, code sent to the current address; SEC-05, ADR-002 §5); missing →
+      `VALIDATION_FAILED` field `code`; wrong code → `422 TWO_FACTOR_CODE_INVALID` (code errors as in
+      `verifyTwoFactorLogin`). Other fields need no code.
+      Throttle (SEC-04, ADR-002 §6): wrong current passwords and wrong codes count per account; after S-062
+      within 15 minutes every password/code check of the account answers `429 RATE_LIMITED`
+      (`messageKey t_too_many_login_attempts`, `details.retryAfterSeconds`) for S-063 minutes.
     tags: [Account]
     x-permission: {audience: user, ownership: self}
     x-covers: ['02 AC-29', '02 AC-30', '02 AC-31']
-    x-settings: [S-054]
+    x-settings: [S-054, S-057, S-058, S-062, S-063]
     x-notifications: [EV-11, EV-12]
+    x-rate-limit: 'S-062 wrong current passwords or codes per account in 15 minutes → every password/code check of the account refused for S-063 minutes (429 RATE_LIMITED, ADR-002 §6, SEC-04); global write limit'
     requestBody:
       required: true
       content:
@@ -675,6 +716,8 @@
       '400': {$ref: '../components/responses.yaml#/BadRequest'}
       '401': {$ref: '../components/responses.yaml#/Unauthorized'}
       '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+      '429': {$ref: '../components/responses.yaml#/TooManyRequests'}
   delete:
     operationId: deleteMe
     summary: Delete the own account (soft delete)
@@ -735,12 +778,18 @@
       password changes, `PasswordChanged` (EV-05) is sent, all **other** sessions end and the current one
       stays; trusted devices are forgotten (AC-31). Wrong current password → `VALIDATION_FAILED` field
       `currentPassword` (`t_ur_current_pass_does_not_match`). Social-only account (no password) →
-      `409 STATE_CONFLICT` (the page shows the social notice instead, EC-3).
+      `409 STATE_CONFLICT` (the page shows the social notice instead, EC-3). Ended sessions are deny-listed
+      at once (ADR-002 §1).
+      Throttle (SEC-04, ADR-002 §6): wrong current passwords and wrong codes count per account; after S-062
+      within 15 minutes every password/code check of the account answers `429 RATE_LIMITED`
+      (`messageKey t_too_many_login_attempts`, `details.retryAfterSeconds`) for S-063 minutes.
     tags: [Account]
     x-permission: {audience: user, ownership: self}
     x-covers: ['01 AC-31', '01 AC-35']
+    x-settings: [S-062, S-063]
     x-notifications: [EV-05]
     x-emits: [session.revoked]
+    x-rate-limit: 'S-062 wrong current passwords or codes per account in 15 minutes → every password/code check of the account refused for S-063 minutes (429 RATE_LIMITED, ADR-002 §6, SEC-04); global write limit'
     requestBody:
       required: true
       content:
@@ -756,6 +805,7 @@
       '401': {$ref: '../components/responses.yaml#/Unauthorized'}
       '403': {$ref: '../components/responses.yaml#/Forbidden'}
       '409': {$ref: '../components/responses.yaml#/Conflict'}
+      '429': {$ref: '../components/responses.yaml#/TooManyRequests'}
 
 /me/two-factor:
   parameters:
@@ -767,12 +817,17 @@
       Only while S-056 is ON (else `403 FEATURE_DISABLED`, spec 01 AC-20). Re-authentication first
       (AC-21, P-15): `currentPassword` for accounts with a password (wrong → `VALIDATION_FAILED` field
       `currentPassword`); social-only accounts send `challengeId` + `code` from `createMyTwoFactorChallenge`
-      (code errors as in `verifyTwoFactorLogin`). On success the choice is saved (`t_2fa_enabled` /
-      `t_2fa_disabled`); switching OFF forgets all trusted devices (AC-31).
+      (code errors as in `verifyTwoFactorLogin`, purpose `toggle_two_factor`). On success the choice is saved
+      (`t_2fa_enabled` / `t_2fa_disabled`); switching OFF forgets all trusted devices (AC-31).
+      Throttle (SEC-04, ADR-002 §6): wrong current passwords and wrong codes count per account; after S-062
+      within 15 minutes every password/code check of the account answers `429 RATE_LIMITED`
+      (`messageKey t_too_many_login_attempts`, `details.retryAfterSeconds`) for S-063 minutes.
+      Wrong codes also count towards the per-account code cap (`429 TWO_FACTOR_LOCKED`, SEC-03).
     tags: [Account]
     x-permission: {audience: user, ownership: self, toggles: [S-056]}
     x-covers: ['01 AC-20', '01 AC-21', '01 AC-31']
-    x-settings: [S-056, S-057, S-058]
+    x-settings: [S-056, S-057, S-058, S-062, S-063]
+    x-rate-limit: 'S-062 wrong current passwords or codes per account in 15 minutes → every password/code check of the account refused for S-063 minutes (429 RATE_LIMITED, ADR-002 §6, SEC-04); global write limit'
     requestBody:
       required: true
       content:
@@ -788,29 +843,43 @@
       '401': {$ref: '../components/responses.yaml#/Unauthorized'}
       '403': {$ref: '../components/responses.yaml#/Forbidden'}
       '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+      '429': {$ref: '../components/responses.yaml#/TooManyRequests'}
 
 /me/two-factor/challenges:
   parameters:
     - $ref: '../components/parameters.yaml#/AcceptLanguage'
   post:
     operationId: createMyTwoFactorChallenge
-    summary: Email a re-authentication code (social-only accounts)
+    summary: Email a re-authentication code (accounts without a password)
     description: |
-      For accounts without a password: emails a 6-digit code (EV-06, purpose `toggle_two_factor`) to confirm the
-      2FA switch (spec 01 AC-21, P-15). Accounts with a password → `409 STATE_CONFLICT` (use the password).
-      Same TTL/attempt rules (S-057, S-058) and resend limits (60 s, 5 per 15 min) as the login code.
+      For accounts without a password: emails a 6-digit code (EV-06) to the account's **current** address for
+      one `purpose` (body; default `toggle_two_factor`):
+      - `toggle_two_factor` — confirm the 2FA switch (spec 01 AC-21, P-15); only while S-056 is ON (else
+        `403 FEATURE_DISABLED`).
+      - `email_change`, `payout_details`, `revoke_sessions` — confirm `updateMe` with a new email,
+        `putPayoutDetails` and `revokeMyOtherSessions` (SEC-05 technical part, ADR-002 §5; independent of
+        S-056). The product-analyst records this in specs 02 and 14.
+      Accounts with a password → `409 STATE_CONFLICT` (use the password). Same TTL/attempt rules (S-057,
+      S-058), resend limits (60 s, 5 per 15 min) and per-account code cap (SEC-03) as the login code. A code
+      is accepted only by the operation of its purpose, once.
     tags: [Account]
-    x-permission: {audience: user, ownership: self, toggles: [S-056]}
+    x-permission: {audience: user, ownership: self, notes: 'S-056 must be ON only for purpose toggle_two_factor (403 FEATURE_DISABLED)'}
     x-covers: ['01 AC-21']
     x-settings: [S-056, S-057, S-058]
     x-notifications: [EV-06]
     x-rate-limit: '1 per 60 s and 5 per 15 min per account (R-A6)'
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d1.yaml#/TwoFactorChallengeCreateRequest'}
     responses:
       '202':
         description: Code sent.
         content:
           application/json:
             schema: {$ref: '../schemas/d1.yaml#/TwoFactorChallenge'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
       '401': {$ref: '../components/responses.yaml#/Unauthorized'}
       '403': {$ref: '../components/responses.yaml#/Forbidden'}
       '409': {$ref: '../components/responses.yaml#/Conflict'}
@@ -845,11 +914,21 @@
   post:
     operationId: revokeMyOtherSessions
     summary: Log out all other sessions
-    description: '"Log out other browser sessions" (spec 01 AC-44): with the correct current password (not asked for social-only accounts) every other session ends and the current one stays. Wrong password → `VALIDATION_FAILED` field `currentPassword` (`t_ur_current_pass_does_not_match`).'
+    description: |
+      "Log out other browser sessions" (spec 01 AC-44): with the correct current password every other session
+      ends (deny-listed at once, ADR-002 §1) and the current one stays. Wrong password → `VALIDATION_FAILED`
+      field `currentPassword` (`t_ur_current_pass_does_not_match`). Accounts without a password send
+      `challengeId` + `code` of a `revoke_sessions` challenge (SEC-05, ADR-002 §5; code errors as in
+      `verifyTwoFactorLogin`).
+      Throttle (SEC-04, ADR-002 §6): wrong current passwords and wrong codes count per account; after S-062
+      within 15 minutes every password/code check of the account answers `429 RATE_LIMITED`
+      (`messageKey t_too_many_login_attempts`, `details.retryAfterSeconds`) for S-063 minutes.
     tags: [Account]
     x-permission: {audience: user, ownership: self}
     x-covers: ['01 AC-44']
+    x-settings: [S-057, S-058, S-062, S-063]
     x-emits: [session.revoked]
+    x-rate-limit: 'S-062 wrong current passwords or codes per account in 15 minutes → every password/code check of the account refused for S-063 minutes (429 RATE_LIMITED, ADR-002 §6, SEC-04); global write limit'
     requestBody:
       required: true
       content:
@@ -864,6 +943,8 @@
       '400': {$ref: '../components/responses.yaml#/BadRequest'}
       '401': {$ref: '../components/responses.yaml#/Unauthorized'}
       '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+      '429': {$ref: '../components/responses.yaml#/TooManyRequests'}
 
 /me/dashboard/selling:
   parameters:
@@ -1259,11 +1340,14 @@
       (`200`, same report id); the first answers `201`. `Admin/ProfileReported` goes to every S-100 address
       (EV-13); the report appears in D6's reports queue. Reporting yourself → `403 FORBIDDEN`. Guests get
       `401` and the client shows `t_u_must_login_to_report_this_profile`. Unknown/hidden profile → `404`.
+      Anti-abuse limit (SEC-23, CONVENTIONS §14): 10 reports per user per hour across the four report
+      operations → `429 RATE_LIMITED`.
     tags: [Profiles]
     x-permission: {audience: user, ownership: 'any signed-in user except the profile owner'}
     x-covers: ['02 AC-14']
     x-settings: [S-100]
     x-notifications: [EV-13]
+    x-rate-limit: 10 reports per user per hour, shared by createUserReport, createGigReport, createProjectReport and createProposalReport (SEC-23)
     requestBody:
       required: true
       content:
@@ -1284,6 +1368,7 @@
       '401': {$ref: '../components/responses.yaml#/Unauthorized'}
       '403': {$ref: '../components/responses.yaml#/Forbidden'}
       '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '429': {$ref: '../components/responses.yaml#/TooManyRequests'}
 
 # ═════════════════════════════════════ Portfolio ═════════════════════════════════════
 /portfolio-items:
@@ -1690,7 +1775,8 @@
       `pending` → `active` (spec 01 AC-5, spec 16 AC-32): the user gets `AccountActivated` (EV-03) and can log
       in. A pending referral is credited now (spec 09 AC-23, P-61: staff activation credits too) — the
       referrer's points journal (`referral:{referredUserId}:signup`, posted once) makes this an `x-money`
-      operation. Not pending → `409 STATE_CONFLICT`.
+      operation. The credit goes through the same `ReferralService.creditSignup` as `register`,
+      `verifyEmail` and `completeSocialLogin` (ADR-002 §4). Not pending → `409 STATE_CONFLICT`.
     tags: [Admin Users]
     security: [{staffBearer: []}, {staffCookie: []}]
     x-permission: {audience: staff, permission: users.activate, ownership: none}
