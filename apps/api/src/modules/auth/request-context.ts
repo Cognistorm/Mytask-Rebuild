@@ -1,5 +1,6 @@
 // Per-request facts every auth operation needs: client IP (ClientIpResolver), client kind, locale, device.
 import type { Request } from 'express';
+import type { Locale } from '@mytask/types';
 import type { ClientKind } from '../../generated/prisma/client';
 import { resolveLocale, translate } from '../../platform/errors/messages';
 import { COOKIE_DEVICE } from './auth.constants';
@@ -9,7 +10,7 @@ export interface RequestContext {
   userAgent: string | undefined;
   /** From X-MyTask-Client; `web` when absent (safe: cookie-less, and CSRF rules already applied). */
   client: ClientKind;
-  locale: 'ka' | 'en';
+  locale: Locale;
   /** Raw device identifier: web cookie, or mobile `deviceToken` from the body. */
   deviceId: string | undefined;
   t: (key: string, params?: Record<string, string | number>) => string;

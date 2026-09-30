@@ -1,5 +1,6 @@
 // Email texts for the events of slice 01 (spec 15 catalogue; legacy mail classes kept their keys:
 // e.g. legacy/APP/app/Notifications/User/Everyone/VerifyEmail.php:52-60). All texts come from packages/i18n.
+import type { Locale } from '@mytask/types';
 import { translate } from '../errors/messages';
 
 export interface RenderedEmail {
@@ -10,7 +11,7 @@ export interface RenderedEmail {
 
 export interface TemplateInput {
   event: string;
-  locale: 'ka' | 'en';
+  locale: Locale;
   username: string;
   email: string;
   appUrl: string;
@@ -25,11 +26,11 @@ const esc = (s: string) =>
   );
 
 /** Georgian URLs are unprefixed, English under /en (ADR-006 §1). */
-const link = (base: string, locale: 'ka' | 'en', path: string) =>
+const link = (base: string, locale: Locale, path: string) =>
   `${base.replace(/\/$/, '')}${locale === 'en' ? '/en' : ''}${path}`;
 
 function layout(
-  locale: 'ka' | 'en',
+  locale: Locale,
   subject: string,
   greeting: string,
   lines: string[],

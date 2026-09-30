@@ -17,3 +17,9 @@ export type Money = components['schemas']['Money'];
 
 /** Operation by operationId, e.g. `Operation<'getHealth'>`. */
 export type Operation<Id extends keyof operations> = operations[Id];
+
+/** UI / response language: the contract's `Accept-Language` enum (ADR-006 §2). */
+export type Locale = components['parameters']['AcceptLanguage'];
+
+/** Calling client: the contract's `X-MyTask-Client` enum (ADR-002 §2). */
+export type ClientKind = components['parameters']['XMyTaskClient'];

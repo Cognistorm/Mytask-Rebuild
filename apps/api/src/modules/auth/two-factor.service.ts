@@ -1,6 +1,7 @@
 // Email 2FA (ADR-002 §5, spec 01 AC-20…AC-31, AC-54, R-A6) for users AND staff (S-060, spec 01 AC-29):
 // challenges, codes, trusted devices. Staff use the same tables (data-model §3.P) and STAFF_* error codes.
 import { Injectable } from '@nestjs/common';
+import type { Locale } from '@mytask/types';
 import type { TwofaPurpose, TwoFactorChallenge, User } from '../../generated/prisma/client';
 import { PrismaService } from '../../platform/db/prisma.service';
 import { ApiException, type ErrorCode } from '../../platform/errors/api-exception';
@@ -19,7 +20,7 @@ export interface CodeOwner {
   id: string;
   email: string;
   username: string;
-  locale: 'ka' | 'en';
+  locale: Locale;
 }
 
 export interface ChallengeView {

@@ -1,9 +1,9 @@
 // Localized error messages from the shared i18n files (ADR-006 §2: `Accept-Language: ka|en`, default ka).
 import en from '@mytask/i18n/en.json';
 import ka from '@mytask/i18n/ka.json';
+import type { Locale } from '@mytask/types';
 import type { ErrorCode } from './api-exception';
 
-type Locale = 'ka' | 'en';
 const bundles: Record<Locale, Record<string, string>> = { ka, en };
 
 /**

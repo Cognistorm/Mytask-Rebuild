@@ -3,12 +3,11 @@
 // (e.g. the SSR service credential of ADR-013 §17), and an Idempotency-Key guard on money operations.
 // Token refresh: on a 401 the client calls refreshSession once (single flight) and retries READ requests.
 import createClient, { type Client, type Middleware } from 'openapi-fetch';
-import type { components, paths } from '@mytask/types';
+import type { ClientKind, components, Locale, paths } from '@mytask/types';
 import { moneyOperations } from './generated/operations';
 
-export type Locale = 'ka' | 'en';
-/** Values of the contract's `X-MyTask-Client` header. */
-export type ClientKind = 'web' | 'admin' | 'ios' | 'android';
+// Derived from the contract (CLAUDE.md: never hand-written duplicates); re-exported for the apps.
+export type { ClientKind, Locale };
 
 export interface ApiClientOptions {
   /** e.g. `/api/v1` in browsers (same origin), `http://api:3000/api/v1` for SSR, `https://mytask.ge/api/v1` on mobile. */

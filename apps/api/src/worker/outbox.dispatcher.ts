@@ -8,6 +8,7 @@ import {
   type OnApplicationBootstrap,
   type OnApplicationShutdown,
 } from '@nestjs/common';
+import type { Locale } from '@mytask/types';
 import nodemailer, { type Transporter } from 'nodemailer';
 import { ENV, type Env } from '../platform/config/env';
 import { PrismaService } from '../platform/db/prisma.service';
@@ -95,7 +96,7 @@ export class OutboxDispatcher implements OnApplicationBootstrap, OnApplicationSh
   }
 
   private async deliver(event: string, payload: EmailPayload): Promise<void> {
-    const recipients: { email: string; username: string; locale: 'ka' | 'en' }[] = [];
+    const recipients: { email: string; username: string; locale: Locale }[] = [];
     if (payload.userId) {
       const user = await this.prisma.user.findUnique({ where: { id: payload.userId } });
       if (!user || user.deletedAt) return; // nothing to send to

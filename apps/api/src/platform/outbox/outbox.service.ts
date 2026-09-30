@@ -1,6 +1,7 @@
 // Transactional outbox (data-model §1 "Writes that must notify", §3.O): business code writes the event in
 // the same transaction; the worker delivers it afterwards. A rolled-back transaction never sends anything.
 import { Injectable } from '@nestjs/common';
+import type { Locale } from '@mytask/types';
 import type { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../db/prisma.service';
 
@@ -24,7 +25,7 @@ export interface EmailPayload {
   /** Recipient user (the worker reads email, username and locale at send time), or explicit addresses. */
   userId?: string;
   to?: string[];
-  locale?: 'ka' | 'en';
+  locale?: Locale;
   /** Template parameters (never passwords; codes and link tokens only for their own email). */
   params: Record<string, string | number>;
 }
