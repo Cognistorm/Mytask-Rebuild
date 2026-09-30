@@ -7,7 +7,7 @@ import type { ClientKind, Prisma, SessionRevokeReason } from '../../generated/pr
 import { PrismaService } from '../../platform/db/prisma.service';
 import { randomToken, sha256, type Bytes } from '../../platform/crypto';
 import { RedisService } from '../../platform/redis/redis.module';
-import { ACCESS_TOKEN_SECONDS, USER_REFRESH_DAYS } from './auth.constants';
+import { ACCESS_TOKEN_SECONDS, STAFF_SESSION_HOURS, USER_REFRESH_DAYS } from './auth.constants';
 import { TokensService } from './tokens.service';
 import { describeDevice } from './user-agent';
 
@@ -34,20 +34,28 @@ export class SessionsService {
     private readonly tokens: TokensService,
   ) {}
 
+  /** One session per login. Users: 30 days sliding; staff: 12 hours from login, never extended (spec 16 AC-2). */
   async create(input: {
-    userId: string;
+    userId?: string;
+    staffId?: string;
     client: ClientKind;
     deviceIdHash: Bytes;
     ip: string;
     userAgent: string | undefined;
   }): Promise<IssuedTokens> {
+    const audience = input.staffId ? 'staff' : 'user';
+    const principalId = (input.staffId ?? input.userId)!;
     const refreshToken = randomToken();
-    const expiresAt = refreshExpiry();
+    const expiresAt =
+      audience === 'staff'
+        ? new Date(Date.now() + STAFF_SESSION_HOURS * 3_600_000)
+        : refreshExpiry();
     const session = await this.prisma.$transaction(async (tx) => {
       const created = await tx.session.create({
         data: {
-          principalType: 'user',
-          userId: input.userId,
+          principalType: audience,
+          userId: input.userId ?? null,
+          staffId: input.staffId ?? null,
           familyId: '00000000-0000-0000-0000-000000000000',
           client: input.client,
           deviceIdHash: input.deviceIdHash,
@@ -65,8 +73,8 @@ export class SessionsService {
       return created;
     });
     const access = await this.tokens.signAccess({
-      sub: input.userId,
-      aud: 'user',
+      sub: principalId,
+      aud: audience,
       sid: session.id,
     });
     return {
@@ -78,12 +86,16 @@ export class SessionsService {
     };
   }
 
-  async refresh(rawToken: string, ip: string): Promise<RefreshOutcome> {
+  async refresh(
+    rawToken: string,
+    ip: string,
+    audience: 'user' | 'staff' = 'user',
+  ): Promise<RefreshOutcome> {
     const found = await this.prisma.refreshToken.findUnique({
       where: { tokenHash: sha256(rawToken) },
       include: { session: { include: { user: true } } },
     });
-    if (!found) return { kind: 'invalid' };
+    if (!found || found.session.principalType !== audience) return { kind: 'invalid' };
     const { session } = found;
 
     if (found.usedAt) {
@@ -93,15 +105,29 @@ export class SessionsService {
     }
     if (session.revokedAt)
       return session.revokeReason === 'ban' ? { kind: 'banned' } : { kind: 'invalid' };
-    if (session.expiresAt <= new Date() || !session.user || session.user.deletedAt)
-      return { kind: 'invalid' };
-    if (session.user.status === 'banned') {
-      await this.revokeWhere({ id: session.id }, 'ban');
-      return { kind: 'banned' };
+    if (session.expiresAt <= new Date()) return { kind: 'invalid' };
+    let principalId: string;
+    if (audience === 'user') {
+      if (!session.user || session.user.deletedAt) return { kind: 'invalid' };
+      if (session.user.status === 'banned') {
+        await this.revokeWhere({ id: session.id }, 'ban');
+        return { kind: 'banned' };
+      }
+      principalId = session.user.id;
+    } else {
+      const staff = session.staffId
+        ? await this.prisma.staff.findUnique({
+            where: { id: session.staffId },
+            select: { status: true },
+          })
+        : null;
+      if (!staff || staff.status !== 'active') return { kind: 'invalid' };
+      principalId = session.staffId!;
     }
 
     const refreshToken = randomToken();
-    const expiresAt = refreshExpiry();
+    // Staff sessions end 12 hours after login, whatever happens (spec 16 AC-2).
+    const expiresAt = audience === 'staff' ? session.expiresAt : refreshExpiry();
     const rotated = await this.prisma.$transaction(async (tx) => {
       // Compare-and-set: only one concurrent refresh with the same token wins.
       const marked = await tx.refreshToken.updateMany({
@@ -124,13 +150,13 @@ export class SessionsService {
       return { kind: 'invalid' };
     }
     const access = await this.tokens.signAccess({
-      sub: session.user.id,
-      aud: 'user',
+      sub: principalId,
+      aud: audience,
       sid: session.id,
     });
     return {
       kind: 'ok',
-      userId: session.user.id,
+      userId: principalId,
       tokens: {
         sessionId: session.id,
         accessToken: access.token,

@@ -33,6 +33,8 @@ export interface ApiClientOptions {
    * `getRefreshToken` and store the new tokens in `onSession` (SecureStore). `onSignedOut` runs when refresh fails.
    */
   refresh?: {
+    /** Refresh operation path: `/admin/auth/refresh` for the admin app (default `/auth/refresh`). */
+    path?: string;
     getRefreshToken?: () => string | null | undefined | Promise<string | null | undefined>;
     onSession?: (session: components['schemas']['AuthSession']) => void | Promise<void>;
     onSignedOut?: () => void;
@@ -118,7 +120,8 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
         try {
           const locale = typeof options.locale === 'function' ? options.locale() : options.locale;
           const refreshToken = await refreshCfg.getRefreshToken?.();
-          const res = await doFetch(`${options.baseUrl.replace(/\/$/, '')}/auth/refresh`, {
+          const refreshPath = refreshCfg.path ?? '/auth/refresh';
+          const res = await doFetch(`${options.baseUrl.replace(/\/$/, '')}${refreshPath}`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -144,7 +147,9 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
     client.use({
       async onResponse({ request, response }) {
         const path = new URL(request.url).pathname;
-        if (response.status !== 401 || path.startsWith(`${basePath}/auth/`)) return response;
+        const isAuthCall =
+          path.startsWith(`${basePath}/auth/`) || path.startsWith(`${basePath}/admin/auth/`);
+        if (response.status !== 401 || isAuthCall) return response;
         // Only reads are retried automatically; a write is never replayed behind the user's back.
         if (request.method !== 'GET' && request.method !== 'HEAD') return response;
         if (!(await refreshOnce())) return response;

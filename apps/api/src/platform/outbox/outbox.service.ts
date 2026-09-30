@@ -11,6 +11,7 @@ export type OutboxEventType =
   | 'EV-04' // PasswordReset
   | 'EV-05' // PasswordChanged
   | 'EV-06' // TwoFactorCode
+  | 'EV-124' // Admin/CriticalSettingChanged
   | 'EV-128' // LoginSlowMode
   | 'EV-129'; // TwoFactorLocked
 

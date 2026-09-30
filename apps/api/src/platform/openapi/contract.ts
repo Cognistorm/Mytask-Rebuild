@@ -18,7 +18,8 @@ export function contractPath(env: Env): string {
   return found;
 }
 
-const GLOBAL_STATUSES = new Set([426, 503]);
+// Global statuses (CONVENTIONS §7.2, §14): 426 app version, 429 global rate limit, 503 maintenance/unavailable.
+const GLOBAL_STATUSES = new Set([426, 429, 503]);
 
 export function contractValidator(env: Env): RequestHandler[] {
   const validateResponses =

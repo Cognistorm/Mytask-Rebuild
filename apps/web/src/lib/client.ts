@@ -55,3 +55,18 @@ export function splitErrors(err: ApiErrorBody | undefined) {
   const general = err && Object.keys(fields).length === 0 ? err.message : undefined;
   return { fields, general };
 }
+
+/**
+ * Only same-site paths may be a post-login target (SEC-33): "/account" is fine; "https://evil.example",
+ * "//evil.example", "/\evil.example" and anything with control characters fall back.
+ */
+export function safeNext(next: string | null | undefined, fallback: string): string {
+  if (!next || !next.startsWith('/') || next.startsWith('//')) return fallback;
+  if (
+    next.includes('\\') ||
+    [...next].some((c) => c.charCodeAt(0) < 32 || c.charCodeAt(0) === 127)
+  ) {
+    return fallback;
+  }
+  return next;
+}

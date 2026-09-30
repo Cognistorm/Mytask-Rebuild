@@ -15,7 +15,7 @@ import { ReferralService } from './referral.service';
 import { isCookieClient, type RequestContext } from './request-context';
 import { SessionsService, type IssuedTokens } from './sessions.service';
 import { ThrottleService } from './throttle.service';
-import { TwoFactorService, type ChallengeView } from './two-factor.service';
+import { TwoFactorService, userOwner, type ChallengeView } from './two-factor.service';
 
 type S = components['schemas'];
 type UserWithProfile = User & { profile: UserProfile | null };
@@ -77,6 +77,8 @@ export class AuthService {
     ]);
     const email = input.email.trim();
     const passwordHash = await this.passwords.hash(input.password);
+    // Read settings before the transaction (never a second connection inside it).
+    const adminRecipients = [...(await this.settings.get('S-100'))];
 
     let user: UserWithProfile;
     let verificationToken: string | undefined;
@@ -136,7 +138,7 @@ export class AuthService {
             'EV-02',
             { type: 'user', id: created.id },
             {
-              to: [...(await this.settings.get('S-100'))],
+              to: adminRecipients,
               locale: 'ka',
               params: { username: created.username },
             },
@@ -267,15 +269,20 @@ export class AuthService {
     input: S['TwoFactorVerifyRequest'],
     ctx: RequestContext,
   ): Promise<SessionResult> {
-    const challenge = await this.twoFactor.verify(input.challengeId, input.code, 'login');
+    const { owner } = await this.twoFactor.verify(input.challengeId, input.code, 'login');
     const user = await this.prisma.user.findUnique({
-      where: { id: challenge.userId! },
+      where: { id: owner.id },
       include: { profile: true },
     });
     if (!user || user.deletedAt) throw new ApiException(404, 'NOT_FOUND', 't_2fa_code_expired');
     // The device that passed the code is the device that asked for it (web cookie / mobile token).
     const deviceId = ctx.deviceId ?? randomToken();
-    await this.twoFactor.trust(user.id, sha256(deviceId), ctx.ip, ctx.userAgent);
+    await this.twoFactor.trust(
+      { kind: 'user', id: user.id },
+      sha256(deviceId),
+      ctx.ip,
+      ctx.userAgent,
+    );
     const result = await this.issueSession(user, { ...ctx, deviceId }, true, {
       skipTwoFactor: true,
     });
@@ -312,7 +319,13 @@ export class AuthService {
     const deviceId = ctx.deviceId ?? randomToken();
     const deviceIdHash = sha256(deviceId);
     if (!opts.skipTwoFactor && (await this.twoFactor.isRequired(user, deviceIdHash, ctx.ip))) {
-      const body = await this.twoFactor.createChallenge(user, 'login', deviceIdHash, ctx.ip, ctx.t);
+      const body = await this.twoFactor.createChallenge(
+        userOwner(user),
+        'login',
+        deviceIdHash,
+        ctx.ip,
+        ctx.t,
+      );
       return { kind: 'challenge', body, deviceId };
     }
     const tokens = await this.sessions.create({

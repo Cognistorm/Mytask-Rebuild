@@ -14,7 +14,8 @@ import type { Request } from 'express';
 import { PrismaService } from '../../platform/db/prisma.service';
 import { ApiException } from '../../platform/errors/api-exception';
 import { ClientIpResolver } from '../../platform/client-ip/client-ip.resolver';
-import { COOKIE_ACCESS } from './auth.constants';
+import type { components } from '@mytask/types';
+import { COOKIE_ACCESS, COOKIE_STAFF_ACCESS } from './auth.constants';
 import { SessionsService } from './sessions.service';
 import { TokensService } from './tokens.service';
 
@@ -25,11 +26,39 @@ export const Public = () => SetMetadata(IS_PUBLIC, true);
 /** Restricted users may call (contract audience `restricted-user`, ADR-002 §4). */
 export const AllowRestricted = () => SetMetadata(ALLOW_RESTRICTED, true);
 
+export type PermissionCode = components['schemas']['PermissionCode'];
+export const STAFF_ROUTE = 'mytask:staff';
+/**
+ * Staff-only route (audience `staff`, ADR-010): user tokens are never accepted here. With a permission,
+ * the caller's roles must grant it (deny by default); without one, any active staff member (`@self`).
+ */
+export const StaffRoute = (permission?: PermissionCode) =>
+  SetMetadata(STAFF_ROUTE, { permission: permission ?? null });
+
+export interface StaffAuthState {
+  staffId: string;
+  sessionId: string;
+  permissions: Set<PermissionCode>;
+  isSuperAdmin: boolean;
+}
+
+export const CurrentStaff = createParamDecorator(
+  (_: unknown, ctx: ExecutionContext): StaffAuthState => {
+    const staff = ctx.switchToHttp().getRequest<AuthedRequest>().staff;
+    if (!staff) throw new ApiException(401, 'UNAUTHENTICATED', 't_unauthorized');
+    return staff;
+  },
+);
+
 export interface AuthState {
   userId: string;
   sessionId: string;
 }
-type AuthedRequest = Request & { auth?: AuthState; cookies?: Record<string, string> };
+type AuthedRequest = Request & {
+  auth?: AuthState;
+  staff?: StaffAuthState;
+  cookies?: Record<string, string>;
+};
 
 export const CurrentAuth = createParamDecorator((_: unknown, ctx: ExecutionContext): AuthState => {
   const auth = ctx.switchToHttp().getRequest<AuthedRequest>().auth;
@@ -58,6 +87,11 @@ export class AuthGuard implements CanActivate {
     if (this.reflector.getAllAndOverride<boolean>(IS_PUBLIC, targets)) return true;
 
     const req = context.switchToHttp().getRequest<AuthedRequest>();
+    const staffRoute = this.reflector.getAllAndOverride<{ permission: PermissionCode | null }>(
+      STAFF_ROUTE,
+      targets,
+    );
+    if (staffRoute) return this.staff(req, staffRoute.permission);
     const token = accessTokenFrom(req);
     const claims = token ? await this.tokens.verifyAccess(token, 'user') : null;
     if (!claims) throw new ApiException(401, 'UNAUTHENTICATED', 't_unauthorized');
@@ -86,6 +120,38 @@ export class AuthGuard implements CanActivate {
     }
 
     req.auth = { userId: claims.sub, sessionId: claims.sid };
+    void this.sessions.touch(claims.sid, this.ipResolver.resolve(req).ip).catch(() => undefined);
+    return true;
+  }
+
+  private async staff(req: AuthedRequest, permission: PermissionCode | null): Promise<boolean> {
+    const header = req.headers.authorization;
+    const token = header?.startsWith('Bearer ')
+      ? header.slice(7).trim()
+      : req.cookies?.[COOKIE_STAFF_ACCESS];
+    const claims = token ? await this.tokens.verifyAccess(token, 'staff') : null;
+    if (!claims) throw new ApiException(401, 'UNAUTHENTICATED', 't_unauthorized');
+    let denied: string | null;
+    try {
+      denied = await this.sessions.deniedReason(claims.sid);
+    } catch {
+      throw new ApiException(503, 'SERVICE_UNAVAILABLE', 't_toast_something_went_wrong');
+    }
+    if (denied) throw new ApiException(401, 'UNAUTHENTICATED', 't_unauthorized');
+    const staff = await this.prisma.staff.findUnique({
+      where: { id: claims.sub },
+      include: { roles: { include: { role: { include: { permissions: true } } } } },
+    });
+    if (!staff || staff.status !== 'active')
+      throw new ApiException(401, 'UNAUTHENTICATED', 't_unauthorized');
+    const isSuperAdmin = staff.roles.some((r) => r.role.isSystem);
+    const permissions = new Set<PermissionCode>(
+      staff.roles.flatMap((r) => r.role.permissions.map((p) => p.permissionCode as PermissionCode)),
+    );
+    if (permission && !isSuperAdmin && !permissions.has(permission)) {
+      throw new ApiException(403, 'FORBIDDEN', 't_forbidden', { permission });
+    }
+    req.staff = { staffId: staff.id, sessionId: claims.sid, permissions, isSuperAdmin };
     void this.sessions.touch(claims.sid, this.ipResolver.resolve(req).ip).catch(() => undefined);
     return true;
   }

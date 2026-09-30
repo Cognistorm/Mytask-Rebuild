@@ -31,6 +31,11 @@ test('register, 2FA on, logout, login with the emailed code (ka)', async ({ page
   await expect(page).toHaveURL(/\/account$/);
   await expect(page.getByText(`e2e_${n}`, { exact: true })).toBeVisible();
 
+  // The global switch S-056 is OFF locally until the Owner turns it on in the admin panel (2026-09-30).
+  test.skip(
+    !(await page.getByTestId('twofa-state').isVisible()),
+    'S-056 (email 2FA) is switched off in this environment',
+  );
   // Turn on 2FA (AC-21: re-authentication with the password).
   await page.getByLabel('გასაგრძელებლად შეიყვანეთ ამჟამინდელი პაროლი.').fill(password);
   await page.getByRole('button', { name: 'გაგზავნა' }).click();
@@ -73,4 +78,22 @@ test('wrong password shows the legacy message; English works under /en', async (
   await page.getByLabel('Password', { exact: true }).fill('Wrong1234');
   await page.getByRole('button', { name: 'Login' }).click();
   await expect(page.locator('.auth-alert')).toContainText('Invalid login credentials');
+});
+
+test('login ignores an off-site ?next= (SEC-33)', async ({ page }) => {
+  const n = Date.now().toString(36);
+  await page.goto('/en/auth/register');
+  await page.getByLabel('Fullname').fill('Next Test');
+  await page.getByLabel('Username').fill(`nx_${n}`);
+  await page.getByLabel('E-mail address').fill(`nx_${n}@example.com`);
+  await page.getByLabel('Password', { exact: true }).fill('Secret123');
+  await page.getByRole('checkbox').check();
+  await page.getByRole('button', { name: 'Sign up' }).click();
+  await expect(page).toHaveURL(/\/en\/account$/);
+  await page.getByRole('button', { name: 'Logout' }).click();
+  await page.goto('/en/auth/login?next=//evil.example/steal');
+  await page.getByLabel('E-mail address').fill(`nx_${n}@example.com`);
+  await page.getByLabel('Password', { exact: true }).fill('Secret123');
+  await page.getByRole('button', { name: 'Login' }).click();
+  await expect(page).toHaveURL(/localhost:3100\/en\/account$/);
 });

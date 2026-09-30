@@ -27,6 +27,8 @@ Phase: 3 — Foundation (platform core) **IN PROGRESS** | Phase 3 gate: not read
 - **P3-1…P3-7 done on branch `feat/platform-core`, not pushed, awaiting review** (devops, 2026-09-30): pnpm + Turborepo monorepo (TS 5.9 strict, NestJS 11, Prisma 7, Next 16, Expo SDK 57), generated `packages/types` + `packages/api-client` from openapi.yaml, `packages/i18n` (legacy keys imported, IMPORT-REPORT.md), API/web/admin/mobile skeletons calling `getHealth`, docker compose + Caddy + Dockerfiles, CI workflow, docs/SETUP-LOCAL.md. Everything verified locally **except Docker** (not installed on this machine; first run = CI). Handoff: docs/handoffs/2026-09-30-devops-engineer-to-orchestrator-p3-platform-core.md
 - P3-1…P3-7: pushed; **CI green on all 5 jobs** incl. Docker (after 4 fixes: tokens dist in Docker context, gitleaks note, migrate command, smoke-test line). QA review: FAIL (1 blocker = the Docker context bug, since fixed; 2 major, fixed on `feat/auth`; 11 minor open) — docs/06-qa/reports/P3-platform-core-2026-09-30.md. **Security review of P3 not completed** (review agent hit a usage limit) — must be re-run
 - **P3-8 slice 01 part A (auth core) done on `feat/auth`**, awaiting QA + security: 16 auth operations, web + mobile Login/Register/OTP, 43 API tests + 6 browser tests green; `pnpm preview` runs everything without Docker. Part B (social login, restrictions/appeals, staff login/IP bans) still to do. Handoff: docs/handoffs/2026-09-30-backend-web-mobile-to-qa-security-slice-01a-auth.md
+- **Slice 01 part B-1 done on `feat/auth`** (2026-09-30): staff login (IP ban, staff 2FA, step-up), admin settings screen with the 2FA switches (versioned, audited, EV-124); security review PASS with conditions — Medium SEC-33…SEC-36 fixed; 53 API tests + browser tests green. Handoff: docs/handoffs/2026-09-30-backend-web-to-qa-security-slice-01b1-staff-settings.md. **Next: part B-2** (social login, restrictions/appeals + file uploads, banned-IP screen)
+- Owner 2026-09-30: Q-153 accepted (ADR-018, S-130, contract 1.1.0); 51 Georgian drafts for English-only keys (Owner to refine); email 2FA OFF locally until switched on in the admin panel
 
 ## Blocked (reason, who must act)
 - none
@@ -55,12 +57,11 @@ Phase: 3 — Foundation (platform core) **IN PROGRESS** | Phase 3 gate: not read
 
 ## Next up
 - **Phase 3**: review P3-1…P3-7 → slice 01 auth (P3-8) → Phase 3 gate: login works on web AND the app (docs/03-architecture/phase-3-plan.md)
-- Architect items: ADR-018 contract edit after Q-153 (draft written, proposed); P3-9 S-110 isolation study
+- Architect items: data-model gaps staff.full_name + staff re-auth code purpose (B-1 handoff); P3-9 S-110 isolation study
 - Security conditions carried into Phase 3: backend implements the ADR-013 §19 client-IP tests before slice 01's review; SEC-31/SEC-32 notes in their slices; social-login binding reviewed before any provider is switched ON
 - Contract rule from now on: every change to openapi.yaml / data model needs an ADR + handoff (CLAUDE.md rule 2)
 
 ## Decisions waiting for Owner
-- **Q-153 (new)**: accept ADR-018 (mobile sends `X-MyTask-App-Version`; new setting S-130 minimum app version per platform; old apps see "update required")? Needed before the app is published. Done 2026-09-30: **Q-152 answered (a) — ADR-017 accepted, SeaweedFS locally**
 - Q-097 legacy admin accounts + roles (by Phase 5); Q-147 data retention/erasure (before the Phase 5 KYC import); Q-151 withdrawal flag look-back 7 days + first payout-details save starts the pause (defaults applied, before slice 14); whether a "100% promo code" includes a fixed discount ≥ the Premium price (contract assumes yes); slice items Q-116, Q-118, Q-122…Q-136, Q-138…Q-143, Q-148…Q-150; Q-104 deferred; ADR-015 hosting provider before Phase 6
 - Owner action (SEC-28): revoke the Binance and findip keys and remove the Binance bot from the legacy server (Owner doing it by hand)
 - Approve ADR-001…016 (as revised in Step 4), the design audit, tokens and components (with the P2-C3 preview) at the Phase 2 gate

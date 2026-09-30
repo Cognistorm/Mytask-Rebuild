@@ -65,6 +65,13 @@ export const envSchema = z
         message: 'must be false in production (ADR-002 §2)',
       });
     }
+    if (env.NODE_ENV === 'production' && !env.SMTP_URL) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['SMTP_URL'],
+        message: 'required in production (emails carry codes and links)',
+      });
+    }
     if (env.NODE_ENV === 'production' && env.MAIL_TRANSPORT === 'log') {
       ctx.addIssue({
         code: 'custom',

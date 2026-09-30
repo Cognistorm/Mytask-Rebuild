@@ -154,14 +154,21 @@ export class AccountService {
     // Account without a password: a code of this purpose sent to the current address (SEC-05).
     if (!input.challengeId || !input.code)
       throw this.fieldError(ctx, 'code', 'required', 't_validator_required');
-    await this.guardInSession(user.id);
+    const attempt = await this.reserveInSession(user.id);
     try {
-      await this.twoFactor.verify(input.challengeId, input.code, purpose, user.id);
+      await this.twoFactor.verify(input.challengeId, input.code, purpose, {
+        kind: 'user',
+        id: user.id,
+      });
     } catch (e) {
-      if (e instanceof ApiException && e.code.startsWith('TWO_FACTOR_CODE'))
-        await this.throttle.inSessionFailed(user.id);
+      if (e instanceof ApiException && e.code.startsWith('TWO_FACTOR_CODE')) {
+        await this.throttle.inSessionFailed(user.id, attempt);
+      } else {
+        await this.throttle.releaseInSession(user.id);
+      }
       throw e;
     }
+    await this.throttle.releaseInSession(user.id);
   }
 
   private async checkCurrentPassword(
@@ -169,24 +176,30 @@ export class AccountService {
     password: string,
     ctx: RequestContext,
   ): Promise<void> {
-    await this.guardInSession(user.id);
+    const attempt = await this.reserveInSession(user.id);
     const result = await this.passwords.verify(password, user.passwordHash, user.passwordAlgo);
     if (!result.ok) {
-      await this.throttle.inSessionFailed(user.id);
+      await this.throttle.inSessionFailed(user.id, attempt);
       // Wrong current passwords also count towards the per-account login counter (AC-55 -> AC-53).
       await this.throttle.loginFailed(user.email, ctx.ip);
       throw this.fieldError(ctx, 'currentPassword', 'mismatch', 't_ur_current_pass_does_not_match');
     }
+    await this.throttle.releaseInSession(user.id);
   }
 
-  private async guardInSession(userId: string): Promise<void> {
-    const lock = await this.throttle.inSessionLockSeconds(userId);
-    if (lock > 0) {
-      throw new ApiException(429, 'RATE_LIMITED', 't_too_many_login_attempts', {
+  /** SEC-04 + SEC-34: refuse while locked, else reserve one check atomically (parallel-safe). */
+  private async reserveInSession(principal: string): Promise<number> {
+    const refuse = async () => {
+      const lock = Math.max(1, await this.throttle.inSessionLockSeconds(principal));
+      return new ApiException(429, 'RATE_LIMITED', 't_too_many_login_attempts', {
         retryAfterSeconds: lock,
         params: { minutes: Math.ceil(lock / 60) },
       });
-    }
+    };
+    if ((await this.throttle.inSessionLockSeconds(principal)) > 0) throw await refuse();
+    const attempt = await this.throttle.reserveInSession(principal);
+    if (attempt === null) throw await refuse();
+    return attempt;
   }
 
   private fieldError(ctx: RequestContext, field: string, code: string, messageKey: string) {

@@ -1,6 +1,9 @@
 import { type MiddlewareConsumer, Module, type NestModule } from '@nestjs/common';
 import { AuthModule } from './modules/auth/auth.module';
+import { StaffModule } from './modules/staff/staff.module';
+import { AuditModule } from './platform/audit/audit.service';
 import { AppVersionMiddleware } from './platform/app-version/app-version.middleware';
+import { RateLimitMiddleware } from './platform/rate-limit/rate-limit.middleware';
 import { ClientIpModule } from './platform/client-ip/client-ip.module';
 import { ConfigModule } from './platform/config/config.module';
 import { DbModule } from './platform/db/db.module';
@@ -20,12 +23,14 @@ import { SettingsModule } from './platform/settings/settings.module';
     SettingsModule,
     ClientIpModule,
     OutboxModule,
+    AuditModule,
     AuthModule,
+    StaffModule,
   ],
   controllers: [HealthController],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
-    consumer.apply(AppVersionMiddleware).forRoutes('*path');
+    consumer.apply(RateLimitMiddleware, AppVersionMiddleware).forRoutes('*path');
   }
 }

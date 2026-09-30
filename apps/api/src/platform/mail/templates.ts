@@ -105,6 +105,10 @@ export function renderEmail(i: TemplateInput): RenderedEmail {
       );
     case 'EV-06':
       return layout(i.locale, t('t_2fa_email_subject'), hello, [t('t_2fa_email_body', i.params)]);
+    case 'EV-124':
+      return layout(i.locale, t('t_subject_admin_critical_setting_changed'), t('t_hi_admin'), [
+        t('t_admin_critical_setting_changed_body', i.params),
+      ]);
     case 'EV-128':
       return layout(i.locale, t('t_subject_security_many_failed_logins'), hello, [
         t('t_security_many_failed_logins_body'),

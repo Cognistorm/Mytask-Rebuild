@@ -102,7 +102,11 @@ export class OutboxDispatcher implements OnApplicationBootstrap, OnApplicationSh
       recipients.push({ email: user.email, username: user.username, locale: user.locale });
     }
     for (const email of payload.to ?? []) {
-      recipients.push({ email, username: '', locale: payload.locale ?? 'ka' });
+      recipients.push({
+        email,
+        username: String(payload.params?.username ?? ''),
+        locale: payload.locale ?? 'ka',
+      });
     }
     for (const r of recipients) {
       const mail = renderEmail({
@@ -114,10 +118,15 @@ export class OutboxDispatcher implements OnApplicationBootstrap, OnApplicationSh
         adminUrl: this.env.ADMIN_URL,
         params: payload.params ?? {},
       });
-      if (this.env.MAIL_TRANSPORT === 'log' || !this.transport) {
-        // Local preview without Mailpit: print the email (env.ts refuses `log` in production).
-        this.logger.log(`[email ${event}] to=${r.email} subject="${mail.subject}"\n${mail.text}`);
+      if (this.env.MAIL_TRANSPORT === 'log') {
+        // Local preview only (env.ts refuses it in production): print the email.
+        this.logger.log(`[email ${event}] to=${r.email} subject="${mail.subject}"
+${mail.text}`);
         continue;
+      }
+      if (!this.transport) {
+        // SEC-36: never fall back to logging the content (it carries codes and links); retry later.
+        throw new Error('no mail transport configured (SMTP_URL)');
       }
       await this.transport.sendMail({
         from: { name: this.env.MAIL_FROM_NAME, address: this.env.MAIL_FROM_ADDRESS },

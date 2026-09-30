@@ -6,6 +6,7 @@ import { Suspense, useEffect, useState } from 'react';
 import { Alert, AuthCard, CodeInput, Field, Submit } from '../../../../components/auth/ui';
 import {
   href,
+  safeNext,
   splitErrors,
   useApi,
   useLocale,
@@ -41,7 +42,7 @@ function LoginForm() {
     return () => clearInterval(id);
   }, []);
 
-  const done = () => router.push(search.get('next') ?? href(locale, '/account'));
+  const done = () => router.push(safeNext(search.get('next'), href(locale, '/account')));
   const { fields, general } = splitErrors(err);
 
   async function onLogin(e: React.FormEvent) {

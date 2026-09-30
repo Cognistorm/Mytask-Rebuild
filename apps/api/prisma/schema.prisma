@@ -300,3 +300,147 @@ model OutboxEvent {
 
   @@map("outbox_events")
 }
+
+// ---------------------------------------------------------------- 3.P Staff, RBAC, audit (slice 01 part B)
+
+enum StaffStatus {
+  active
+  disabled
+
+  @@map("staff_status")
+}
+
+enum BanSource {
+  auto_threshold
+  manual
+
+  @@map("ban_source")
+}
+
+enum ActorType {
+  staff
+  user
+  system
+
+  @@map("actor_type")
+}
+
+/// Staff accounts are separate from user accounts (spec 16 AC-2).
+model Staff {
+  id               String        @id @default(uuid(7)) @db.Uuid
+  legacyId         BigInt?       @unique @map("legacy_id")
+  username         String        @unique @db.Citext
+  fullName         String        @map("full_name") @db.VarChar(100)
+  email            String        @unique @db.Citext
+  passwordHash     String?       @map("password_hash")
+  passwordAlgo     PasswordAlgo? @map("password_algo")
+  status           StaffStatus   @default(active)
+  locale           Locale        @default(ka)
+  lastLoginAt      DateTime?     @map("last_login_at") @db.Timestamptz(6)
+  createdByStaffId String?       @map("created_by_staff_id") @db.Uuid
+  createdAt        DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+  roles            StaffRole[]
+
+  @@map("staff")
+}
+
+model Role {
+  id          String           @id @default(uuid(7)) @db.Uuid
+  code        String           @unique
+  name        String
+  description String?
+  isSystem    Boolean          @default(false) @map("is_system")
+  createdAt   DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  permissions RolePermission[]
+  staff       StaffRole[]
+
+  @@map("roles")
+}
+
+/// Mirror of the code permission catalogue (synced by the seed/deploy).
+model Permission {
+  code        String           @id
+  area        String
+  description String?
+  roles       RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId         String     @map("role_id") @db.Uuid
+  permissionCode String     @map("permission_code")
+  role           Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission     Permission @relation(fields: [permissionCode], references: [code])
+
+  @@id([roleId, permissionCode])
+  @@map("role_permissions")
+}
+
+model StaffRole {
+  staffId          String   @map("staff_id") @db.Uuid
+  roleId           String   @map("role_id") @db.Uuid
+  grantedByStaffId String?  @map("granted_by_staff_id") @db.Uuid
+  grantedAt        DateTime @default(now()) @map("granted_at") @db.Timestamptz(6)
+  staff            Staff    @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  role             Role     @relation(fields: [roleId], references: [id])
+
+  @@id([staffId, roleId])
+  @@map("staff_roles")
+}
+
+/// Append-only (data-model §3.P). Secrets are redacted before they get here.
+model AuditLog {
+  id             BigInt    @id @default(autoincrement())
+  occurredAt     DateTime  @default(now()) @map("occurred_at") @db.Timestamptz(6)
+  actorType      ActorType @map("actor_type")
+  actorStaffId   String?   @map("actor_staff_id") @db.Uuid
+  actorUserId    String?   @map("actor_user_id") @db.Uuid
+  permissionCode String?   @map("permission_code")
+  action         String
+  targetType     String?   @map("target_type")
+  targetId       String?   @map("target_id")
+  before         Json?
+  after          Json?
+  reason         String?
+  ip             String?   @db.Inet
+  userAgent      String?   @map("user_agent")
+  requestId      String?   @map("request_id")
+
+  @@index([targetType, targetId, occurredAt])
+  @@index([actorStaffId, occurredAt])
+  @@index([action, occurredAt])
+  @@map("audit_log")
+}
+
+/// Staff-login IP ban (S-064, spec 01 AC-51/52).
+model BannedIp {
+  ip               String    @id @db.Inet
+  failedAttempts   Int       @default(0) @map("failed_attempts")
+  bannedAt         DateTime? @map("banned_at") @db.Timestamptz(6)
+  source           BanSource @default(auto_threshold)
+  note             String?
+  createdByStaffId String?   @map("created_by_staff_id") @db.Uuid
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("banned_ips")
+}
+
+/// Every settings change (data-model §3.K).
+model SettingVersion {
+  id               String   @id @default(uuid(7)) @db.Uuid
+  key              String
+  version          Int
+  value            Json
+  effectiveFrom    DateTime @default(now()) @map("effective_from") @db.Timestamptz(6)
+  changedByStaffId String?  @map("changed_by_staff_id") @db.Uuid
+  reason           String?
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([key, version])
+  @@index([key, effectiveFrom(sort: Desc)])
+  @@map("setting_versions")
+}

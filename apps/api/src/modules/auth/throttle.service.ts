@@ -51,13 +51,28 @@ export class ThrottleService {
   // ------------------------------------------------------------------ login (AC-16, AC-53, SEC-30)
 
   /**
-   * Decide whether a password may be checked now. Refused attempts never take the slow-mode slot; a
-   * trusted device or a passed reCAPTCHA is evaluated without taking it (SEC-30).
+   * Decide whether a password may be checked now (SEC-34: the per account + IP attempt is RESERVED here,
+   * atomically, before the password check, so a burst of parallel requests cannot pass the S-062 lock).
+   * Refused attempts never take the slow-mode slot; a trusted device or a passed reCAPTCHA is evaluated
+   * without taking it (SEC-30).
    */
   async loginGate(email: string, ip: string, bypassSlot: boolean): Promise<LoginGate> {
     const acct = emailKey(email);
-    const lock = await this.ttl(`auth:login:lock:${acct}:${ip}`);
+    const lockKey = `auth:login:lock:${acct}:${ip}`;
+    const lock = await this.ttl(lockKey);
     if (lock > 0) return { kind: 'locked', retryAfterSeconds: lock };
+
+    const [maxAttempts, lockMinutes] = await Promise.all([
+      this.settings.get('S-062'),
+      this.settings.get('S-063'),
+    ]);
+    const attempt = await this.hit(`auth:login:ip:${acct}:${ip}`, LOGIN_WINDOW_SECONDS);
+    if (attempt > maxAttempts) {
+      await this.r.set(lockKey, '1', 'EX', lockMinutes * 60, 'NX');
+      // Keep the counter (parallel requests keep hitting it) and let it end together with the lock.
+      await this.r.expire(`auth:login:ip:${acct}:${ip}`, lockMinutes * 60);
+      return { kind: 'locked', retryAfterSeconds: Math.max(1, await this.ttl(lockKey)) };
+    }
 
     const failures = Number((await this.r.get(`auth:login:acct:${acct}`)) ?? 0);
     if (failures < SLOW_MODE_FAILURES || bypassSlot) return { kind: 'ok', tookSlot: false };
@@ -68,17 +83,18 @@ export class ThrottleService {
     return { kind: 'throttled', retryAfterSeconds: Math.max(1, await this.ttl(slotKey)) };
   }
 
-  /** A wrong password. Returns whether slow mode has just started (-> EV-128 at most once per hour). */
+  /** A wrong password (its attempt was reserved by loginGate). Returns whether slow mode just started. */
   async loginFailed(email: string, ip: string): Promise<{ slowModeStarted: boolean }> {
     const acct = emailKey(email);
     const [maxAttempts, lockMinutes] = await Promise.all([
       this.settings.get('S-062'),
       this.settings.get('S-063'),
     ]);
-    const perIp = await this.hit(`auth:login:ip:${acct}:${ip}`, LOGIN_WINDOW_SECONDS);
+    const perIp = Number((await this.r.get(`auth:login:ip:${acct}:${ip}`)) ?? 0);
     if (perIp >= maxAttempts) {
       await this.r.set(`auth:login:lock:${acct}:${ip}`, '1', 'EX', lockMinutes * 60);
-      await this.r.del(`auth:login:ip:${acct}:${ip}`);
+      // Keep the counter (parallel requests keep hitting it) and let it end together with the lock.
+      await this.r.expire(`auth:login:ip:${acct}:${ip}`, lockMinutes * 60);
     }
     const perAccount = await this.hit(`auth:login:acct:${acct}`, SLOW_MODE_WINDOW_SECONDS);
     return { slowModeStarted: perAccount === SLOW_MODE_FAILURES };
@@ -106,13 +122,37 @@ export class ThrottleService {
     return this.ttl(`auth:code:lock:${principal}`);
   }
 
-  /** A wrong code anywhere. Returns whether the account-wide lock has just started (-> EV-129 once). */
-  async codeFailed(principal: string): Promise<{ lockStarted: boolean; lockMinutes: number }> {
-    const lockMinutes = await this.settings.get('S-063');
+  /**
+   * SEC-03 + SEC-34: reserve one code check for this account BEFORE comparing the code. Returns the
+   * attempt number, or null when the account-wide cap is reached (the lock is then set).
+   */
+  async reserveCodeCheck(principal: string): Promise<number | null> {
     const n = await this.hit(`auth:code:fail:${principal}`, CODE_CAP_WINDOW_SECONDS);
-    if (n >= CODE_CAP_FAILURES) {
+    if (n > CODE_CAP_FAILURES) {
+      const lockMinutes = await this.settings.get('S-063');
+      await this.r.set(`auth:code:lock:${principal}`, '1', 'EX', lockMinutes * 60, 'NX');
+      // Keep the counter (parallel requests keep hitting it) and let it end together with the lock.
+      await this.r.expire(`auth:code:fail:${principal}`, lockMinutes * 60);
+      return null;
+    }
+    return n;
+  }
+
+  /** A correct code gives its reservation back. */
+  async releaseCodeCheck(principal: string): Promise<void> {
+    await this.r.decr(`auth:code:fail:${principal}`);
+  }
+
+  /** After a wrong code: when this was the 10th, lock now (-> EV-129 once per lock). */
+  async codeFailed(
+    principal: string,
+    attempt: number,
+  ): Promise<{ lockStarted: boolean; lockMinutes: number }> {
+    const lockMinutes = await this.settings.get('S-063');
+    if (attempt >= CODE_CAP_FAILURES) {
       await this.r.set(`auth:code:lock:${principal}`, '1', 'EX', lockMinutes * 60);
-      await this.r.del(`auth:code:fail:${principal}`);
+      // Keep the counter (parallel requests keep hitting it) and let it end together with the lock.
+      await this.r.expire(`auth:code:fail:${principal}`, lockMinutes * 60);
       return { lockStarted: true, lockMinutes };
     }
     return { lockStarted: false, lockMinutes };
@@ -139,15 +179,36 @@ export class ThrottleService {
     return this.ttl(`auth:insession:lock:${userId}`);
   }
 
-  async inSessionFailed(userId: string): Promise<void> {
+  /** SEC-04 + SEC-34: reserve one in-session password/code check; null = the account is locked now. */
+  async reserveInSession(principal: string): Promise<number | null> {
     const [maxAttempts, lockMinutes] = await Promise.all([
       this.settings.get('S-062'),
       this.settings.get('S-063'),
     ]);
-    const n = await this.hit(`auth:insession:fail:${userId}`, LOGIN_WINDOW_SECONDS);
-    if (n >= maxAttempts) {
-      await this.r.set(`auth:insession:lock:${userId}`, '1', 'EX', lockMinutes * 60);
-      await this.r.del(`auth:insession:fail:${userId}`);
+    const n = await this.hit(`auth:insession:fail:${principal}`, LOGIN_WINDOW_SECONDS);
+    if (n > maxAttempts) {
+      await this.r.set(`auth:insession:lock:${principal}`, '1', 'EX', lockMinutes * 60, 'NX');
+      // Keep the counter (parallel requests keep hitting it) and let it end together with the lock.
+      await this.r.expire(`auth:insession:fail:${principal}`, lockMinutes * 60);
+      return null;
+    }
+    return n;
+  }
+
+  async releaseInSession(principal: string): Promise<void> {
+    await this.r.decr(`auth:insession:fail:${principal}`);
+  }
+
+  /** After a wrong password/code in session: lock when S-062 is reached. */
+  async inSessionFailed(principal: string, attempt: number): Promise<void> {
+    const [maxAttempts, lockMinutes] = await Promise.all([
+      this.settings.get('S-062'),
+      this.settings.get('S-063'),
+    ]);
+    if (attempt >= maxAttempts) {
+      await this.r.set(`auth:insession:lock:${principal}`, '1', 'EX', lockMinutes * 60);
+      // Keep the counter (parallel requests keep hitting it) and let it end together with the lock.
+      await this.r.expire(`auth:insession:fail:${principal}`, lockMinutes * 60);
     }
   }
 

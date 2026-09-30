@@ -510,3 +510,52 @@ describe('mobile version gate (ADR-018, S-130)', () => {
     expect(android.headers['x-min-app-version']).toBe('0.0.0');
   });
 });
+
+describe('parallel bursts cannot pass the limits (SEC-34)', () => {
+  it('20 parallel wrong logins for one account + IP: at most S-062 passwords are checked', async () => {
+    const { email } = await register();
+    const results = await Promise.all(
+      Array.from({ length: 20 }, () =>
+        request(app.getHttpServer())
+          .post('/api/v1/auth/login')
+          .set(IOS)
+          .send({ email, password: 'Wrong1234' }),
+      ),
+    );
+    const checked = results.filter((r) => r.body.code === 'AUTH_INVALID_CREDENTIALS').length;
+    expect(checked).toBeLessThanOrEqual(5);
+    expect(
+      results.filter((r) => r.body.code === 'AUTH_LOGIN_LOCKED').length,
+    ).toBeGreaterThanOrEqual(15);
+  });
+
+  it('20 parallel wrong codes on one challenge: at most S-058 are compared', async () => {
+    const { res, email } = await register();
+    await request(app.getHttpServer())
+      .put('/api/v1/me/two-factor')
+      .set('Authorization', `Bearer ${res.body.session.accessToken}`)
+      .send({ enabled: true, currentPassword: PASSWORD });
+    const login = await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .set(IOS)
+      .send({ email, password: PASSWORD });
+    const user = await prisma.user.findFirstOrThrow({ where: { email } });
+    const right = await lastCode(user.id);
+    const wrong = right === '000000' ? '111111' : '000000';
+    const results = await Promise.all(
+      Array.from({ length: 20 }, () =>
+        request(app.getHttpServer())
+          .post('/api/v1/auth/2fa/verify')
+          .set(IOS)
+          .send({ challengeId: login.body.challengeId, code: wrong }),
+      ),
+    );
+    expect(
+      results.filter((r) => r.body.code === 'TWO_FACTOR_CODE_INVALID').length,
+    ).toBeLessThanOrEqual(4);
+    const row = await prisma.twoFactorChallenge.findUniqueOrThrow({
+      where: { id: login.body.challengeId },
+    });
+    expect(row.attempts).toBeLessThanOrEqual(5);
+  });
+});

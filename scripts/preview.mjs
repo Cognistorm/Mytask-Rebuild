@@ -44,10 +44,23 @@ await promisify(exec)('npx prisma migrate deploy', { cwd: api, env });
   await client.connect();
   await client.query(
     `INSERT INTO settings (key, register_id, value, current_version, updated_at)
-     VALUES ('auth.two_factor.enabled', 'S-056', 'false'::jsonb, 1, now()) ON CONFLICT (key) DO NOTHING`,
+     VALUES ('auth.two_factor.enabled', 'S-056', 'false'::jsonb, 1, now()),
+            ('auth.two_factor.staff_required', 'S-060', 'false'::jsonb, 1, now())
+     ON CONFLICT (key) DO NOTHING`,
   );
   await client.end();
 }
+
+// Permissions, the Super-admin role and (first run only) the first Super-admin account, printed once.
+await new Promise((ok) => {
+  const seed = spawn('pnpm', ['--filter', '@mytask/api', 'db:seed'], {
+    cwd: root,
+    env,
+    stdio: 'inherit',
+    shell: true,
+  });
+  seed.on('exit', ok);
+});
 
 const dev = spawn('pnpm', ['dev'], { cwd: root, env, stdio: 'inherit', shell: true });
 children.push(dev);

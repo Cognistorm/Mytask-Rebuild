@@ -4,30 +4,9 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../db/prisma.service';
 
-export const settingsRegistry = {
-  'S-052': { key: 'auth.email_verification.required', default: false },
-  'S-053': { key: 'auth.email_verification.method', default: 'admin' as 'email' | 'admin' },
-  'S-054': { key: 'auth.email_verification.link_expiry_minutes', default: 60 },
-  'S-055': { key: 'auth.password_reset.link_expiry_minutes', default: 60 },
-  'S-056': { key: 'auth.two_factor.enabled', default: true },
-  'S-057': { key: 'auth.two_factor.code_ttl_minutes', default: 10 },
-  'S-058': { key: 'auth.two_factor.max_attempts', default: 5 },
-  'S-059': { key: 'auth.two_factor.trusted_device_days', default: 30 },
-  'S-061': { key: 'auth.recaptcha.enabled', default: false },
-  'S-062': { key: 'auth.login_throttle.max_attempts', default: 5 },
-  'S-063': { key: 'auth.login_throttle.lock_minutes', default: 15 },
-  'S-100': { key: 'notifications.admin_recipients', default: ['ir.gvazava@gmail.com'] },
-  'S-130': {
-    key: 'mobile.min_app_version',
-    default: { ios: '0.0.0', android: '0.0.0' } as { ios: string; android: string },
-  },
-  'S-124': {
-    key: 'auth.two_factor.trigger',
-    default: 'new_device' as 'new_device' | 'new_device_or_ip',
-  },
-} as const;
+import { settingsRegistry, type SettingId } from './registry';
 
-export type SettingId = keyof typeof settingsRegistry;
+export { settingsRegistry, type SettingId };
 type Widen<T> = T extends boolean ? boolean : T extends number ? number : T;
 export type SettingValue<Id extends SettingId> = Widen<(typeof settingsRegistry)[Id]['default']>;
 

@@ -9,6 +9,16 @@ export const REFRESH_COOKIE_PATH = '/api/v1/auth';
 /** Access token 15 minutes; user refresh 30 days sliding (ADR-002 §1). */
 export const ACCESS_TOKEN_SECONDS = 15 * 60;
 export const USER_REFRESH_DAYS = 30;
+/** Staff sessions: 12 hours from login, never extended (ADR-002 §1, spec 16 AC-2). */
+export const STAFF_SESSION_HOURS = 12;
+
+/** Staff cookies on the admin host (ADR-002 §2). */
+export const COOKIE_STAFF_ACCESS = '__Host-mt_staff_at';
+export const COOKIE_STAFF_DEVICE = '__Host-mt_staff_did';
+export const COOKIE_STAFF_REFRESH = '__Secure-mt_staff_rt';
+export const STAFF_REFRESH_COOKIE_PATH = '/api/v1/admin/auth';
+/** Staff step-up window (spec 16 AC-7). */
+export const STEP_UP_SECONDS = 15 * 60;
 /** Device cookie lives as long as browsers allow (400 days). */
 export const DEVICE_COOKIE_DAYS = 400;
 
