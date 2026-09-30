@@ -58,7 +58,7 @@ Remaining:
 - [ ] 3.14 Architect: P3-9 study on isolating S-110 custom code (note or ADR).
 - [ ] 3.15 QA parity report for all of slice 01 → `docs/06-qa/reports/`.
 - [ ] 3.16 Security review of slice 01 B-1…B-2c, incl. SEC-09 → `docs/06-qa/security/`.
-- [ ] 3.17 Fix findings from 3.15/3.16, plus the before-slice-01-done items of review 03 (SEC-39, rest of SEC-35, SEC-50, SEC-51, SEC-45 tests) (split into 3.17a/b… if more than one step).
+- [ ] 3.17 Fix findings from 3.15/3.16, plus the before-slice-01-done items of review 03 (SEC-39, rest of SEC-35 incl. register limit 10/hour/IP per Q-157, SEC-50, SEC-51, SEC-45 tests) (split into 3.17a/b… if more than one step).
 - [ ] 3.18 Open PR `feat/auth` → `main`, CI green (Owner merges).
 - [ ] 3.19 **Phase 3 gate (Owner):** register / log in / log out on web and app; approve.
 

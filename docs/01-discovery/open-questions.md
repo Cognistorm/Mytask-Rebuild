@@ -746,3 +746,9 @@ Options: (a) strict: accept only Google, LinkedIn and GitHub emails (Facebook/X 
 Recommendation: (a), with the security-reviewer's sign-off. Legacy usage figures per provider would help decide (c).
 When: before any of S-066 / S-069 is switched ON.
 **Answer (Owner, 2026-09-30): option (a), strict.** Only Google, LinkedIn and GitHub emails marked verified may create or match an account. Facebook and X never auto-link or create an account by email; they log in only to an account that already has that provider linked. Note: the contract has no "link a login provider in account settings" operation (`putMyLinkedAccounts` is the S-123 profile-URL list), and legacy had none either. So today such a link exists only for accounts migrated from legacy `users.provider_name`/`provider_id`. A link-from-settings feature would be new (spec + contract), if the Owner wants it.
+
+## Security review 03 questions (security-reviewer, ROADMAP 3.1, 2026-09-30) — answered by Owner 2026-10-01
+
+### Q-157
+**Rate limits for SEC-35 / SEC-49** (`docs/06-qa/security/03-platform-core-recheck-2026-09-30.md`). (1) Is the global limit of 120 writes per IP per minute acceptable for mobile users who share one carrier IP (NAT)? (2) What per-IP limit applies to registration (review 02 SEC-35; the register limit is still missing)?
+**Answer (Owner, 2026-10-01):** (1) **yes**, 120 writes per IP per minute is kept (`rate-limit.middleware.ts` `LIMITS.write`); per-user keying for signed-in calls (SEC-49) is still to be built. (2) **10 registrations per hour per IP** (IPv6 keyed by /64, SEC-42). Built by the backend in ROADMAP 3.17 together with the EV-02 cap.

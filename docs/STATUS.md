@@ -63,6 +63,7 @@ The plan lives in **docs/ROADMAP.md** (checkbox per micro-task). One micro-task 
 ### Micro-task log
 - 2026-09-30 ROADMAP.md created: Phase 3 remaining 3.1–3.19, Phase 4 slices 4.1–4.16 (+ gate 4.17), Phase 5 5.1–5.19, Phase 6 6.1–6.18.
 - 2026-09-30 3.1 done: security re-check of platform core at HEAD → docs/06-qa/security/03-platform-core-recheck-2026-09-30.md, **PASS with conditions** (0 Critical/High; Medium SEC-49 per-IP-only limiter, due before first server-side data slice; Low SEC-50…56). Before slice 01 done: SEC-39, rest of SEC-35, SEC-50, SEC-51, SEC-45 tests (added to 3.17). Question for product-analyst: 120 writes/IP/min behind carrier NAT + per-IP register limit. API tests 73/73 green.
+- 2026-10-01 Q-157 answered by Owner: 120 writes/IP/min kept (carrier NAT OK); registration limit 10/hour/IP → built in 3.17.
 
 ## Next up
 - **Phase 3**: review P3-1…P3-7 → slice 01 auth (P3-8) → Phase 3 gate: login works on web AND the app (docs/03-architecture/phase-3-plan.md)
