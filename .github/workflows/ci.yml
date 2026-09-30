@@ -166,8 +166,7 @@ jobs:
           docker compose exec -T api wget -qO- http://127.0.0.1:3001/ready | grep -q '"status":"ready"'
           docker compose exec -T worker wget -qO- http://127.0.0.1:3002/ready | grep -q '"status":"ready"'
           echo "--- migrations created the data-model extensions"
-          docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "select extname from pg_extension order by 1"' | tr '
-' ' ' | grep -q 'btree_gist citext pg_trgm plpgsql vector'
+          docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "select extname from pg_extension order by 1"' | paste -sd ' ' | grep -q 'btree_gist citext pg_trgm plpgsql vector'
           echo "--- object storage buckets"
           docker compose logs s3-init | grep -q kyc
           echo "--- bog-mock and mailpit"
