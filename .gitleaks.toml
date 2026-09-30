@@ -1,0 +1,14 @@
+# Secret scanning (ADR-013 §8, architecture §7.13). Runs in CI on every push and pull request.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Known, accepted exceptions"
+paths = [
+  # Read-only evidence copied from the old platform. Its leaked keys are known (R-001, R-002, R-003)
+  # and are being revoked/rotated by the Owner (SEC-28, Q-086); the new system never uses them.
+  '''^legacy/''',
+  # Generated lockfiles contain integrity hashes, not secrets.
+  '''pnpm-lock\.yaml$''',
+  '''package-lock\.json$''',
+]

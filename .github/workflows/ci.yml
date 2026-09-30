@@ -1,0 +1,179 @@
+# CI for every push and pull request (ADR-014 §2–§6, ADR-015 §4, devops-engineer role).
+# Nothing here deploys anywhere; deployment workflows arrive in Phase 6 with Owner approval.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '24'
+  TURBO_TELEMETRY_DISABLED: '1'
+  NEXT_TELEMETRY_DISABLED: '1'
+
+jobs:
+  secrets:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with: { fetch-depth: 0 }
+      - name: gitleaks (full history)
+        run: >
+          docker run --rm -v "$PWD:/repo" -w /repo zricethezav/gitleaks:v8.30.1
+          git --config .gitleaks.toml --redact --no-banner --exit-code 1 .
+
+  contract:
+    name: API contract (lint, coverage, breaking changes)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v7
+        with: { node-version: '${{ env.NODE_VERSION }}' }
+      - name: verify:final (Redocly lint, bundle, contract + coverage checks)
+        working-directory: docs/04-api
+        run: npm ci && npm run verify:final
+      - name: The committed bundle equals the sources
+        run: git diff --exit-code -- docs/04-api/openapi.yaml
+      - name: No breaking changes against the base branch (oasdiff, ADR-014 §6)
+        if: github.event_name == 'pull_request'
+        run: |
+          git show "origin/${{ github.base_ref }}:docs/04-api/openapi.yaml" > /tmp/base-openapi.yaml
+          docker run --rm -v /tmp:/base -v "$PWD/docs/04-api:/head" tufin/oasdiff:v1.32.1 \
+            breaking /base/base-openapi.yaml /head/openapi.yaml --fail-on ERR
+
+  quality:
+    name: Lint, typecheck, test, build, E2E
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:0.8.6-pg17-bookworm
+        env:
+          POSTGRES_USER: mytask
+          POSTGRES_PASSWORD: ci-only-password
+          POSTGRES_DB: mytask_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U mytask -d mytask_test" --health-interval 5s --health-retries 20
+      redis:
+        image: redis:7.4.11-alpine
+        ports: ['6379:6379']
+        options: --health-cmd "redis-cli ping" --health-interval 5s --health-retries 20
+    env:
+      DATABASE_URL: postgresql://mytask:ci-only-password@localhost:5432/mytask_test
+      REDIS_URL: redis://localhost:6379
+      RUN_INTEGRATION: '1'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '${{ env.NODE_VERSION }}'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - name: Generated code is in sync with the contract (no hand edits, ADR-014 §2)
+        run: pnpm gen:check
+      - name: Design tokens dist is in sync with tokens.json (+ contrast checks)
+        run: pnpm --filter @mytask/tokens build && git diff --exit-code -- packages/tokens/dist
+      - name: Translations (ka + en for every key, Q-058)
+        run: pnpm i18n:check
+      - run: pnpm format:check
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - name: Database migrations apply cleanly
+        run: pnpm db:deploy
+      - name: Unit, contract and integration tests
+        run: pnpm test
+      - run: pnpm build
+      - name: Install Playwright Chromium
+        run: pnpm --filter @mytask/web exec playwright install --with-deps chromium
+      - name: Web + admin E2E
+        run: pnpm test:e2e
+        env: { CI: 'true' }
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: playwright-report
+          path: apps/*/playwright-report
+          if-no-files-found: ignore
+
+  mobile:
+    name: Mobile bundle (Metro, Android + iOS)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '${{ env.NODE_VERSION }}'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: expo export (proves the app bundles with the shared packages)
+        working-directory: apps/mobile
+        run: npx expo export --platform android --platform ios --output-dir /tmp/expo-export
+        env: { CI: '1' }
+
+  docker:
+    name: Docker images + local stack smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with: { node-version: '${{ env.NODE_VERSION }}' }
+      - name: Local-only .env with random secrets
+        run: node scripts/create-local-env.mjs
+      - run: docker compose --profile apps --profile scan config --quiet
+      - name: Caddyfile is valid
+        run: >
+          docker run --rm -v "$PWD/infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro" caddy:2.11.4-alpine
+          caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+      - name: Build images
+        run: docker compose --profile apps build
+      - name: Start the stack
+        run: docker compose --profile apps up -d
+      - name: Smoke test through Caddy
+        run: |
+          set -eu
+          for i in $(seq 1 60); do
+            curl -fsS http://localhost:8080/api/v1/health >/dev/null 2>&1 && break
+            sleep 5
+          done
+          echo "--- liveness"
+          curl -fsS http://localhost:8080/api/v1/health | tee /dev/stderr | grep -q '"status":"ok"'
+          echo "--- request id, no Server header"
+          curl -fsS -D - -o /dev/null http://localhost:8080/api/v1/health > /tmp/h.txt
+          grep -qi '^x-request-id: ' /tmp/h.txt
+          ! grep -qi '^server: ' /tmp/h.txt
+          echo "--- web SSR reaches the API through the generated client"
+          for i in $(seq 1 30); do curl -fsS http://localhost:8080/ >/tmp/home.html 2>/dev/null && break; sleep 5; done
+          grep -q 'data-up="true"' /tmp/home.html
+          echo "--- staff endpoints are not served on the public host"
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/api/v1/admin/system/health)" = 404
+          echo "--- admin host is noindex"
+          curl -fsS -D - -o /dev/null -H 'Host: admin.localhost:8080' http://localhost:8080/ | grep -qi '^x-robots-tag: noindex'
+          echo "--- readiness (database + redis) inside the API container"
+          docker compose exec -T api wget -qO- http://127.0.0.1:3001/ready | grep -q '"status":"ready"'
+          docker compose exec -T worker wget -qO- http://127.0.0.1:3002/ready | grep -q '"status":"ready"'
+          echo "--- migrations created the data-model extensions"
+          docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "select string_agg(extname, \",\" order by extname) from pg_extension"' | grep -q 'btree_gist,citext,pg_trgm,plpgsql,vector'
+          echo "--- object storage buckets"
+          docker compose logs s3-init | grep -q kyc
+          echo "--- bog-mock and mailpit"
+          curl -fsS http://localhost:4100/health | grep -q ok
+          curl -fsS http://localhost:8025/readyz >/dev/null
+      - name: Logs on failure
+        if: failure()
+        run: docker compose --profile apps logs --no-color | tail -n 400
+      - name: Stop
+        if: always()
+        run: docker compose --profile apps down -v

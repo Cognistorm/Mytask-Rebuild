@@ -1,0 +1,3 @@
+# False positives (reviewed). Format: <commit>:<file>:<rule>:<line>
+# ADR-010 prose "social-login secrets, balance/points adjustments" is not a key.
+830076fd68a052b1b6aa79942f278ea10488f358:docs/03-architecture/adr/010-admin-app-and-staff-rbac.md:generic-api-key:15
