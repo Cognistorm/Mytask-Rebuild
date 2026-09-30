@@ -537,6 +537,7 @@
       permission: '@self'
       ownership: own session only
     x-covers: ['16 AC-7']
+    x-audit: staff.reauth_code.request
     x-settings: [S-060, S-057]
     x-rate-limit: 1 per 60 s and 5 per 15 min per staff account
     x-notifications: [EV-06]
@@ -1769,7 +1770,7 @@
     summary: Change one register row
     description: |
       The only write path for settings (ADR-005 §4). Exactly one permission is checked per call: the
-      write permission of the row's area (`x-permission.permissionByArea`, spec 16 "Settings areas").
+      write permission of the row's area (`x-permission.permissionBy`, spec 16 "Settings areas").
       Validation per register row (00 AC-10; out of range → `400 VALIDATION_FAILED` with
       `t_setting_invalid_value`, old value kept). `expectedVersion` → `409 STATE_CONFLICT` if someone
       else saved first (EC-3). Effective for web, mobile and API within 60 seconds, no deployment
@@ -1789,6 +1790,10 @@
       - **S-121** → `422 SETTING_MANAGED_ELSEWHERE` (use `adminUpdateMaintenance`); fee rows S-010…S-018 →
         `422 SETTING_MANAGED_ELSEWHERE` (use `/admin/fee-rules`).
       - Switching a toggle OFF blocks new items only (00 AC-11, EC-1); the confirmation text is client-side.
+      - **S-025** OFF → ON: in the same database transaction as the setting change, every funded, unpaused
+        escrow whose auto-release deadline has passed gets a fresh S-026 period from now
+        (`auto_release_set_reason = reenabled`); deadlines still in the future are kept, paused items stay
+        paused, nothing is released at the next check (spec 06 AC-37, spec 00 EC-3, Q-084, ADR-008 §3).
     tags: [Admin Settings]
     security:
       - staffBearer: []
@@ -1796,25 +1801,27 @@
     x-permission:
       audience: staff
       permission: settings.system.write
-      permissionByArea:
-        plans: settings.plans.write
-        payments: settings.payments.write
-        escrow: settings.escrow.write
-        withdrawals: settings.withdrawals.write
-        marketplace: settings.marketplace.write
-        subscriptions: settings.subscriptions.write
-        auth: settings.auth.write
-        moderation: settings.moderation.write
-        media: settings.media.write
-        chat: settings.chat.write
-        notifications: settings.notifications.write
-        content: settings.content.write
-        custom_code: settings.custom_code.write
-        system: settings.system.write
+      permissionBy:
+        attribute: area of the register row (settings registry, ADR-005 §1)
+        map:
+          plans: settings.plans.write
+          payments: settings.payments.write
+          escrow: settings.escrow.write
+          withdrawals: settings.withdrawals.write
+          marketplace: settings.marketplace.write
+          subscriptions: settings.subscriptions.write
+          auth: settings.auth.write
+          moderation: settings.moderation.write
+          media: settings.media.write
+          chat: settings.chat.write
+          notifications: settings.notifications.write
+          content: settings.content.write
+          custom_code: settings.custom_code.write
+          system: settings.system.write
       stepUpFor: [S-065, S-066, S-067, S-068, S-069, S-100, S-110, S-127]
       ownership: none
       notes: the permission is chosen by the row's area (registry, ADR-005 §1); `permission` shows the area of S-121/S-122/S-103 and S-128 (proposed default, see D6 handoff)
-    x-covers: ['16 AC-7', '16 AC-52', '16 AC-54', '16 AC-55', '16 AC-56', '16 AC-72', '16 AC-74', '16 AC-75', '15 AC-26', '15 AC-31', '00 AC-8', '00 AC-10']
+    x-covers: ['16 AC-7', '16 AC-52', '16 AC-54', '16 AC-55', '16 AC-56', '16 AC-72', '16 AC-74', '16 AC-75', '15 AC-26', '15 AC-31', '00 AC-8', '00 AC-10', '00 AC-6', '09 AC-37', '16 AC-57', '06 AC-37']
     x-notifications: [EV-124]
     x-audit: setting.update
     requestBody:
@@ -1887,21 +1894,23 @@
     x-permission:
       audience: staff
       permission: settings.system.write
-      permissionByArea:
-        plans: settings.plans.write
-        payments: settings.payments.write
-        escrow: settings.escrow.write
-        withdrawals: settings.withdrawals.write
-        marketplace: settings.marketplace.write
-        subscriptions: settings.subscriptions.write
-        auth: settings.auth.write
-        moderation: settings.moderation.write
-        media: settings.media.write
-        chat: settings.chat.write
-        notifications: settings.notifications.write
-        content: settings.content.write
-        custom_code: settings.custom_code.write
-        system: settings.system.write
+      permissionBy:
+        attribute: area of the register row (settings registry, ADR-005 §1)
+        map:
+          plans: settings.plans.write
+          payments: settings.payments.write
+          escrow: settings.escrow.write
+          withdrawals: settings.withdrawals.write
+          marketplace: settings.marketplace.write
+          subscriptions: settings.subscriptions.write
+          auth: settings.auth.write
+          moderation: settings.moderation.write
+          media: settings.media.write
+          chat: settings.chat.write
+          notifications: settings.notifications.write
+          content: settings.content.write
+          custom_code: settings.custom_code.write
+          system: settings.system.write
       stepUpFor: [S-100, S-110, S-127]
       ownership: none
     x-covers: ['16 AC-53']
@@ -2118,6 +2127,7 @@
       permission: fees.write
       ownership: none
     x-covers: ['16 AC-47']
+    x-audit-exempt: 'computation only: nothing is stored or changed (spec 16 AC-47 preview)'
     requestBody:
       required: true
       content:

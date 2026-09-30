@@ -99,3 +99,17 @@ CreatedTo:
   schema:
     type: string
     format: date-time
+
+PageNumber:
+  name: page
+  in: query
+  required: false
+  description: |
+    Web page number (1-based), an alternative to `cursor` for the public lists the website renders with
+    numbered pages in the URL (`?page=N`, url-map §2, ADR-011 §4; CONVENTIONS §8.1). Only on operations
+    that reference this parameter; they also return `totalCount`. Sending both `page` and `cursor` →
+    `400 VALIDATION_FAILED`. Mobile uses `cursor`.
+  schema:
+    type: integer
+    minimum: 1
+    maximum: 1000

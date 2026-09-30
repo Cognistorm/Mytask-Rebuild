@@ -42,8 +42,8 @@
     tags: [Platform]
     security: []
     x-permission: {audience: public}
-    x-covers: ['00 AC-11', '01 AC-37']
-    x-settings: [S-001, S-002, S-003, S-004, S-005, S-006, S-007, S-008, S-009, S-019, S-020, S-021, S-022, S-023, S-024, S-025, S-026, S-027, S-028, S-029, S-030, S-031, S-032, S-034, S-035, S-036, S-037, S-038, S-039, S-040, S-041, S-045, S-056, S-061, S-065, S-066, S-067, S-068, S-069, S-075, S-076, S-077, S-078, S-079, S-080, S-081, S-082, S-083, S-084, S-085, S-086, S-087, S-088, S-089, S-090, S-091, S-092, S-093, S-094, S-095, S-096, S-097, S-098, S-099, S-101, S-103, S-104, S-105, S-106, S-107, S-108, S-109, S-111, S-112, S-117, S-118, S-119, S-120, S-121, S-123, S-126]
+    x-covers: ['00 AC-11', '01 AC-37', '12 AC-1']
+    x-settings: [S-001, S-002, S-003, S-004, S-005, S-006, S-007, S-008, S-009, S-019, S-020, S-021, S-022, S-023, S-024, S-025, S-026, S-027, S-028, S-029, S-030, S-031, S-032, S-034, S-035, S-036, S-037, S-038, S-039, S-040, S-041, S-045, S-046, S-056, S-061, S-065, S-066, S-067, S-068, S-069, S-075, S-076, S-077, S-078, S-079, S-080, S-081, S-082, S-083, S-084, S-085, S-086, S-087, S-088, S-089, S-090, S-091, S-092, S-093, S-094, S-095, S-096, S-097, S-098, S-099, S-101, S-103, S-104, S-105, S-106, S-107, S-108, S-109, S-111, S-112, S-113, S-114, S-115, S-116, S-117, S-118, S-119, S-120, S-121, S-123, S-126]
     responses:
       '200':
         description: The public configuration.
@@ -53,6 +53,37 @@
         content:
           application/json:
             schema: {$ref: '../schemas/d1.yaml#/PublicConfig'}
+      '304':
+        description: Not modified (`If-None-Match` matched the current `ETag`).
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+
+/config/web-custom-code:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: getWebCustomCode
+    summary: Custom code for public web pages (Next.js server only)
+    description: |
+      The S-110 custom code (head and footer slots, "Disable custom code" switch) and the S-127 allowed
+      hosts, for the Next.js server to render on **public pages only** and to build the public-page CSP
+      (spec 16 AC-73…AC-75). The mobile app, the admin app and non-public pages never call it; it is kept
+      out of `getPublicConfig` so mobile never receives it (integration run, requested by D6). The content
+      is what every visitor's browser receives on public pages anyway, so it is not a secret; the web
+      server caches it with `ETag` (changes visible within 60 seconds). Works during maintenance.
+      Errors: 400 VALIDATION_FAILED.
+    tags: [Platform]
+    security: []
+    x-permission: {audience: public, notes: 'consumer is the Next.js server; clients other than web must not render it (AC-73)'}
+    x-covers: ['16 AC-73']
+    x-settings: [S-110, S-127]
+    responses:
+      '200':
+        description: The custom code (slots null while disabled).
+        headers:
+          ETag: {$ref: '../components/headers.yaml#/ETag'}
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/PublicConfigWebCustomCode'}
       '304':
         description: Not modified (`If-None-Match` matched the current `ETag`).
       '400': {$ref: '../components/responses.yaml#/BadRequest'}
@@ -114,7 +145,7 @@
     tags: [Auth]
     security: []
     x-permission: {audience: public}
-    x-covers: ['00 AC-1', '01 AC-1', '01 AC-2', '01 AC-3', '01 AC-4', '01 AC-5', '01 AC-6', '01 AC-18']
+    x-covers: ['00 AC-1', '01 AC-1', '01 AC-2', '01 AC-3', '01 AC-4', '01 AC-5', '01 AC-6', '01 AC-18', '09 AC-23', '09 AC-25']
     x-settings: [S-052, S-053, S-054, S-061, S-046, S-100]
     x-notifications: [EV-01, EV-02]
     x-rate-limit: 'global write limit per IP (CONVENTIONS §14); reCAPTCHA S-061'
@@ -294,14 +325,21 @@
     description: |
       Ends the current session on the server (access token `sid` deny-listed, refresh token revoked, web
       cookies cleared) so the device can no longer call the API with it (spec 01 AC-42). On mobile the push
-      token of this installation is removed as well (spec 15 AC-21, D6 push tokens). Allowed for restricted
+      token of this installation is removed as well (spec 15 AC-21, D6 push tokens): the app sends its
+      `installationId` (the same id as `putPushToken`) so one call ends both. Allowed for restricted
       users (AC-19). Sockets of this session receive `session.revoked`.
     tags: [Auth]
     x-permission: {audience: restricted-user, ownership: self (current session)}
     x-covers: ['01 AC-19', '01 AC-42']
     x-emits: [session.revoked]
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d1.yaml#/LogoutRequest'}
     responses:
       '204': {$ref: '../components/responses.yaml#/NoContent'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
       '401': {$ref: '../components/responses.yaml#/Unauthorized'}
 
 /auth/email-verification/confirm:
@@ -321,7 +359,7 @@
     tags: [Auth]
     security: []
     x-permission: {audience: public}
-    x-covers: ['01 AC-7', '01 AC-8']
+    x-covers: ['01 AC-7', '01 AC-8', '09 AC-23', '09 AC-25']
     x-settings: [S-054]
     x-notifications: [EV-55]
     requestBody:
@@ -555,7 +593,7 @@
     tags: [Auth]
     security: []
     x-permission: {audience: public, toggles: [S-065, S-066, S-067, S-068, S-069], notes: 'the toggle of the requested provider only'}
-    x-covers: ['00 AC-1', '01 AC-30', '01 AC-37', '01 AC-38', '01 AC-39', '01 AC-40', '01 AC-41']
+    x-covers: ['00 AC-1', '01 AC-30', '01 AC-37', '01 AC-38', '01 AC-39', '01 AC-40', '01 AC-41', '09 AC-23', '09 AC-25']
     x-settings: [S-056, S-059, S-065, S-066, S-067, S-068, S-069, S-124]
     x-notifications: [EV-06, EV-55]
     parameters:
@@ -649,7 +687,7 @@
       email and username stay reserved (AC-34); reviews stay, shown as "Deleted user" (R-P9).
     tags: [Account]
     x-permission: {audience: user, ownership: self}
-    x-covers: ['02 AC-32', '02 AC-33', '02 AC-34']
+    x-covers: ['02 AC-32', '02 AC-33', '02 AC-34', '14 AC-20']
     x-emits: [session.revoked]
     responses:
       '204': {$ref: '../components/responses.yaml#/NoContent'}
@@ -1196,7 +1234,7 @@
     tags: [Profiles]
     security: [{}, {userBearer: []}, {userCookie: []}]
     x-permission: {audience: optional-user, ownership: 'none (public data); flags depend on the viewer'}
-    x-covers: ['02 AC-8', '02 AC-9', '02 AC-10', '02 AC-12', '02 AC-13']
+    x-covers: ['02 AC-8', '02 AC-9', '02 AC-10', '02 AC-12', '02 AC-13', '17 AC-41']
     x-settings: [S-034, S-123]
     responses:
       '200':
@@ -1592,7 +1630,7 @@
     tags: [Admin Users]
     security: [{staffBearer: []}, {staffCookie: []}]
     x-permission: {audience: staff, permission: users.delete, ownership: none, stepUp: true}
-    x-covers: ['16 AC-32', '16 AC-34']
+    x-covers: ['16 AC-32', '16 AC-34', '14 AC-20']
     x-audit: user.delete
     x-emits: [session.revoked]
     responses:
@@ -1656,7 +1694,7 @@
     tags: [Admin Users]
     security: [{staffBearer: []}, {staffCookie: []}]
     x-permission: {audience: staff, permission: users.activate, ownership: none}
-    x-covers: ['01 AC-5', '16 AC-32']
+    x-covers: ['01 AC-5', '16 AC-32', '09 AC-23', '09 AC-25']
     x-money: true
     x-audit: user.activate
     x-notifications: [EV-03, EV-55]
@@ -2227,7 +2265,7 @@
     tags: [Admin Users]
     security: [{staffBearer: []}, {staffCookie: []}]
     x-permission: {audience: staff, permission: security.ip_bans, ownership: none}
-    x-covers: ['01 AC-52', '16 AC-35']
+    x-covers: ['01 AC-52', '16 AC-35', '01 AC-51']
     x-settings: [S-064]
     parameters:
       - name: q
@@ -2286,7 +2324,7 @@
     tags: [Admin Users]
     security: [{staffBearer: []}, {staffCookie: []}]
     x-permission: {audience: staff, permission: security.ip_bans, ownership: none}
-    x-covers: ['01 AC-52', '16 AC-35']
+    x-covers: ['01 AC-52', '16 AC-35', '01 AC-51']
     x-audit: ip_ban.delete
     responses:
       '204': {$ref: '../components/responses.yaml#/NoContent'}

@@ -179,36 +179,6 @@ EscrowAutoReleaseSetReason:
   enum: [delivery, redelivery, refund_ended, reenabled, migration]
   description: Which rule set the current auto-release deadline (data-model §3.I, ADR-008 §1).
 
-EscrowActions:
-  type: object
-  description: |
-    What the caller may do on the escrow now (computed by the API; clients never re-derive rules,
-    architecture.md §2). `…AvailableAt` explains a disabled button (spec 13 AC-1, AC-23).
-  required: [canDeliver, canRequestRevision, revisionsLeft, canComplete, canRequestRefund, refundAvailableAt, canRequestUnblock, unblockAvailableAt]
-  properties:
-    canDeliver:
-      type: boolean
-      description: 'Freelancer; item in progress or revision requested (also while a dispute is open: evidence, spec 13 AC-13).'
-    canRequestRevision:
-      type: boolean
-      description: Buyer; delivered, revisions left, no open dispute (spec 06 AC-25, AC-27).
-    revisionsLeft: {type: integer, minimum: 0}
-    canComplete:
-      type: boolean
-      description: Buyer; delivered and no open dispute (spec 06 AC-30…AC-32).
-    canRequestRefund:
-      type: boolean
-      description: Buyer; eligible and no refund request yet (spec 13 AC-1…AC-4).
-    refundAvailableAt:
-      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
-      description: Set while in progress before the expected delivery date (button disabled until then).
-    canRequestUnblock:
-      type: boolean
-      description: Freelancer; spec 13 AC-23 conditions met now.
-    unblockAvailableAt:
-      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
-      description: Latest delivery + S-028 hours while that time is in the future and unblock requests are available (text t_unblock_request_72_hour_wait).
-
 RefundRequestRef:
   type: object
   description: Minimal refund request reference embedded on items and escrows (spec 13 AC-3 "link to the existing request").
@@ -258,7 +228,7 @@ Escrow:
         conversation:
           oneOf: [{$ref: '../components/schemas.yaml#/ConversationRef'}, {type: 'null'}]
           description: The item thread (order item / project / custom offer, D5).
-        actions: {$ref: '#/EscrowActions'}
+        actions: {$ref: '../components/schemas.yaml#/EscrowActions'}
 
 Delivery:
   type: object
@@ -492,7 +462,7 @@ OrderItem:
       properties:
         actions: {$ref: '#/OrderItemActions'}
         escrowActions:
-          oneOf: [{$ref: '#/EscrowActions'}, {type: 'null'}]
+          oneOf: [{$ref: '../components/schemas.yaml#/EscrowActions'}, {type: 'null'}]
           description: Null while awaiting payment.
 
 OrderItemPage:
@@ -660,7 +630,7 @@ CustomOffer:
       items: {$ref: '../components/schemas.yaml#/ReviewRef'}
     actions: {$ref: '#/CustomOfferActions'}
     escrowActions:
-      oneOf: [{$ref: '#/EscrowActions'}, {type: 'null'}]
+      oneOf: [{$ref: '../components/schemas.yaml#/EscrowActions'}, {type: 'null'}]
     createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
 
 CustomOfferPage:
@@ -830,12 +800,15 @@ AdminCustomOffer:
   allOf:
     - $ref: '#/CustomOffer'
     - type: object
-      required: [unblockRequest, approvedAt]
+      required: [unblockRequest, approvedAt, ownerSummary]
       properties:
         unblockRequest:
           oneOf: [{$ref: '#/UnblockRequestRef'}, {type: 'null'}]
         approvedAt:
           oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+        ownerSummary:
+          $ref: '../components/schemas.yaml#/ModerationOwnerSummary'
+          description: The freelancer who sent the offer (spec 16 AC-19 owner summary; earlier rejections = rejected offers).
 
 AdminCustomOfferPage:
   allOf:

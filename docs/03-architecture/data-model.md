@@ -3,6 +3,8 @@ Status: **proposed** (waiting for Owner review) | Author: solution-architect (P2
 Inputs: `architecture.md`, ADR-001…016 (as revised 2026-09-28), approved specs `docs/02-specs/00` (register S-001…S-126), 01–07, 09, 14; Owner answers Q-002…Q-094 (authoritative); `docs/01-discovery/data-model.md` (legacy schema, 230 migrations); `routes-and-pages.md`.
 Specs 08, 10, 11, 12 and 13 were written in parallel (status "ready for Owner" when this model was finished). The model was first built from the Owner answers (Q-005, Q-012, Q-015, Q-020, Q-027, Q-034…Q-037, Q-050, Q-056, Q-060, Q-065, Q-067, Q-071) and discovery, then **aligned with those drafts** (statuses, custom-offer escrow, conversation kinds, MM-11/12/13 rows). Parts marked **"to confirm against spec NN"** must be re-checked if the Owner changes those drafts. No business rule is invented here.
 
+> **Revised 2026-09-29 (P2-B4 integration run, API contract).** Added: `reconciliation_runs` and `reconciliation_differences` (§3.J, **PROPOSED** with spec 05 P-135 / S-128); payment "reviewed" columns and `payment_events.event_kind = staff_check` (§3.J, spec 16 AC-36/AC-37); journal types `legacy_hold_release` / `legacy_hold_write_off` (§5.3, spec 16 AC-44); `reports.status` `dismissed` + decision columns (§3.B, spec 16 AC-28); `portfolio_status` `rejected` + reason (§3.B, spec 16 AC-21 — Owner question Q-D1-1); `fee_rules.name_ka/name_en` (§3.K, spec 16 AC-46); S-121/S-110 value shapes and S-128 in the settings count (§3.K); `notification_deliveries.suppression_reason` (§3.O, spec 15). Entity count 120 → 122 (§13). Every change follows an operation in `docs/04-api/openapi.yaml`.
+
 This document is the design source for `apps/api/prisma/schema.prisma` (Phase 3) and for the legacy ETL `tools/migrate-legacy` (Phase 5). If this document and an ADR disagree, the ADR wins and this document is fixed.
 
 Contents
@@ -272,6 +274,7 @@ erDiagram
   withdrawals ||--o{ journals : "request/paid/reject"
   settings ||--o{ setting_versions : history
   users ||--|| user_money_counters : counters
+  reconciliation_runs ||--o{ reconciliation_differences : "found (PROPOSED P-135)"
   journals {
     uuid id PK
     enum type
@@ -303,6 +306,19 @@ erDiagram
     enum status
     text provider_order_id UK
     bigint total_tetri
+  }
+  reconciliation_runs {
+    uuid id PK
+    date run_day UK
+    enum status
+    int difference_count
+  }
+  reconciliation_differences {
+    uuid id PK
+    uuid run_id FK
+    enum check_code
+    bigint gap_tetri
+    timestamptz reviewed_at
   }
   fee_rules {
     uuid id PK
@@ -443,7 +459,7 @@ PIX `(user_id) WHERE revoked_at IS NULL`, `(staff_id) WHERE revoked_at IS NULL`.
 **user_languages** — `id` PK · `user_id` FK · `name varchar(100)` · `level language_level` (`basic`, `conversational`, `fluent`, `native`). UK `(user_id, lower(name))`.
 **user_linked_accounts** — `user_id` FK · `provider linked_provider` (`facebook`, `twitter`, `dribbble`, `stackoverflow`, `github`, `youtube`, `vimeo`) · `url varchar(160)`. PK `(user_id, provider)`. Shown only when S-123 is ON.
 
-**portfolio_items** — `id` PK · `legacy_id` · `uid varchar(20) UK` · `user_id` FK · `slug varchar(160)` (title slug + uid) · `title varchar(100)` · `description text` · `project_url varchar(120) null` · `video_url varchar(120) null` · `thumbnail_file_id` FK · `status portfolio_status` (`pending`, `active`) · `published_at null` · `created_at`, `updated_at`. IX `(user_id, status)`. Hard delete with files (spec 02 AC-27).
+**portfolio_items** — `id` PK · `legacy_id` · `uid varchar(20) UK` · `user_id` FK · `slug varchar(160)` (title slug + uid) · `title varchar(100)` · `description text` · `project_url varchar(120) null` · `video_url varchar(120) null` · `thumbnail_file_id` FK · `status portfolio_status` (`pending`, `active`, `rejected`) · `rejection_reason varchar(1000) null` (shown to the owner; spec 16 AC-21 — the `rejected` state is kept as the contract models it until the Owner answers Q-D1-1, see P2-B4 integration handoff) · `reviewed_by_staff_id null` · `reviewed_at null` · `published_at null` · `created_at`, `updated_at`. IX `(user_id, status)`. Hard delete with files (spec 02 AC-27).
 **portfolio_images** — `portfolio_item_id` FK · `file_id` FK · `position smallint`. PK `(portfolio_item_id, file_id)`.
 
 **kyc_verifications** (Q-048, S-122) — `id` PK · `legacy_id` · `user_id` FK · `document_type kyc_document_type` (`national_id`, `driver_license`, `passport`) · `front_file_id` FK · `back_file_id null` (passport) · `selfie_file_id` FK · `status kyc_status` (`pending`, `verified`, `declined`) · `provider kyc_provider` (`manual`; future values) · `provider_reference text null` · `reviewed_by_staff_id null` · `reviewed_at null` · `created_at`. PIX UK `(user_id) WHERE status IN ('pending','verified')` (one active verification, spec 02 AC-38). Files in bucket `kyc`.
@@ -453,7 +469,7 @@ PIX `(user_id) WHERE revoked_at IS NULL`, `(staff_id) WHERE revoked_at IS NULL`.
 **countries** — `id smallint PK` · `iso2 char(2) UK` · `name_ka`, `name_en varchar(100)` · `is_active boolean`. Reference data, not user content (no provenance block).
 
 **reports** — one table for user, gig, project and proposal reports
-`id` PK · `legacy_source`, `legacy_id` · `reporter_user_id` FK · `target_type report_target` (`user`, `gig`, `project`, `proposal`) · `target_id uuid` · `reason varchar(1500)` · `status report_status` (`pending`, `seen`, `resolved`) · `handled_by_staff_id null` · `handled_at null` · `created_at`, `updated_at`. UK `(reporter_user_id, target_type, target_id)` (profile reports upsert, spec 02 AC-14; a second gig report is refused, spec 04 AC-37). IX `(target_type, target_id)`, `(status, created_at)`.
+`id` PK · `legacy_source`, `legacy_id` · `reporter_user_id` FK · `target_type report_target` (`user`, `gig`, `project`, `proposal`) · `target_id uuid` · `reason varchar(1500)` · `status report_status` (`pending`, `dismissed`, `resolved`; spec 16 AC-28 — decisions are per reported item, all its pending reports move together) · `decision_note varchar(1000) null` (required for `dismissed` / `resolved`) · `handled_by_staff_id null` · `handled_at null` · `created_at`, `updated_at`. Migration: legacy "seen" (`mark`) is imported as `pending` so nothing is lost (proposed, Owner question D6-Q5). UK `(reporter_user_id, target_type, target_id)` (profile reports upsert, spec 02 AC-14; a second gig report is refused, spec 04 AC-37). IX `(target_type, target_id)`, `(status, created_at)`.
 
 ### 3.C Catalog (spec 03)
 
@@ -807,6 +823,9 @@ Append-only: a trigger rejects UPDATE and DELETE, and the application database r
 | bank_reference | text | null | bank transfer |
 | confirmed_by_staff_id | uuid | null | bank transfer |
 | rejection_reason | text | null | bank transfer rejected |
+| reviewed_at | timestamptz | null | staff "Mark reviewed" of an unapplied or amount-mismatch payment (spec 16 AC-37); moves no money |
+| reviewed_by_staff_id | uuid | FK null | |
+| review_note | varchar(1000) | null | |
 | billing_snapshot | jsonb | null | spec 05 AC-36 |
 | quote_hash | bytea | | detects a changed quote (spec 05 AC-8) |
 | idempotency_key | varchar(100) | UK `(payer_user_id, idempotency_key)` | |
@@ -817,7 +836,7 @@ Indexes: PIX `(created_at) WHERE status = 'pending' AND method = 'bog_card'` (re
 
 **payment_lines** (what one payment pays for): `id` PK · `payment_id` FK · `line_no smallint` · `kind payment_line_kind` (`order_item`, `contract_payment`, `custom_offer`, `topup_credit`, `subscription_period`) · `order_item_id null` · `contract_payment_id null` · `custom_offer_id null` · `subscription_id null` · `description_snapshot varchar(200)` (BOG basket line with the real item name, spec 05 AC-16) · `amount_tetri` (P) · `freelancer_amount_tetri null` (P′) · `buyer_fee_tetri default 0`. UK `(payment_id, line_no)`.
 
-**payment_events** (raw provider traffic, stored before processing, ADR-004 §3): `id bigint identity PK` · `provider` · `payment_id null` FK · `provider_order_id text` · `event_kind` (`callback`, `details_fetch`, `reconcile_fetch`, `charge_response`) · `signature_valid boolean null` · `headers jsonb` · `raw_body text` · `received_at` · `processed_at null` · `result payment_event_result null` (`applied`, `duplicate`, `ignored`, `amount_mismatch`, `unknown_order`, `error`) · `error text null`. IX `provider_order_id`; PIX `(id) WHERE processed_at IS NULL`.
+**payment_events** (raw provider traffic, stored before processing, ADR-004 §3): `id bigint identity PK` · `provider` · `payment_id null` FK · `provider_order_id text` · `event_kind` (`callback`, `details_fetch`, `reconcile_fetch`, `charge_response`, `staff_check` = staff "Check status at BOG", spec 16 AC-36) · `signature_valid boolean null` · `headers jsonb` · `raw_body text` · `received_at` · `processed_at null` · `result payment_event_result null` (`applied`, `duplicate`, `ignored`, `amount_mismatch`, `unknown_order`, `error`) · `error text null`. IX `provider_order_id`; PIX `(id) WHERE processed_at IS NULL`.
 
 **user_payment_methods** (saved BOG cards, never card numbers): `id` PK · `legacy_id` · `user_id` FK · `provider` (`bog`) · `provider_parent_order_id text` (the order that saved the card; used for saved-card charges) · `card_brand`, `masked_pan varchar(20)`, `expiry_month smallint`, `expiry_year smallint`, `holder_name` · `is_default boolean` · `created_at` · `deleted_at null` (removed here and at BOG, spec 05 AC-35).
 
@@ -855,8 +874,12 @@ Indexes: PIX UK `(user_id) WHERE status IN ('pending','processing')` (one open r
 
 **idempotency_keys** (ADR-003 §6): `principal_key text` (`user:{id}` or `staff:{id}`) · `key varchar(100)` · `endpoint text` · `request_hash bytea` · `state` (`in_progress`, `completed`) · `response_status smallint` · `response_body jsonb` · `created_at` · `expires_at` (24 h). PK `(principal_key, key)`. The same key with a different body returns 422.
 
+**reconciliation_runs** (**PROPOSED** with spec 05 P-135 / S-128; ADR-003 §10, ADR-008 §5a): `id` PK · `run_day date UK` (the previous Georgian calendar day; one row per run day — a retry or catch-up re-uses the row, never a second one, spec 05 AC-44, EC-11/EC-12) · `status reconciliation_run_status` (`running`, `no_differences`, `differences_found`, `failed`) · `attempt_count smallint default 1` · `started_at` · `finished_at null` · `check_results jsonb` (per check C-1…C-9: `ok` | `differences` | `not_available` + count; `not_available` only for C-9 without a BOG settlement report) · `check_count smallint` · `difference_count int` · `error_summary text null` · `alert_sent_at null` (EV-32 once per run) · `failure_alert_sent_at null` (EV-125 at most once per run day, AC-46) · `created_at`. IX `(status, run_day DESC)`. The run only reads; it never posts or corrects (AC-44).
+
+**reconciliation_differences** (**PROPOSED**, P-135): `id` PK · `run_id` FK · `check_code reconciliation_check` (`c1_journal_sum` … `c9_bog_settlement`) · `subject_type` (`journal`, `ledger_account`, `escrow`, `user`, `withdrawal`, `payment`, `books`, `bog_report`) · `subject_id text null` · `subject_label text null` · `expected_tetri bigint` · `actual_tetri bigint` · `gap_tetri bigint` (actual − expected, exact, no tolerance, AC-45) · `reviewed_at null` · `reviewed_by_staff_id null` · `review_note varchar(1000) null` (required when reviewed; audited; moves no money, AC-47) · `created_at`. IX `(run_id, check_code)`; PIX `(run_id) WHERE reviewed_at IS NULL` (unreviewed count).
+
 ### 3.K Settings and fee rules (ADR-005, spec 00 §4)
-**settings** (current value per register key): `key text PK` (e.g. `escrow.auto_release.hours`) · `register_id varchar(6) UK` (e.g. `S-026`) · `value jsonb` (secret keys S-065…S-069 store `{ciphertext, iv, keyId}`, AES-256-GCM) · `current_version int` · `updated_at` · `updated_by_staff_id`. A startup check compares the rows with the code registry and with the approved register. The register has 126 rows; the 5 per-code promo fields (S-047…S-051) live on `promo_codes` and `referral_code_benefits`, not here.
+**settings** (current value per register key): `key text PK` (e.g. `escrow.auto_release.hours`) · `register_id varchar(6) UK` (e.g. `S-026`) · `value jsonb` (secret keys S-065…S-069 store `{ciphertext, iv, keyId}`, AES-256-GCM) · `current_version int` · `updated_at` · `updated_by_staff_id`. A startup check compares the rows with the code registry and with the approved register. The register has 127 approved rows (S-001…S-127; S-127 added by the Owner 2026-09-29) plus **S-128** `ledger.reconciliation.run_time` (**PROPOSED** with P-135: daily time HH:MM Georgian time, default 03:00; stored as a normal row once accepted); the 5 per-code promo fields (S-047…S-051) live on `promo_codes` and `referral_code_benefits`, not here. Structured values: **S-121** maintenance is `{enabled, headline: {ka, en} | null, message: {ka, en} | null}` — the register's boolean is `value.enabled`, the texts are part of the same versioned value (spec 16 AC-70, D6 `adminUpdateMaintenance`); **S-110** custom code is `{enabled, head, footer}` (spec 16 AC-73…AC-75).
 
 **setting_versions**: `id` PK · `key` FK · `version int` · `value jsonb` · `effective_from timestamptz` · `changed_by_staff_id` · `reason text` · `created_at`. UK `(key, version)`; IX `(key, effective_from DESC)`. Every change also writes an `audit_log` row (AC-8).
 
@@ -865,7 +888,8 @@ Indexes: PIX UK `(user_id) WHERE status IN ('pending','processing')` (one open r
 |---|---|---|---|
 | id | uuid | PK | referenced by `applied_fees` and `withdrawals` |
 | code | text | | `withdrawal.standard` (S-010), `withdrawal.premium` (S-011), `card_surcharge.bog` (S-012), `gig_order.commission` (S-013), `project.client_commission` (S-014), `project.freelancer_commission` (S-015), `project.posting_fee` (S-016), `custom_offer.buyer_fee` (S-017), `custom_offer.freelancer_fee` (S-018) |
-| register_id | varchar(6) | | |
+| register_id | varchar(6) | null | null for rules added later without a register row |
+| name_ka, name_en | varchar(120) | name_ka not null | display name in the Commission & Fee screen (spec 16 AC-46); seeded for S-010…S-018 |
 | version | int | UK `(code, version)` | |
 | enabled | boolean | | |
 | calc_type | fee_calc_type | | `percent_bp`, `fixed_tetri` |
@@ -939,7 +963,7 @@ Blocking users is out of scope (spec 08; legacy blocking existed only in the rem
 
 **notification_preferences**: `user_id`, `category text`, `channel` (`email`, `push`, `in_app`), `enabled`. PK `(user_id, category, channel)`. Used only if spec 15 allows muting; security and transactional categories can never be disabled.
 
-**notification_deliveries**: `id` PK · `channel` (`email`, `push`, `sms`) · `notification_id null` · `event_type` · `recipient_user_id null` · `recipient_email citext null` (S-100 admin recipients) · `template_key` · `locale` · `status` (`queued`, `sent`, `failed`, `suppressed`) · `provider_message_id` · `attempts` · `error` · `created_at`, `sent_at`. Kept 90 days.
+**notification_deliveries**: `id` PK · `channel` (`email`, `push`, `sms`) · `notification_id null` · `event_type` · `recipient_user_id null` · `recipient_email citext null` (S-100 admin recipients) · `template_key` · `locale` · `status` (`queued`, `sent`, `failed`, `suppressed`) · `suppression_reason null` (`preference`, `rate_cap`, `undeliverable`, `account_inactive`, `push_disabled`; set only for `suppressed`, spec 15 AC-11/AC-25/AC-28/AC-34, EC-5) · `provider_message_id` · `attempts` · `error` · `created_at`, `sent_at`. Kept 90 days.
 
 **outbox_events**: `id bigint identity PK` · `event_type` · `aggregate_type`, `aggregate_id` · `payload jsonb` · `created_at` · `dispatched_at null` · `attempts`. PIX `(id) WHERE dispatched_at IS NULL`.
 
@@ -1032,7 +1056,7 @@ Only `paid` and `paid_unapplied` have money effects. They are mutually exclusive
 `pending` → `paid` | `rejected` (manual); `pending` → `processing` → `paid` | `rejected` (BOG Payout, later).
 
 ### 4.8 Other statuses
-`user_status` (pending, active, verified, banned), `gig_status` (pending, active, rejected, deleted), `portfolio_status`, `kyc_status`, `restriction_status`, `review_status`, `file_status`, `promo redemption status`, `referral_status`, `subscription` (no status column: running = `now() < ends_at`; canceled-running = `canceled_at IS NOT NULL AND now() < ends_at`; ended = `ends_at ≤ now()`).
+`user_status` (pending, active, verified, banned), `gig_status` (pending, active, rejected, deleted), `portfolio_status` (pending, active, rejected), `report_status` (pending, dismissed, resolved), `reconciliation_run_status` (running, no_differences, differences_found, failed — PROPOSED P-135), `kyc_status`, `restriction_status`, `review_status`, `file_status`, `promo redemption status`, `referral_status`, `subscription` (no status column: running = `now() < ends_at`; canceled-running = `canceled_at IS NOT NULL AND now() < ends_at`; ended = `ends_at ≤ now()`).
 
 ---
 
@@ -1067,7 +1091,7 @@ There is no buyer-side pending account: the buyer is debited at payment and the 
 5. The caller, in the same transaction, compare-and-sets the business state and writes the outbox event.
 
 ### 5.3 Journal types
-`card_payment`, `wallet_payment`, `bank_transfer_payment`, `topup_card`, `topup_bank`, `unapplied_payment`, `escrow_release`, `escrow_refund`, `withdrawal_request`, `withdrawal_paid`, `withdrawal_reject`, `subscription_payment`, `subscription_renewal`, `promo_zero_total`, `adjustment_credit`, `adjustment_debit`, `migration_opening`, `reversal`. New flows add a type; existing journals are never changed.
+`card_payment`, `wallet_payment`, `bank_transfer_payment`, `topup_card`, `topup_bank`, `unapplied_payment`, `escrow_release`, `escrow_refund`, `withdrawal_request`, `withdrawal_paid`, `withdrawal_reject`, `subscription_payment`, `subscription_renewal`, `promo_zero_total`, `adjustment_credit`, `adjustment_debit`, `legacy_hold_release` (staff releases a migrated legacy-hold residual to Available), `legacy_hold_write_off` (staff writes a residual off to the platform account; spec 16 AC-44, Q-096 "audited adjustment"), `migration_opening`, `reversal`. New flows add a type; existing journals are never changed.
 
 ### 5.4 Balances shown to users (spec 00 §3, spec 05 AC-27, R-P7)
 | Figure | Source |
@@ -1286,7 +1310,7 @@ For the migration engineer (Phase 5, `tools/migrate-legacy`). Source: 230 migrat
 | `verification_center` | `kyc_verifications` (document_type id→`national_id`) | files → `kyc` bucket |
 | `user_restrictions`, `user_restriction_appeals`, `user_restriction_appeal_files` | same three tables | |
 | `banned_ips` | `banned_ips` (`attempts ≥ 3` → `banned_at` set) | |
-| `reported_users`, `reported_gigs`, `reported_projects`, `project_reported_bids` | `reports` (target_type user/gig/project/proposal) | |
+| `reported_users`, `reported_gigs`, `reported_projects`, `project_reported_bids` | `reports` (target_type user/gig/project/proposal); legacy "seen"/marked rows → `status = pending` (proposed, Owner question D6-Q5) | |
 | `countries` | `countries` | |
 
 **Catalog and gigs**
@@ -1399,7 +1423,7 @@ One `migration_opening` journal per user (`idempotency_ref = migration:user:{leg
 ---
 
 ## 13. Entity count
-**120 entities** (tables), by domain:
+**122 entities** (tables), by domain:
 | Domain | Count | Tables |
 |---|---|---|
 | Identity and access | 13 | users, user_profiles, social_accounts, auth_tokens, sessions, refresh_tokens, trusted_devices, trusted_device_ips, two_factor_challenges, banned_ips, user_restrictions, restriction_appeals, restriction_appeal_files |
@@ -1410,7 +1434,7 @@ One `migration_opening` journal per user (`idempotency_ref = migration:user:{leg
 | Projects and contracts | 8 | projects, project_translations, project_skills, project_files, proposals, project_awards, contracts, contract_payments |
 | Custom offers | 3 | custom_offer_requests, custom_offers, custom_offer_attachments |
 | Escrow and resolution | 7 | escrows, deliveries, delivery_files, revision_requests, refund_requests, disputes, unblock_requests |
-| Ledger and payments | 13 | ledger_accounts, journals, journal_entries, applied_fees, payments, payment_lines, payment_events, user_payment_methods, balance_adjustments, withdrawals, user_money_counters, legacy_transactions, idempotency_keys |
+| Ledger and payments | 15 | ledger_accounts, journals, journal_entries, applied_fees, payments, payment_lines, payment_events, user_payment_methods, balance_adjustments, withdrawals, user_money_counters, legacy_transactions, idempotency_keys, reconciliation_runs (PROPOSED), reconciliation_differences (PROPOSED) |
 | Settings and fees | 3 | settings, setting_versions, fee_rules |
 | Subscriptions, points, promo | 12 | plans, plan_translations, subscriptions, subscription_periods, points_accounts, points_journals, points_entries, points_event_types, referrals, referral_code_benefits, promo_codes, promo_redemptions |
 | Reviews | 2 | reviews, user_rating_stats |
@@ -1421,4 +1445,4 @@ One `migration_opening` journal per user (`idempotency_ref = migration:user:{leg
 | i18n and content | 9 | translation_overrides, pages, page_translations, blog_articles, blog_article_translations, blog_comments, newsletter_subscribers, support_messages, home_logos |
 | Search, analytics, ops | 4 | search_documents, analytics_events, analytics_daily, sweeper_runs |
 
-Totals: 13 + 10 + 6 + 10 + 3 + 8 + 3 + 7 + 13 + 3 + 12 + 2 + 4 + 5 + 7 + 1 + 9 + 4 = **120**.
+Totals: 13 + 10 + 6 + 10 + 3 + 8 + 3 + 7 + 15 + 3 + 12 + 2 + 4 + 5 + 7 + 1 + 9 + 4 = **122** (120 without the two PROPOSED reconciliation tables).

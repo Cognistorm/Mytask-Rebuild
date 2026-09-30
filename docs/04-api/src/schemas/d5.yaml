@@ -584,26 +584,6 @@ ProjectUpdateRequest:
     budgetMin: {$ref: '../components/schemas.yaml#/Money'}
     budgetMax: {$ref: '../components/schemas.yaml#/Money'}
 
-ProjectClient:
-  type: object
-  description: |
-    The project owner as shown on the project page (spec 10 AC-17, R-P6; spec 02 AC-41). For guests and
-    for users who are neither Premium, nor the owner, the username is masked (`mytask` → `my**sk`),
-    `usernameMasked` is true and `user` is null: the API never returns the real username or user id to
-    such viewers, so no profile link can be built. "Chat now" uses `createConversation` with `projectId`.
-  required: [displayUsername, usernameMasked, avatar, isIdVerified, countryCode, user]
-  properties:
-    displayUsername: {type: string}
-    usernameMasked: {type: boolean}
-    avatar:
-      oneOf: [{$ref: '../components/schemas.yaml#/ImageVariants'}, {type: 'null'}]
-    isIdVerified: {type: boolean}
-    countryCode:
-      oneOf: [{$ref: '../components/schemas.yaml#/CountryCode'}, {type: 'null'}]
-    user:
-      oneOf: [{$ref: '../components/schemas.yaml#/UserSummary'}, {type: 'null'}]
-      description: Full summary only for the owner and Premium viewers.
-
 ProjectBidBlockedReason:
   type: string
   description: Why "Bid on this project" is not available to the viewer (spec 10 AC-18, spec 11 AC-1, AC-2, AC-7).
@@ -705,7 +685,7 @@ Project:
     averageProposalAmount:
       oneOf: [{$ref: '../components/schemas.yaml#/Money'}, {type: 'null'}]
       description: Average of **active** proposals (P-78); null when the viewer may not see it (`viewer.canSeeAverage` false) or there is none.
-    client: {$ref: '#/ProjectClient'}
+    client: {$ref: '../components/schemas.yaml#/MaskedUserSummary'}
     hasPendingAward:
       type: boolean
       description: '"Awarded — waiting for the freelancer" (`t_awaiting_freelancer_acceptance`, spec 11 AC-16).'
@@ -808,22 +788,6 @@ ProjectViewCreateRequest:
       description: First-party browser or app-installation id; one counted visit per visitor per project per 15 minutes (spec 10 AC-21).
 
 # ── Admin projects (spec 16 AC-19, AC-22) ──
-AdminProjectOwnerSummary:
-  type: object
-  description: Owner summary of a queue item (spec 16 AC-19).
-  required: [user, plan, openReportsCount, earlierRejectionsCount]
-  properties:
-    user: {$ref: '../components/schemas.yaml#/UserSummary'}
-    plan: {$ref: '../components/schemas.yaml#/PlanCode'}
-    openReportsCount:
-      type: integer
-      minimum: 0
-      description: Unreviewed reports about this user's projects and profile.
-    earlierRejectionsCount:
-      type: integer
-      minimum: 0
-      description: Earlier rejections of this owner's projects.
-
 AdminProjectListItem:
   type: object
   required: [id, pid, title, status, category, owner, budgetMin, budgetMax, activeProposalsCount, reportsCount, createdAt, publishedAt, updatedAt]
@@ -874,7 +838,7 @@ AdminProject:
     budgetMin: {$ref: '../components/schemas.yaml#/Money'}
     budgetMax: {$ref: '../components/schemas.yaml#/Money'}
     owner: {$ref: '../components/schemas.yaml#/UserSummary'}
-    ownerSummary: {$ref: '#/AdminProjectOwnerSummary'}
+    ownerSummary: {$ref: '../components/schemas.yaml#/ModerationOwnerSummary'}
     activeProposalsCount: {type: integer, minimum: 0}
     proposalsCount:
       type: integer
@@ -922,18 +886,6 @@ ProposalDisplayStatus:
   description: Status chip for the author's list (spec 11 AC-14); equals `status` except `not_selected` (another proposal was hired, R-H3).
   enum: [pending_approval, active, rejected, awarded, accepted, declined, withdrawn, hire_canceled, not_selected, hidden]
 
-ProposalFreelancerRating:
-  type: object
-  description: Freelancer rating summary (spec 07, owned by D2) shown on proposal cards (spec 11 AC-10). Local stand-in; see handoff (shared rating summary requested).
-  required: [averageTenths, count]
-  properties:
-    averageTenths:
-      type: [integer, 'null']
-      minimum: 10
-      maximum: 50
-      description: Average rating × 10 (e.g. 48 = 4.8); null without reviews.
-    count: {type: integer, minimum: 0}
-
 ProposalAwardRef:
   type: object
   required: [id, status, expiresAt]
@@ -972,7 +924,7 @@ Proposal:
       description: Public id used in `/seller/proposals/{proposalUid}/edit` (url-map §5).
     project: {$ref: '../components/schemas.yaml#/ProjectRef'}
     freelancer: {$ref: '../components/schemas.yaml#/UserSummary'}
-    freelancerRating: {$ref: '#/ProposalFreelancerRating'}
+    freelancerRating: {$ref: '../components/schemas.yaml#/RatingSummary'}
     amount: {$ref: '../components/schemas.yaml#/Money'}
     deliveryDays:
       type: integer
@@ -1096,7 +1048,7 @@ AdminProposal:
     projectOwner: {$ref: '../components/schemas.yaml#/UserSummary'}
     freelancer: {$ref: '../components/schemas.yaml#/UserSummary'}
     ownerSummary:
-      $ref: '#/AdminProjectOwnerSummary'
+      $ref: '../components/schemas.yaml#/ModerationOwnerSummary'
       description: Summary of the proposal's author (the "owner" of the queue item).
     amount: {$ref: '../components/schemas.yaml#/Money'}
     deliveryDays: {type: integer}
@@ -1205,7 +1157,7 @@ ContractPaymentLine:
     One line of the contract's payment schedule — today exactly one (`sequence 1`, `kind full`,
     Q-050). Pay it with D3's checkout: `CheckoutTarget {purpose: contract_payment, contractPaymentId: id}`
     (CONVENTIONS §5.4).
-  required: [id, sequence, kind, amount, freelancerAmount, buyerFee, status, escrow, payment, fundedAt, closedAt]
+  required: [id, sequence, kind, amount, freelancerAmount, buyerFee, status, escrow, escrowActions, payment, fundedAt, closedAt]
   properties:
     id: {$ref: '../components/schemas.yaml#/Uuid'}
     sequence: {type: integer, minimum: 1}
@@ -1226,6 +1178,9 @@ ContractPaymentLine:
     escrow:
       oneOf: [{$ref: '../components/schemas.yaml#/EscrowSummary'}, {type: 'null'}]
       description: Null before a verified payment (ADR-003 §7). Delivery, revision and completion go through D4 `/escrows/{escrowId}`.
+    escrowActions:
+      oneOf: [{$ref: '../components/schemas.yaml#/EscrowActions'}, {type: 'null'}]
+      description: What the caller may do on this escrow now (same flags as D4 order items and `getEscrow`); null before payment.
     payment:
       oneOf: [{$ref: '../components/schemas.yaml#/PaymentSummary'}, {type: 'null'}]
       description: Latest payment attempt for this line (e.g. pending card payment, spec 11 EC-5).

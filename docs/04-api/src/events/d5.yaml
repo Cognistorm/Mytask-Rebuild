@@ -4,9 +4,9 @@ events:
   - name: message.created
     room: 'conversation:{conversationId}'
     payload: MessageCreatedEvent
-    emittedBy: [createConversationMessage, adminCreateConversationMessage, 'job:thread-system-messages']
+    emittedBy: [createConversationMessage, adminCreateConversationMessage, createEscrowRevisionRequest, createCustomOffer, createCustomOfferRequest, 'job:thread-system-messages']
     covers: ['08 AC-6', '08 AC-28', '11 AC-40']
-    description: New message in a conversation or item thread (also offer/request cards and system lines written by D4 operations through the D5 service); clients append it or replace the optimistic bubble by clientMessageId.
+    description: New message in a conversation or item thread. D4 operations write through the D5 service (revision request message 06 AC-26, offer card 12 AC-9, request card 12 AC-3); other system lines come from job:thread-system-messages. Clients append it or replace the optimistic bubble by clientMessageId.
   - name: message.updated
     room: 'conversation:{conversationId}'
     payload: MessageUpdatedEvent
@@ -68,5 +68,5 @@ events:
   - name: contract.status_changed
     room: 'user:{userId}'
     payload: ContractStatusChangedEvent
-    emittedBy: [acceptAward, cancelContract, 'job:payment-apply', 'job:escrow-auto-release', 'job:escrow-state-sync']
-    description: Contract created or changed status (rooms of client and freelancer). Status changes caused by D3 payment verification and D4 escrow operations (delivery, revision, completion, refund) are emitted by the shared domain service; see handoff.
+    emittedBy: [acceptAward, cancelContract, createPayment, createEscrowDelivery, createEscrowRevisionRequest, completeEscrow, acceptRefundRequest, adminReleaseEscrow, adminRefundEscrow, adminResolveDispute, adminApproveUnblockRequest, 'job:bog-callback', 'job:bog-reconcile', 'job:escrow-auto-release']
+    description: 'Contract created or changed status (rooms of client and freelancer): award accepted, hire canceled, paid (D3 wallet payment or verified card payment), delivered / revision requested / completed / refunded (D4 escrow operations and auto-release). Integration run: D3/D4 operations listed instead of service placeholders.'

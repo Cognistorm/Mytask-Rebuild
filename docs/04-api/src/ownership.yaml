@@ -116,6 +116,7 @@ groups:
       - /admin/points
       - /admin/promo-codes
       - /admin/referral-benefits
+      - /admin/referrals
     errorPrefixes: [CHECKOUT_, QUOTE_, PAYMENT_, WALLET_, TOPUP_, BANK_TRANSFER_, CARD_, BILLING_, LEDGER_, ADJUSTMENT_, SUBSCRIPTION_, POINTS_, REFERRAL_, PROMO_, WITHDRAWAL_, PAYOUT_]
     schemaPrefixes: [Checkout, Quote, Payment, Receipt, Bog, Wallet, Balance, Transaction, Hold, Topup, BankTransfer, SavedCard, Billing, Ledger, Journal, Adjustment, Reconciliation, LegacyHold, Plan, Subscription, Points, Referral, Promo, Withdrawal, Payout]
 
@@ -218,6 +219,8 @@ reservedOperations:
   createReview:                {group: D2, method: post,   path: /reviews}
   listReviews:                 {group: D2, method: get,    path: /reviews}
   resolveRedirect:             {group: D2, method: get,    path: /redirects/resolve}
+  listGigs:                    {group: D2, method: get,    path: /gigs}                 # integration run (D2 R-7)
+  getUserReviewSummary:        {group: D2, method: get,    path: /reviews/summary}      # integration run (D2 R-7)
   # D3
   createCheckoutQuote:         {group: D3, method: post,   path: /checkout/quote}
   createPayment:               {group: D3, method: post,   path: /payments}

@@ -18,7 +18,7 @@ events:
   - name: badge.updated
     room: 'user:{userId}'
     payload: NotificationBadgeEvent
-    emittedBy: [markNotificationRead, markAllNotificationsRead, 'job:notification-dispatch', 'job:conversation-read-state']
+    emittedBy: [markNotificationRead, markAllNotificationsRead, createConversationMessage, adminCreateConversationMessage, markConversationRead, 'job:notification-dispatch']
     covers: ['15 AC-12', '15 AC-25']
     description: New bell and app-icon badge counts (unread notifications + conversations with unseen messages).
 

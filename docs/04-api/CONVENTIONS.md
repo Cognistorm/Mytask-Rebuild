@@ -1,5 +1,5 @@
 # API contract conventions — binding rules for every P2-B4 run
-Status: **binding** for the six group runs (D1…D6) and the integration run. Written 2026-09-29 by the solution-architect (P2-B4 part 1, foundation).
+Status: **binding** for everyone who changes the contract. Written 2026-09-29 by the solution-architect (P2-B4 part 1, foundation); **updated by the integration run (P2-B4 part 3, 2026-09-29)**: new shared schemas (§2.1), `PageNumber` (§2.2, §8.1), one `permissionBy` rule and `stepUpFor` (§6.1), the `@self` exception for the Owner (§6.3), checker rules (§13), restricted-user uploads for appeals (§15). After the Owner approves the contract, changes need an ADR and a handoff (CLAUDE.md).
 Sources: CLAUDE.md, ADR-002, 003, 004, 005, 006, 007, 009, 010, 014, 016, `architecture.md` §5, `data-model.md`, `url-map.md`, specs 00…17.
 If this document and an ADR disagree, the ADR wins; write the conflict in your handoff (do not silently choose).
 
@@ -63,14 +63,17 @@ All in `src/components/`. Every name below is reserved: no group may define a sc
 | `Uuid`, `Timestamp` (UTC `Z`), `DateOnly`, `Locale` (`ka`/`en`), `ContentLocale`, `LocalizedString` (`{ka, en}`), `CountryCode`, `EmailAddress`, `HttpUrl` | primitives. Every `…At` property is a `Timestamp` |
 | `Money` (`{amount: int64 tetri, currency: 'GEL'}`), `Currency`, `BasisPoints` | all money and percentages (§9) |
 | `PlanCode` (`standard`/`premium`), `BillingPeriod` (`monthly`/`yearly`) | plans (spec 00 §2, spec 09) |
-| `Error`, `ErrorDetails`, `FieldError`, `ErrorCode`, `CommonErrorCode` | errors (§7) |
+| `Error`, `ErrorDetails`, `FieldError`, `ErrorCode`, `CommonErrorCode` | errors (§7). `FieldError` has optional `params` (placeholder values of its `messageKey`) and `refusedCharacters` (Georgian-field rule R-5.3a, P-136) |
 | `CursorPage`, `NextCursor` | lists (§8) |
 | `ImageVariants` | any public processed image (CDN URLs) |
-| `UserSummary` | any other user shown anywhere (seller, buyer, author, party). Masking via `usernameMasked` (BR-015) |
+| `UserSummary` | any other user shown anywhere (seller, buyer, author, party). **Never masked** |
+| `MaskedUserSummary` | a user under the username-masking rule (project owner for guests / non-Premium viewers, BR-015, spec 02 AC-41, R-P6): no id and no real username when masked (D5 project reads, D2 `searchProjects`) |
+| `ModerationOwnerSummary` | owner summary next to every moderation-queue item (spec 16 AC-19), all groups |
+| `RatingSummary`, `RatingStarCounts`, `RatingBlock` | every rating in the API: `averageTenths` integer (4.33 → 43, the P-56 one-decimal display value), `count`, optional star breakdown |
 | `StaffSummary`, `ActorRef` | who did something (admin views, timelines; users see staff as "MyTask") |
 | `CategoryRef`, `GigRef`, `ProjectRef` | references to D2/D5 objects from other groups |
 | `WorkItemType`, `WorkItemRef` | reference to a paid unit of work: gig order item, contract payment, custom offer (payments, transactions, HOLD list, refunds, unblock, reviews) |
-| `EscrowKind`, `EscrowStatus`, `EscrowCloseReason`, `AutoReleasePauseReason`, `EscrowSummary` | the escrow embedded on order items (D4), custom offers (D4) and contracts (D5) |
+| `EscrowKind`, `EscrowStatus`, `EscrowCloseReason`, `AutoReleasePauseReason`, `EscrowSummary`, `EscrowActions` | the escrow embedded on order items (D4), custom offers (D4) and contract payment lines (D5), with the caller's action flags |
 | `PaymentPurpose`, `PaymentMethod`, `PaymentStatus`, `PaymentSummary`, `FeeLine` | payment references and fee lines (endpoints: D3) |
 | `CheckoutTarget` (+ `GigOrderCheckoutTarget`, `ContractPaymentCheckoutTarget`, `CustomOfferCheckoutTarget`, `TopupCheckoutTarget`, `SubscriptionCheckoutTarget`) | what a checkout pays for (§5.4) |
 | `ConversationKind`, `ConversationRef` | link from an item to its thread (endpoints: D5) |
@@ -81,7 +84,7 @@ All in `src/components/`. Every name below is reserved: no group may define a sc
 | `RealtimeEnvelope`, `FileProcessedEvent` | realtime (§16) |
 
 ### 2.2 Parameters (`components/parameters.yaml`)
-`AcceptLanguage` (header; **on every path item**), `IdempotencyKey` (header, required; money operations), `XMyTaskClient` (header; only where behaviour depends on the client, e.g. `createPayment`), `Cursor`, `Limit` (default 20, max 100), `AdminLimit` (default 50, max 200), `UserIdFilter` (`?userId=` on admin lists, §4.2), `CreatedFrom`, `CreatedTo`.
+`AcceptLanguage` (header; **on every path item**), `IdempotencyKey` (header, required; money operations), `XMyTaskClient` (header; only where behaviour depends on the client, e.g. `createPayment`), `Cursor`, `Limit` (default 20, max 100), `AdminLimit` (default 50, max 200), `UserIdFilter` (`?userId=` on admin lists, §4.2), `CreatedFrom`, `CreatedTo`, `PageNumber` (`?page=N`, only on the public lists of §8.1).
 
 ### 2.3 Responses (`components/responses.yaml`) and headers (`components/headers.yaml`)
 Responses: `BadRequest` 400, `Unauthorized` 401, `Forbidden` 403, `NotFound` 404, `Conflict` 409, `UnprocessableEntity` 422, `TooManyRequests` 429, `ServiceUnavailable` 503, `NoContent` 204, `FoundRedirect` 302. All error responses carry the `Error` body and `X-Request-Id`.
@@ -139,7 +142,7 @@ A path belongs to the group with the **longest matching prefix**; a prefix cover
 | **F0** foundation | – | `/files` | `/admin/files` |
 | **D1** | 00, 01, 02 | `/health`, `/config`, `/i18n`, `/auth`, `/me`, `/users`, `/portfolio-items`, `/kyc`, `/restriction-appeals` | `/admin/users`, `/admin/portfolio-items`, `/admin/kyc`, `/admin/restrictions`, `/admin/restriction-appeals`, `/admin/ip-bans` |
 | **D2** | 03, 04, 07, 17 | `/categories`, `/project-categories`, `/skills`, `/countries`, `/search`, `/sellers`, `/hire`, `/gigs`, `/favorites`, `/reviews`, `/pages`, `/blog`, `/contact-messages`, `/newsletter`, `/home`, `/seo`, `/sitemaps`, `/redirects`, `/outbound-links` | `/admin/gigs`, `/admin/reviews`, `/admin/categories`, `/admin/project-categories`, `/admin/skills`, `/admin/countries`, `/admin/pages`, `/admin/blog`, `/admin/blog-comments`, `/admin/newsletter`, `/admin/support-messages`, `/admin/home`, `/admin/redirects` |
-| **D3** | 05, 09, 14 | `/checkout`, `/payments`, `/webhooks/bog`, `/wallet`, `/saved-cards`, `/billing-profile`, `/plans`, `/subscriptions`, `/points`, `/referrals`, `/promo-codes`, `/withdrawals`, `/payout-methods` | `/admin/payments`, `/admin/bank-transfers`, `/admin/ledger`, `/admin/reconciliation`, `/admin/legacy-holds`, `/admin/withdrawals`, `/admin/plans`, `/admin/subscriptions`, `/admin/points`, `/admin/promo-codes`, `/admin/referral-benefits` |
+| **D3** | 05, 09, 14 | `/checkout`, `/payments`, `/webhooks/bog`, `/wallet`, `/saved-cards`, `/billing-profile`, `/plans`, `/subscriptions`, `/points`, `/referrals`, `/promo-codes`, `/withdrawals`, `/payout-methods` | `/admin/payments`, `/admin/bank-transfers`, `/admin/ledger`, `/admin/reconciliation`, `/admin/legacy-holds`, `/admin/withdrawals`, `/admin/plans`, `/admin/subscriptions`, `/admin/points`, `/admin/promo-codes`, `/admin/referral-benefits`, `/admin/referrals` |
 | **D4** | 06, 12, 13 | `/cart`, `/orders`, `/custom-offers`, `/custom-offer-requests`, `/escrows`, `/refund-requests`, `/disputes`, `/unblock-requests` | `/admin/orders`, `/admin/custom-offers`, `/admin/escrows`, `/admin/refund-requests`, `/admin/disputes`, `/admin/unblock-requests` |
 | **D5** | 08, 10, 11 | `/conversations`, `/projects`, `/proposals`, `/awards`, `/contracts` | `/admin/conversations`, `/admin/projects`, `/admin/proposals`, `/admin/contracts` |
 | **D6** | 15, 16 | `/notifications`, `/notification-preferences`, `/push-tokens`, `/analytics`, `/webhooks/sendgrid` | `/admin/auth`, `/admin/me`, `/admin/staff`, `/admin/roles`, `/admin/permissions`, `/admin/audit-log`, `/admin/dashboard`, `/admin/reports`, `/admin/settings`, `/admin/fee-rules`, `/admin/translations`, `/admin/analytics`, `/admin/system`, `/admin/notifications` |
@@ -191,7 +194,7 @@ The owner must create each exactly (id, method, path); others may cite them in c
 |---|---|
 | F0 (done) | `createFileUpload`, `getFile`, `deleteFile`, `completeFileUpload`, `getFileDownload`, `adminCreateFileUpload`, `adminGetFile`, `adminCompleteFileUpload` |
 | D1 | `getHealth`, `getPublicConfig` (`GET /config/public`), `getI18nBundle` (`GET /i18n/{locale}`), `login`, `refreshSession` (`POST /auth/refresh`), `logout`, `getMe`, `getUserProfile` (`GET /users/{username}`), `adminListUsers`, `adminGetUser` |
-| D2 | `createReview` (`POST /reviews`), `listReviews` (`GET /reviews`), `resolveRedirect` (`GET /redirects/resolve`) |
+| D2 | `createReview` (`POST /reviews`), `listReviews` (`GET /reviews`), `resolveRedirect` (`GET /redirects/resolve`), `listGigs` (`GET /gigs?sellerUsername=`), `getUserReviewSummary` (`GET /reviews/summary`) — the last two added by the integration run |
 | D3 | `createCheckoutQuote` (`POST /checkout/quote`), `createPayment` (`POST /payments`), `getPayment` (`GET /payments/{paymentId}`), `handleBogWebhook` (`POST /webhooks/bog`) |
 | D4 | `getEscrow`, `listEscrowDeliveries`, `createEscrowDelivery`, `createEscrowRevisionRequest`, `completeEscrow` (`/escrows/{escrowId}/…`), `createRefundRequest` (`POST /refund-requests`), `createUnblockRequest` (`POST /unblock-requests`), `adminListEscrows`, `adminReleaseEscrow`, `adminRefundEscrow` |
 | D5 | `getConversation`, `listConversationMessages`, `createConversationMessage`, `adminGetConversation`, `adminListConversationMessages`, `adminCreateConversationMessage` |
@@ -238,7 +241,11 @@ x-permission:
   audience: user          # public | optional-user | user | restricted-user | staff | webhook
   ownership: buyer or freelancer of the escrow; others get 404   # required unless audience is public/webhook ("none" if not resource-bound)
   permission: withdrawals.approve   # staff only: exactly one name from spec 16's catalogue (ownership.yaml staffPermissions) or '@self'
+  permissionBy:           # staff only, optional: the ONE permission checked is selected by one attribute (below)
+    attribute: purpose (request body)
+    map: {category_image: catalog.write, blog_image: content.write}
   stepUp: true            # staff only: spec 16 AC-7 re-authentication within 15 minutes (else 403 REAUTH_REQUIRED)
+  stepUpFor: [S-100, S-110]  # staff only, instead of stepUp: re-authentication only for these register rows (settings writes)
   plan: premium           # only if Premium is required (e.g. proposals, Q-020) → 403 PREMIUM_REQUIRED
   toggles: [S-034]        # register switches that must be ON → 403 FEATURE_DISABLED (00 AC-11)
   notes: free text for anything else (e.g. "not while a dispute is open")
@@ -253,7 +260,10 @@ x-permission:
 | `webhook` | provider callback, no user auth; verified in the handler (§10) | `security: []` |
 - `ownership` is written in words from the spec (who is allowed relative to the resource): "self", "owner of the gig", "buyer of the order", "freelancer of the escrow", "participant of the conversation", "project owner (client)", "author of the proposal", "none".
 - **404 vs 403**: if a non-party must not learn that a private resource exists (orders, offers, conversations, files, hidden/pending items of others), answer `404`. Use `403` when the resource is visible but the action is not allowed (owner reporting own gig, plan/toggle/restriction refusals).
-- `@self`: staff acting only on their own session/profile (`adminGetMe`, own profile edit, `adminReauthenticate`, `adminLogout`, own file status). Spec 16 AC-9 requires one permission per admin operation; `@self` is the documented exception for these (D6 notes it in its handoff for Owner visibility).
+- `@self`: staff acting only on their own session/profile (`adminGetMe`, own profile edit, `adminReauthenticate`, `adminLogout`, own file status). Spec 16 AC-9 requires one permission per admin operation; `@self` is the documented exception for these (§6.3, Owner question D6-Q1).
+- Staff mutations that change nothing (pure computations such as `adminPreviewFeeRule`) carry `x-audit-exempt: <reason>` instead of `x-audit`; `check-contract` refuses a staff POST/PUT/PATCH/DELETE with neither.
+- **One permission per call (spec 16 AC-9) — the one rule.** Every staff operation checks exactly one catalogue permission. Usually it is fixed (`permission`). Where the resource decides which screen's permission applies, `permissionBy: {attribute, map}` selects that one permission from **one** attribute of the request or resource; values not in `map` use `permission`. There are no "either/or" permissions. Uses: `adminCreateFileUpload` (by upload purpose), `adminUpdateSetting` / `adminRestoreSettingVersion` (by the register row's settings area), `adminGetConversation` / `adminListConversationMessages` (by conversation kind: refund threads need `refunds.thread.write`, all other kinds `chat.read` — Owner question Q-D5-4). `check-contract` validates every map value against the catalogue.
+- `stepUpFor: [S-nnn…]` is row-conditional step-up for the generic settings write (spec 16 AC-7 names S-065…S-069, S-100, S-110, S-127); it replaces `stepUp` there and also requires 403.
 - Every staff mutation writes the audit log; declare it with `x-audit: <action>` (e.g. `withdrawal.mark_paid`). Sensitive staff reads (conversation open, KYC file, exports, secret status) also carry `x-audit`.
 - CSRF: cookie sessions need `X-MyTask-Client` + same-site `Origin` on unsafe methods (global; do not add per operation).
 - Login/refresh/2FA operations are `public` (they issue tokens). Staff login is `public` on `/admin/auth/*` (the only non-staff audience allowed under `/admin`).
@@ -265,6 +275,9 @@ security: []                                              # public, webhook
 security: [{}, {userBearer: []}, {userCookie: []}]        # optional-user
 security: [{staffBearer: []}, {staffCookie: []}]          # staff
 ```
+
+### 6.3 The `@self` exception (for the Owner, spec 16 AC-9)
+Spec 16 AC-9: "every admin API operation requires exactly one permission from the catalogue". The contract keeps that meaning for **every operation that touches data other than the caller's own staff account**. The only operations without a catalogue permission are those where a signed-in staff member acts on **their own** session or profile, which the catalogue has no entry for: `adminLogout`, `adminReauthenticate`, `adminRequestReauthCode`, `adminGetMe`, `adminUpdateMe`, `adminChangeMyPassword`, `adminRequestMyEmailChange`, `adminCreateMaintenancePreviewLink` (spec 16 AC-70: any signed-in staff member may preview), and F0's `adminGetFile` / `adminCompleteFileUpload` (own uploads only). They are declared `permission: '@self'`, are still deny-by-default in code (an explicit `@self` guard, so the startup check of AC-9 passes), are audited when they change something, and can never reach another person's data. Pre-login operations (`adminLogin`, 2FA verify/resend, refresh, password reset/set, email confirm) are `public` by nature. The alternative — a new always-granted catalogue permission such as `self.manage` — would change the approved catalogue (P-114); the Owner decides at the gate (D6-Q1).
 
 ---
 
@@ -320,6 +333,9 @@ GigCardPage:
 - Filters are camelCase query parameters named after the property (`status`, `categoryId`, `sellerUsername`, `role`); multi-value filters repeat the parameter (`?status=paid&status=in_progress`, `style: form, explode: true`); date ranges use `CreatedFrom`/`CreatedTo` (or `<field>From`/`<field>To`); free text is `q`.
 - Sorting: one `sort` enum parameter with snake_case values from the spec (`recommended`, `newest`, `price_asc`, `price_desc`, `rating`, `oldest`); the default is stated.
 - Cursor lists are stable under inserts (keyset pagination, ADR-011, data-model indexes).
+
+### 8.1 Numbered web pages (ratified by the integration run)
+The website keeps numbered page URLs (`?page=N`, url-map §2, ADR-011 §4) on six public lists: `searchGigs`, `searchProjects`, `listSellers`, `listHireSellers`, `listReviews`, `listBlogArticles`. These operations accept the shared `PageNumber` parameter (`page`, 1-based, ≤ 1000) **as an alternative to** `cursor` (both → `400 VALIDATION_FAILED`) and return `totalCount`. The response is the same `…Page` (`nextCursor` is still filled, so a client can continue with cursors). No other list gets `page`; mobile uses cursors only. `check-contract` refuses `page` on anything that is not a cursor list.
 
 ---
 
@@ -412,7 +428,7 @@ The integration run runs `npm run verify:final`, which writes `coverage/SUMMARY.
 | `npm run verify:final` | integration, before the gate | same, `--final`: stubs, missing reserved operations, undeclared events, missing coverage and open `DELEGATED` rows are errors; writes `coverage/SUMMARY.md` |
 
 `redocly.yaml` extends `recommended`. Raised to **error**: operationId (present, unique, url-safe), summary, 2xx and 4xx responses, tag defined + tag description, kebab-case paths, ambiguous/identical paths, trailing slash, path parameters defined, security defined, invalid examples, server trailing slash/empty servers. **Relaxed** (reasons): `no-unused-components` off (shared/event schemas are registered before use and Socket.IO payloads are never referenced by REST), `operation-description` off (summary mandatory; description where behaviour is not obvious), `info-license-strict` off (proprietary licence without URL), `no-server-example.com` off (the first server is `http://localhost:3000` on purpose, local-first rule; example.com is still never used). Project assertions: `x-permission` and `x-covers` present, camelCase operationId, at least one tag.
-`scripts/build-root.mjs` enforces ownership (paths by prefix, schema names by prefix, reserved shared names, uniqueness). `scripts/check-contract.mjs` enforces §3–§11 rules marked ✓. `scripts/check-coverage.mjs` enforces §12.
+`scripts/build-root.mjs` enforces ownership (paths by prefix, schema names by prefix, reserved shared names, uniqueness). `scripts/check-contract.mjs` enforces §3–§11 rules marked ✓, plus (integration run): only known `x-permission` keys; `permissionBy` shape and catalogue values; `stepUpFor` register ids and 403; `x-audit` (or `x-audit-exempt`) on every staff mutation; lists detected by `allOf` the shared `CursorPage` (not by the `…Page` name, because D2 owns CMS `Page…` schemas); `?page` only on cursor lists; events ↔ `x-emits` agree in both directions. `scripts/check-coverage.mjs` enforces §12.
 
 ---
 
@@ -425,6 +441,7 @@ The integration run runs `npm run verify:final`, which writes `coverage/SUMMARY.
 - Upload: `createFileUpload` (purpose, name, size, type, optional `context`) → presigned POST → client uploads → `completeFileUpload` → scan → `ready` (event `file.processed`). Staff public media: `adminCreateFileUpload`.
 - Attach by id: request bodies carry `fileId` / `fileIds` (only `ready` files of the caller with the matching purpose; else `422 FILE_NOT_READY` / `FILE_PURPOSE_MISMATCH`).
 - Show: public images as `ImageVariants`; private files as `Attachment`, downloaded by users via `getFileDownload` (404 for non-parties) and by staff via the owner's `/admin/<resource>/{id}/files/{fileId}/download` (§4.2).
+- Restricted users (ADR-002 §4) may use `createFileUpload`, `completeFileUpload`, `getFile` and `deleteFile` **only for purpose `appeal_file`** (spec 01 AC-47); any other purpose → `403 ACCOUNT_RESTRICTED` (these four operations have audience `restricted-user` with that note).
 - Purposes are the shared `FilePurpose` enum; limits come from the register (S-037…S-040, S-077…S-099) — cite the rows in `x-settings`.
 
 ## 16. Realtime (ADR-007) — `docs/04-api/realtime.md`
@@ -441,6 +458,7 @@ REST for every write and every read; Socket.IO (`/ws`) only pushes events after 
 | `x-emits: [message.created]` | operation | realtime events (§16) |
 | `x-settings: [S-026, S-025]` | operation | register rows the operation reads |
 | `x-audit: withdrawal.mark_paid` | operation | audit-log action written (all staff mutations and sensitive reads) |
+| `x-audit-exempt: <reason>` | staff operation | a staff POST/PUT/PATCH/DELETE that changes nothing (e.g. a preview); checked |
 | `x-jobs: [escrow-auto-release]` | operation | background jobs this operation schedules or affects (ADR-008) |
 | `x-enumDescriptions` | enum schema | meaning of each value (required on `DnErrorCode`) |
 | `x-stub: true` | schema | foundation stub; must be gone at the end of the group run |

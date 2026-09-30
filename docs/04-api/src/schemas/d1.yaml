@@ -42,41 +42,6 @@ D1ErrorCode:
     TWO_FACTOR_TOO_MANY_ATTEMPTS: '[422] S-058 wrong codes: this code no longer works, ask for a new one (spec 01 AC-25); messageKey t_2fa_too_many_attempts'
     TWO_FACTOR_RESEND_THROTTLED: '[429] Resend inside the 60-second cooldown or above 5 codes per 15 minutes (spec 01 AC-27); `details.retryAfterSeconds`, `details.params.seconds`; messageKey t_2fa_resend_wait'
 
-# ═════════════════════════ Georgian field validation (P-136 stand-in, see handoff) ═════════════════════════
-I18nGeorgianFieldError:
-  description: |
-    **Stand-in for a shared shape (requested from the integration run).** A `FieldError` inside
-    `VALIDATION_FAILED.details.fields[]` for the Georgian title/description of gigs (D2) and projects
-    (D5), spec 00 R-5.3a (PROPOSED P-136, scope Q-109). `code` = `georgian_field_characters` when the
-    normalised text contains characters outside the allowed set (`refusedCharacters` lists each refused
-    character once, in order of first appearance, at most 10; `params.chars` is the same list joined
-    with a space for the `:chars` placeholder of `t_validator_georgian_field_characters`);
-    `code` = `georgian_letter_required` when only the "at least one Georgian letter" rule fails
-    (`t_validator_georgian_letter_required`, P-37). The English field keeps
-    `georgian_letters_not_allowed` (R-5.4, CONVENTIONS §11).
-  allOf:
-    - $ref: '../components/schemas.yaml#/FieldError'
-    - type: object
-      required: [code, messageKey]
-      properties:
-        code:
-          type: string
-          enum: [georgian_field_characters, georgian_letter_required]
-        messageKey:
-          type: string
-          enum: [t_validator_georgian_field_characters, t_validator_georgian_letter_required]
-        refusedCharacters:
-          type: array
-          maxItems: 10
-          items: {type: string, minLength: 1, maxLength: 2}
-          description: Empty for `georgian_letter_required`.
-        params:
-          type: object
-          properties:
-            chars:
-              type: string
-              description: The refused characters joined by a space (value of `:chars`).
-
 # ═════════════════════════ Platform ═════════════════════════
 HealthStatus:
   type: object
@@ -133,7 +98,7 @@ PublicConfig:
     itself (spec 00 AC-11). Secret rows (social-login keys) are never included; a social provider is
     listed only when it is enabled **and** its keys are saved (spec 01 AC-37). Localized parts follow
     `Accept-Language`. Other groups needing a new public row ask D1 through their handoff.
-  required: [version, i18n, appearance, branding, auth, plans, payments, escrow, projects, customOffers, revisions, withdrawals, uploads, chat, profile, content, notifications, system]
+  required: [version, i18n, appearance, branding, auth, plans, payments, escrow, projects, customOffers, revisions, withdrawals, uploads, chat, profile, content, seo, notifications, system]
   properties:
     version:
       type: string
@@ -204,7 +169,7 @@ PublicConfig:
         passwordMaxLength: {type: integer, const: 60, description: 'R-A2 (fixed rule, P-14)'}
     plans:
       type: object
-      required: [standard, premium, customOffersCountTowardLimit, premiumMonthlyPrice, premiumYearlyPrice, pointsPerPremiumMonth]
+      required: [standard, premium, customOffersCountTowardLimit, premiumMonthlyPrice, premiumYearlyPrice, pointsPerPremiumMonth, pointsPerReferralSignup]
       properties:
         standard: {$ref: '#/PublicConfigPlanLimits', description: 'S-001, S-003, S-005'}
         premium: {$ref: '#/PublicConfigPlanLimits', description: 'S-002, S-004, S-006'}
@@ -212,6 +177,7 @@ PublicConfig:
         premiumMonthlyPrice: {$ref: '../components/schemas.yaml#/Money', description: 'S-008 (display only; prices charged come from D3 quotes)'}
         premiumYearlyPrice: {$ref: '../components/schemas.yaml#/Money', description: S-009}
         pointsPerPremiumMonth: {type: integer, minimum: 0, description: S-045}
+        pointsPerReferralSignup: {type: integer, minimum: 0, description: 'S-046 (referral page text; the credit itself is D3 referral service)'}
     payments:
       type: object
       required: [bogCardEnabled, walletEnabled, bankTransferEnabled, topupEnabled, topupMinAmount, topupMaxAmount, mobileCardSubscriptionEnabled]
@@ -291,11 +257,27 @@ PublicConfig:
         linkedAccountsEnabled: {type: boolean, description: 'S-123 (P-25)'}
     content:
       type: object
-      required: [blogEnabled, blogCommentsEnabled, newsletterEnabled]
+      required: [blogEnabled, blogCommentsEnabled, newsletterEnabled, hero, footer]
       properties:
         blogEnabled: {type: boolean, description: S-117}
         blogCommentsEnabled: {type: boolean, description: S-118}
         newsletterEnabled: {type: boolean, description: S-120}
+        hero: {$ref: '#/PublicConfigHero'}
+        footer: {$ref: '#/PublicConfigFooter'}
+    seo:
+      type: object
+      description: S-115 defaults and S-116 (integration run, requested by D2). Page-specific meta comes from the owning read operations.
+      required: [defaultMetaDescription, defaultKeywords, defaultOgImageUrl, facebookPageUrl, facebookAppId, twitterUsername, sitemapEnabled]
+      properties:
+        defaultMetaDescription: {type: [string, 'null'], description: 'S-115, in the requested language (Georgian fallback)'}
+        defaultKeywords: {type: [string, 'null'], description: S-115}
+        defaultOgImageUrl:
+          oneOf: [{$ref: '../components/schemas.yaml#/HttpUrl'}, {type: 'null'}]
+        facebookPageUrl:
+          oneOf: [{$ref: '../components/schemas.yaml#/HttpUrl'}, {type: 'null'}]
+        facebookAppId: {type: [string, 'null'], description: 'S-115 (fb:app_id, spec 17 AC-38)'}
+        twitterUsername: {type: [string, 'null'], description: 'S-115 (twitter:site)'}
+        sitemapEnabled: {type: boolean, description: S-116}
     notifications:
       type: object
       required: [pushEnabled]
@@ -306,6 +288,67 @@ PublicConfig:
       required: [maintenanceMode]
       properties:
         maintenanceMode: {type: boolean, description: 'S-121 (user endpoints answer 503 MAINTENANCE while ON)'}
+
+PublicConfigHero:
+  type: object
+  description: Home hero content (S-113), resolved to the requested language with Georgian fallback (integration run, requested by D2 for spec 17 / spec 03 home). Legacy `settings_hero` fields; empty texts are null.
+  required: [title, subtitle, imageUrls, contentLocale]
+  properties:
+    title: {type: [string, 'null']}
+    subtitle: {type: [string, 'null']}
+    imageUrls:
+      type: array
+      items: {$ref: '../components/schemas.yaml#/HttpUrl'}
+    contentLocale: {$ref: '../components/schemas.yaml#/ContentLocale'}
+
+PublicConfigFooter:
+  type: object
+  description: Footer settings (S-114). CMS page links of the footer columns come from D2 `listPages` (spec 17 AC-9); this block holds the extra links, the social links and the footer logos.
+  required: [links, socialLinks, logos]
+  properties:
+    links:
+      type: array
+      items:
+        type: object
+        required: [label, url]
+        properties:
+          label: {type: string}
+          url: {$ref: '../components/schemas.yaml#/HttpUrl'}
+    socialLinks:
+      type: array
+      items:
+        type: object
+        required: [network, url]
+        properties:
+          network: {type: string, description: 'e.g. facebook, instagram, linkedin, youtube, x (display icon key)'}
+          url: {$ref: '../components/schemas.yaml#/HttpUrl'}
+    logos:
+      type: array
+      items:
+        type: object
+        required: [name, imageUrl, linkUrl]
+        properties:
+          name: {type: string}
+          imageUrl: {$ref: '../components/schemas.yaml#/HttpUrl'}
+          linkUrl:
+            oneOf: [{$ref: '../components/schemas.yaml#/HttpUrl'}, {type: 'null'}]
+
+PublicConfigWebCustomCode:
+  type: object
+  description: |
+    Custom code for **public web pages only** (S-110 + S-127, spec 16 AC-73…AC-75), read by the Next.js
+    server when it renders a public page (never by the mobile app, the admin app, emails, or non-public
+    pages). `head` / `footer` are null while the switch is OFF; `allowedHosts` feeds the public-page
+    CSP (AC-74). Kept out of `PublicConfig` so the mobile bundle never receives it (integration run,
+    requested by D6).
+  required: [enabled, head, footer, allowedHosts]
+  properties:
+    enabled: {type: boolean}
+    head: {type: [string, 'null']}
+    footer: {type: [string, 'null']}
+    allowedHosts:
+      type: array
+      items: {type: string, maxLength: 253}
 
 # ═════════════════════════ Auth ═════════════════════════
 SocialProvider:
@@ -404,6 +447,14 @@ LoginRequest:
       description: 'Web: ticked by default (spec 01 AC-10); unticked = browser-session refresh cookie. Mobile always stays signed in.'
     recaptchaToken: {$ref: '#/AuthRecaptchaToken'}
     deviceToken: {$ref: '#/AuthDeviceToken'}
+
+LogoutRequest:
+  type: object
+  description: Optional body of `logout` (integration run, requested by D6).
+  properties:
+    installationId:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+      description: Mobile only; the push token registered for this installation is removed with the session (spec 15 AC-21).
 
 AuthSession:
   type: object
@@ -796,27 +847,6 @@ AvailabilityPutRequest:
       description: Must be in the future (Asia/Tbilisi), else `VALIDATION_FAILED` with `t_pls_select_availability_date_in_future`.
     message: {type: string, minLength: 1, maxLength: 750}
 
-ProfileRatingSummary:
-  type: object
-  description: One rating block (spec 02 AC-10). No reviews → `count = 0`, `averageRatingHundredths = null` ("No reviews yet").
-  required: [count, averageRatingHundredths, starCounts]
-  properties:
-    count: {type: integer, minimum: 0}
-    averageRatingHundredths:
-      type: [integer, 'null']
-      minimum: 100
-      maximum: 500
-      description: Average stars × 100, rounded half up (475 = 4.75); no floats in the contract.
-    starCounts:
-      type: object
-      required: [five, four, three, two, one]
-      properties:
-        five: {type: integer, minimum: 0}
-        four: {type: integer, minimum: 0}
-        three: {type: integer, minimum: 0}
-        two: {type: integer, minimum: 0}
-        one: {type: integer, minimum: 0}
-
 UserProfile:
   type: object
   description: |
@@ -824,7 +854,7 @@ UserProfile:
     (`GET /gigs?sellerUsername=`, 6 per page, newest first) and the portfolio preview from
     `listPortfolioItems`. There is no level or badge (X-05). Flags tell the client which buttons to show;
     the operations behind them check again.
-  required: [id, username, fullName, headline, about, avatar, countryCode, timezone, isOnline, availability, lastDeliveryAt, createdAt, isEmailVerified, isIdVerified, isPremium, languages, skills, linkedAccounts, ratings, portfolioCount, isOwnProfile, canContact, canRequestOffer, canReport]
+  required: [id, username, fullName, headline, about, avatar, countryCode, timezone, isOnline, availability, lastDeliveryAt, createdAt, isEmailVerified, isIdVerified, isPremium, languages, skills, linkedAccounts, ratings, portfolioCount, isOwnProfile, canContact, canRequestOffer, canReport, isIndexable]
   properties:
     id: {$ref: '../components/schemas.yaml#/Uuid'}
     username: {type: string}
@@ -862,8 +892,8 @@ UserProfile:
       type: object
       required: [asFreelancer, asClient]
       properties:
-        asFreelancer: {$ref: '#/ProfileRatingSummary'}
-        asClient: {$ref: '#/ProfileRatingSummary'}
+        asFreelancer: {$ref: '../components/schemas.yaml#/RatingBlock'}
+        asClient: {$ref: '../components/schemas.yaml#/RatingBlock'}
     portfolioCount: {type: integer, minimum: 0, description: Public portfolio items.}
     isOwnProfile: {type: boolean, description: 'Show "Edit profile" instead of "Contact me" / "Report user" (AC-13).'}
     canContact: {type: boolean, description: 'Not own profile (guests are asked to log in, AC-11).'}
@@ -871,6 +901,9 @@ UserProfile:
       type: boolean
       description: 'S-034 ON, viewer signed in, not own profile, the user is available (AC-12).'
     canReport: {type: boolean, description: Signed in and not own profile (AC-14).}
+    isIndexable:
+      type: boolean
+      description: False when the owner has no active gig, no public portfolio item and no visible review; the web then emits noindex, follow and the D2 sitemap leaves the profile out (spec 17 AC-41, P-133; integration run, requested by D2).
 
 UserReportCreateRequest:
   type: object
@@ -1224,25 +1257,6 @@ RestrictionAppealCreateRequest:
       items: {$ref: '../components/schemas.yaml#/Uuid'}
 
 # ═════════════════════════ Staff: users ═════════════════════════
-AdminUserOwnerSummary:
-  type: object
-  description: |
-    Owner summary shown next to every moderation-queue item (spec 16 AC-19): status, plan, KYC state,
-    number of reports about the user and earlier rejections. D1 stand-in; proposed as a shared schema for
-    D2/D4/D5 queues (see handoff).
-  required: [user, status, isRestricted, plan, kycStatus, reportCount, earlierRejectionCount]
-  properties:
-    user: {$ref: '../components/schemas.yaml#/UserSummary'}
-    status: {$ref: '#/UserStatus'}
-    isRestricted: {type: boolean}
-    plan: {$ref: '../components/schemas.yaml#/PlanCode'}
-    kycStatus: {$ref: '#/KycState'}
-    reportCount: {type: integer, minimum: 0}
-    earlierRejectionCount:
-      type: integer
-      minimum: 0
-      description: Earlier staff rejections of items of the same kind by this user (portfolio, KYC, appeals…).
-
 AdminUserListItem:
   type: object
   required: [id, legacyId, username, email, fullName, avatar, status, isRestricted, isDeleted, plan, kycStatus, countryCode, createdAt, lastActivityAt]
@@ -1413,7 +1427,7 @@ AdminRestrictionAppeal:
   properties:
     id: {$ref: '../components/schemas.yaml#/Uuid'}
     restriction: {$ref: '#/AdminRestriction'}
-    owner: {$ref: '#/AdminUserOwnerSummary'}
+    owner: {$ref: '../components/schemas.yaml#/ModerationOwnerSummary'}
     message: {type: string}
     files:
       type: array
@@ -1471,7 +1485,7 @@ AdminPortfolioItem:
   required: [item, owner, decidedBy, decidedAt]
   properties:
     item: {$ref: '#/PortfolioItem'}
-    owner: {$ref: '#/AdminUserOwnerSummary'}
+    owner: {$ref: '../components/schemas.yaml#/ModerationOwnerSummary'}
     decidedBy:
       oneOf: [{$ref: '../components/schemas.yaml#/StaffSummary'}, {type: 'null'}]
     decidedAt:
@@ -1492,7 +1506,7 @@ AdminKycVerification:
   required: [verification, owner, reviewedBy]
   properties:
     verification: {$ref: '#/KycVerification'}
-    owner: {$ref: '#/AdminUserOwnerSummary'}
+    owner: {$ref: '../components/schemas.yaml#/ModerationOwnerSummary'}
     reviewedBy:
       oneOf: [{$ref: '../components/schemas.yaml#/StaffSummary'}, {type: 'null'}]
 

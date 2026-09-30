@@ -18,8 +18,9 @@
       Unused pending files are deleted by a cleanup job after 24 hours.
     tags: [Files]
     x-permission:
-      audience: user
+      audience: restricted-user
       ownership: 'caller becomes the file owner; purpose policy decides (e.g. delivery → freelancer of `context.escrowId`; chat_attachment → participant of `context.conversationId`; kyc_document → self)'
+      notes: 'restricted users are allowed only for purpose appeal_file (spec 01 AC-47, integration run); any other purpose → 403 ACCOUNT_RESTRICTED'
     x-covers: []
     x-covers-note: Infrastructure for every upload AC; each group cites this operation in its coverage rows (e.g. 04 gallery, 06 delivery file, 08 attachments).
     x-settings: [S-037, S-038, S-039, S-040, S-077, S-078, S-079, S-080, S-081, S-082, S-083, S-084, S-085, S-086, S-087, S-088, S-089, S-090, S-091, S-092, S-093, S-094, S-095, S-096, S-097, S-098, S-099]
@@ -54,8 +55,9 @@
     description: Returns the caller's own file, e.g. to poll `scanning` → `ready` / `rejected` after `completeFileUpload`.
     tags: [Files]
     x-permission:
-      audience: user
+      audience: restricted-user
       ownership: file owner only; others get 404
+      notes: 'restricted users are allowed only for purpose appeal_file (spec 01 AC-47, integration run); any other purpose → 403 ACCOUNT_RESTRICTED'
     x-covers: []
     x-covers-note: Infrastructure (ADR-009 §3).
     responses:
@@ -65,6 +67,7 @@
           application/json:
             schema: {$ref: '../components/schemas.yaml#/File'}
       '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
       '404': {$ref: '../components/responses.yaml#/NotFound'}
   delete:
     operationId: deleteFile
@@ -72,13 +75,15 @@
     description: Removes an own file that is not yet attached to anything (e.g. the user removed it in a form before saving). Attached files are removed through the owning resource's operation. Refused with `409 STATE_CONFLICT` when attached.
     tags: [Files]
     x-permission:
-      audience: user
+      audience: restricted-user
       ownership: file owner only; others get 404
+      notes: 'restricted users are allowed only for purpose appeal_file (spec 01 AC-47, integration run); any other purpose → 403 ACCOUNT_RESTRICTED'
     x-covers: []
     x-covers-note: Infrastructure (ADR-009).
     responses:
       '204': {$ref: '../components/responses.yaml#/NoContent'}
       '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
       '404': {$ref: '../components/responses.yaml#/NotFound'}
       '409': {$ref: '../components/responses.yaml#/Conflict'}
 
@@ -99,8 +104,9 @@
       `scanning`/`ready` returns the current state.
     tags: [Files]
     x-permission:
-      audience: user
+      audience: restricted-user
       ownership: file owner only; others get 404
+      notes: 'restricted users are allowed only for purpose appeal_file (spec 01 AC-47, integration run); any other purpose → 403 ACCOUNT_RESTRICTED'
     x-covers: []
     x-covers-note: Infrastructure (ADR-009 §3).
     x-emits: [file.processed]
@@ -111,6 +117,7 @@
           application/json:
             schema: {$ref: '../components/schemas.yaml#/File'}
       '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
       '404': {$ref: '../components/responses.yaml#/NotFound'}
       '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
 
@@ -167,7 +174,7 @@
     description: |
       Same flow as `createFileUpload` for the staff purposes `category_image`, `blog_image` and
       `home_logo` (other purposes are refused with `422 FILE_PURPOSE_MISMATCH`). The required permission
-      depends on the purpose (see `x-permission.permissionByPurpose`); exactly one permission is checked
+      depends on the purpose (see `x-permission.permissionBy`); exactly one permission is checked
       per call (spec 16 AC-9).
     tags: [Admin Files]
     security:
@@ -176,10 +183,9 @@
     x-permission:
       audience: staff
       permission: catalog.write
-      permissionByPurpose:
-        category_image: catalog.write
-        blog_image: content.write
-        home_logo: content.write
+      permissionBy:
+        attribute: purpose (request body)
+        map: {category_image: catalog.write, blog_image: content.write, home_logo: content.write}
       ownership: none
     x-covers: []
     x-covers-note: Infrastructure for spec 16 AC-60 (category image) and AC-63 (blog, home logos).
@@ -249,6 +255,7 @@
       ownership: files uploaded by the calling staff member only; others get 404
     x-covers: []
     x-covers-note: Infrastructure (ADR-009).
+    x-audit: file.upload.complete
     responses:
       '202':
         description: Scan queued; current file state.

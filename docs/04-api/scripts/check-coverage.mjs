@@ -21,6 +21,14 @@ for (const { path: p, method, op } of operations(doc)) ops.set(op.operationId, {
 
 const KIND = /^(API|API\+JOB|NOT-API:(ui|job|email|infra|migration|policy|content)|DELEGATED:(D[1-6]))$/;
 
+// Sandbox (--group) runs contain only one group's paths. Operations of other groups that coverage rows
+// name (after the integration run many rows do) are looked up in the integrated bundle instead; the
+// full cross-check happens in `verify:final`.
+const integrated = new Set();
+if (args.group && args.bundle && fs.existsSync(path.join(apiDir, 'openapi.yaml'))) {
+  for (const { op } of operations(readYaml(path.join(apiDir, 'openapi.yaml')))) integrated.add(op.operationId);
+}
+
 // expected files: <spec>.md by the owner; 16-<dn>.md by each delegate group
 const expected = [];
 for (const num of Object.keys(specs).sort()) expected.push({ file: `${num}.md`, spec: num, group: ownerOfSpec(num) });
@@ -57,6 +65,7 @@ for (const e of expected) {
       const reservedOwner = ownership.reservedOperations[n]?.group;
       if (!op) {
         if (kind.startsWith('DELEGATED') || (reservedOwner && reservedOwner !== e.group)) strict(`${where}: operation ${n} not in the bundle yet (${reservedOwner ?? kind})`);
+        else if (integrated.has(n)) r.warn(`${where}: operation ${n} belongs to another group (present in the integrated openapi.yaml; checked by verify:final)`);
         else r.error(`${where}: operation ${n} does not exist in openapi.yaml`);
         continue;
       }

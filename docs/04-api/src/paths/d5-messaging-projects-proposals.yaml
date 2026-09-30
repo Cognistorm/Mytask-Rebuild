@@ -179,7 +179,7 @@
     x-permission:
       audience: user
       ownership: participant of the conversation; others get 404
-    x-covers: ['08 AC-1', '08 AC-3', '08 AC-17', '08 AC-22', '08 AC-27', '08 AC-28', '08 AC-33', '11 AC-40']
+    x-covers: ['08 AC-1', '08 AC-3', '08 AC-17', '08 AC-22', '08 AC-27', '08 AC-28', '08 AC-33', '11 AC-40', '06 AC-41']
     x-settings: [S-034, S-094]
     responses:
       '200':
@@ -263,7 +263,7 @@
       audience: user
       ownership: participant of the conversation; others get 404
     x-covers: ['08 AC-15', '08 AC-18']
-    x-emits: [conversation.read, conversation.unread_count_changed]
+    x-emits: [conversation.read, conversation.unread_count_changed, badge.updated]
     requestBody:
       required: true
       content:
@@ -359,11 +359,11 @@
       audience: user
       ownership: participant of the conversation (for item threads, the buyer/client or freelancer of the item); others get 404
       notes: attachments need S-094 ON (checked only when `attachmentFileId` is sent)
-    x-covers: ['08 AC-3', '08 AC-6', '08 AC-7', '08 AC-8', '08 AC-9', '08 AC-12', '08 AC-23', '08 AC-24', '08 AC-28', '11 AC-40']
+    x-covers: ['08 AC-3', '08 AC-6', '08 AC-7', '08 AC-8', '08 AC-9', '08 AC-12', '08 AC-23', '08 AC-24', '08 AC-28', '11 AC-40', '06 AC-40', '12 AC-24', '13 AC-21']
     x-rate-limit: 30 messages / 1 min per user (spec 08 AC-12, P-66)
     x-settings: [S-094, S-095, S-096, S-097, S-101]
     x-notifications: [EV-45, EV-46, EV-48, EV-49, EV-77, EV-89, EV-100, EV-101]
-    x-emits: [message.created, conversation.updated, conversation.unread_count_changed]
+    x-emits: [message.created, conversation.updated, conversation.unread_count_changed, badge.updated]
     x-jobs: [email, push, in-app-realtime]
     requestBody:
       required: true
@@ -850,7 +850,7 @@
       ownership: any user except the project owner
       plan: premium
       toggles: [S-075]
-    x-covers: ['11 AC-1', '11 AC-2', '11 AC-3', '11 AC-4', '11 AC-6', '11 AC-7']
+    x-covers: ['11 AC-1', '11 AC-2', '11 AC-3', '11 AC-4', '11 AC-6', '11 AC-7', '00 AC-7']
     x-settings: [S-041, S-073, S-075]
     x-notifications: [EV-61, EV-62]
     x-emits: [proposal.status_changed]
@@ -1528,10 +1528,11 @@
     x-permission:
       audience: staff
       permission: chat.read
-      permissionAlternatives:
-        refund: refunds.thread.write
+      permissionBy:
+        attribute: kind of the conversation
+        map: {refund: refunds.thread.write}
       ownership: none
-    x-covers: ['08 AC-29', '08 AC-30', '16 AC-38', '16 AC-65']
+    x-covers: ['08 AC-29', '08 AC-30', '16 AC-38', '16 AC-65', '06 AC-41']
     x-audit: conversation.open
     parameters:
       - name: reason
@@ -1571,8 +1572,9 @@
     x-permission:
       audience: staff
       permission: chat.read
-      permissionAlternatives:
-        refund: refunds.thread.write
+      permissionBy:
+        attribute: kind of the conversation
+        map: {refund: refunds.thread.write}
       ownership: none
     x-covers: ['08 AC-25', '08 AC-29', '08 AC-31', '16 AC-65']
     x-audit: conversation.read_messages
@@ -1605,10 +1607,10 @@
       audience: staff
       permission: refunds.thread.write
       ownership: none (refund threads only)
-    x-covers: ['08 AC-30', '16 AC-65']
+    x-covers: ['08 AC-30', '16 AC-65', '13 AC-19', '13 AC-21']
     x-audit: conversation.staff_message
     x-notifications: [EV-100]
-    x-emits: [message.created, conversation.updated, conversation.unread_count_changed]
+    x-emits: [message.created, conversation.updated, conversation.unread_count_changed, badge.updated]
     requestBody:
       required: true
       content:

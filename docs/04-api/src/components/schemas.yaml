@@ -118,7 +118,7 @@ Error:
   examples:
     - code: PLAN_LIMIT_REACHED
       message: თქვენი გეგმის ლიმიტი ამოწურულია
-      details: {messageKey: t_gig_limit_reached, limit: 1, settingId: S-001}
+      details: {messageKey: t_plan_gig_limit_reached, limit: 1, settingId: S-001}
 
 ErrorDetails:
   type: object
@@ -152,6 +152,17 @@ ErrorDetails:
 
 FieldError:
   type: object
+  description: |
+    One invalid field of a `VALIDATION_FAILED` error (CONVENTIONS §7.1). `params` carries the values of the
+    placeholders of `messageKey` (e.g. `{max: 80}` for `:max`), so clients that render from their own
+    bundle get the same text as `message`.
+    **Georgian fields** (spec 00 R-5.3/R-5.3a, PROPOSED P-136, scope Q-109; gig title/description D2,
+    project title/description D5): `code = georgian_field_characters` when the normalised text contains
+    characters outside the allowed set — `refusedCharacters` lists each refused character once, in order
+    of first appearance, at most 10, and `params.chars` is the same list joined by a space (placeholder
+    `:chars` of `t_validator_georgian_field_characters`); `code = georgian_letter_required` when only the
+    "at least one Georgian letter" rule fails (`t_validator_georgian_letter_required`, P-37;
+    `refusedCharacters` empty). English fields use `georgian_letters_not_allowed` (R-5.4, CONVENTIONS §11).
   required: [field, code, message]
   properties:
     field:
@@ -159,9 +170,19 @@ FieldError:
       description: JSON pointer-like path of the request field, e.g. `title.ka`, `items[2].gigId`.
     code:
       type: string
-      description: Validation code, e.g. `required`, `too_long`, `too_short`, `pattern`, `out_of_range`, `not_allowed`, `georgian_letters_not_allowed`.
+      description: Validation code, e.g. `required`, `too_long`, `too_short`, `pattern`, `out_of_range`, `not_allowed`, `georgian_letters_not_allowed`, `georgian_field_characters`, `georgian_letter_required`.
     message: {type: string, description: Localized.}
     messageKey: {type: string, pattern: '^t_[a-z0-9_]+$'}
+    params:
+      type: object
+      description: Placeholder values of `messageKey` (names without the leading colon); values are strings or integers.
+      additionalProperties:
+        type: [string, integer]
+    refusedCharacters:
+      type: array
+      maxItems: 10
+      description: Only for `code = georgian_field_characters` (empty for `georgian_letter_required`); omitted for other codes.
+      items: {type: string, minLength: 1, maxLength: 2}
 
 ErrorCode:
   description: |
@@ -273,13 +294,13 @@ UserSummary:
   type: object
   description: |
     Minimal public view of another user, embedded wherever a user appears (seller, buyer, author, other
-    party). Owned by D1 for semantics. `username` may be masked on project pages (BR-015, spec 02
-    "Username masking"), then `usernameMasked` is true and the profile link must not be shown.
-  required: [id, username, usernameMasked, avatar, isPremium, isIdVerified, isOnline, countryCode, isDeleted]
+    party). Owned by D1 for semantics. **Never masked**: where the username-masking rule applies (project
+    owner shown to guests and non-Premium users, BR-015, spec 02 AC-41, spec 10 R-P6) the API returns
+    `MaskedUserSummary` instead, which carries no id and no real username.
+  required: [id, username, avatar, isPremium, isIdVerified, isOnline, countryCode, isDeleted]
   properties:
     id: {$ref: '#/Uuid'}
     username: {type: string}
-    usernameMasked: {type: boolean}
     avatar:
       oneOf: [{$ref: '#/ImageVariants'}, {type: 'null'}]
     isPremium:
@@ -296,6 +317,54 @@ UserSummary:
     isDeleted:
       type: boolean
       description: Deleted accounts are shown with a neutral label (spec 08 "Deleted users").
+
+MaskedUserSummary:
+  type: object
+  description: |
+    A user shown under the username-masking rule (BR-015, spec 02 AC-41, spec 10 R-P6, Q-069b): the owner
+    (client) of a project on project pages and project lists. For guests and for signed-in users who are
+    neither Premium nor the owner, `displayUsername` is masked (`mytask` → `my**sk`), `usernameMasked` is
+    true and `user` is **null** — the API never returns the real username or the user id to such viewers,
+    so no profile link can be built. For the owner and Premium viewers `usernameMasked` is false and
+    `user` is the full `UserSummary`. (Integration run: promoted from D5 `ProjectClient`; used by D5
+    project reads and D2 `searchProjects`.)
+  required: [displayUsername, usernameMasked, avatar, isIdVerified, countryCode, user]
+  properties:
+    displayUsername: {type: string}
+    usernameMasked: {type: boolean}
+    avatar:
+      oneOf: [{$ref: '#/ImageVariants'}, {type: 'null'}]
+    isIdVerified: {type: boolean}
+    countryCode:
+      oneOf: [{$ref: '#/CountryCode'}, {type: 'null'}]
+    user:
+      oneOf: [{$ref: '#/UserSummary'}, {type: 'null'}]
+      description: Full summary only for the owner and Premium viewers.
+
+ModerationOwnerSummary:
+  type: object
+  description: |
+    Owner summary shown next to every moderation-queue item and on admin item details (spec 16 AC-19):
+    account status, restriction, plan, KYC state, number of reports about the user and earlier staff
+    rejections of items of the same kind. One shape for every queue (D1 portfolio/KYC/appeals, D2 gigs,
+    D4 custom offers, D5 projects/proposals). Semantics owned by D1. (Integration run: replaces
+    `AdminUserOwnerSummary`, `AdminGigOwnerSummary`, `AdminProjectOwnerSummary`.)
+  required: [user, status, isRestricted, isDeleted, plan, kycStatus, reportCount, earlierRejectionCount]
+  properties:
+    user: {$ref: '#/UserSummary'}
+    status: {$ref: '../schemas/d1.yaml#/UserStatus'}
+    isRestricted: {type: boolean}
+    isDeleted: {type: boolean}
+    plan: {$ref: '#/PlanCode'}
+    kycStatus: {$ref: '../schemas/d1.yaml#/KycState'}
+    reportCount:
+      type: integer
+      minimum: 0
+      description: Open (not yet decided) reports about this user and the user's gigs, projects and proposals (queue `adminListReports`).
+    earlierRejectionCount:
+      type: integer
+      minimum: 0
+      description: Earlier staff rejections of items of the same kind as the queue item (gigs, portfolio items, projects, proposals, offers, KYC, appeals).
 
 StaffSummary:
   type: object
@@ -445,6 +514,36 @@ EscrowSummary:
     refundOpen: {type: boolean}
     disputeOpen: {type: boolean}
 
+EscrowActions:
+  type: object
+  description: |
+    What the caller may do on the escrow now (computed by the API for the caller; clients never re-derive rules,
+    architecture.md §2). Shared by D4 order items, custom offers and escrows and D5 contract payment lines (integration run: promoted from D4). `…AvailableAt` explains a disabled button (spec 13 AC-1, AC-23).
+  required: [canDeliver, canRequestRevision, revisionsLeft, canComplete, canRequestRefund, refundAvailableAt, canRequestUnblock, unblockAvailableAt]
+  properties:
+    canDeliver:
+      type: boolean
+      description: 'Freelancer; item in progress or revision requested (also while a dispute is open: evidence, spec 13 AC-13).'
+    canRequestRevision:
+      type: boolean
+      description: Buyer; delivered, revisions left, no open dispute (spec 06 AC-25, AC-27).
+    revisionsLeft: {type: integer, minimum: 0}
+    canComplete:
+      type: boolean
+      description: Buyer; delivered and no open dispute (spec 06 AC-30…AC-32).
+    canRequestRefund:
+      type: boolean
+      description: Buyer; eligible and no refund request yet (spec 13 AC-1…AC-4).
+    refundAvailableAt:
+      oneOf: [{$ref: '#/Timestamp'}, {type: 'null'}]
+      description: Set while in progress before the expected delivery date (button disabled until then).
+    canRequestUnblock:
+      type: boolean
+      description: Freelancer; spec 13 AC-23 conditions met now.
+    unblockAvailableAt:
+      oneOf: [{$ref: '#/Timestamp'}, {type: 'null'}]
+      description: Latest delivery + S-028 hours while that time is in the future and unblock requests are available (text t_unblock_request_72_hour_wait).
+
 # ───────────────────────── Payments (shared; endpoints owned by D3) ─────────────────────────
 PaymentPurpose:
   type: string
@@ -550,15 +649,12 @@ TopupCheckoutTarget:
 
 SubscriptionCheckoutTarget:
   type: object
-  description: Premium purchase by card (spec 09; ADR-016 for mobile, S-126).
+  description: Premium purchase by card (spec 09; ADR-016 for mobile, S-126). A promo code travels as the top-level `promoCode` of the quote / payment request (never inside the target), so every purpose can answer `PROMO_NOT_APPLICABLE` (spec 05 AC-40).
   required: [purpose, plan, billingPeriod]
   properties:
     purpose: {type: string, const: subscription}
     plan: {type: string, const: premium}
     billingPeriod: {$ref: '#/BillingPeriod'}
-    promoCode:
-      type: [string, 'null']
-      maxLength: 64
 
 # ───────────────────────── Chat references (endpoints owned by D5) ─────────────────────────
 ConversationKind:
@@ -587,6 +683,44 @@ ReviewRef:
     id: {$ref: '#/Uuid'}
     rating: {type: integer, minimum: 1, maximum: 5}
     authorRole: {type: string, enum: [buyer, freelancer]}
+
+RatingSummary:
+  type: object
+  description: |
+    Average and count of visible reviews (spec 07 R-V5, P-56) — the one rating shape of the whole API
+    (gig cards, gig page, profile blocks, sellers lists, proposal cards, home best sellers). The exact
+    average is kept on the server (filters and sorting use it, spec 03 AC-9); the API returns it as an
+    integer in **tenths**, rounded half up, which is exactly the one-decimal display value of P-56
+    (4.33 → `43`, shown "4.3"). No floats in the contract (CONVENTIONS §9.1). Null when `count` is 0
+    (clients show `t_no_reviews_yet`).
+  required: [count, averageTenths]
+  properties:
+    count: {type: integer, minimum: 0}
+    averageTenths:
+      type: [integer, 'null']
+      minimum: 10
+      maximum: 50
+      description: Average stars × 10, half up (43 = 4.3). Null without reviews.
+
+RatingStarCounts:
+  type: object
+  description: Number of visible reviews per star value (spec 07 AC-11, AC-12, AC-14; spec 02 AC-10). Hidden reviews are never counted.
+  required: [five, four, three, two, one]
+  properties:
+    five: {type: integer, minimum: 0}
+    four: {type: integer, minimum: 0}
+    three: {type: integer, minimum: 0}
+    two: {type: integer, minimum: 0}
+    one: {type: integer, minimum: 0}
+
+RatingBlock:
+  description: One rating block with its star breakdown ("As a freelancer" / "As a client", spec 02 AC-10, spec 07 AC-11, AC-12).
+  allOf:
+    - $ref: '#/RatingSummary'
+    - type: object
+      required: [starCounts]
+      properties:
+        starCounts: {$ref: '#/RatingStarCounts'}
 
 # ───────────────────────── Reports (created by domain groups, queue owned by D6) ─────────────────────────
 ReportTargetType:

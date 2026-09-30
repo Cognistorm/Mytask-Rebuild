@@ -12,7 +12,6 @@ D3ErrorCode:
     - QUOTE_CHANGED
     - CHECKOUT_METHOD_NOT_AVAILABLE
     - CHECKOUT_CART_EMPTY
-    - CHECKOUT_ITEMS_NO_LONGER_AVAILABLE
     - CHECKOUT_TARGET_NOT_PAYABLE
     - TOPUP_AMOUNT_OUT_OF_RANGE
     - PROMO_INVALID
@@ -22,7 +21,6 @@ D3ErrorCode:
     - PROMO_NOT_APPLICABLE
     - SUBSCRIPTION_ALREADY_ACTIVE
     - PAYOUT_DETAILS_REQUIRED
-    - PAYOUT_PASSWORD_INCORRECT
     - WITHDRAWAL_PENDING_EXISTS
     - WITHDRAWAL_PERIOD_NOT_ELAPSED
     - WITHDRAWAL_BELOW_MINIMUM
@@ -31,8 +29,7 @@ D3ErrorCode:
     QUOTE_CHANGED: '[409] The server recomputed the quote and its total for the chosen method differs from `quoteId` (fee rule, S-012, price or promo changed). Nothing was started. `details.quote` holds the new `CheckoutQuote` to confirm (spec 05 AC-8); messageKey t_quote_changed'
     CHECKOUT_METHOD_NOT_AVAILABLE: '[422] The method is never offered for this purpose (spec 05 R-P1: bank transfer only for gig orders and top-ups, wallet never for Premium or top-ups). A method switched OFF is `403 FEATURE_DISABLED` instead; messageKey t_payment_method_not_available (NEW, requested in the D3 handoff)'
     CHECKOUT_CART_EMPTY: '[422] The cart has no orderable line left after re-validation (spec 06 AC-6); messageKey t_an_item_in_your_cart_doesnot_exist'
-    CHECKOUT_ITEMS_NO_LONGER_AVAILABLE: '[422] "Pay" again for an order awaiting payment whose gigs are no longer orderable; only "Delete" remains (spec 06 AC-11); messageKey t_order_items_no_longer_available'
-    CHECKOUT_TARGET_NOT_PAYABLE: '[409] The item can no longer take a payment: order not awaiting payment, contract already paid or canceled, offer withdrawn/declined/expired/rejected (spec 11 AC-30, spec 12 AC-17, AC-18); messageKey t_order_status_changed or t_offer_no_longer_available'
+    CHECKOUT_TARGET_NOT_PAYABLE: '[409] The item can no longer take a payment: order not awaiting payment, contract already paid or canceled (spec 06 AC-11, spec 11 AC-30); messageKey t_order_status_changed. Offers use D4 OFFER_NO_LONGER_AVAILABLE and orders whose gigs are gone D4 ORDER_ITEMS_NO_LONGER_AVAILABLE (integration run: one code per case)'
     TOPUP_AMOUNT_OUT_OF_RANGE: '[422] Top-up amount A below S-023 or above S-024; `details.min` and `details.max` are Money (spec 05 AC-22); messageKey t_min_deposit_amount_is_and_max_is'
     PROMO_INVALID: '[422] Unknown, inactive or outside its dates (spec 09 AC-28); messageKey t_promo_invalid'
     PROMO_WRONG_PLAN: '[422] The code does not apply to this billing period (S-048, spec 09 AC-28); messageKey t_promo_wrong_plan'
@@ -41,7 +38,6 @@ D3ErrorCode:
     PROMO_NOT_APPLICABLE: '[422] A promo code on a checkout that is not a promo-eligible platform service (gig order, contract, offer, top-up; spec 05 AC-40); messageKey t_promo_not_applicable'
     SUBSCRIPTION_ALREADY_ACTIVE: '[422] The user already has Premium that has not ended (active or canceled-running) — purchase, points purchase or staff gift refused (spec 09 AC-6, AC-35, R-S3); messageKey t_already_have_active_subscription'
     PAYOUT_DETAILS_REQUIRED: '[422] No usable payout details (neither holder + IBAN nor migrated text) (spec 14 AC-4); messageKey t_add_payout_details_first'
-    PAYOUT_PASSWORD_INCORRECT: '[422] The current password sent to confirm new payout details is wrong (spec 14 AC-3, P-63); messageKey = the current-password error key of spec 02 (aligned with D1 by the integration run)'
     WITHDRAWAL_PENDING_EXISTS: '[409] The user already has a pending or processing withdrawal (spec 14 AC-6, AC-10); messageKey t_cant_withdraw_reason_pending_request'
     WITHDRAWAL_PERIOD_NOT_ELAPSED: '[422] Less than 24h / 168h / 720h (S-032) since the creation of the latest paid request; `details.nextAllowedAt` (spec 14 AC-6); messageKey t_cant_withdraw_reason_period_24_hours | t_cant_withdraw_reason_period_7_days | t_cant_withdraw_reason_period_monthly'
     WITHDRAWAL_BELOW_MINIMUM: '[422] A below S-031; `details.min` is Money (spec 14 AC-6); messageKey t_cant_withdraw_reason_min_amount'
@@ -62,10 +58,7 @@ CheckoutQuoteRequest:
     target: {$ref: '../components/schemas.yaml#/CheckoutTarget'}
     promoCode:
       $ref: '#/CheckoutPromoCodeInput'
-      description: |
-        The promo code to apply. For purpose `subscription` the code may also arrive in
-        `target.promoCode` (shared schema); if both are set they must be equal (else `400 VALIDATION_FAILED`).
-        The integration run is asked to keep only this top-level field (D3 handoff).
+      description: The promo code to apply (the only place a promo code is sent; `CheckoutTarget` carries none).
 
 CheckoutQuoteLine:
   type: object

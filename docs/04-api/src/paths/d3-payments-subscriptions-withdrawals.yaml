@@ -20,12 +20,12 @@
         available and not restricted, buyer is not the owner, upgrades exist; spec 06 AC-6). Failing lines
         are removed from the cart and reported in `notices`; prices and delivery times are re-read from
         current gig data, never from the cart. `source = order`: an order still awaiting payment, at its
-        stored prices (spec 06 AC-11); if a gig is no longer orderable → `422 CHECKOUT_ITEMS_NO_LONGER_AVAILABLE`.
+        stored prices (spec 06 AC-11); if a gig is no longer orderable → `422 ORDER_ITEMS_NO_LONGER_AVAILABLE`.
       - `contract_payment`: proposal amount P + client commission Fb if S-014 is ON (spec 11 AC-26); only
         the project owner (client) — others get `404` (spec 11 AC-27).
       - `custom_offer`: offer price P + buyer fee Fb if S-017 is ON (spec 12 AC-13); only the offer's
         buyer; a withdrawn, declined, rejected or expired offer (also past `expiresAt` before the sweeper
-        ran) → `409 CHECKOUT_TARGET_NOT_PAYABLE` (spec 12 AC-17, AC-18).
+        ran) → `422 OFFER_NO_LONGER_AVAILABLE` (D4 code, spec 12 AC-17, AC-18).
       - `topup`: amount A with the card fee and the credited amount (spec 05 AC-21); A outside
         S-023…S-024 → `422 TOPUP_AMOUNT_OUT_OF_RANGE` (AC-22, limits apply to A, P-39).
       - `subscription`: Premium list price S-008/S-009, promo discount, **no** surcharge (spec 05 AC-7,
@@ -43,7 +43,7 @@
       Mobile (`X-MyTask-Client: ios|android`) with S-126 OFF: the card method of a `subscription` quote is
       returned unavailable (`mobile_card_purchase_disabled`, spec 09 AC-7).
       Errors: 400 VALIDATION_FAILED; 404 NOT_FOUND (target not visible to the caller); 409
-      CHECKOUT_TARGET_NOT_PAYABLE; 422 CHECKOUT_CART_EMPTY, CHECKOUT_ITEMS_NO_LONGER_AVAILABLE,
+      CHECKOUT_TARGET_NOT_PAYABLE; 422 CHECKOUT_CART_EMPTY, ORDER_ITEMS_NO_LONGER_AVAILABLE, OFFER_NO_LONGER_AVAILABLE,
       TOPUP_AMOUNT_OUT_OF_RANGE, SUBSCRIPTION_ALREADY_ACTIVE, PROMO_INVALID, PROMO_WRONG_PLAN,
       PROMO_ALREADY_USED, PROMO_FULLY_REDEEMED, PROMO_NOT_APPLICABLE; 403 FEATURE_DISABLED (S-022 OFF for
       top-ups).
@@ -130,7 +130,8 @@
       top-ups; spec 05 AC-4); payments already started finish normally (EC-5).
       Errors: 400 VALIDATION_FAILED, IDEMPOTENCY_KEY_REQUIRED; 403 FEATURE_DISABLED, ACCOUNT_RESTRICTED; 404
       NOT_FOUND; 409 QUOTE_CHANGED, CHECKOUT_TARGET_NOT_PAYABLE, IDEMPOTENCY_IN_PROGRESS; 422
-      INSUFFICIENT_FUNDS, CHECKOUT_METHOD_NOT_AVAILABLE, CHECKOUT_CART_EMPTY, CHECKOUT_ITEMS_NO_LONGER_AVAILABLE,
+      INSUFFICIENT_FUNDS, CHECKOUT_METHOD_NOT_AVAILABLE, CHECKOUT_CART_EMPTY, ORDER_ITEMS_NO_LONGER_AVAILABLE,
+      OFFER_NO_LONGER_AVAILABLE (D4 codes for the two item cases),
       TOPUP_AMOUNT_OUT_OF_RANGE, SUBSCRIPTION_ALREADY_ACTIVE, PROMO_*, IDEMPOTENCY_KEY_REUSED; 503
       SERVICE_UNAVAILABLE when BOG cannot create the order (nothing charged).
     tags: [Payments]
@@ -142,10 +143,10 @@
       audience: user
       ownership: 'same as createCheckoutQuote: own cart / buyer of the order; project owner of the contract payment; buyer of the custom offer; self for top-up and Premium. Others get 404'
       notes: 'Method toggles S-019/S-020/S-021 and S-022 (top-up) are checked per request (403 FEATURE_DISABLED); S-126 for mobile Premium by card.'
-    x-covers: ['05 AC-1', '05 AC-2', '05 AC-3', '05 AC-4', '05 AC-6', '05 AC-8', '05 AC-9', '05 AC-14', '05 AC-16', '05 AC-18', '05 AC-19', '05 AC-20', '05 AC-21', '05 AC-22', '05 AC-24', '05 AC-26', '05 AC-30', '05 AC-38', '05 AC-40', '09 AC-4', '09 AC-6', '09 AC-7', '09 AC-28', '09 AC-30', '09 AC-31', '09 AC-32', '06 AC-7', '06 AC-8', '06 AC-9', '06 AC-10', '06 AC-11', '11 AC-27', '11 AC-28', '11 AC-29', '11 AC-30', '12 AC-14', '12 AC-15', '12 AC-17', '12 AC-18']
+    x-covers: ['05 AC-1', '05 AC-2', '05 AC-3', '05 AC-4', '05 AC-6', '05 AC-8', '05 AC-9', '05 AC-14', '05 AC-16', '05 AC-18', '05 AC-19', '05 AC-20', '05 AC-21', '05 AC-22', '05 AC-24', '05 AC-26', '05 AC-30', '05 AC-38', '05 AC-40', '09 AC-4', '09 AC-6', '09 AC-7', '09 AC-28', '09 AC-30', '09 AC-31', '09 AC-32', '06 AC-7', '06 AC-8', '06 AC-9', '06 AC-10', '06 AC-11', '11 AC-27', '11 AC-28', '11 AC-29', '11 AC-30', '12 AC-14', '12 AC-15', '12 AC-17', '12 AC-18', '00 AC-13', '06 AC-6', '12 AC-1']
     x-settings: [S-008, S-009, S-012, S-019, S-020, S-021, S-022, S-023, S-024, S-042, S-047, S-048, S-049, S-050, S-100, S-125, S-126]
     x-notifications: [EV-24, EV-33, EV-34, EV-50, EV-72, EV-86]
-    x-emits: [payment.status_changed, wallet.balance_changed, subscription.changed]
+    x-emits: [payment.status_changed, wallet.balance_changed, subscription.changed, contract.status_changed]
     x-jobs: [bog-reconcile]
     x-rate-limit: 20 requests / 10 min per user
     requestBody:
@@ -232,7 +233,7 @@
     x-permission:
       audience: restricted-user
       ownership: payer only; others get 404
-    x-covers: ['05 AC-11', '05 AC-12', '05 AC-13', '05 AC-15', '05 AC-33', '09 AC-5', '09 AC-18']
+    x-covers: ['05 AC-11', '05 AC-12', '05 AC-13', '05 AC-15', '05 AC-33', '09 AC-5', '09 AC-18', '06 AC-9', '11 AC-29', '12 AC-19']
     responses:
       '200':
         description: The payment.
@@ -283,7 +284,7 @@
     x-permission:
       audience: webhook
       notes: 'verified by provider callback + server-side status check (getPaymentDetails); signature hook optional (ADR-004 §3)'
-    x-covers: ['05 AC-10', '05 AC-14', '05 AC-15', '05 AC-23', '09 AC-4', '09 AC-5', '09 AC-31', '06 AC-9', '06 AC-10', '11 AC-29', '11 AC-30', '12 AC-15', '12 AC-19']
+    x-covers: ['05 AC-10', '05 AC-14', '05 AC-15', '05 AC-23', '09 AC-4', '09 AC-5', '09 AC-31', '06 AC-9', '06 AC-10', '11 AC-29', '11 AC-30', '12 AC-15', '12 AC-19', '00 AC-13']
     x-notifications: [EV-23, EV-29, EV-33, EV-34, EV-35, EV-50, EV-51, EV-72, EV-86]
     x-jobs: [bog-callback, bog-reconcile]
     requestBody:
@@ -785,10 +786,10 @@
     description: |
       Holder name 3–100 characters; IBAN must be a valid Georgian IBAN (`GE`, 22 characters, check digits,
       spaces ignored) → otherwise `400 VALIDATION_FAILED` field `iban` messageKey `t_iban_invalid` (spec 14
-      AC-1). Needs the current password (not for accounts without one, spec 02 AC-29) → wrong password `422
-      PAYOUT_PASSWORD_INCORRECT` (AC-3, P-63). Saving replaces the migrated text; pending requests keep their
+      AC-1). Needs the current password (not for accounts without one, spec 02 AC-29) → wrong password `400
+      VALIDATION_FAILED` field `currentPassword` messageKey `t_ur_current_pass_does_not_match` (AC-3, P-63; same as D1 `updateMe`). Saving replaces the migrated text; pending requests keep their
       copied details (EC-4). Sends `PayoutDetailsChanged` + in-app notice (EV-114).
-      Errors: 400 VALIDATION_FAILED; 422 PAYOUT_PASSWORD_INCORRECT; 429 RATE_LIMITED (global limits).
+      Errors: 400 VALIDATION_FAILED (incl. wrong current password); 429 RATE_LIMITED (global limits).
     tags: [Withdrawals]
     x-permission:
       audience: user
@@ -827,7 +828,7 @@
     x-permission:
       audience: user
       ownership: self
-    x-covers: ['14 AC-4', '14 AC-5', '14 AC-6', '14 AC-8', '14 AC-11', '05 AC-37']
+    x-covers: ['14 AC-4', '14 AC-5', '14 AC-6', '14 AC-8', '14 AC-11', '05 AC-37', '00 AC-16']
     x-settings: [S-010, S-011, S-031, S-032]
     requestBody:
       required: true
@@ -877,7 +878,7 @@
       audience: user
       ownership: self
       notes: 'Restricted users are refused (403 ACCOUNT_RESTRICTED). No KYC requirement (Q-048).'
-    x-covers: ['14 AC-4', '14 AC-6', '14 AC-7', '14 AC-8', '14 AC-10', '14 AC-11', '14 AC-12', '14 AC-17', '05 AC-30', '05 AC-37']
+    x-covers: ['14 AC-4', '14 AC-6', '14 AC-7', '14 AC-8', '14 AC-10', '14 AC-11', '14 AC-12', '14 AC-17', '05 AC-30', '05 AC-37', '00 AC-16']
     x-settings: [S-010, S-011, S-031, S-032, S-033, S-100]
     x-notifications: [EV-110, EV-111]
     x-emits: [wallet.balance_changed]
@@ -2254,13 +2255,13 @@
       '401': {$ref: '../components/responses.yaml#/Unauthorized'}
       '403': {$ref: '../components/responses.yaml#/Forbidden'}
 
-/admin/points/referrals:
+/admin/referrals:
   parameters:
     - $ref: '../components/parameters.yaml#/AcceptLanguage'
   get:
     operationId: adminListReferrals
     summary: Referrals (by referrer or referred user)
-    description: 'Referrals with status, credited points journal and benefit subscription; `userId` matches the referrer or the referred user (spec 16 AC-31 "Subscriptions and referrals"). Placed under `/admin/points` because D3 owns no `/admin/referrals` prefix (see D3 handoff request).'
+    description: 'Referrals with status, credited points journal and benefit subscription; `userId` matches the referrer or the referred user (spec 16 AC-31 "Subscriptions and referrals").'
     tags: [Admin Subscriptions]
     security: [{staffBearer: []}, {staffCookie: []}]
     parameters:

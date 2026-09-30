@@ -1,7 +1,7 @@
 # API contract — MyTask.ge
 `openapi.yaml` is **the law** (CLAUDE.md golden rule 2, ADR-014): backend, web, admin and mobile build against it; `packages/types` and `packages/api-client` are generated from it. Only the solution-architect changes it — freely until the Owner approves it at the Phase 2 gate, afterwards only with an ADR and a handoff to the backend, web and mobile engineers.
 
-Status (2026-09-29): **P2-B4 part 1 (foundation) done** — conventions, shared components, ownership map, tooling and the file endpoints. Domain paths are written next by six parallel group runs (D1…D6), then one integration run bundles, lints and merges the coverage table below. Not yet approved by the Owner.
+Status (2026-09-30): **P2-B4 complete** — foundation, six group runs (D1…D6) and the integration run. The contract has **477 operations on 398 paths, 763 component schemas, 34 realtime events** (+ `file.processed`), and covers **all 707 acceptance criteria of the 18 specs** (incl. the PROPOSED P-135 ACs of spec 05). `npm run verify:final`: 0 errors, 0 warnings. **Not yet approved by the Owner** (Phase 2 gate).
 
 ## What lives where
 | Path | What | Who edits |
@@ -41,7 +41,7 @@ Without `npm ci`, the equivalent one-off commands are:
 `node scripts/build-root.mjs && npx -y @redocly/cli@2.55.0 lint src/openapi.root.yaml --config redocly.yaml` and
 `npx -y @redocly/cli@2.55.0 bundle src/openapi.root.yaml --config redocly.yaml -o openapi.yaml` (the scripts need the `yaml` package, so `npm ci` is recommended).
 
-Last foundation result (2026-09-29): `npm run verify` → sources and bundle lint **0 errors, 0 warnings**; `check-contract` 0 errors (warnings = reserved operations and error-code stubs the group runs will write); `check-coverage` 0 errors (all coverage files still to be written).
+Last integration result (2026-09-30): `npm run verify:final` → Redocly lint of the sources **0 errors, 0 warnings**; bundle `openapi.yaml` written; Redocly lint of the bundle **0 errors, 0 warnings**; `check-contract --final` **0 errors, 0 warnings**; `check-coverage --final` **0 errors, 0 warnings**, `coverage/SUMMARY.md` written. `npm run verify:group -- D1…D6` → all PASSED (sandboxes resolve other groups' operations from the integrated bundle).
 
 ## How clients use it (Phase 3)
 - `packages/types`: `openapi-typescript openapi.yaml` → `paths`, `components` types.
@@ -49,8 +49,52 @@ Last foundation result (2026-09-29): `npm run verify` → sources and bundle lin
 - API: request validation always, response validation in tests (ADR-014 §3); CI runs `npm run verify:final` and `oasdiff` for breaking changes.
 
 ## Coverage (spec AC → endpoint)
-Filled by the integration run from `coverage/SUMMARY.md` (gate item 7: every approved AC covered). Per-spec detail in `coverage/NN.md`.
+Gate item 7: every approved AC is covered exactly once per coverage file — `API` (operations implement it), `API+JOB` (operations plus a background job, ADR-008) or `NOT-API:<reason>` (client-only, email template, job only, infrastructure, migration, cross-cutting policy, editorial content). The full AC → operationId table is in the per-spec files linked below (`coverage/NN.md`; spec 16 ACs implemented by other groups are in `coverage/16-d1.md … 16-d5.md`, and each `DELEGATED` row in `coverage/16.md` names the real rows). Generated table (`coverage/SUMMARY.md`, "API" = API + API+JOB):
 
 | Spec | Title | Owner | ACs | API | Not API | Delegated (open) | Missing | Detail |
 |---|---|---|---|---|---|---|---|---|
-| — | to be merged by the integration run | | 707 (at 2026-09-29) | | | | | |
+| 00 | Platform rules (cross-cutting) | D1 | 26 | 15 | 11 | 0 | 0 | [coverage/00.md](coverage/00.md) |
+| 01 | Auth and accounts | D1 | 52 | 52 | 0 | 0 | 0 | [coverage/01.md](coverage/01.md) |
+| 02 | Profiles and dashboards | D1 | 41 | 34 | 7 | 0 | 0 | [coverage/02.md](coverage/02.md) |
+| 03 | Categories and search | D2 | 37 | 33 | 4 | 0 | 0 | [coverage/03.md](coverage/03.md) |
+| 04 | Gigs | D2 | 39 | 37 | 2 | 0 | 0 | [coverage/04.md](coverage/04.md) |
+| 05 | Payments and wallet | D3 | 47 | 46 | 1 | 0 | 0 | [coverage/05.md](coverage/05.md) |
+| 06 | Gig orders | D4 | 45 | 43 | 2 | 0 | 0 | [coverage/06.md](coverage/06.md) |
+| 07 | Reviews | D2 | 21 | 20 | 1 | 0 | 0 | [coverage/07.md](coverage/07.md) |
+| 08 | Messaging (Inbox chat) | D5 | 34 | 28 | 6 | 0 | 0 | [coverage/08.md](coverage/08.md) |
+| 09 | Subscriptions, points, referrals and promo codes | D3 | 37 | 30 | 7 | 0 | 0 | [coverage/09.md](coverage/09.md) |
+| 10 | Projects (post, moderate, project page) | D5 | 29 | 26 | 3 | 0 | 0 | [coverage/10.md](coverage/10.md) |
+| 11 | Proposals and hiring (award, one escrow payment, delivery, completion) | D5 | 45 | 43 | 2 | 0 | 0 | [coverage/11.md](coverage/11.md) |
+| 12 | Custom offers | D4 | 36 | 35 | 1 | 0 | 0 | [coverage/12.md](coverage/12.md) |
+| 13 | Refunds, disputes and unblock requests | D4 | 34 | 32 | 2 | 0 | 0 | [coverage/13.md](coverage/13.md) |
+| 14 | Withdrawals | D3 | 20 | 20 | 0 | 0 | 0 | [coverage/14.md](coverage/14.md) |
+| 15 | Notifications (catalogue, channels, notification centre, preferences, push) | D6 | 39 | 19 | 20 | 0 | 0 | [coverage/15.md](coverage/15.md) |
+| 16 | Admin panel (admin.mytask.ge): staff, RBAC, audit, moderation, users, money, fees, settings, content, analytics, logs | D6 | 78 | 73 | 5 | 0 | 0 | [coverage/16.md](coverage/16.md) |
+| 17 | Content and SEO: CMS pages, Terms & Privacy, blog, contact, newsletter, home content, `/gita`, SEO meta, sitemap, robots, redirects | D2 | 47 | 35 | 12 | 0 | 0 | [coverage/17.md](coverage/17.md) |
+| **All** | | | **707** | **621** | **86** | **0** | **0** | |
+
+Breakdown by coverage kind (integration run 2026-09-30):
+
+| Spec | ACs | API | API+JOB | NOT-API: ui | job | email | infra | migration | policy | content |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 00 | 26 | 13 | 2 | – | 2 | – | 3 | 1 | 4 | 1 |
+| 01 | 52 | 52 | – | – | – | – | – | – | – | – |
+| 02 | 41 | 33 | 1 | 6 | – | – | – | – | 1 | – |
+| 03 | 37 | 33 | – | 3 | – | – | 1 | – | – | – |
+| 04 | 39 | 37 | – | 2 | – | – | – | – | – | – |
+| 05 | 47 | 38 | 8 | – | – | – | 1 | – | – | – |
+| 06 | 45 | 38 | 5 | 1 | – | 1 | – | – | – | – |
+| 07 | 21 | 20 | – | – | – | – | – | 1 | – | – |
+| 08 | 34 | 26 | 2 | 2 | – | – | 1 | 1 | 1 | 1 |
+| 09 | 37 | 27 | 3 | – | 6 | 1 | – | – | – | – |
+| 10 | 29 | 24 | 2 | 1 | – | – | – | 1 | 1 | – |
+| 11 | 45 | 40 | 3 | – | – | – | – | 1 | 1 | – |
+| 12 | 36 | 33 | 2 | – | – | – | – | 1 | – | – |
+| 13 | 34 | 29 | 3 | – | – | 1 | – | 1 | – | – |
+| 14 | 20 | 19 | 1 | – | – | – | – | – | – | – |
+| 15 | 39 | 17 | 2 | 4 | 5 | 4 | 1 | 1 | 5 | – |
+| 16 | 78 | 72 | 1 | – | – | – | 1 | 1 | 3 | – |
+| 17 | 47 | 35 | – | 5 | 1 | – | 4 | 2 | – | – |
+| **All** | **707** | **586** | **35** | **24** | **14** | **7** | **12** | **11** | **16** | **2** |
+
+Spec 05 AC-44…AC-47 (reconciliation), spec 00 R-5.3a / spec 04 AC-5 / spec 10 AC-3…AC-4 (Georgian-field rule) and the S-128 setting follow PROPOSED spec items (P-135, P-136); their operations are ready and become binding only when the Owner accepts those items.

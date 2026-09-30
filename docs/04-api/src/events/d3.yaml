@@ -12,14 +12,14 @@ events:
   - name: wallet.balance_changed
     room: 'user:{userId}'
     payload: WalletBalanceChangedEvent
-    emittedBy: [createPayment, createWithdrawal, adminRejectWithdrawal, adminConfirmBankTransfer, adminCreateLedgerAdjustment, adminReleaseLegacyHold, adminWriteOffLegacyHold, 'job:bog-callback', 'job:bog-reconcile']
+    emittedBy: [createPayment, createWithdrawal, adminRejectWithdrawal, adminConfirmBankTransfer, adminCreateLedgerAdjustment, adminReleaseLegacyHold, adminWriteOffLegacyHold, cancelOrderItem, completeEscrow, cancelCustomOffer, acceptRefundRequest, adminReleaseEscrow, adminRefundEscrow, adminResolveDispute, adminApproveUnblockRequest, 'job:bog-callback', 'job:bog-reconcile', 'job:escrow-auto-release']
     covers: ['05 AC-27']
-    description: The user's Available or HOLD balance changed (also emitted by D4 escrow release/refund through the same ledger service). Clients re-read getWallet.
+    description: The user's Available or HOLD balance changed (payments, withdrawals, adjustments, and the D4 escrow release/refund operations that post through the same ledger service). Clients re-read getWallet.
 
   - name: subscription.changed
     room: 'user:{userId}'
     payload: SubscriptionChangedEvent
-    emittedBy: [cancelSubscription, resumeSubscription, purchaseSubscriptionWithPoints, createPayment, adminGiftSubscription, adminCancelSubscription, 'job:bog-callback', 'job:subscription-renewal']
+    emittedBy: [cancelSubscription, resumeSubscription, purchaseSubscriptionWithPoints, createPayment, deleteSavedCard, adminGiftSubscription, adminCancelSubscription, 'job:bog-callback', 'job:subscription-renewal']
     covers: ['09 AC-4', '09 AC-5']
     description: Premium was activated, renewed, canceled, resumed or ended. Clients re-read getCurrentSubscription.
 

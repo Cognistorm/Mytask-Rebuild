@@ -56,7 +56,7 @@
     x-permission:
       audience: user
       ownership: self (own cart); the gig must not be the caller's own
-    x-covers: ['06 AC-1', '06 AC-2', '06 AC-4']
+    x-covers: ['06 AC-1', '06 AC-2', '06 AC-4', '04 AC-29', '04 AC-30']
     x-emits: [cart.updated]
     requestBody:
       required: false
@@ -413,7 +413,7 @@
     x-covers: ['06 AC-12', '06 AC-18', '06 AC-19', '06 AC-20', '06 AC-21']
     x-money: true
     x-notifications: [EV-38, EV-39]
-    x-emits: [order.item_updated, escrow.updated]
+    x-emits: [order.item_updated, escrow.updated, wallet.balance_changed]
     parameters:
       - $ref: '../components/parameters.yaml#/IdempotencyKey'
     responses:
@@ -451,7 +451,7 @@
     x-permission:
       audience: user
       ownership: buyer or freelancer of the escrow; others get 404
-    x-covers: ['06 AC-25', '06 AC-29', '06 AC-32', '06 AC-33', '06 AC-36', '06 AC-45', '11 AC-37', '11 AC-39', '12 AC-26', '12 AC-27', '13 AC-1', '13 AC-2', '13 AC-3', '13 AC-23']
+    x-covers: ['06 AC-25', '06 AC-29', '06 AC-32', '06 AC-33', '06 AC-36', '06 AC-45', '11 AC-37', '11 AC-39', '12 AC-26', '12 AC-27', '13 AC-1', '13 AC-2', '13 AC-3', '13 AC-23', '00 AC-18']
     x-settings: [S-025, S-026, S-028, S-029]
     responses:
       '200':
@@ -512,7 +512,7 @@
     x-covers: ['06 AC-22', '06 AC-23', '06 AC-28', '06 AC-38', '11 AC-32', '12 AC-21', '13 AC-13', '13 AC-14']
     x-settings: [S-025, S-026, S-086, S-087]
     x-notifications: [EV-40, EV-73, EV-87]
-    x-emits: [escrow.updated, order.item_updated, offer.updated]
+    x-emits: [escrow.updated, order.item_updated, offer.updated, contract.status_changed]
     x-jobs: [escrow-auto-release]
     requestBody:
       required: true
@@ -575,9 +575,9 @@
     x-permission:
       audience: user
       ownership: buyer of the escrow; the freelancer gets 403, others 404
-    x-covers: ['06 AC-26', '06 AC-27', '11 AC-33', '12 AC-22', '13 AC-13']
+    x-covers: ['06 AC-26', '06 AC-27', '11 AC-33', '12 AC-22', '13 AC-13', '00 AC-19']
     x-notifications: [EV-41, EV-74, EV-88]
-    x-emits: [escrow.updated, order.item_updated, offer.updated]
+    x-emits: [escrow.updated, order.item_updated, offer.updated, message.created, contract.status_changed]
     x-jobs: [escrow-auto-release]
     requestBody:
       required: true
@@ -622,10 +622,10 @@
     x-permission:
       audience: user
       ownership: buyer of the escrow; the freelancer gets 403, others 404
-    x-covers: ['06 AC-30', '06 AC-31', '06 AC-32', '06 AC-39', '11 AC-36', '11 AC-37', '11 AC-38', '12 AC-25', '12 AC-26', '12 AC-28', '13 AC-13', '13 AC-14', '13 AC-27', '13 AC-31']
+    x-covers: ['06 AC-30', '06 AC-31', '06 AC-32', '06 AC-39', '11 AC-36', '11 AC-37', '11 AC-38', '12 AC-25', '12 AC-26', '12 AC-28', '13 AC-13', '13 AC-14', '13 AC-27', '13 AC-31', '00 AC-14']
     x-money: true
     x-notifications: [EV-42, EV-43, EV-75, EV-90, EV-108]
-    x-emits: [escrow.updated, order.item_updated, offer.updated, refund.updated, unblock.updated]
+    x-emits: [escrow.updated, order.item_updated, offer.updated, refund.updated, unblock.updated, wallet.balance_changed, contract.status_changed]
     parameters:
       - $ref: '../components/parameters.yaml#/IdempotencyKey'
     responses:
@@ -705,7 +705,7 @@
     x-covers: ['12 AC-1', '12 AC-2', '12 AC-5', '12 AC-6', '12 AC-7', '12 AC-9', '12 AC-10', '12 AC-11', '12 AC-20']
     x-settings: [S-005, S-006, S-007, S-017, S-018, S-034, S-035, S-036, S-037, S-038, S-039, S-040, S-041]
     x-notifications: [EV-80, EV-81]
-    x-emits: [offer.updated, offer.request_updated]
+    x-emits: [offer.updated, offer.request_updated, message.created]
     x-jobs: [offer-expiry]
     requestBody:
       required: true
@@ -905,7 +905,7 @@
     x-covers: ['12 AC-29', '12 AC-30']
     x-money: true
     x-notifications: [EV-92]
-    x-emits: [offer.updated, escrow.updated, refund.updated]
+    x-emits: [offer.updated, escrow.updated, refund.updated, wallet.balance_changed]
     parameters:
       - $ref: '../components/parameters.yaml#/IdempotencyKey'
     responses:
@@ -975,7 +975,7 @@
       toggles: [S-034]
     x-covers: ['12 AC-1', '12 AC-3', '12 AC-4']
     x-notifications: [EV-78]
-    x-emits: [offer.request_updated]
+    x-emits: [offer.request_updated, message.created]
     requestBody:
       required: true
       content:
@@ -1138,7 +1138,7 @@
     x-permission:
       audience: user
       ownership: buyer of the escrow (`escrowId`); others get 404
-    x-covers: ['06 AC-20', '06 AC-34', '11 AC-34', '12 AC-23', '12 AC-30', '13 AC-1', '13 AC-2', '13 AC-3', '13 AC-4', '13 AC-5', '13 AC-9', '13 AC-27']
+    x-covers: ['06 AC-20', '06 AC-34', '11 AC-34', '12 AC-23', '12 AC-30', '13 AC-1', '13 AC-2', '13 AC-3', '13 AC-4', '13 AC-5', '13 AC-9', '13 AC-27', '00 AC-19']
     x-settings: [S-030]
     x-notifications: [EV-93, EV-108]
     x-emits: [refund.updated, escrow.updated, unblock.updated]
@@ -1246,10 +1246,10 @@
     x-permission:
       audience: user
       ownership: freelancer of the request; the buyer gets 403, others 404
-    x-covers: ['13 AC-6', '13 AC-27', '13 AC-31']
+    x-covers: ['13 AC-6', '13 AC-27', '13 AC-31', '00 AC-15']
     x-money: true
     x-notifications: [EV-94, EV-108]
-    x-emits: [refund.updated, escrow.updated, order.item_updated, offer.updated, unblock.updated]
+    x-emits: [refund.updated, escrow.updated, order.item_updated, offer.updated, unblock.updated, wallet.balance_changed, contract.status_changed]
     parameters:
       - $ref: '../components/parameters.yaml#/IdempotencyKey'
     responses:
@@ -2071,11 +2071,11 @@
       permission: escrow.release
       stepUp: true
       ownership: none
-    x-covers: ['12 AC-28', '12 AC-34', '13 AC-29', '13 AC-31', '16 AC-38']
+    x-covers: ['12 AC-28', '12 AC-34', '13 AC-29', '13 AC-31', '16 AC-38', '11 AC-38']
     x-money: true
     x-audit: escrow.release
     x-notifications: [EV-106]
-    x-emits: [escrow.updated, order.item_updated, offer.updated, refund.updated, unblock.updated]
+    x-emits: [escrow.updated, order.item_updated, offer.updated, refund.updated, unblock.updated, wallet.balance_changed, contract.status_changed]
     parameters:
       - $ref: '../components/parameters.yaml#/IdempotencyKey'
     requestBody:
@@ -2124,11 +2124,11 @@
       permission: escrow.refund
       stepUp: true
       ownership: none
-    x-covers: ['12 AC-34', '13 AC-30', '13 AC-31', '16 AC-38']
+    x-covers: ['12 AC-34', '13 AC-30', '13 AC-31', '16 AC-38', '00 AC-15']
     x-money: true
     x-audit: escrow.refund
     x-notifications: [EV-109, EV-108]
-    x-emits: [escrow.updated, order.item_updated, offer.updated, refund.updated, unblock.updated]
+    x-emits: [escrow.updated, order.item_updated, offer.updated, refund.updated, unblock.updated, wallet.balance_changed, contract.status_changed]
     parameters:
       - $ref: '../components/parameters.yaml#/IdempotencyKey'
     requestBody:
@@ -2337,11 +2337,11 @@
       permission: refunds.resolve
       stepUp: true
       ownership: none
-    x-covers: ['06 AC-35', '13 AC-16', '13 AC-17', '13 AC-18', '13 AC-20', '13 AC-31', '16 AC-40']
+    x-covers: ['06 AC-35', '13 AC-16', '13 AC-17', '13 AC-18', '13 AC-20', '13 AC-31', '16 AC-40', '00 AC-15']
     x-money: true
     x-audit: dispute.resolve
     x-notifications: [EV-102, EV-103, EV-108]
-    x-emits: [refund.updated, escrow.updated, order.item_updated, offer.updated, unblock.updated]
+    x-emits: [refund.updated, escrow.updated, order.item_updated, offer.updated, unblock.updated, wallet.balance_changed, contract.status_changed]
     parameters:
       - $ref: '../components/parameters.yaml#/IdempotencyKey'
     requestBody:
@@ -2465,7 +2465,7 @@
     x-money: true
     x-audit: unblock_request.approve
     x-notifications: [EV-105, EV-106]
-    x-emits: [unblock.updated, escrow.updated, order.item_updated, offer.updated]
+    x-emits: [unblock.updated, escrow.updated, order.item_updated, offer.updated, wallet.balance_changed, contract.status_changed]
     parameters:
       - $ref: '../components/parameters.yaml#/IdempotencyKey'
     responses:

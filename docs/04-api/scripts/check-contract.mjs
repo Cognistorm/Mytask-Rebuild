@@ -21,6 +21,13 @@ const sharedNames = new Set(Object.keys(readYaml(path.join(srcDir, 'components',
 const schemas = doc.components?.schemas ?? {};
 const catalogue = new Set(ownership.staffPermissions);
 const AUDIENCES = new Set(['public', 'optional-user', 'user', 'restricted-user', 'staff', 'webhook']);
+const PERM_KEYS = new Set(['audience', 'ownership', 'permission', 'permissionBy', 'stepUp', 'stepUpFor', 'plan', 'toggles', 'notes']);
+const CURSOR_PAGE_REF = '#/components/schemas/CursorPage';
+/** A list response = a schema whose allOf includes the shared CursorPage (not a name heuristic; D2 owns "Page…" CMS schemas). */
+const isCursorPage = (schema) => {
+  const s = schema?.$ref ? schemas[schema.$ref.split('/').pop()] : schema;
+  return Boolean(s?.allOf?.some((x) => x.$ref === CURSOR_PAGE_REF));
+};
 const ERR_REF = '#/components/schemas/Error';
 
 const resolveResponse = (resp) => {
@@ -60,13 +67,34 @@ for (const { path: p, method, op, item } of operations(doc)) {
     if (!AUDIENCES.has(perm.audience)) r.error(`${where}: x-permission.audience "${perm.audience}" not in ${[...AUDIENCES].join('|')}`);
     if (perm.audience !== 'public' && perm.audience !== 'webhook' && !perm.ownership) r.error(`${where}: x-permission.ownership required (use "none" when not resource-bound)`);
     const sec = secNames(op.security ?? doc.security);
+    for (const k of Object.keys(perm)) if (!PERM_KEYS.has(k)) r.error(`${where}: x-permission.${k} is not a known key (${[...PERM_KEYS].join(', ')}; CONVENTIONS §6.1)`);
     if (perm.audience === 'staff') {
-      const perms = perm.permissionByPurpose ? Object.values(perm.permissionByPurpose) : [perm.permission];
-      for (const x of perms) if (x !== '@self' && !catalogue.has(x)) r.error(`${where}: staff permission "${x}" is not in the spec 16 catalogue (ownership.yaml staffPermissions)`);
+      // one permission per call (spec 16 AC-9): `permission`, optionally selected by ONE attribute via `permissionBy`
+      if (!perm.permission) r.error(`${where}: staff operations declare x-permission.permission (one catalogue name or '@self')`);
+      const perms = [perm.permission];
+      if (perm.permissionBy !== undefined) {
+        const pb = perm.permissionBy;
+        if (!pb || typeof pb !== 'object' || typeof pb.attribute !== 'string' || !pb.map || typeof pb.map !== 'object' || !Object.keys(pb.map).length) {
+          r.error(`${where}: x-permission.permissionBy must be {attribute: <what selects the permission>, map: {<value>: <permission>}}`);
+        } else {
+          perms.push(...Object.values(pb.map));
+          if (perm.permission === '@self' || Object.values(pb.map).includes('@self')) r.error(`${where}: '@self' cannot be combined with permissionBy`);
+        }
+      }
+      for (const x of perms.filter(Boolean)) if (x !== '@self' && !catalogue.has(x)) r.error(`${where}: staff permission "${x}" is not in the spec 16 catalogue (ownership.yaml staffPermissions)`);
       if (!isAdmin) r.error(`${where}: staff operations live under /admin/`);
       if (sec !== SEC('staffBearer', 'staffCookie')) r.error(`${where}: staff operations use security [staffBearer, staffCookie] (got ${sec})`);
-      if (perm.stepUp === true && !op.responses?.['403']) r.error(`${where}: stepUp operations must document 403 (REAUTH_REQUIRED)`);
-    } else if (isAdmin && !(perm.audience === 'public' && p.startsWith('/admin/auth/'))) {
+      if ((perm.stepUp === true || perm.stepUpFor) && !op.responses?.['403']) r.error(`${where}: stepUp operations must document 403 (REAUTH_REQUIRED)`);
+      if (perm.stepUpFor !== undefined) {
+        if (!Array.isArray(perm.stepUpFor) || !perm.stepUpFor.length || perm.stepUpFor.some((s) => !/^S-\d{3}$/.test(s))) r.error(`${where}: x-permission.stepUpFor lists register ids "S-nnn" (row-conditional step-up)`);
+        if (perm.stepUp === true) r.error(`${where}: use either stepUp (always) or stepUpFor (per register row), not both`);
+      }
+      // every staff mutation is audited (CONVENTIONS §6.1); exemptions must say why
+      if (method !== 'get' && !op['x-audit'] && !op['x-audit-exempt']) r.error(`${where}: staff mutations declare x-audit (or x-audit-exempt: <reason> when nothing changes)`);
+    } else if (perm.permission || perm.permissionBy || perm.stepUp || perm.stepUpFor) {
+      r.error(`${where}: permission / permissionBy / stepUp / stepUpFor are for staff operations only`);
+    }
+    if (perm.audience !== 'staff' && isAdmin && !(perm.audience === 'public' && p.startsWith('/admin/auth/'))) {
       r.error(`${where}: /admin/* operations must have audience staff (public only for /admin/auth/*)`);
     }
     if ((perm.audience === 'public' || perm.audience === 'webhook') && sec !== '') r.error(`${where}: ${perm.audience} operations declare \`security: []\` (got ${sec || 'default'})`);
@@ -109,10 +137,14 @@ for (const { path: p, method, op, item } of operations(doc)) {
   // pagination
   const okSchema = op.responses?.['200']?.content?.['application/json']?.schema;
   const pageName = okSchema?.$ref?.split('/').pop() ?? '';
+  const isList = isCursorPage(okSchema);
   const hasCursor = params.some((x) => x?.in === 'query' && x?.name === 'cursor');
   const hasLimit = params.some((x) => x?.in === 'query' && x?.name === 'limit');
-  if (method === 'get' && pageName.endsWith('Page') && !(hasCursor && hasLimit)) r.error(`${where}: list returning ${pageName} needs the shared Cursor and Limit/AdminLimit parameters`);
-  if (hasCursor && !pageName.endsWith('Page')) r.error(`${where}: operations with ?cursor return a <Item>Page schema`);
+  const hasPage = params.some((x) => x?.in === 'query' && x?.name === 'page');
+  if (method === 'get' && isList && !(hasCursor && hasLimit)) r.error(`${where}: list returning ${pageName} needs the shared Cursor and Limit/AdminLimit parameters`);
+  if (isList && !pageName.endsWith('Page')) r.error(`${where}: list schemas (allOf CursorPage) are named <Item>Page (got ${pageName || 'inline'})`);
+  if (hasCursor && !isList) r.error(`${where}: operations with ?cursor return a <Item>Page schema (allOf the shared CursorPage)`);
+  if (hasPage && !(isList && hasCursor)) r.error(`${where}: ?page (shared PageNumber) is only an alternative to ?cursor on a list (CONVENTIONS §8.1)`);
   if (method === 'get' && okSchema?.type === 'array') r.error(`${where}: never return a bare array; use a <Item>Page (cursor) or a wrapper object`);
 
   // tags must be declared in base with the right owner (soft)
@@ -175,6 +207,7 @@ for (const [name, schema] of Object.entries(schemas)) {
 
 // ── realtime events ──────────────────────────────────────────────
 const eventNames = new Map();
+const eventEmitters = new Map(); // event name -> Set(operationId) (jobs excluded)
 for (const f of fs.readdirSync(path.join(srcDir, 'events')).filter((x) => x.endsWith('.yaml')).sort()) {
   const group = f.replace('.yaml', '').toUpperCase();
   if (!mine(group)) continue; // parallel-safe: never parse other groups' files in --group mode
@@ -184,6 +217,7 @@ for (const f of fs.readdirSync(path.join(srcDir, 'events')).filter((x) => x.ends
     if (!/^[a-z_]+(\.[a-z_]+)+$/.test(ev.name ?? '')) r.error(`${where}: event name must be dotted lower snake case (message.created)`);
     if (eventNames.has(ev.name)) r.error(`${where}: event already declared by ${eventNames.get(ev.name)}`);
     eventNames.set(ev.name, group);
+    eventEmitters.set(ev.name, new Set((ev.emittedBy ?? []).filter((o) => !String(o).startsWith('job:'))));
     if (!ev.room) r.error(`${where}: room required (user:{userId} | conversation:{conversationId} | staff:{permission})`);
     if (!ev.payload || !schemas[ev.payload]) r.error(`${where}: payload schema "${ev.payload}" not found in components`);
     else if (!/Event$/.test(ev.payload)) r.error(`${where}: payload schema name ends with "Event"`);
@@ -196,6 +230,14 @@ for (const { path: p, op } of operations(doc)) {
   if (!mine(ownerOfPath(p))) continue;
   for (const e of op['x-emits'] ?? []) {
     if (!eventNames.has(e) && !builtinEvents.has(e)) strict(`${op.operationId}: x-emits "${e}" is not declared in src/events/*.yaml`);
+    else if (eventNames.has(e) && !eventEmitters.get(e)?.has(op.operationId)) strict(`${op.operationId}: x-emits "${e}" but the event's emittedBy does not list it`);
+  }
+}
+// the other direction: every operation named in emittedBy lists the event in x-emits
+if (!args.group) {
+  const byId = new Map([...operations(doc)].map(({ op }) => [op.operationId, op]));
+  for (const [e, emitters] of eventEmitters) {
+    for (const o of emitters) if (byId.has(o) && !(byId.get(o)['x-emits'] ?? []).includes(e)) strict(`${o}: listed in emittedBy of "${e}" but its x-emits does not name it`);
   }
 }
 

@@ -26,6 +26,13 @@ fs.copyFileSync(path.join(srcDir, 'ownership.yaml'), path.join(sbSrc, 'ownership
 for (const f of fs.readdirSync(path.join(srcDir, 'components'))) {
   fs.copyFileSync(path.join(srcDir, 'components', f), path.join(sbSrc, 'components', f));
 }
+// names that the shared components reference in group schema files (e.g. D1 UserStatus in
+// ModerationOwnerSummary); stubs provide a permissive placeholder for each (integration run 2026-09-29)
+const sharedRefs = {};
+for (const f of fs.readdirSync(path.join(srcDir, 'components'))) {
+  const text = fs.readFileSync(path.join(srcDir, 'components', f), 'utf8');
+  for (const m of text.matchAll(/\.\.\/schemas\/(d[1-6])\.yaml#\/([A-Za-z0-9]+)/g)) (sharedRefs[m[1].toUpperCase()] ??= new Set()).add(m[2]);
+}
 for (const [k, g] of Object.entries(ownership.groups)) {
   const own = k === group || k === 'F0';
   if (g.pathFile) {
@@ -37,7 +44,10 @@ for (const [k, g] of Object.entries(ownership.groups)) {
     const from = path.join(srcDir, 'schemas', g.schemaFile);
     const to = path.join(sbSrc, 'schemas', g.schemaFile);
     if (k === group) fs.copyFileSync(from, to);
-    else fs.writeFileSync(to, `# ${k} stubbed out in the ${group} sandbox\n${k}ErrorCode:\n  type: string\n`);
+    else {
+      const extra = [...(sharedRefs[k] ?? [])].filter((n) => n !== `${k}ErrorCode`).map((n) => `${n}:\n  type: string\n`).join('');
+      fs.writeFileSync(to, `# ${k} stubbed out in the ${group} sandbox\n${k}ErrorCode:\n  type: string\n${extra}`);
+    }
   }
 }
 

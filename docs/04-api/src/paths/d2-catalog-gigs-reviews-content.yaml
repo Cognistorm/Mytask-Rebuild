@@ -176,7 +176,7 @@
       - {name: sort, in: query, required: false, schema: {$ref: '../schemas/d2.yaml#/SearchGigSort'}}
       - $ref: '../components/parameters.yaml#/Cursor'
       - $ref: '../components/parameters.yaml#/Limit'
-      - {name: page, in: query, required: false, description: 'Web page number (1-based) instead of `cursor` (numbered pages in the URL, AC-8, AC-12).', schema: {type: integer, minimum: 1, maximum: 1000}}
+      - $ref: '../components/parameters.yaml#/PageNumber'
     responses:
       '200':
         description: One page of gig cards, with `totalCount`.
@@ -200,8 +200,8 @@
       S-075 OFF → 403 FEATURE_DISABLED (clients show the feature-disabled state, AC-34).
       Errors: 400, 403 FEATURE_DISABLED, 404 (unknown category or skill not in the category).
     tags: [Search]
-    security: []
-    x-permission: {audience: public, toggles: [S-075]}
+    security: [{}, {userBearer: []}, {userCookie: []}]
+    x-permission: {audience: optional-user, ownership: none, toggles: [S-075], notes: 'the token only decides the username masking of the project owner (Premium and owner see it)'}
     x-covers: ['03 AC-32', '03 AC-33', '03 AC-34']
     parameters:
       - {name: q, in: query, required: false, schema: {type: string, maxLength: 1000}}
@@ -209,7 +209,7 @@
       - {name: skillId, in: query, required: false, schema: {type: string, format: uuid}}
       - $ref: '../components/parameters.yaml#/Cursor'
       - $ref: '../components/parameters.yaml#/Limit'
-      - {name: page, in: query, required: false, description: 'Web page number (1-based) instead of `cursor`.', schema: {type: integer, minimum: 1, maximum: 1000}}
+      - $ref: '../components/parameters.yaml#/PageNumber'
     responses:
       '200':
         description: One page of project rows, with `totalCount`.
@@ -238,7 +238,7 @@
     parameters:
       - $ref: '../components/parameters.yaml#/Cursor'
       - $ref: '../components/parameters.yaml#/Limit'
-      - {name: page, in: query, required: false, description: 'Web page number (1-based) instead of `cursor`.', schema: {type: integer, minimum: 1, maximum: 1000}}
+      - $ref: '../components/parameters.yaml#/PageNumber'
     responses:
       '200':
         description: One page of freelancer cards.
@@ -270,7 +270,7 @@
     parameters:
       - $ref: '../components/parameters.yaml#/Cursor'
       - $ref: '../components/parameters.yaml#/Limit'
-      - {name: page, in: query, required: false, description: 'Web page number (1-based) instead of `cursor`.', schema: {type: integer, minimum: 1, maximum: 1000}}
+      - $ref: '../components/parameters.yaml#/PageNumber'
     responses:
       '200':
         description: The skill and one page of freelancer cards.
@@ -316,8 +316,8 @@
       - titles/descriptions: lengths (AC-4); Georgian fields need a Georgian letter
         (`georgian_letter_required`, `t_validator_georgian_letter_required`) and only the R-5.3a
         character set (`georgian_field_characters`, `t_validator_georgian_field_characters`,
-        refused characters listed — P-136 PROPOSED, spec 00 R-5.3a; shape = D1 stand-in I18nGeorgianFieldError, shared FieldError change requested
-        in the handoff); English fields refuse Georgian letters and need a Latin letter
+        shared `FieldError.refusedCharacters` / `params.chars` — P-136 PROPOSED, spec 00
+        R-5.3a); English fields refuse Georgian letters and need a Latin letter
         (`georgian_letters_not_allowed`, `t_validator_english_only`, AC-6);
       - category chain: sub-category under category, child under sub-category;
       - price ≥ 100 tetri (`t_price_min`), upgrades ≤ 10 (`t_upgrades_limit_reached`), FAQ ≤ 10
@@ -332,7 +332,7 @@
       Errors: 400 VALIDATION_FAILED, 401, 403 ACCOUNT_RESTRICTED, 422 PLAN_LIMIT_REACHED / FILE_NOT_READY / FILE_PURPOSE_MISMATCH / FILE_TYPE_NOT_ALLOWED / FILE_TOO_LARGE.
     tags: [Gigs]
     x-permission: {audience: user, ownership: 'caller becomes the owner'}
-    x-covers: ['04 AC-3', '04 AC-4', '04 AC-5', '04 AC-6', '04 AC-8', '04 AC-9', '04 AC-11', '04 AC-12', '04 AC-13', '04 AC-14', '04 AC-15', '04 AC-16', '04 AC-19', '04 AC-33']
+    x-covers: ['04 AC-3', '04 AC-4', '04 AC-5', '04 AC-6', '04 AC-8', '04 AC-9', '04 AC-11', '04 AC-12', '04 AC-13', '04 AC-14', '04 AC-15', '04 AC-16', '04 AC-19', '04 AC-33', '00 AC-5']
     x-settings: [S-001, S-002, S-041, S-070, S-077, S-078, S-080, S-081, S-082, S-100]
     x-notifications: [EV-19]
     requestBody:
@@ -953,7 +953,7 @@
     tags: [Reviews]
     security: [{}, {userBearer: []}, {userCookie: []}]
     x-permission: {audience: optional-user, ownership: 'public for gigId/subjectUsername (visible only); authorship scope = the caller''s own reviews'}
-    x-covers: ['07 AC-10', '07 AC-15', '07 AC-16', '07 AC-17', '07 AC-18', '07 AC-19']
+    x-covers: ['07 AC-10', '07 AC-15', '07 AC-16', '07 AC-17', '07 AC-18', '07 AC-19', '02 AC-10']
     parameters:
       - {name: gigId, in: query, required: false, schema: {type: string, format: uuid}}
       - {name: subjectUsername, in: query, required: false, schema: {type: string, minLength: 1, maxLength: 60}}
@@ -962,7 +962,7 @@
       - {name: rating, in: query, required: false, description: 'Star filter (5…1).', schema: {type: integer, minimum: 1, maximum: 5}}
       - $ref: '../components/parameters.yaml#/Cursor'
       - $ref: '../components/parameters.yaml#/Limit'
-      - {name: page, in: query, required: false, description: 'Web page number (1-based) instead of `cursor` (`/reviews/{gigUid}`).', schema: {type: integer, minimum: 1, maximum: 1000}}
+      - $ref: '../components/parameters.yaml#/PageNumber'
     responses:
       '200':
         description: One page of reviews (`totalCount` for the gig scope).
@@ -987,7 +987,7 @@
       (`details.reviewId`, AC-7), 422 REVIEW_NOT_ALLOWED (not completed, canceled or refunded, AC-1).
     tags: [Reviews]
     x-permission: {audience: user, ownership: buyer/client or freelancer of the item; others get 404; never about oneself}
-    x-covers: ['07 AC-1', '07 AC-2', '07 AC-3', '07 AC-4', '07 AC-6', '07 AC-7', '07 AC-9', '07 AC-13']
+    x-covers: ['07 AC-1', '07 AC-2', '07 AC-3', '07 AC-4', '07 AC-6', '07 AC-7', '07 AC-9', '07 AC-13', '11 AC-44', '12 AC-35']
     x-notifications: [EV-47]
     x-emits: [review.received]
     requestBody:
@@ -1064,7 +1064,7 @@
     tags: [Reviews]
     security: []
     x-permission: {audience: public}
-    x-covers: ['07 AC-11', '07 AC-12', '07 AC-13', '07 AC-14']
+    x-covers: ['07 AC-11', '07 AC-12', '07 AC-13', '07 AC-14', '02 AC-10']
     parameters:
       - {name: username, in: query, required: true, schema: {type: string, minLength: 1, maxLength: 60}}
     responses:
@@ -1835,7 +1835,7 @@
     parameters:
       - $ref: '../components/parameters.yaml#/Cursor'
       - $ref: '../components/parameters.yaml#/Limit'
-      - {name: page, in: query, required: false, description: 'Web page number (1-based) instead of `cursor`.', schema: {type: integer, minimum: 1, maximum: 1000}}
+      - $ref: '../components/parameters.yaml#/PageNumber'
     responses:
       '200':
         description: One page of article cards, with `totalCount`.
@@ -2165,7 +2165,7 @@
       Stores name, email, subject, message, user id if signed in, page language (`Accept-Language`), IP and
       user agent; answers `t_your_message_support_received_success`; sends EV-116 to every S-100 address
       with the message text (spec 17 AC-23, AC-24). Accepted from banned or logged-out users (EC-8). Web
-      sends `captchaToken` while S-061 is ON (422 CONTACT_CAPTCHA_FAILED otherwise); mobile relies on the
+      sends `captchaToken` while S-061 is ON (missing or low score → `400 VALIDATION_FAILED` field `captchaToken`, messageKey `t_validator_recaptcha`, same as D1 auth forms); mobile relies on the
       rate limits. More than 5 messages within one hour from the same IP or the same email → 429
       `t_too_many_requests_try_later` (AC-25, P-130).
     tags: [Contact]

@@ -13,7 +13,7 @@ BadRequest:
         message: შეამოწმეთ მონიშნული ველები
         details:
           fields:
-            - {field: title.ka, code: too_short, message: სათაური ძალიან მოკლეა, messageKey: t_title_too_short}
+            - {field: title.ka, code: too_short, message: სათაური ძალიან მოკლეა, messageKey: t_validator_min, params: {min: 10}}
 
 Unauthorized:
   description: '`UNAUTHENTICATED`: missing, expired or revoked token, or a token of the wrong audience (user vs staff).'

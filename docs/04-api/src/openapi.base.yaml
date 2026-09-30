@@ -31,6 +31,11 @@ info:
       Mobile and server-side rendering send `Authorization: Bearer`; browsers use HttpOnly cookies set by
       the API. Cookie-authenticated POST/PUT/PATCH/DELETE must send `X-MyTask-Client: web` (or `admin`)
       and a same-site `Origin`, otherwise `403 CSRF_CHECK_FAILED`.
+    - **Account state** (any authenticated user operation, not listed per operation): a restricted user gets
+      `403 ACCOUNT_RESTRICTED` except on operations whose `x-permission.audience` is `restricted-user`
+      (restriction notice, appeals incl. `appeal_file` uploads, `/me`, logout, own notifications); a call
+      made with a session that was ended by a ban gets `403 ACCOUNT_SUSPENDED` (`t_account_suspended`,
+      spec 01 AC-45) and the client returns to the login screen.
     - **Staff** endpoints (`/admin/*`) are served on the admin host only, accept only staff-audience tokens,
       and each declares one RBAC permission in `x-permission.permission` (ADR-010, spec 16).
     - **Maintenance** (S-121): user endpoints answer `503 MAINTENANCE`; admin, webhooks and health keep working.

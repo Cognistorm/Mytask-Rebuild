@@ -18,7 +18,6 @@ D2ErrorCode:
     - GIG_RESTORE_WINDOW_EXPIRED
     - REVIEW_NOT_ALLOWED
     - REVIEW_ALREADY_EXISTS
-    - CONTACT_CAPTCHA_FAILED
     - NEWSLETTER_TOKEN_INVALID
     - OUTBOUND_LINK_INVALID
   x-enumDescriptions:
@@ -28,7 +27,6 @@ D2ErrorCode:
     GIG_RESTORE_WINDOW_EXPIRED: '[422] Staff restore of a removed gig more than 30 days after the removal (spec 16 AC-20); messageKey t_gig_restore_window_expired (NEW key requested in the handoff)'
     REVIEW_NOT_ALLOWED: '[422] The item is not completed (canceled, refunded or still running), so no review can be written (spec 07 AC-1, R-V1); messageKey t_review_not_allowed'
     REVIEW_ALREADY_EXISTS: '[409] The caller already reviewed this item from this side; clients open the edit form of `details.reviewId` (spec 07 AC-7); messageKey t_review_already_exists'
-    CONTACT_CAPTCHA_FAILED: '[422] reCAPTCHA token missing or invalid while S-061 is ON (spec 17 AC-23); clients reset the captcha; messageKey t_recaptcha_failed (requested in the handoff)'
     NEWSLETTER_TOKEN_INVALID: '[422] Newsletter confirmation/unsubscribe token unknown, used or older than 7 days (spec 17 AC-31, AC-32); messageKey t_newsletter_link_invalid'
     OUTBOUND_LINK_INVALID: '[422] `/redirect` target is not http/https or its signature is wrong (includes legacy encrypted `to` values) (spec 17 AC-47); messageKey t_redirect_link_invalid'
 
@@ -428,41 +426,6 @@ GigDeliveryDays:
   enum: [0, 1, 2, 3, 4, 5, 6, 7, 14, 21, 30]
   description: Delivery time in days from the fixed list (spec 04 AC-8; 0 = "None").
 
-ReviewRatingSummary:
-  type: object
-  description: |
-    Average of visible reviews (spec 07 R-V5). `average` is the display value with one decimal
-    (P-56, e.g. `"4.3"` for 4.33); filters and sorting use the exact value on the server. Null when
-    `count` is 0 (clients show `t_no_reviews_yet`).
-  required: [count, average]
-  properties:
-    count: {type: integer, minimum: 0}
-    average:
-      type: [string, 'null']
-      pattern: '^[1-5]\.[0-9]$'
-
-ReviewStarBreakdown:
-  type: object
-  description: Number of visible reviews per star value (spec 07 AC-11, AC-12, AC-14).
-  required: [five, four, three, two, one]
-  properties:
-    five: {type: integer, minimum: 0}
-    four: {type: integer, minimum: 0}
-    three: {type: integer, minimum: 0}
-    two: {type: integer, minimum: 0}
-    one: {type: integer, minimum: 0}
-
-ReviewRatingBlock:
-  type: object
-  description: One profile rating block ("As a freelancer" or "As a client", spec 07 AC-11, AC-12).
-  required: [count, average, stars]
-  properties:
-    count: {type: integer, minimum: 0}
-    average:
-      type: [string, 'null']
-      pattern: '^[1-5]\.[0-9]$'
-    stars: {$ref: '#/ReviewStarBreakdown'}
-
 GigCard:
   type: object
   description: |
@@ -484,7 +447,7 @@ GigCard:
       $ref: '../components/schemas.yaml#/Money'
       description: Starting price (without upgrades).
     deliveryDays: {$ref: '#/GigDeliveryDays'}
-    rating: {$ref: '#/ReviewRatingSummary'}
+    rating: {$ref: '../components/schemas.yaml#/RatingSummary'}
     seller: {$ref: '../components/schemas.yaml#/UserSummary'}
     isFeatured: {type: boolean}
     isFavorite:
@@ -544,7 +507,7 @@ SearchProjectCard:
   type: object
   description: |
     A project row of `/explore/projects` (spec 03 AC-32, AC-33; row design spec 10). The client
-    username follows the masking rule (BR-015) through `client.usernameMasked`.
+    (project owner) is a `MaskedUserSummary`: masked (no id, no real username) for guests and non-Premium viewers (BR-015, spec 02 AC-41, R-P6).
   required: [project, descriptionExcerpt, status, thumbnail, projectCategory, skills, budgetMin, budgetMax, proposalCount, client, publishedAt]
   properties:
     project: {$ref: '../components/schemas.yaml#/ProjectRef'}
@@ -564,7 +527,7 @@ SearchProjectCard:
     budgetMin: {$ref: '../components/schemas.yaml#/Money'}
     budgetMax: {$ref: '../components/schemas.yaml#/Money'}
     proposalCount: {type: integer, minimum: 0}
-    client: {$ref: '../components/schemas.yaml#/UserSummary'}
+    client: {$ref: '../components/schemas.yaml#/MaskedUserSummary'}
     publishedAt: {$ref: '../components/schemas.yaml#/Timestamp'}
 
 SearchProjectCardPage:
@@ -618,7 +581,7 @@ GigSellerInfo:
   properties:
     user: {$ref: '../components/schemas.yaml#/UserSummary'}
     rating:
-      $ref: '#/ReviewRatingSummary'
+      $ref: '../components/schemas.yaml#/RatingSummary'
       description: The seller's rating as a freelancer (spec 07 AC-11).
     unavailableUntil:
       oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
@@ -688,7 +651,7 @@ Gig:
     seller: {$ref: '#/GigSellerInfo'}
     isFeatured: {type: boolean}
     rating:
-      $ref: '#/ReviewRatingSummary'
+      $ref: '../components/schemas.yaml#/RatingSummary'
       description: Visible buyer→freelancer reviews of this gig (spec 07 AC-10).
     ordersInQueueCount: {type: integer, minimum: 0, description: 'R-G8 (`t_number_orders_in_queue`).'}
     seoTitle: {type: [string, 'null'], description: 'Used as the page title when set (spec 04 AC-15, spec 17).'}
@@ -1023,22 +986,6 @@ GigStatusChangedEvent:
     rejectionReason: {type: [string, 'null']}
 
 # ─── Admin gigs (spec 16 AC-19, AC-20) ───
-AdminGigOwnerSummary:
-  type: object
-  description: Owner summary shown next to a queue item (spec 16 AC-19).
-  required: [user, accountStatus, plan, kycStatus, reportCount, earlierRejectionCount]
-  properties:
-    user: {$ref: '../components/schemas.yaml#/UserSummary'}
-    accountStatus:
-      type: string
-      description: data-model `user_status` (pending, active, verified, banned) plus restriction/deletion as D1 defines; unknown values are shown as text.
-    plan: {$ref: '../components/schemas.yaml#/PlanCode'}
-    kycStatus:
-      type: [string, 'null']
-      description: data-model `kyc_status` (owned by D1); null when never submitted.
-    reportCount: {type: integer, minimum: 0, description: Reports about this owner's gigs and profile.}
-    earlierRejectionCount: {type: integer, minimum: 0, description: Earlier rejections of this owner's gigs.}
-
 AdminGigListItem:
   type: object
   required: [id, uid, slug, title, contentLocale, thumbnail, category, owner, status, deletedBy, price, createdAt, submittedAt, updatedAt]
@@ -1106,7 +1053,7 @@ AdminGig:
     seo:
       oneOf: [{$ref: '#/GigSeoInput'}, {type: 'null'}]
     isFeatured: {type: boolean}
-    rating: {$ref: '#/ReviewRatingSummary'}
+    rating: {$ref: '../components/schemas.yaml#/RatingSummary'}
     ordersInQueueCount: {type: integer, minimum: 0}
     rejectionReason: {type: [string, 'null']}
     deletedBy:
@@ -1120,7 +1067,7 @@ AdminGig:
     restoreDeadlineAt:
       oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
       description: removedAt + 30 days (spec 16 AC-20).
-    ownerSummary: {$ref: '#/AdminGigOwnerSummary'}
+    ownerSummary: {$ref: '../components/schemas.yaml#/ModerationOwnerSummary'}
     createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
     submittedAt: {$ref: '../components/schemas.yaml#/Timestamp'}
     publishedAt:
@@ -1265,8 +1212,8 @@ ReviewUserSummary:
   required: [username, asFreelancer, asClient]
   properties:
     username: {type: string}
-    asFreelancer: {$ref: '#/ReviewRatingBlock'}
-    asClient: {$ref: '#/ReviewRatingBlock'}
+    asFreelancer: {$ref: '../components/schemas.yaml#/RatingBlock'}
+    asClient: {$ref: '../components/schemas.yaml#/RatingBlock'}
 
 ReviewReceivedEvent:
   type: object
@@ -1844,7 +1791,7 @@ HomeBestSeller:
       maxItems: 3
       items: {$ref: '#/SellerSkill'}
     rating:
-      $ref: '#/ReviewRatingSummary'
+      $ref: '../components/schemas.yaml#/RatingSummary'
       description: As a freelancer.
     salesCount: {type: integer, minimum: 0, description: 'Completed sales (the ranking value, spec 03 AC-26).'}
 
