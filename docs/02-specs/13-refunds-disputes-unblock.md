@@ -1,5 +1,6 @@
 # 13 — Refunds, disputes and unblock requests
 Status: **approved** (Owner 2026-09-29; P-66…P-105 accepted)
+Updated 2026-09-30 with Owner gate answers: AC-30 cites Q-121 ("Refund buyer" is refused while a dispute is open; staff text key added).
 Author: product-analyst (P2-A4) | Date: 2026-09-28
 Legacy reference: `docs/01-discovery/features.md` BR-080…BR-086, BR-122; `routes-and-pages.md` (`/account/refunds/*`, `/account/project-refunds/*`, `/seller/refunds/*`, `/seller/unblock-requests/*`, admin refunds / project refunds / unblock requests); `notifications.md` (refund, dispute and unblock rows); `data-model.md` (`refunds`, `refund_conversation`, `project_refunds`, `project_refund_conversations`, `unblock_money_requests`); `risks-and-debt.md` **R-012**, R-017, R-037. Owner decisions: Q-008, Q-010, Q-011, Q-012, Q-015, Q-026, Q-037, Q-051, Q-065, Q-067, Q-071, Q-084. Platform rules: `00-platform-rules.md` §3 (R-3.1, R-3.3, R-3.5, R-3.6), §4.4 (S-025…S-029), §4.5 (S-030), §4.18 (one pending refund per item, one pending unblock request per item), AC-15, AC-18, AC-19, AC-21, EC-3; P-5. Specs: 05 (R-P12), 06 (AC-18…AC-21, AC-30, AC-31, AC-34…AC-38, AC-45, MM-06-xx), 07 EC-2 (reviews after decisions), 08 (threads, staff access), 11 (MM-11-xx), 12 (MM-12-xx), 16 (staff permissions). ADR-003, ADR-007, ADR-008.
 
@@ -79,7 +80,7 @@ Give buyers one fair way to get their money back when paid work is late or wrong
 
 ### Staff exceptional tools (P-5; P-102)
 - AC-29 Given a paid, unfinished item without an open dispute, When staff with `escrow.release` press "Release funds", enter an internal reason (required) and an optional public note, and confirm, Then the item is completed exactly as AC-25 (open refund request closed as "closed by MyTask", pending unblock request approved), and both parties get `t_funds_released_by_mytask` (in-app + push, email) with the public note. (ACCEPTED P-5 manual release; MM-13-05)
-- AC-30 Given a paid, unfinished item (with or without a refund request), When staff with `escrow.refund` press "Refund buyer", enter an internal reason and an optional public note, and confirm, Then the item is refunded exactly as AC-16 (an open request becomes "accepted by MyTask", a pending unblock request is closed), and both parties get `t_refunded_by_mytask` (in-app + push, email). (NEW tool replacing legacy admin order deletion R-015, spec 06 D-06-17; MM-13-06)
+- AC-30 Given a paid, unfinished item (with or without a refund request), When staff with `escrow.refund` press "Refund buyer", enter an internal reason and an optional public note, and confirm, Then the item is refunded exactly as AC-16 (an open request becomes "accepted by MyTask", a pending unblock request is closed), and both parties get `t_refunded_by_mytask` (in-app + push, email). Given a dispute is open on the item, When staff press "Refund buyer", Then it is refused with `t_admin_refund_blocked_dispute_open` and nothing changes; the dispute is decided only through AC-15…AC-22 (Owner 2026-09-30, Q-121: kept). (NEW tool replacing legacy admin order deletion R-015, spec 06 D-06-17; MM-13-06)
 - AC-31 Given any staff money action (AC-16, AC-17, AC-25, AC-29, AC-30), When it runs, Then it uses the same service and ledger references as the buyer's completion and the seller's refund acceptance (`escrow:{item}:release` / `escrow:{item}:refund`), so the escrow can be released or refunded **once** in total; a second attempt changes nothing and returns `t_order_status_changed`. (Q-037; fixes R-012)
 
 ### Lists, pages and access
@@ -204,6 +205,7 @@ NEW keys (English first, Georgian alongside, Q-058):
 | `t_refunded_by_mytask` / `t_subject_refunded_by_mytask` | MyTask refunded :amount for :item to the buyer's wallet. :note / Refund by MyTask | MyTask-მა :item-ზე :amount დაუბრუნა დამკვეთს საფულეზე. :note / თანხა დააბრუნა MyTask-მა |
 | `t_release_funds` / `t_refund_buyer` | Release funds / Refund buyer | თანხის გათავისუფლება / თანხის დაბრუნება დამკვეთისთვის |
 | `t_no_refunds_yet` / `t_no_unblock_requests_yet` | No refund requests yet. / No release requests yet. | თანხის დაბრუნების მოთხოვნები ჯერ არ არის. / თანხის გათავისუფლების მოთხოვნები ჯერ არ არის. |
+| `t_admin_refund_blocked_dispute_open` (staff; added 2026-09-30, Q-121) | A dispute is open on this item. Decide it in Disputes instead. | ამ საკითხზე დავა მიმდინარეობს. გადაწყვიტეთ იგი დავების განყოფილებაში. |
 
 The legacy `t_info_*` explanation texts (`t_info_refund_request_buyer`, `t_info_disputed_buyer`, … `t_info_refund_accepted_by_admin_seller`, `ProjectRefundStatus.php:109-187`) are reused for the status explanations with their legacy values.
 

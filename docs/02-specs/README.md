@@ -1,5 +1,5 @@
 # Feature specs — build order
-Maintained by: product-analyst | Last update: 2026-09-29 (P2-A5)
+Maintained by: product-analyst | Last update: 2026-09-30 (updated 2026-09-30 with Owner gate answers)
 Source of the list: `docs/03-architecture/phase-2-plan.md` §1 (spec list) and §6 (Phase 4 slice order).
 
 ## Specs in build order
@@ -22,11 +22,21 @@ Source of the list: `docs/03-architecture/phase-2-plan.md` §1 (spec list) and �
 | Slice 11 | 12 | Custom offers: NEW flow — freelancer offers (from chat), buyer requests, 3-day expiry, pay = accept, HOLD, delivery, revisions, auto-release, cancel; toggle S-034 | [12-custom-offers.md](12-custom-offers.md) | P2-A4 | approved (Owner 2026-09-29; accepted P-90…P-97) |
 | Slice 12 | 13 | Refunds, disputes, unblock requests (gig orders, projects, offers), 2-day auto-reject, staff decisions and release/refund tools, refund threads | [13-refunds-disputes-unblock.md](13-refunds-disputes-unblock.md) | P2-A4 | approved (Owner 2026-09-29; accepted P-98…P-105) |
 | Slice 13 | 14 | Withdrawals: payout details, fee by plan fixed at request, minimum and period, manual payout, reject with refund, BOG-Payout-ready | [14-withdrawals.md](14-withdrawals.md) | P2-A3 | approved (Owner 2026-09-28; accepted P-62…P-65) |
-| Slice 14 | 15 | Notifications: catalogue of 125 events accounting for all 141 legacy items (120 kept, 8 merged, 13 removed) + 42 NEW; email (SendGrid, recipient language, current logo), in-app centre, push (NEW), SMS-ready (OFF), admin recipients S-100, preferences, rate caps | [15-notifications.md](15-notifications.md) | P2-A5 | approved 2026-09-29 (P-106…P-113 accepted) |
+| Slice 14 | 15 | Notifications: catalogue of 129 events accounting for all 141 legacy items (120 kept, 8 merged, 13 removed) + 46 NEW (EV-126…EV-129 added 2026-09-30); email (SendGrid, recipient language, current logo), in-app centre, push (NEW), SMS-ready (OFF), admin recipients S-100, preferences, rate caps | [15-notifications.md](15-notifications.md) | P2-A5 | approved 2026-09-29 (P-106…P-113 accepted) |
 | Slice 15 | 16 | Admin panel (admin.mytask.ge): staff accounts, RBAC with 4 default roles, audit log, moderation queues, users, money screens, Commission & Fee UI, settings register UI, plans/promo, catalog, translations, conversations, analytics, logs/health, maintenance, custom code (S-127) | [16-admin-panel.md](16-admin-panel.md) | P2-A5 | approved 2026-09-29 (P-114…P-126 accepted; AC-8 on P-115 default until Q-097) |
 | Slice 16 | 17 | Content and SEO: CMS pages, Terms & Privacy clause, blog + comments, contact, newsletter, home content, `/gita`, meta/OG/JSON-LD, hreflang/canonical/noindex, sitemap index, robots, 301s | [17-content-and-seo.md](17-content-and-seo.md) | P2-A5 | approved 2026-09-29 (P-127…P-134 accepted) |
 
-Pending after approval (2026-09-29, parity gaps G-1…G-3 from `docs/06-qa/plans/00-parity-master.md` §10): **P-135** (spec 05 AC-44…AC-47 nightly reconciliation; S-128 in 00; references in 15 EV-32/EV-125 and 16 AC-44), **P-136** (00 R-5.3a Georgian-field character set; 04 AC-5, 10 AC-3/AC-4), **P-137** (04 AC-32 "You may also like" rule) are PROPOSED for Owner sign-off at the Phase 2 gate, with open questions Q-109 and Q-110. The approved status of the specs is unchanged.
+Added after approval (2026-09-29, parity gaps G-1…G-3 from `docs/06-qa/plans/00-parity-master.md` §10): **P-135** (spec 05 AC-44…AC-47 nightly reconciliation; S-128 in 00; references in 15 EV-32/EV-125 and 16 AC-44), **P-136** (00 R-5.3a Georgian-field character set; 04 AC-5, 10 AC-3/AC-4), **P-137** (04 AC-32 "You may also like" rule) — **accepted by the Owner at the Phase 2 gate on 2026-09-30** (Q-109 (a), Q-110 (a), Q-111).
+
+**Updated 2026-09-30 with Owner gate answers** (`docs/01-discovery/open-questions.md`, "Owner answers at the Phase 2 gate"; handoff `docs/handoffs/2026-09-30-product-analyst-to-orchestrator-gate-answers.md`). All specs stay `approved`; the changed specs carry a dated note in their header:
+- 00: S-128 accepted and counted (payments area, Q-137); NEW **S-129** `withdrawals.security_change_pause_hours` (Q-144); S-127 fixed-code vendors only (Q-146). Register: 129 rows.
+- 01: NEW AC-53 slow mode, AC-54 code lock, AC-55 in-session check throttle (security conditions before slice 01); AC-41 note (SEC-09); AC-44 emailed code (Q-144); AC-33/AC-35 start the withdrawal pause; EC-8 (Q-145).
+- 02: NEW AC-42 portfolio `rejected` state (Q-117); AC-29 emailed code (Q-144); AC-26, AC-28, AC-30.
+- 04, 05, 10: PROPOSED P-135…P-137 → accepted.
+- 08 AC-29 (Q-114), 13 AC-30 (Q-121): answers cited.
+- 14: NEW AC-21…AC-23 withdrawal pause and approver flag (Q-144); AC-3, AC-5, AC-6, AC-13 (Q-113). Follow-up **Q-151** (slice 14, default written).
+- 15: NEW EV-126…EV-129; EV-06 extended; catalogue 129 events, 46 NEW.
+- 16: AC-7 step-up list (Q-145, Q-119); AC-9 (Q-112); AC-21 (Q-117); AC-24 (Q-115); AC-32 (Q-145); AC-40 (Q-114); AC-42 and permission catalogue (Q-113, Q-144); AC-44 (Q-120); NEW AC-74a (Q-146); settings areas S-128, S-129.
 
 Notes on order:
 - 00 is the base for every spec and for the platform core built in Phase 3 (settings register, Commission & Fee config, staff RBAC skeleton, notification infrastructure, ledger core).

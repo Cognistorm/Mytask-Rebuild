@@ -1,5 +1,6 @@
 # 01 — Auth and accounts
 Status: **approved** (Owner 2026-09-28; P-14…P-37 accepted, P-15 adjusted by Q-082)
+Updated 2026-09-30 with Owner gate answers and the security conditions before slice 01 (security PASS with conditions approved at the gate; `docs/06-qa/security/01-blueprint-recheck-2026-09-30.md` §4.2): NEW AC-53 login slow mode (SEC-02) and AC-54 2FA code lock (SEC-03) with the NEW security emails spec 15 EV-128 / EV-129; NEW AC-55 throttle on in-session password/code checks (SEC-04); AC-41 note on unverified provider emails (SEC-09); AC-44 emailed code for accounts without a password (Q-144 / SEC-05); AC-33, AC-35 start the withdrawal pause (Q-144, S-129); EC-8 staff 2FA switch-off needs re-login and notifies the user (Q-145, EV-127).
 Author: product-analyst (P2-A2) | Date: 2026-09-28
 Legacy reference: `docs/01-discovery/features.md` BR-001…BR-008, BR-115; `roles-and-permissions.md`; `risks-and-debt.md` R-020, R-043; `notifications.md` (auth rows); `integrations.md` (social login, reCAPTCHA). Owner decisions: Q-013, Q-032, Q-042, Q-043, Q-057, Q-063, Q-072, P-4, P-7, P-8. Platform rules: `00-platform-rules.md` (settings S-052…S-069, S-091…S-093, S-100; rules R-1.4, R-5.7).
 
@@ -81,9 +82,9 @@ Let people create an account, log in and out on web and mobile, and recover or c
 
 ### Password reset and change
 - AC-32 Given the "forgot password" form, When any email is submitted, Then the screen always shows `t_password_reset_link_sent_success`. A `PasswordReset` email with a link valid for S-055 minutes is sent only if an account with that email has a password and has status active, verified or pending. Older reset links for that email stop working. (LEGACY `ResetComponent.php:107-144`)
-- AC-33 Given a valid reset link, When a new password meeting R-A2 and a matching confirmation are submitted, Then the password is changed, the link is deleted, `PasswordChanged` is sent, every session of the user ends (web and mobile), and the user lands on login with `t_password_has_been_updated`. (LEGACY; password rule ACCEPTED P-14)
+- AC-33 Given a valid reset link, When a new password meeting R-A2 and a matching confirmation are submitted, Then the password is changed, the link is deleted, `PasswordChanged` is sent, every session of the user ends (web and mobile), the withdrawal pause of spec 14 AC-21 starts (S-129), and the user lands on login with `t_password_has_been_updated`. (LEGACY; password rule ACCEPTED P-14; pause NEW, Owner 2026-09-30 Q-144)
 - AC-34 Given an expired reset link, When it is opened or submitted, Then `t_password_reset_link_expired` is shown and nothing changes. An unknown link goes to login. (LEGACY)
-- AC-35 Given a logged-in user on the password page, When the correct current password, a new password meeting R-A2 and a matching confirmation are submitted, Then the password changes, `PasswordChanged` is sent, all other sessions end, and the current session stays. When the current password is wrong, Then `t_ur_current_pass_does_not_match` is shown. (LEGACY `PasswordComponent.php:96-155`, `AuthenticateSession`)
+- AC-35 Given a logged-in user on the password page, When the correct current password, a new password meeting R-A2 and a matching confirmation are submitted, Then the password changes, `PasswordChanged` is sent, all other sessions end, the current session stays, and the withdrawal pause of spec 14 AC-21 starts (S-129). When the current password is wrong, Then `t_ur_current_pass_does_not_match` is shown (and AC-55 counts it). (LEGACY `PasswordComponent.php:96-155`, `AuthenticateSession`; pause NEW, Owner 2026-09-30 Q-144)
 - AC-36 Given reset requests for one email or from one IP, When more than 3 are made within 1 hour, Then no further email is sent in that hour, and the screen still shows the same message. (ACCEPTED P-19)
 
 ### Social login (Q-032)
@@ -91,12 +92,12 @@ Let people create an account, log in and out on web and mobile, and recover or c
 - AC-38 Given a first social login with an email that is not yet registered, When the provider returns the profile, Then an account is created with status active, email verified, both roles, the provider avatar, a username made from the nickname or name (lower-case Latin, `_` separators, with a 4-character suffix if taken), and a referral code (AC-1). A `?ref=` code carried through the flow is applied as in AC-6. (LEGACY BR-006; referral code and `?ref=` ACCEPTED P-17)
 - AC-39 Given the email already belongs to an account with a password, or to an account linked to another provider, When social login completes, Then it is refused with `t_socialite_error_email_exists`. (LEGACY BR-006)
 - AC-40 Given an existing social account whose status is banned, pending or deleted, When social login completes, Then no session is created and the same messages as AC-13…AC-15 apply. (CHANGE, fixes R-020; 00 R-1.4)
-- AC-41 Given the provider returns no email address, When social login completes, Then no account is created and `t_social_email_missing` is shown. (NEW; legacy would fail)
+- AC-41 Given the provider returns no email address, or an email address the provider does not mark as verified, When social login completes, Then no account is created or matched and `t_social_email_missing` is shown. (NEW; legacy would fail; unverified provider emails count as missing, ADR-002 §7, SEC-09)
 
 ### Sessions and logout
 - AC-42 Given a logged-in user, When they log out (web or mobile), Then the current session is ended on the server, and the device can no longer call the API with it. (LEGACY)
 - AC-43 Given the Sessions page (Account settings), When it opens, Then it lists every active session of the user: device/browser/OS, IP address, last activity, and a "This device" marker. (LEGACY `SessionsComponent.php:97-130`; now web and mobile sessions)
-- AC-44 Given the Sessions page, When the user chooses "Log out other browser sessions" and enters the correct current password (accounts without a password are not asked), Then every other session ends and the current one stays. A wrong password shows `t_ur_current_pass_does_not_match`. (LEGACY)
+- AC-44 Given the Sessions page, When the user chooses "Log out other browser sessions" and enters the correct current password — or, for an account without a password (social login only), the 6-digit code emailed to the account's current address (EV-06; valid only for this purpose and only once; S-057/S-058 and the resend limits of AC-27 apply) — Then every other session ends and the current one stays. A wrong password shows `t_ur_current_pass_does_not_match`; a wrong or expired code shows `t_2fa_code_invalid` / `t_2fa_code_expired`; nothing ends. (LEGACY; emailed code **CHANGE** from "not asked", Owner 2026-09-30 Q-144 / SEC-05)
 - AC-45 Given staff ban a user (status `banned`), When the ban is saved, Then all sessions of that user end, and their next API call is refused with `t_account_suspended`. (ACCEPTED P-16; legacy only blocked new logins)
 
 ### Restrictions, appeals and IP banning (Q-057)
@@ -107,6 +108,12 @@ Let people create an account, log in and out on web and mobile, and recover or c
 - AC-50 Given staff delete a restriction, When the user has no other restriction left, Then the user is no longer restricted. (LEGACY `RestrictComponent.php:183-235`)
 - AC-51 Given S-064 `security.staff_login.ip_ban_threshold` = 3, When the failed staff logins from one IP reach the threshold, Then that IP is banned from the staff login, and every later staff-login request from it is refused. User logins are not affected by this ban (they are throttled by AC-16). (LEGACY BR-004, `isIpBanned.php:26`)
 - AC-52 Given a staff member with the security permission (spec 16), When they open "Banned IPs", Then they can see each banned IP with its attempt count and date, remove a ban, and add an IP by hand. (ACCEPTED P-20; legacy had no screen, so a banned IP could only be cleared in the database)
+
+### Per-account brute-force protection (NEW, security conditions before slice 01; ADR-002 §5, §6; SEC-02, SEC-03, SEC-04)
+Fixed technical values chosen in ADR-002 and shown to the Owner at the Phase 2 gate (not register rows): 20 failed logins per account per hour; 1 evaluated attempt per 30 seconds; 10 wrong codes per account per hour.
+- AC-53 Given one account has 20 failed logins (wrong password) within one hour, from any number of IP addresses, When further login attempts for that account arrive during the rest of that hour, Then at most one password attempt per 30 seconds is evaluated for the account; the other attempts are refused with `t_login_slow_mode` (seconds to wait) without checking the password; on web, reCAPTCHA is required for that account's logins while S-061 is ON; a correct password in an evaluated attempt logs the user in (no hard lock); and the account owner gets the security email EV-128 `LoginSlowMode` at most once per hour. A successful login resets the counter. The per-account + IP lock of AC-16 still applies on top. Which attempts may bypass the 30-second slot (for example a trusted device, SEC-30) and which attempts use it up are defined in ADR-002 §6. (NEW SEC-02)
+- AC-54 Given one account (user or staff) has 10 wrong 2FA codes within one hour, counted across all its code challenges and purposes (login, social login, 2FA switch, email change, payout details, log out other sessions, staff login and staff re-authentication), When another code is entered for that account, Then it is refused, even when correct, with `t_2fa_locked` for S-063 minutes (default 15), and the account owner gets the security email EV-129 `TwoFactorLocked` once per lock. After the lock ends, a valid code works again. For staff, every wrong staff login code also counts as a failed staff login towards the S-064 IP ban (AC-51). The per-code limit S-058 (AC-25) still applies. (NEW SEC-03)
+- AC-55 Given S-062 = 5 and S-063 = 15, When a logged-in user enters a wrong current password or a wrong re-authentication code 5 times within 15 minutes, summed over account settings (spec 02 AC-29), password change (AC-35), the 2FA switch (AC-21), "Log out other browser sessions" (AC-44) and payout details (spec 14 AC-3), Then every further password or code check of that account is refused for 15 minutes with `t_too_many_login_attempts`, even when correct; these failures also count towards the AC-53 counter, and wrong codes towards AC-54. The same applies to staff re-authentication and staff password change (spec 16 AC-6, AC-7). Password reset by email link (AC-33) is not blocked by these counters. (NEW SEC-04)
 
 ---
 
@@ -131,6 +138,9 @@ Let people create an account, log in and out on web and mobile, and recover or c
 
 ### R-A5 Throttling and bans
 - Users: S-062/S-063, per account + IP (NEW, P-8). Wrong 2FA codes are counted per code (S-058), not in S-062.
+- Per account, any IP (NEW SEC-02, AC-53): 20 failures per hour → slow mode (1 evaluated attempt per 30 s), security email EV-128, no hard lock.
+- Codes per account (NEW SEC-03, AC-54): 10 wrong codes per hour across all challenges and purposes → code checks blocked S-063 minutes, security email EV-129.
+- In-session checks (NEW SEC-04, AC-55): one per-account counter (S-062 / S-063) for wrong current passwords and wrong re-authentication codes.
 - Staff: IP ban after S-064 failed logins (LEGACY), plus the 2FA of S-060.
 - Email-sending endpoints (reset request, verification resend, 2FA code): fixed limits R-A9 (ACCEPTED P-19, P-15).
 
@@ -166,14 +176,14 @@ Layouts keep the live structure (audit §3.8): a centred panel with logo, title,
 | Screen | Web | Mobile | States |
 |---|---|---|---|
 | Register | `/auth/register` (+ `/en/…`) | Auth stack "Register" | loading (button spinner); error (inline field errors + summary; focus the first error); success (redirect, or message screen for pending) |
-| Login | `/auth/login` | "Login" | loading; error (credentials, locked with countdown, pending/banned message); success |
-| 2FA code | step after login | full-screen code entry, 6 boxes, paste support, numeric keyboard | loading; error (wrong/expired/too many); resend countdown; success |
+| Login | `/auth/login` | "Login" | loading; error (credentials, locked with countdown, slow mode with seconds countdown `t_login_slow_mode`, pending/banned message); success |
+| 2FA code | step after login | full-screen code entry, 6 boxes, paste support, numeric keyboard | loading; error (wrong/expired/too many; account code lock `t_2fa_locked` with minutes); resend countdown; success |
 | Verify email result | `/auth/verify?token&email` | deep link opens the app, or falls back to web | success / expired / invalid |
 | Resend verification | `/auth/request` | "Resend email" | success / already verified |
 | Forgot password | `/auth/password/reset` | "Forgot password" | always the same success text |
 | Set new password | `/auth/password/update?token&email` | deep link | expired / success |
 | Change password | Account settings → Password | Account → Security → Password | wrong current / success |
-| Security (2FA switch + Sessions) | Account settings → Password page gets a "Two-factor authentication" card; Sessions page `/account/sessions` | Account → Security | empty (only this device); loading; error (retry) |
+| Security (2FA switch + Sessions) | Account settings → Password page gets a "Two-factor authentication" card; Sessions page `/account/sessions` | Account → Security | empty (only this device); loading; error (retry); "Log out other sessions" asks for the password, or for an emailed code on accounts without a password (AC-44) |
 | Restrictions centre | `/restricted` (restricted layout) | full-screen "Restricted" | list of restrictions with status chips (pending, submitted, approved, rejected), "Read more", "Appeal" modal/sheet with message + file picker (mobile: camera or files) |
 | Staff login + staff 2FA | Admin login | – (no admin app) | banned IP → refused |
 
@@ -192,7 +202,10 @@ Accessibility (audit §3.8): visible labels, not placeholders only. The password
 | Restriction notice (direct mailable `RestrictEmail`) | email | user | restriction created (AC-46) | LEGACY |
 | `Admin/NewRestrictionAppeal` (`t_hi_admin`) | email | all S-100 recipients | appeal submitted (AC-47) | LEGACY, CHANGE recipients |
 | `AppealAccepted` / `AppealRejected` | email | user | staff decision (AC-48, AC-49) | LEGACY |
-| 2FA login code (`t_2fa_email_subject`) | email only (never push/SMS) | user or staff | AC-22, AC-27, AC-29, AC-30; re-auth code AC-21 | **NEW** (Q-043) |
+| 2FA login code (`t_2fa_email_subject`) | email only (never push/SMS) | user or staff | AC-22, AC-27, AC-29, AC-30; re-auth code AC-21, AC-44 (and spec 02 AC-29, spec 14 AC-3 for accounts without a password, Q-144) | **NEW** (Q-043) |
+| Many failed logins — spec 15 EV-128 `LoginSlowMode` (`t_subject_security_many_failed_logins`) | email only | user | slow mode starts (AC-53); at most once per hour | **NEW** (SEC-02, security condition before slice 01) |
+| Code entry locked — spec 15 EV-129 `TwoFactorLocked` (`t_subject_security_2fa_locked`) | email only | user or staff | code lock starts (AC-54); once per lock | **NEW** (SEC-03, security condition before slice 01) |
+| 2FA switched off by staff — spec 15 EV-127 `TwoFactorDisabledByStaff` (`t_subject_2fa_disabled_by_staff`) + in-app `t_2fa_disabled_by_staff` | email + in-app | user | EC-8, spec 16 AC-32 | **NEW** (Owner 2026-09-30, Q-145) |
 | Referral credit to the referrer | in-app/email per spec 09 | referrer | account activated with a referral (AC-6, AC-7) | LEGACY (spec 09 owns it) |
 | `Welcome` | – | – | still not sent, as in legacy | LEGACY (dead) |
 
@@ -290,15 +303,21 @@ NEW keys (English first, Georgian alongside, Q-058):
 | `t_banned_ips` (staff) | Banned IPs | დაბლოკილი IP მისამართები |
 | `t_unban_ip` (staff) | Remove ban | ბლოკის მოხსნა |
 
+NEW keys added 2026-09-30 (security conditions before slice 01; English first, Georgian alongside, Q-058). The email subjects and bodies of EV-127…EV-129 are listed in spec 15 Texts.
+| Key | en | ka |
+|---|---|---|
+| `t_login_slow_mode` | Too many failed login attempts on this account. Please wait :seconds seconds and try again. | ამ ანგარიშზე ავტორიზაციის ძალიან ბევრი წარუმატებელი მცდელობაა. გთხოვთ, დაელოდოთ :seconds წამს და სცადოთ ხელახლა. |
+| `t_2fa_locked` | Too many incorrect codes. Code entry for this account is blocked for :minutes minutes. | ძალიან ბევრი არასწორი კოდი. ამ ანგარიშზე კოდის შეყვანა დაბლოკილია :minutes წუთით. |
+
 ## Edge cases
 - EC-1 A user registers with a referral code and S-052 is OFF: the referral is credited immediately (LEGACY `RegisterComponent.php:203-205`).
 - EC-2 A pending user asks for a password reset: the reset email is sent (LEGACY includes `pending`), but after resetting they still cannot log in until verified (AC-13).
 - EC-3 A social-only user (no password) opens "forgot password": no email is sent (LEGACY), and the screen shows the same message. The change-password page shows the social notice instead of the form. Setting a first password for a social account is out of scope (not in legacy).
-- EC-4 The lock of AC-16 is per account + IP. An attacker who rotates IPs is slowed by reCAPTCHA (S-061) and by the email-code step for 2FA users. A per-account alert is out of scope.
+- EC-4 The lock of AC-16 is per account + IP. An attacker who rotates IPs is slowed by reCAPTCHA (S-061), by the email-code step for 2FA users, and by the per-account slow mode with its security email (AC-53, EV-128; NEW SEC-02).
 - EC-5 A user changes their email (spec 02) while a reset or verification link for the old email is open: the old links stop working.
 - EC-6 Staff switch S-053 from admin to email while users are pending: pending users can use "resend verification" to get a link. Staff can still activate them by hand.
 - EC-7 A restricted user has an order delivered: auto-release (S-025/S-026) still runs; money moves as normal (R-A8).
-- EC-8 The 2FA email does not arrive: the user can resend (AC-27). There is no backup code (email is the account identity). Staff can switch a user's 2FA off from the Admin Panel after checking identity (spec 16, audited).
+- EC-8 The 2FA email does not arrive: the user can resend (AC-27). There is no backup code (email is the account identity). Staff can switch a user's 2FA off from the Admin Panel after checking identity (spec 16 AC-32, audited, with a reason); the staff member must re-authenticate first (spec 16 AC-7), and the user gets EV-127 (email + in-app). (re-login and notification NEW, Owner 2026-09-30 Q-145; permission `users.edit` = contract default pending slice item Q-132)
 - EC-9 A legacy account with status `verified` is treated like `active` everywhere.
 - EC-10 Mobile install deleted and reinstalled: it is a new device, so a 2FA code is asked (R-A6).
 - EC-11 A social provider is disabled while users have accounts linked to it: they cannot log in with it. They can use "forgot password" only if they have a password. Otherwise support helps (spec 16).
@@ -318,3 +337,5 @@ No new questions for `open-questions.md`. Proposed items for Owner approval:
 - **P-19 Email-sending limits.** At most 3 reset/verification emails per email address and per IP per hour. The on-screen answer never changes.
 - **P-20 Banned-IP screen.** Staff with the security permission can list, remove and add banned IPs. Legacy had no screen, so a mistaken ban (for example the Owner's own IP) needed a database edit.
 (P-18 is in spec 02.)
+
+Applied on 2026-09-30 (no new questions): Owner gate answers **Q-144** (emailed code for accounts without a password; withdrawal pause after password changes) and **Q-145** (re-login before staff switch off a user's 2FA; user notified, EV-127); security conditions before slice 01 (AC-53…AC-55, AC-41 note; EV-128, EV-129). Still open for this slice: Q-130, Q-132 (contract defaults apply).

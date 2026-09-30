@@ -1,5 +1,6 @@
 # 15 — Notifications (catalogue, channels, notification centre, preferences, push)
 Status: **approved** (Owner 2026-09-29; P-106…P-113 accepted)
+Updated 2026-09-30 with Owner gate answers and the security conditions before slice 01: P-135 triggers of EV-32/EV-125 accepted (Q-111); NEW EV-126 portfolio item rejected (Q-117), EV-127 2FA switched off by staff (Q-145), EV-128 many failed logins (SEC-02), EV-129 code entry locked (SEC-03); EV-06 also carries the re-authentication codes for accounts without a password (Q-144 / SEC-05). Catalogue total 129 events, 46 NEW.
 Author: product-analyst (P2-A5) | Date: 2026-09-29
 Legacy reference: `docs/01-discovery/notifications.md` (every email class, every in-app text key, every direct mailable: all accounted for below); `features.md` BR-120; `risks-and-debt.md`; `roles-and-permissions.md` ("System admin inbox"). Owner decisions: Q-013, Q-016, Q-026, Q-033, Q-036, Q-043, Q-058, Q-065, Q-066, Q-076, Q-100, Q-103. Platform rules: `00-platform-rules.md` §4.15 (S-100 `notifications.admin_recipients`, S-101 `notifications.push.enabled`, S-102 `notifications.sms.enabled`), S-043/S-044 (renewal reminder), X-01, X-06, X-07, X-11, X-18; ACCEPTED P-11 (push). Specs 01–14 (each owns the trigger of its notifications; this spec does not repeat their ACs), 16 (admin screens), 17 (content notifications). ADR-007 §8–§12 (NotificationService, channels, catalogue test), ADR-006 §2 (user locale), data-model §1 ("Writes that must notify": outbox) and §3.O (`notifications`, `push_tokens`, `notification_preferences`, `notification_deliveries`), url-map §7.2 (deep links, email links).
 
@@ -49,7 +50,7 @@ One catalogue that says, for every event on the platform, who is told, on which 
 - AC-8 Given any email, When it is rendered, Then it uses the current MyTask logo (Q-076) and design tokens, has an HTML and a plain-text part, a footer with Terms, Privacy and Contact links (spec 17) and the reason line `t_email_footer_reason`; emails of switchable categories (AC-27) also carry `t_email_footer_optout` with a one-click link (AC-30) and a `List-Unsubscribe` header. (CHANGE Q-076; NEW footer P-106)
 - AC-9 Given an email contains a link, When it is built, Then it is an https link to `mytask.ge` with the recipient's language prefix (url-map §7.2), which opens the app when installed and the website otherwise. (NEW url-map §7.2)
 - AC-10 Given the environment, When emails are sent, Then staging/production use SendGrid through the API key in `.env` (`SENDGRID_API_KEY`, `MAIL_FROM_ADDRESS`, `MAIL_FROM_NAME`, names only in `.env.example`), and local development delivers every email to Mailpit; no email leaves a local machine. (Q-033, Q-042; ADR-007 §9, CLAUDE.md rule 7)
-- AC-11 Given SendGrid reports a hard bounce or spam complaint for an address, When the event webhook arrives, Then the address is marked undeliverable on the user, later non-security emails to it are recorded as `suppressed`, and staff see a warning on the user page (spec 16). Security emails (verification, password reset, 2FA, email change) are still attempted. The mark is cleared when the user changes or re-verifies the email. (NEW, ACCEPTED P-109)
+- AC-11 Given SendGrid reports a hard bounce or spam complaint for an address, When the event webhook arrives, Then the address is marked undeliverable on the user, later non-security emails to it are recorded as `suppressed`, and staff see a warning on the user page (spec 16). Security emails (verification, password reset, 2FA, email change, and the security notices EV-127…EV-129) are still attempted. The mark is cleared when the user changes or re-verifies the email. (NEW, ACCEPTED P-109)
 
 ### In-app notification centre (web and mobile)
 - AC-12 Given a logged-in user, When any page (web header) or the app (bell icon on the main tab bar screens) is shown, Then the bell shows the number of unread notifications (99+ above 99) and updates in real time when a new one arrives. (LEGACY bell, realtime NEW ADR-007)
@@ -108,7 +109,7 @@ One row per event. Legend — **E** email, **I** in-app, **P** push (NEW P-11; o
 | EV-03 | Staff activate a pending user | user | ✓ | – | – | o | `AccountActivated` `t_subject_everyone_ur_account_activated` | E-39 | kept | S | 01 AC-5 |
 | EV-04 | Password reset requested | user | ✓ | – | – | o | `PasswordReset` `t_subject_everyone_reset_ur_password` | E-48 | kept | S | 01 AC-32 |
 | EV-05 | Password changed or reset completed | user | ✓ | – | – | o | `PasswordChanged` `t_subject_everyone_password_changed` | E-47 | kept | S | 01 AC-33, AC-35 |
-| EV-06 | Login or re-authentication needs a 2FA code | user or staff | ✓ | – | – | × | `TwoFactorCode` `t_2fa_email_subject`, `t_2fa_email_body` | – | **NEW** (Q-043) | S | 01 AC-21, AC-22, AC-27, AC-29, AC-30 |
+| EV-06 | Login or re-authentication needs a 2FA code; also the emailed confirmation code of an account without a password for an email change, payout details or "log out other sessions" (sent to the **current** address, Q-144 / SEC-05) | user or staff | ✓ | – | – | × | `TwoFactorCode` `t_2fa_email_subject`, `t_2fa_email_body` | – | **NEW** (Q-043) | S | 01 AC-21, AC-22, AC-27, AC-29, AC-30, AC-44; 02 AC-29; 14 AC-3 |
 | EV-07 | Staff restrict a user | user | ✓ | – | – | o | `RestrictEmail` (direct mailable) `t_subject_admin_account_restricted` | M-5 | kept | S | 01 AC-46 |
 | EV-08 | Restriction appeal submitted | S-100 | ✓ | – | – | – | `Admin/NewRestrictionAppeal` `t_hi_admin` | E-07 | kept (CHANGE recipients) | A | 01 AC-47 |
 | EV-09 | Appeal accepted | user | ✓ | – | – | o | `AppealAccepted` `t_subject_user_appeal_accepted` | E-40 | kept | S | 01 AC-48 |
@@ -121,6 +122,10 @@ One row per event. Legend — **E** email, **I** in-app, **P** push (NEW P-11; o
 | EV-16 | KYC verification submitted | S-100 | ✓ | – | – | – | `Admin/NewIdVerificationPending` `t_verification_center` | E-04 | kept | A | 02 AC-36 |
 | EV-17 | KYC approved | user | ✓ | ✓ | ✓ | o | `VerificationApproved` `t_subject_everyone_verification_approved`; `t_ur_account_has_verified` | E-54, I-48 | kept (push NEW) | T | 02 AC-37 |
 | EV-18 | KYC declined | user | ✓ | ✓ | ✓ | o | `VerificationDeclined` `t_subject_everyone_verification_declined`; `t_verification_files_declined` | E-55, I-49 | kept (push NEW) | T | 02 AC-37 |
+| EV-126 | Portfolio item rejected by staff, with the reason (added 2026-09-30) | owner | ✓ | ✓ | ✓ | o | `PortfolioRejected` `t_subject_seller_portfolio_rejected`, body `t_portfolio_rejected_email_body`; `t_ur_portfolio_title_has_been_rejected` | – | **NEW** (Owner 2026-09-30, Q-117) | T | 02 AC-42; 16 AC-21 |
+| EV-127 | Staff switched off the user's 2FA (added 2026-09-30) | user | ✓ | ✓ | – | × | `TwoFactorDisabledByStaff` `t_subject_2fa_disabled_by_staff`, body `t_2fa_disabled_by_staff_email_body`; `t_2fa_disabled_by_staff` | – | **NEW** (Owner 2026-09-30, Q-145; SEC-06) | S | 16 AC-32; 01 EC-8 |
+| EV-128 | Login slow mode starts: 20 failed logins for the account within one hour, from any IPs; at most once per hour (added 2026-09-30) | user | ✓ | – | – | × | `LoginSlowMode` `t_subject_security_many_failed_logins`, body `t_security_many_failed_logins_body` | – | **NEW** (SEC-02; ADR-002 §6; security condition before slice 01) | S | 01 AC-53 |
+| EV-129 | Code entry locked: 10 wrong 2FA codes for the account within one hour across all challenges; once per lock (added 2026-09-30) | user or staff | ✓ | – | – | × | `TwoFactorLocked` `t_subject_security_2fa_locked`, body `t_security_2fa_locked_body` | – | **NEW** (SEC-03; ADR-002 §5; security condition before slice 01) | S | 01 AC-54 |
 
 ### B. Gigs (spec 04)
 | # | Event | Recipient(s) | E | I | P | SMS | Template / keys | Covers | Status | Cat | Spec |
@@ -142,7 +147,7 @@ One row per event. Legend — **E** email, **I** in-app, **P** push (NEW P-11; o
 | EV-29 | Unapplied payment credited to the wallet | buyer | ✓ | ✓ | ✓ | o | `PaymentCreditedToWallet` `t_payment_credited_to_wallet` | – | **NEW** (P-40) | T | 05 AC-15 |
 | EV-30 | Staff balance adjustment | user | – | ✓ | ✓ | o | `t_balance_adjusted` | – | **NEW** (P-41) | T | 05 AC-41 |
 | EV-31 | Staff points grant or deduction | user | – | ✓ | ✓ | o | `t_points_adjusted` | – | **NEW** (P-41) | T | 05 AC-43; 09 |
-| EV-32 | Nightly ledger/BOG reconciliation run ends with 1 or more differences (once per run, `:count` = differences, `:date` = run day) | S-100 | ✓ | – | – | – | `Admin/ReconciliationDifference` `t_subject_admin_reconciliation_difference` | – | **NEW** (ADR-003 §10) | A | 05 AC-46 (run: AC-44, checks: AC-45, report: AC-47; **PROPOSED P-135**, added 2026-09-29 for gap G-1) |
+| EV-32 | Nightly ledger/BOG reconciliation run ends with 1 or more differences (once per run, `:count` = differences, `:date` = run day) | S-100 | ✓ | – | – | – | `Admin/ReconciliationDifference` `t_subject_admin_reconciliation_difference` | – | **NEW** (ADR-003 §10) | A | 05 AC-46 (run: AC-44, checks: AC-45, report: AC-47; ACCEPTED P-135, added 2026-09-29 for gap G-1, Owner 2026-09-30 Q-111) |
 
 ### D. Gig orders (spec 06)
 | # | Event | Recipient(s) | E | I | P | SMS | Template / keys | Covers | Status | Cat | Spec |
@@ -275,7 +280,7 @@ One row per event. Legend — **E** email, **I** in-app, **P** push (NEW P-11; o
 | EV-122 | Maintenance mode switched ON (S-121) | S-100 | ✓ | – | – | – | `Admin/SiteIsDown` `t_hi_admin`, body `t_admin_maintenance_on_body` | E-18 | kept (CHANGE: no secret, P-112) | A | 15 AC-37; 16 AC-70 |
 | EV-123 | Staff account created | staff member | ✓ | – | – | – | `StaffInvitation` `t_subject_staff_invitation` | – | **NEW** (ACCEPTED P-111) | S | 16 AC-3 |
 | EV-124 | Critical setting changed (any fee rule, S-100, S-110, S-127, S-033, S-025, S-056/S-060, social-login keys) | S-100 (old and new list when S-100 changes) | ✓ | – | – | – | `Admin/CriticalSettingChanged` `t_subject_admin_critical_setting_changed` | – | **NEW** (ACCEPTED P-111) | A | 16 AC-55, AC-56 |
-| EV-125 | Timer job stuck for 15 minutes, or email failure rate above 20% in an hour; also a failed nightly reconciliation run, at most once per run day (**PROPOSED P-135**, added 2026-09-29) | S-100 | ✓ | – | – | – | `Admin/SystemAlert` `t_subject_admin_system_alert` | – | **NEW** (ACCEPTED P-111) | A | 15 AC-39; 16 AC-69; 05 AC-46 (P-135) |
+| EV-125 | Timer job stuck for 15 minutes, or email failure rate above 20% in an hour; also a failed nightly reconciliation run, at most once per run day (ACCEPTED P-135, added 2026-09-29, Owner 2026-09-30 Q-111) | S-100 | ✓ | – | – | – | `Admin/SystemAlert` `t_subject_admin_system_alert` | – | **NEW** (ACCEPTED P-111) | A | 15 AC-39; 16 AC-69; 05 AC-46 (P-135) |
 
 Rule for push (P-11): push accompanies the in-app notification of the same event **only where the trigger spec lists push**; this matrix copies the trigger specs (EV-108 and EV-114 have no push because specs 13 and 14 list none).
 
@@ -445,7 +450,7 @@ Every row of the inventory, one line per email class, in-app key and direct mail
 | In-app text keys | 55 | 42 | 7 | 6 |
 | **Total** | **141** | **120** | **8** | **13** |
 
-**NEW events: 42** — 39 defined in specs 01–14 (EV-06, 11, 12, 22, 23, 26, 29, 30, 31, 32, 36, 41, 44, 46, 49, 52, 53, 55, 57, 67, 68, 71, 74, 76, 77, 78, 79, 83, 84, 85, 88, 89, 91, 96, 104, 106, 108, 109, 114) and 3 ACCEPTED here for specs 15/16 (EV-123, EV-124, EV-125). In addition, NEW channels on kept events: push on every kept event with in-app (P-11); in-app on EV-27, EV-58, EV-59, EV-63, EV-64; email on EV-102, EV-103 (P-102). Recipient changes: EV-47 (also buyers), EV-80 (buyer), EV-82 (freelancer). Catalogue total: 125 events.
+**NEW events: 46** — 39 defined in specs 01–14 (EV-06, 11, 12, 22, 23, 26, 29, 30, 31, 32, 36, 41, 44, 46, 49, 52, 53, 55, 57, 67, 68, 71, 74, 76, 77, 78, 79, 83, 84, 85, 88, 89, 91, 96, 104, 106, 108, 109, 114), 3 ACCEPTED here for specs 15/16 (EV-123, EV-124, EV-125), and 4 added on 2026-09-30 (EV-126 portfolio rejected, Q-117; EV-127 2FA switched off by staff, Q-145; EV-128 many failed logins, SEC-02; EV-129 code entry locked, SEC-03). In addition, NEW channels on kept events: push on every kept event with in-app (P-11); in-app on EV-27, EV-58, EV-59, EV-63, EV-64; email on EV-102, EV-103 (P-102). Recipient changes: EV-47 (also buyers), EV-80 (buyer), EV-82 (freelancer). Catalogue total: 129 events (125 until 2026-09-29, + EV-126…EV-129).
 
 ---
 
@@ -478,7 +483,7 @@ None. Notifications never move money.
 Accessibility: the bell has an accessible name with the count ("Notifications, 3 unread"); the unread dot has text; switches have labels; touch targets ≥ 44 px (tokens).
 
 ## Notifications triggered
-This spec is the catalogue. Its own NEW items: EV-123 staff invitation, EV-124 critical setting changed, EV-125 system alert (all ACCEPTED P-111), plus the changed EV-121 test email and EV-122 maintenance email.
+This spec is the catalogue. Its own NEW items: EV-123 staff invitation, EV-124 critical setting changed, EV-125 system alert (all ACCEPTED P-111), plus the changed EV-121 test email and EV-122 maintenance email. Added 2026-09-30: EV-126 (trigger in spec 02 AC-42), EV-127 (spec 16 AC-32), EV-128 and EV-129 (spec 01 AC-53, AC-54); their texts are below (EV-126 texts in spec 02).
 
 ## Texts (i18n key | en | ka)
 Legacy keys reused (values unchanged):
@@ -533,6 +538,13 @@ NEW keys (English first, Georgian alongside, Q-058). Keys of NEW notifications d
 | `t_admin_system_alert_body` | :problem since :time. Open System health in the admin panel. | :problem :time-დან. გახსენით სისტემის მდგომარეობა ადმინ პანელში. |
 | `t_sms_provider_not_configured` (staff) | SMS cannot be switched on because no SMS provider is configured. | SMS-ის ჩართვა შეუძლებელია, რადგან SMS პროვაიდერი არ არის დაკავშირებული. |
 | `t_email_undeliverable_staff_note` (staff) | Emails to this address bounce or were reported as spam since :date. | ამ მისამართზე წერილები :date-დან ბრუნდება ან სპამად მოინიშნა. |
+| `t_subject_2fa_disabled_by_staff` (EV-127, added 2026-09-30) | Two-factor authentication was turned off on your MyTask account | თქვენს MyTask-ის ანგარიშზე ორსაფეხურიანი ავტორიზაცია გამოირთო |
+| `t_2fa_disabled_by_staff_email_body` (EV-127) | MyTask support turned off two-factor authentication for your account on :date. If you did not ask for this, contact support immediately and change your password. You can turn it on again in Account settings → Security. | MyTask-ის მხარდაჭერის სამსახურმა :date-ს თქვენს ანგარიშზე ორსაფეხურიანი ავტორიზაცია გამორთო. თუ ეს თქვენ არ მოგითხოვიათ, დაუყოვნებლივ დაუკავშირდით მხარდაჭერას და შეცვალეთ პაროლი. მისი ხელახლა ჩართვა შეგიძლიათ ანგარიშის პარამეტრებში → უსაფრთხოება. |
+| `t_2fa_disabled_by_staff` (EV-127, in-app) | MyTask support turned off two-factor authentication for your account. If you did not ask for this, contact support. | MyTask-ის მხარდაჭერამ თქვენს ანგარიშზე ორსაფეხურიანი ავტორიზაცია გამორთო. თუ ეს თქვენ არ მოგითხოვიათ, დაუკავშირდით მხარდაჭერას. |
+| `t_subject_security_many_failed_logins` (EV-128, added 2026-09-30) | Many failed login attempts on your MyTask account | თქვენს MyTask-ის ანგარიშზე შესვლის ბევრი წარუმატებელი მცდელობაა |
+| `t_security_many_failed_logins_body` (EV-128) | Someone tried to log in to your account with a wrong password many times in the last hour. For your safety, login attempts on your account are slowed down for a while. If this was not you, change your password and turn on two-factor authentication. | ბოლო ერთი საათის განმავლობაში ვიღაცამ თქვენს ანგარიშზე შესვლა არასწორი პაროლით ბევრჯერ სცადა. უსაფრთხოების მიზნით, თქვენს ანგარიშზე შესვლის მცდელობები დროებით შენელებულია. თუ ეს თქვენ არ ყოფილხართ, შეცვალეთ პაროლი და ჩართეთ ორსაფეხურიანი ავტორიზაცია. |
+| `t_subject_security_2fa_locked` (EV-129, added 2026-09-30) | Code entry on your MyTask account is blocked for a while | თქვენს MyTask-ის ანგარიშზე კოდის შეყვანა დროებით დაბლოკილია |
+| `t_security_2fa_locked_body` (EV-129) | Someone entered too many wrong verification codes for your account. Code entry is blocked for :minutes minutes. If this was not you, your password may be known to someone else: change it now. | თქვენს ანგარიშზე ვიღაცამ ძალიან ბევრი არასწორი დადასტურების კოდი შეიყვანა. კოდის შეყვანა დაბლოკილია :minutes წუთით. თუ ეს თქვენ არ ყოფილხართ, თქვენი პაროლი შესაძლოა სხვამ იცოდეს: დაუყოვნებლივ შეცვალეთ იგი. |
 
 ## Edge cases
 - EC-1 The user changes language after a notification was created: the in-app list shows it in the new language (rendered at read time); emails already sent stay in the old language.
@@ -580,4 +592,4 @@ No new questions for `open-questions.md`. Proposed items for Owner approval:
 - **P-112 Maintenance email.** Keep `SiteIsDown`, but say who switched maintenance on and when, without the secret bypass link (staff can preview the public site from their admin session).
 - **P-113 Legacy items without an earlier decision.** The dead `Welcome` email is not built (it was never sent). The two "send an email" mailables (to a user, to a newsletter subscriber) become one `StaffEmail` template. The SMTP test becomes "Send test email", which tests the SendGrid configuration from `.env`.
 
-Added after approval (2026-09-29, parity gap G-1) — **PROPOSED, awaiting Owner sign-off:** **P-135** (defined in spec 05) gives EV-32 its owning AC (05 AC-46: one email per run with 1 or more differences, with the count and the day) and adds one trigger to EV-125 (a failed reconciliation run, at most once per run day). No new templates or keys in this spec.
+Added after approval (2026-09-29, parity gap G-1) — **ACCEPTED by the Owner on 2026-09-30 (Q-111):** **P-135** (defined in spec 05) gives EV-32 its owning AC (05 AC-46: one email per run with 1 or more differences, with the count and the day) and adds one trigger to EV-125 (a failed reconciliation run, at most once per run day). No new templates or keys in this spec.

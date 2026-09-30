@@ -1,5 +1,6 @@
 # 02 — Profiles and dashboards
 Status: **approved** (Owner 2026-09-28; P-14…P-37 accepted)
+Updated 2026-09-30 with Owner gate answers: Q-117 (portfolio `rejected` state with a reason and a NEW notification: AC-26, AC-28, NEW AC-42, R-P6, spec 15 EV-126) and Q-144 / SEC-05 (accounts without a password confirm an email change with a code emailed to the current address; an email change starts the withdrawal pause of spec 14 AC-21: AC-29, AC-30).
 Author: product-analyst (P2-A2) | Date: 2026-09-28
 Legacy reference: `docs/01-discovery/features.md` BR-010…BR-015, BR-042; `roles-and-permissions.md`; `routes-and-pages.md` (`/profile/*`, `/account/*`, `/seller/*`); `notifications.md` (portfolio, verification, profile report rows); `risks-and-debt.md` R-037, R-039; `docs/05-design/audit.md` §3.6, §3.9, §3.10. Owner decisions: Q-013, Q-014, Q-046, Q-048, Q-059, Q-060, Q-062. Platform rules: `00-platform-rules.md` (R-1.1…R-1.5, §4.18 fixed rules, settings S-071, S-089, S-090, S-100, S-122, balances glossary §3).
 
@@ -72,13 +73,14 @@ Give every user one account with two dashboards (Buying and Selling) and one swi
 ### Portfolio
 - AC-24 Given a user on Selling → Portfolio → Create, When they submit a title (3–100 chars), a description (≥ 10 chars), a thumbnail (JPG/PNG ≤ S-090 MB), 1 to S-089 gallery images (JPG/PNG, each ≤ S-090 MB), and optionally a project link and a video link (valid URLs, ≤ 120 chars), Then the item is saved with a URL slug made from the title plus a unique id. (LEGACY `CreateValidator.php:32-46`, `CreateComponent.php:116-146`)
 - AC-25 Given S-071 `moderation.portfolio.auto_approve` is OFF, When an item is created or edited, Then its status is pending (not public) and `Admin/PendingPortfolio` goes to every address in S-100. Given S-071 is ON, Then it is public at once and no admin email is sent. (LEGACY; CHANGE recipients Q-026)
-- AC-26 Given a pending item, When staff approve it, Then it becomes public, and the owner gets the `PortfolioPublished` email and the in-app notification `t_ur_portfolio_title_has_been_published` (plus push, P-11). When staff delete it instead, Then it is removed. (LEGACY `Admin/Portfolios/PortfoliosComponent.php:65-135`; no rejection message exists in legacy)
+- AC-26 Given a pending item, When staff approve it, Then it becomes public, and the owner gets the `PortfolioPublished` email and the in-app notification `t_ur_portfolio_title_has_been_published` (plus push, P-11). When staff reject it instead, Then AC-42 applies. (LEGACY `Admin/Portfolios/PortfoliosComponent.php:65-135`: approve or delete, no rejection message; reject with reason **CHANGE**, Owner 2026-09-30 Q-117)
 - AC-27 Given the owner edits an item, When they save, Then the new data replaces the old; uploading new gallery images replaces the old gallery; the status follows AC-25. The owner can delete an item at any time (files are deleted too). (LEGACY `EditComponent.php:162-234`, `PortfolioComponent.php:113-148`)
-- AC-28 Given a public profile, When `/profile/{username}/portfolio` is opened, Then only public items of that user are listed. `/profile/{username}/portfolio/{slug}` shows the item's thumbnail, gallery, description and links. Pending items are visible only to their owner (marked "Pending"). (LEGACY)
+- AC-28 Given a public profile, When `/profile/{username}/portfolio` is opened, Then only public items of that user are listed. `/profile/{username}/portfolio/{slug}` shows the item's thumbnail, gallery, description and links. Pending items are visible only to their owner (marked "Pending"); rejected items are visible only to their owner (marked "Rejected" with the reason, AC-42). (LEGACY; rejected state Q-117)
+- AC-42 Given a pending portfolio item, When staff reject it with a reason (required, ≤ 1,000 characters, spec 16 AC-19/AC-21), Then its status becomes `rejected` and it stays not public; the owner sees it in Selling → Portfolio (web and mobile) marked `t_portfolio_status_rejected` with `t_portfolio_rejected_reason`; and the owner gets the email `PortfolioRejected` (`t_subject_seller_portfolio_rejected`, body `t_portfolio_rejected_email_body` with the title and the reason), the in-app notification `t_ur_portfolio_title_has_been_rejected` and push (spec 15 EV-126). When the owner then edits and saves the item, Then its status follows AC-25 (pending again, or public at once when S-071 is ON) and the old reason is no longer shown to the owner (it stays in the audit log). The owner can delete a rejected item at any time (AC-27). A rejected item does not appear on `/profile/{username}/portfolio` and its item URL answers 404 to everyone except the owner. (NEW state and notification, Owner 2026-09-30 Q-117; legacy had no rejection)
 
 ### Account settings (`/account/settings`)
-- AC-29 Given a logged-in user, When they save username (same rules as registration, spec 01 AC-1/AC-2), email (valid, unique), full name (required, ≤ 60), country (optional, from the active country list) and city (required, ≤ 60) and enter their current password (not asked for accounts without a password), Then the changes are saved with `t_ur_account_settings_updated`. A wrong password shows `t_ur_current_pass_does_not_match`. (LEGACY `SettingsComponent.php:156-223`, `EditValidator.php:26-38`)
-- AC-30 Given a user changes their email in settings, When they save, Then the email does not change yet: a confirmation link valid for S-054 minutes is sent to the new address (`t_email_change_pending`) and a notice is sent to the old address. The new email becomes active only when the link is opened. (ACCEPTED P-18; legacy changed the email at once with no check)
+- AC-29 Given a logged-in user, When they save username (same rules as registration, spec 01 AC-1/AC-2), email (valid, unique), full name (required, ≤ 60), country (optional, from the active country list) and city (required, ≤ 60) and enter their current password, Then the changes are saved with `t_ur_account_settings_updated`. A wrong password shows `t_ur_current_pass_does_not_match`. Given an account without a password (social login only), When the save changes the email, Then instead of a password the user asks for a 6-digit code (`t_2fa_resend_code`), which is emailed to the **current** address (spec 15 EV-06; valid only for an email change and only once; S-057/S-058 and the resend limits of spec 01 AC-27 apply) and enters it (`t_confirm_with_email_code`); a wrong or expired code shows `t_2fa_code_invalid` / `t_2fa_code_expired` and nothing is saved. Such an account saving other fields without changing the email is not asked for a password or code. (LEGACY `SettingsComponent.php:156-223`, `EditValidator.php:26-38`; emailed code **CHANGE** from "not asked", Owner 2026-09-30 Q-144 / SEC-05)
+- AC-30 Given a user changes their email in settings, When they save, Then the email does not change yet: a confirmation link valid for S-054 minutes is sent to the new address (`t_email_change_pending`) and a notice is sent to the old address. The new email becomes active only when the link is opened; at that moment the withdrawal pause of spec 14 AC-21 (S-129, default 24 h) starts. (ACCEPTED P-18; legacy changed the email at once with no check; pause NEW, Owner 2026-09-30 Q-144)
 - AC-31 Given a user changes their username, When saved, Then their profile moves to `/profile/{new-username}`. (LEGACY; see EC-4)
 - AC-32 Given a user with an active order or project (as buyer or freelancer: order items pending/started/delivered and not finished; projects active, awaiting payment, in development or awaiting final review), When they choose "Delete account", Then it is refused with `t_cannot_delete_account_active_orders_projects`. (LEGACY `SettingsComponent.php:253-305`)
 - AC-33 Given a user whose Available or HOLD/Pending balance is not 0, When they choose "Delete account", Then it is refused with `t_cannot_delete_account_balance`. (ACCEPTED P-21; legacy only warned in `t_delete_account_warning`)
@@ -103,7 +105,7 @@ Give every user one account with two dashboards (Buying and Selling) and one swi
 - R-P3 **Profile visibility** (LEGACY): public only for status active/verified and not deleted. A restricted user's public profile stays visible (legacy middleware only blocks the user's own navigation). Banned → 404.
 - R-P4 **Online status** (LEGACY BR-012): "online" = any authenticated request (web or mobile) in the last 10 minutes.
 - R-P5 **Availability** (LEGACY BR-013, CHANGE all users): one availability record per user. While it is active: no add-to-cart on the user's gigs, no custom-offer requests to them. Existing orders continue.
-- R-P6 **Portfolio moderation** (LEGACY): S-071; edit sends the item back to pending when S-071 is OFF. Titles and descriptions have one field (not ka/en). Latin and Georgian are both allowed (Q-022).
+- R-P6 **Portfolio moderation** (LEGACY): S-071; edit sends the item back to pending when S-071 is OFF. Statuses: `pending` → `public` | `rejected` (reason shown to the owner, NEW Q-117); `rejected` → edit → per AC-25. Titles and descriptions have one field (not ka/en). Latin and Georgian are both allowed (Q-022).
 - R-P7 **Dashboard KPIs** come from the ledger and order data (00 §3). "Earnings" = total released to the user's Available balance from gig orders, project payments and custom offers (legacy formula `HomeComponent.php:62-93`, now from ledger entries).
 - R-P8 **KYC** (Q-048): not required for anything. One active verification per user. Files private (R-039 fix).
 - R-P9 **Account deletion** (LEGACY + ACCEPTED P-21): soft delete; blocked by active items; blocked by a non-zero balance (P-21). Reviews the user wrote or received stay visible, with the name shown as "Deleted user" (ACCEPTED P-21).
@@ -121,8 +123,8 @@ Give every user one account with two dashboards (Buying and Selling) and one swi
 | Portfolio list / item | `/profile/{username}/portfolio`, `/…/portfolio/{slug}` | Portfolio grid → item viewer (swipe gallery) | empty ("No work yet"); success |
 | Edit profile | `/account/profile` (P-23) | Account → Profile | per-block saving spinner; inline errors; success toast |
 | Availability modal | modal on Edit profile | bottom sheet with date picker | error (date not future) |
-| Portfolio create/edit | `/seller/portfolio/create`, `/edit/{id}` | Selling → Portfolio → + | upload progress per image; error per file (type/size); success with "pending review" note when S-071 is OFF |
-| Account settings | `/account/settings` | Account → Settings | password confirm field; email-change pending banner (P-18); delete-account danger zone with the dialog |
+| Portfolio create/edit | `/seller/portfolio/create`, `/edit/{id}` | Selling → Portfolio → + | upload progress per image; error per file (type/size); success with "pending review" note when S-071 is OFF; rejected item shows a "Rejected" chip and the reason above the form (AC-42) |
+| Account settings | `/account/settings` | Account → Settings | password confirm field (accounts without a password: "Send code" + 6-digit code field when the email changes, AC-29); wrong or expired code; email-change pending banner (P-18); delete-account danger zone with the dialog |
 | Verification centre | `/account/verification`: step 1 document type, step 2 document photos, step 3 selfie, then status | same 3 steps, camera first | pending / verified / declined (with "send again") |
 | Report user | modal | bottom sheet | success toast |
 
@@ -134,6 +136,8 @@ Accessibility: switcher items have `aria-current` and text labels on all sizes (
 | `Admin/ProfileReported` (`t_subject_admin_profile_reported`) | email | all S-100 recipients | AC-14 | LEGACY, CHANGE recipients (Q-026) |
 | `Admin/PendingPortfolio` (`t_subject_admin_pending_portfolio`) | email | all S-100 recipients | AC-25 (create or edit with S-071 OFF) | LEGACY, CHANGE recipients |
 | `PortfolioPublished` (`t_subject_seller_portfolio_published`) + in-app `t_ur_portfolio_title_has_been_published` | email + in-app + push (P-11) | owner | AC-26 | LEGACY (push NEW) |
+| `PortfolioRejected` (`t_subject_seller_portfolio_rejected`, body `t_portfolio_rejected_email_body`) + in-app `t_ur_portfolio_title_has_been_rejected` (spec 15 EV-126) | email + in-app + push | owner | AC-42 | **NEW** (Owner 2026-09-30, Q-117) |
+| Re-authentication code, spec 15 EV-06 `TwoFactorCode` | email only | user without a password (current address) | email change in settings (AC-29) | NEW purpose on an existing NEW event (Q-144 / SEC-05) |
 | `Admin/NewIdVerificationPending` (`t_verification_center`) | email | all S-100 recipients | AC-36 | LEGACY, CHANGE recipients |
 | `VerificationApproved` / `VerificationDeclined` + in-app `t_ur_account_has_verified` / `t_verification_files_declined` | email + in-app + push | user | AC-37 | LEGACY (push NEW) |
 | Email-change confirmation (to new address) + notice (to old address) | email | user | AC-30 | **NEW, ACCEPTED P-18** |
@@ -255,6 +259,15 @@ NEW keys (English first, Georgian alongside, Q-058):
 | `t_kyc_status_pending` | Your documents are being reviewed. | თქვენი დოკუმენტები განხილვის პროცესშია. |
 | `t_kyc_send_again` | Send documents again | დოკუმენტების ხელახლა გაგზავნა |
 
+NEW keys added 2026-09-30 (Owner gate answer Q-117; English first, Georgian alongside, Q-058). The code-confirmation texts of AC-29 reuse spec 01 keys (`t_confirm_with_email_code`, `t_2fa_resend_code`, `t_2fa_code_invalid`, `t_2fa_code_expired`).
+| Key | en | ka |
+|---|---|---|
+| `t_portfolio_status_rejected` | Rejected | უარყოფილია |
+| `t_portfolio_rejected_reason` | Not approved. Reason: :reason. Edit the work and save it to send it for review again. | არ დამტკიცდა. მიზეზი: :reason. შეცვალეთ ნამუშევარი და შეინახეთ, რომ ხელახლა გაიგზავნოს განსახილველად. |
+| `t_ur_portfolio_title_has_been_rejected` | Your work :title was not approved. Reason: :reason | თქვენი ნამუშევარი :title არ დამტკიცდა. მიზეზი: :reason |
+| `t_subject_seller_portfolio_rejected` | Your portfolio work was not approved | თქვენი ნამუშევარი არ დამტკიცდა |
+| `t_portfolio_rejected_email_body` | Your work :title was not approved. Reason: :reason. You can edit it and send it for review again, or delete it. | თქვენი ნამუშევარი :title არ დამტკიცდა. მიზეზი: :reason. შეგიძლიათ შეცვალოთ და ხელახლა გაგზავნოთ განსახილველად, ან წაშალოთ. |
+
 ## Edge cases
 - EC-1 A migrated legacy "buyer" opens `/seller/home`: allowed (R-P1). `/start_selling` redirects per 00 AC-3.
 - EC-2 A user sets availability while they have orders in progress: those orders continue; only new orders and offer requests are blocked (R-P5).
@@ -266,6 +279,8 @@ NEW keys (English first, Georgian alongside, Q-058):
 - EC-8 KYC declined twice: the user may keep resubmitting (LEGACY has no limit).
 - EC-9 Staff switch S-071 ON while items are pending: pending items stay pending until approved or deleted (auto-approve applies to new saves).
 - EC-10 A user with no gigs opens their own profile: the Gigs block shows an empty state with "Create a new gig" (owner only); visitors do not see the empty block.
+- EC-11 (Q-117) Migrated legacy portfolio items: legacy had only `pending` and `active` items (`legacy/APP/database/migrations/2022_07_25_201224_create_user_portfolio_table.php:26`; staff "rejection" = deletion), so no item is imported as `rejected`.
+- EC-12 (Q-144) An account without a password asks for the email-change code and then changes only the city: the code is not needed and stays unused until it expires; the email-change confirmation link flow (AC-30) starts only after a correct code.
 
 ## Out of scope
 - Reviews creation and rules (spec 07), chat (spec 08), custom-offer request form (spec 12), orders/projects lists inside the dashboards (specs 06, 10, 11), balances pages and withdrawals (specs 05, 14), subscriptions and referrals (spec 09), admin moderation screens (spec 16).
@@ -273,7 +288,9 @@ NEW keys (English first, Georgian alongside, Q-058):
 - Gig analytics (spec 04).
 
 ## Open questions
-No new questions for `open-questions.md`. Proposed items for Owner approval:
+Owner gate answers applied on 2026-09-30: **Q-117** (portfolio `rejected` state with a reason and a NEW notification, AC-42) and **Q-144** (emailed code for accounts without a password on an email change, AC-29; the email change starts the withdrawal pause, AC-30). No new questions.
+
+Proposed items (all accepted by the Owner on 2026-09-28):
 - **P-18 Email change needs confirmation.** A new email becomes active only after the user opens a link sent to it, and the old address gets a notice. Legacy changed the email at once with only the password.
 - **P-21 Account deletion and balances.** Deletion is also refused while the Available or HOLD balance is not 0 (legacy only warned that the money would be lost). Reviews by or about a deleted user stay visible, shown as "Deleted user".
 - **P-22 Dashboard memory.** The last chosen dashboard is stored on the account (shared by web and mobile). Users who never chose start on Buying.

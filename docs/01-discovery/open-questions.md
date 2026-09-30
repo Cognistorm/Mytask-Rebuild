@@ -595,7 +595,7 @@ The "old" side of the preview comparisons is an HTML reconstruction, not screens
 Recommendation: Optional; screenshots would let the designer verify the reconstruction.
 **Answer (Owner, 2026-09-29):** Recommendation accepted. Screenshots are optional; if the Owner adds them to `docs/05-design/screenshots/`, the designer checks the reconstruction against them.
 
-## Parity gap questions (product-analyst, G-1…G-3, 2026-09-29) — open
+## Parity gap questions (product-analyst, G-1…G-3, 2026-09-29) — answered by Owner 2026-09-30
 Raised while closing parity gaps G-2 and G-3 (`docs/06-qa/plans/00-parity-master.md` §10). Each has a testable default written into the specs as a PROPOSED item, so no slice is blocked; the Owner's answer confirms or replaces it.
 
 ### Q-109
@@ -610,6 +610,7 @@ Options:
 (c) Keep legacy per feature: projects use the list in (a); gigs have no list.
 Sub-question: English project fields — keep the approved gig rule (no Georgian letters, no list; spec 10 AC-3/AC-4) or return to the legacy project list?
 Recommendation: (a), with the English project fields as approved (no list). It is the only explicit list in legacy and matches how Q-022 was put to you ("limited punctuation").
+**Answer (Owner, 2026-09-30):** Recommendation accepted: (a), one list for gigs and projects; English project fields as approved (no list). P-136 accepted.
 
 ### Q-110
 "You may also like" on the gig page: how is "similar" decided?
@@ -618,8 +619,9 @@ Options:
 (a) Apply the legacy rule to the real texts in the page language, with the Georgian fallback (spec 04 AC-32 as written, P-137).
 (b) "Same sub-category" only (what most newer gigs effectively got).
 Recommendation: (a). It is what the legacy code was written to do, and it only adds matches on top of (b).
+**Answer (Owner, 2026-09-30):** Recommendation accepted: (a). P-137 accepted.
 
-## API contract questions (solution-architect, P2-B4, 2026-09-29) — open
+## API contract questions (solution-architect, P2-B4, 2026-09-29) — Gate items answered by Owner 2026-09-30; slice items open
 Raised by the six group runs and consolidated by the integration run (`docs/handoffs/2026-09-29-solution-architect-to-orchestrator-p2-b4-integration.md`, "Open questions / risks"). Every item already has a safe default in `docs/04-api/openapi.yaml`; the Owner answer confirms or replaces it. **When = Gate** means answer at the Phase 2 gate (contract shape, money, permissions or a PROPOSED item); **slice** means it can wait for that feature slice.
 
 | # | Spec / AC | Question (plain language) | Safe default in the contract now | Recommendation | When |
@@ -658,7 +660,7 @@ Raised by the six group runs and consolidated by the integration run (`docs/hand
 | Q-142 | 04 (D2 Q7) | Migrated gigs with unknown "revisions allowed": how to display? | `null` | Show "not specified" | slice (04) |
 | Q-143 | 16 catalogue (D2 Q6) | Catalog/content screens are read with their write permission (no read permission exists) | write permission | Accept | slice (16) |
 
-## Security questions (security-reviewer P2-B5 + solution-architect fixes, 2026-09-30) — open
+## Security questions (security-reviewer P2-B5 + solution-architect fixes, 2026-09-30) — Q-144…Q-146 answered by Owner 2026-09-30; others open
 From `docs/06-qa/security/00-blueprint-2026-09-30.md` and `docs/handoffs/2026-09-30-solution-architect-to-orchestrator-p2-b5-fixes.md`. These are business decisions the security review cannot make. The contract has a hook for each one, so any answer can be added later without redesign. The IBAN question (SEC-08) is Q-113 above.
 
 | # | Finding | Question (plain language) | Options | Recommendation | When |
@@ -672,3 +674,38 @@ From `docs/06-qa/security/00-blueprint-2026-09-30.md` and `docs/handoffs/2026-09
 | Q-150 | SEC-21 | A few staff actions (mark payment reviewed, mark reconciliation difference reviewed, re-check payment status with BOG, retry an email) are allowed with a "read" permission. They move no money. Accept, or add a new `payments.review` permission? | accept / new permission | Accept and record (a new permission changes the approved catalogue) | Slice 16 |
 
 Also for the gate (technical defaults chosen in the security fixes, not business rules): login slow mode after 20 failures per hour per account (1 try per 30 s); 2FA locked after 10 wrong codes per hour; per user 20 new conversations, 20 offer requests and 10 reports per hour; analytics 120 requests per minute per IP.
+
+## Owner answers at the Phase 2 gate (2026-09-30)
+The Owner approved the Phase 2 gate on 2026-09-30: architecture + ADR-001…016, data model, URL map, API contract (`docs/04-api/openapi.yaml`), design (audit, tokens, components, preview, key screens), parity master plan and the security verdict (PASS with conditions). All "Gate" questions were answered **as recommended**:
+
+| # | Answer (Owner, 2026-09-30) |
+|---|---|
+| Q-109 | (a) one character list for gigs and projects; English project fields as approved (P-136 accepted) |
+| Q-110 | (a) the legacy "similar" rule on the real texts (P-137 accepted) |
+| Q-111 | Accept P-135 (nightly reconciliation, S-128 default 03:00) and P-136 |
+| Q-112 | Accept the `@self` exception for staff actions on their own account (no catalogue change) |
+| Q-113 | **The withdrawals list and detail (with IBANs) need `withdrawals.approve`**, not `payments.read` (closes SEC-08) |
+| Q-114 | Keep: refund threads need `refunds.thread.write`; other threads `chat.read` |
+| Q-115 | Accept as is: content moderators get no access to offer attachments |
+| Q-117 | Keep the portfolio `rejected` state with a reason shown to the owner, and **add a notification** to the owner (NEW event) |
+| Q-119 | Accept: re-login before releasing or writing off legacy held balances |
+| Q-120 | A negative legacy held balance can **only be written off** (no release) |
+| Q-121 | Keep: "Refund buyer" is refused while a dispute is open |
+| Q-137 | S-128 belongs to the **payments** settings area |
+| Q-144 | **24-hour withdrawal pause** after an email, password or payout-details (IBAN) change, **plus** a "details changed recently" flag for the approving staff member; confirmed: accounts without a password confirm those changes with a code emailed to the current address |
+| Q-145 | **Add step-up (re-login)** for: changing a user's email, turning off a user's 2FA, changing security settings (S-052/S-053/S-056…S-064/S-124), changing plan prices, creating 100% promo codes; **and email the user** when staff turn off their 2FA (NEW event) |
+| Q-146 | (c) only fixed-code vendors in custom code (S-110) now; study isolating custom code in Phase 3 (closes SEC-11 for now) |
+
+Still open: Q-097 (by Phase 5), Q-147 (before the Phase 5 KYC import), the slice items Q-116, Q-118, Q-122…Q-136, Q-138…Q-143, Q-148…Q-150, and Q-104 (deferred).
+Owner action taken on: SEC-28, the Owner revokes the Binance and findip keys and removes the Binance bot from the legacy server by hand.
+
+## Follow-up question (product-analyst, applying the gate answers, 2026-09-30) — open, slice 14
+Raised while writing Q-144 into spec 14 (AC-21…AC-23). A testable default is written into the spec, so slice 14 is not blocked; the Owner's answer confirms or replaces it.
+
+### Q-151
+Two details of the withdrawal pause and the "details changed recently" flag (Q-144):
+(a) Because of the 24-hour pause, a request can never be created within 24 h after a change, so the approver's flag must look further back to be useful. How far back before the request should a change still raise the flag? Changes made while the request is waiting always raise it.
+(b) Does the **first** save of payout details (a user who never had any) also start the 24-hour pause, or only a change of existing details?
+Default in spec 14: (a) 7 days before the request was created; the detail also always shows the date of the latest email, password and payout-details change. (b) Yes, the first save also starts the pause (an attacker adding an IBAN to an account without one is the same risk; a new freelancer usually earns money for longer than 24 h before the first withdrawal).
+Recommendation: accept both defaults. If you want the window editable in the admin, it becomes a new register row next to S-129.
+When: slice 14.

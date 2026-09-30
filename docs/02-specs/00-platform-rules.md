@@ -1,5 +1,6 @@
 # 00 — Platform rules (cross-cutting)
 Status: **approved** (Owner 2026-09-28). P-1…P-13 accepted, with adjustments to P-4 and P-5; Q-068…Q-072 answered.
+Updated 2026-09-30 with Owner gate answers: P-135 (S-128) and P-136 (R-5.3a) accepted (Q-111, Q-109); S-128 in the payments settings area (Q-137); NEW S-129 withdrawal pause after security changes (Q-144); S-127 limited to fixed-code vendors (Q-146).
 Author: product-analyst (P2-A1) | Date: 2026-09-28
 Legacy reference: `docs/01-discovery/features.md` (BR-001…BR-122), `data-model.md` §1 "Settings singletons", `roles-and-permissions.md`, `integrations.md`, `i18n.md`, `risks-and-debt.md`; Owner decisions in `docs/01-discovery/open-questions.md` (Answers, Follow-up answers, Q-058…Q-067).
 
@@ -200,7 +201,7 @@ Tax: removed (the 2% tax is not used in production). There is no tax setting. (Q
 | S-031 | `withdrawals.min_amount` | Minimum withdrawal request | GEL | prod → 10 | BR-101, Q-004 | LEGACY |
 | S-032 | `withdrawals.period` | Minimum time since the last PAID withdrawal: daily = 24h, weekly = 168h, monthly = 720h | enum daily / weekly / monthly | prod → daily | BR-101, Q-004 | LEGACY |
 | S-033 | `withdrawals.payout_provider` | How payouts are made: manual bank transfer by admin, or BOG Payout API when integrated | enum manual / bog_payout | manual | Q-004, Q-029 | LEGACY (manual), NEW (Payout-ready) |
-Fees: S-010, S-011. One pending request per user at a time (LEGACY BR-101, fixed rule).
+Fees: S-010, S-011. One pending request per user at a time (LEGACY BR-101, fixed rule). Pause after an email, password or payout-details change: S-129 (§4.17 table, NEW Q-144, 2026-09-30).
 
 #### 4.7 Custom offers (spec 12)
 | # | Key | Meaning | Type / unit | Default | Source | Tag |
@@ -345,10 +346,11 @@ Admin chat visibility (Q-015) is a staff permission (spec 16), not a toggle.
 | S-124 | `auth.two_factor.trigger` | When a 2FA code is asked for a user (or staff member) with 2FA ON: `new_device` = new or expired device only; `new_device_or_ip` = also on every new IP | enum | `new_device` | Q-082, P-15 | NEW, added Owner 2026-09-28 |
 | S-125 | `payments.bank_transfer.instructions` | Bank details/instructions shown to the buyer when bank transfer (S-021) is ON | localized text (ka/en) | empty | P-42 (spec 05) | NEW, added Owner 2026-09-28 |
 | S-126 | `subscriptions.mobile_card_purchase.enabled` | Premium card purchase inside the mobile apps (Q-081). Switch OFF if an app-store review requires it; points purchase stays | boolean | ON | Q-081, P-60 (spec 09) | NEW, added Owner 2026-09-28 |
-| S-127 | `appearance.custom_code.allowed_hosts` | Hostnames that custom code (S-110) may load scripts, frames, images or connections from; the public-page CSP allows exactly these hosts. Super-admin only | list of hostnames (no wildcards except a leading `*.` for subdomains) | empty | Q-085, P-122 (spec 16) | NEW, added Owner 2026-09-29 |
-| S-128 | `ledger.reconciliation.run_time` | Daily time (Georgian time, UTC+4) at which the nightly ledger/BOG reconciliation runs for the previous Georgian calendar day (spec 05 AC-44…AC-47) | time HH:MM (00:00–23:59) | 03:00 | ADR-003 §10, ADR-008 §5 ("nightly", no time given), P-135 (spec 05) | **PROPOSED** (NEW, 2026-09-29, parity gap G-1; not counted below until accepted) |
+| S-127 | `appearance.custom_code.allowed_hosts` | Hostnames that custom code (S-110) may load scripts, frames, images or connections from; the public-page CSP allows exactly these hosts. Super-admin only. Only fixed-code vendors (e.g. an analytics or advertising pixel); no tag managers or other remotely changeable code; each host confirmed as fixed-code when added (spec 16 AC-74a) | list of hostnames (no wildcards except a leading `*.` for subdomains) | empty | Q-085, P-122 (spec 16); Q-146 | NEW, added Owner 2026-09-29; fixed-code vendors only, Owner 2026-09-30 (Q-146) |
+| S-128 | `ledger.reconciliation.run_time` | Daily time (Georgian time, UTC+4) at which the nightly ledger/BOG reconciliation runs for the previous Georgian calendar day (spec 05 AC-44…AC-47). Admin settings area: **payments** (Q-137) | time HH:MM (00:00–23:59) | 03:00 | ADR-003 §10, ADR-008 §5 ("nightly", no time given), P-135 (spec 05) | NEW, ACCEPTED P-135 (Owner 2026-09-30, Q-111) |
+| S-129 | `withdrawals.security_change_pause_hours` | After a change of the user's email, password or payout details (IBAN), made by the user or by staff, no new withdrawal request can be created for this many hours (spec 14 AC-21, AC-22). The approving staff member also sees a "details changed recently" flag (spec 14 AC-23, spec 16 AC-42). Admin settings area: **withdrawals** (with S-031…S-033) | hours, integer ≥ 0 (0 = no pause; the flag still shows) | 24 | Q-144 (SEC-05, SEC-06) | NEW, added Owner 2026-09-30 |
 
-**Register count:** 127 rows = 122 global settings (S-001…S-046, S-052…S-127; S-123…S-126 added Owner 2026-09-28, S-127 added Owner 2026-09-29) + 5 per-code promo/referral fields (S-047…S-051). 12 rows carry a default or definition accepted by the Owner through P-1…P-13 (S-017, S-018, S-029, S-041, S-050, S-057…S-060, S-062, S-063, S-101). Launch values of S-034 (Q-068) and S-056 (Q-072) are answered. 55 rows use "prod → fallback" (rule confirmed in Q-068).
+**Register count:** 129 rows = 124 global settings (S-001…S-046, S-052…S-129; S-123…S-126 added Owner 2026-09-28, S-127 added Owner 2026-09-29, S-128 accepted and S-129 added Owner 2026-09-30) + 5 per-code promo/referral fields (S-047…S-051). 12 rows carry a default or definition accepted by the Owner through P-1…P-13 (S-017, S-018, S-029, S-041, S-050, S-057…S-060, S-062, S-063, S-101). Launch values of S-034 (Q-068) and S-056 (Q-072) are answered. 55 rows use "prod → fallback" (rule confirmed in Q-068).
 
 #### 4.18 Fixed rules (not configurable; listed so nobody makes them settings by accident)
 Legacy values kept as fixed rules unless a spec proposes otherwise:
@@ -383,7 +385,7 @@ Legacy values kept as fixed rules unless a spec proposes otherwise:
 - R-5.1 Two languages: Georgian `ka` (default) and English `en`. (CLAUDE.md; i18n.md)
 - R-5.2 Georgian title and description are required for gigs and projects; English is optional. (LEGACY BR-020, BR-051)
 - R-5.3 Latin letters, digits and normal punctuation are allowed in the Georgian fields, alongside Georgian. The Georgian-only rule (`GeorgianTextOnly`) is dropped. (Q-022) CHANGE. "Normal punctuation" means exactly the set in R-5.3a.
-- R-5.3a **Georgian-field character set** (**PROPOSED P-136**, added 2026-09-29 for parity gap G-2; scope question **Q-109**). Applies to the Georgian title and Georgian description of gigs (spec 04 AC-5) and projects (spec 10 AC-3, AC-4). One rule, checked by the API; web and mobile run the same check before sending.
+- R-5.3a **Georgian-field character set** (**ACCEPTED P-136**, added 2026-09-29 for parity gap G-2; Owner 2026-09-30: Q-109 option (a), one list for gigs and projects; Q-111). Applies to the Georgian title and Georgian description of gigs (spec 04 AC-5) and projects (spec 10 AC-3, AC-4). One rule, checked by the API; web and mobile run the same check before sending.
   1. **Normalise first** (LEGACY `legacy/APP/app/Rules/GeorgianTextOnly.php:11-14`): remove formatting markup (the gig description is formatted text, spec 04 AC-4), decode HTML entities, turn U+00A0 (no-break space), U+200B (zero-width space) and U+FEFF (byte-order mark) into a normal space, and trim the ends. Length limits are counted as the existing ACs say.
   2. **Allowed characters** — every character of the normalised text must be one of:
      - Georgian letters `ა`–`ჰ` (U+10D0–U+10F0, the 33 letters of the modern alphabet; LEGACY range `[ა-ჰ]`, `legacy/APP/app/Http/Validators/Main/Post/ProjectValidator.php:38, 42`, `GeorgianTextOnly.php:20`);
@@ -394,7 +396,7 @@ Legacy values kept as fixed rules unless a spec proposes otherwise:
      Everything else is refused, for example `: ; " ' / \ % + & * # @ № ₾ « » „ “ – — …`, other scripts (Cyrillic, Georgian capital letters Mtavruli U+1C90–U+1CBF, archaic Georgian letters U+10F1 and above) and emoji.
   3. **At least one Georgian letter** (ACCEPTED P-37). A field that fails only this rule gets `t_validator_georgian_letter_required`; a field with a character outside the set gets `t_validator_georgian_field_characters` listing each refused character once, in order of first appearance (at most 10).
   4. Validation runs when the field is saved (create or edit). Migrated legacy texts are imported as they are; they are checked only when the owner next saves that field (spec 04 AC-21, spec 10 edit).
-  Legacy evidence differs by feature, which is why this is PROPOSED: projects used exactly this list (Georgian letters instead of Georgian + Latin), while gigs had **no** character list — any character except Latin letters was accepted (`GeorgianTextOnly.php:9-25`, used by `legacy/APP/app/Http/Validators/Main/Create/OverviewValidator.php:49, 61`). For gigs the set is therefore a CHANGE, pending Q-109.
+  Legacy evidence differs by feature: projects used exactly this list (Georgian letters instead of Georgian + Latin), while gigs had **no** character list — any character except Latin letters was accepted (`GeorgianTextOnly.php:9-25`, used by `legacy/APP/app/Http/Validators/Main/Create/OverviewValidator.php:49, 61`). For gigs the set is therefore a **CHANGE**, approved by the Owner on 2026-09-30 (Q-109 (a)). The English project fields keep the approved rule (no Georgian letters, no character list; spec 10 AC-3/AC-4, Q-109 sub-question).
 - R-5.4 The English field keeps the legacy rule: no Georgian letters (`EnglishTextOnly`). (LEGACY BR-020; not changed by Q-022)
 - R-5.5 When English text is missing, English pages show the Georgian text, with HTTP 200 (no 404). (Q-023) CHANGE. Content storage stays ready for AI auto-translation later (vision).
 - R-5.6 URLs: Georgian unprefixed (`/service/{slug}`), English under `/en/` (`/en/service/{slug}`). Legacy `?locale=` and session language are replaced; old URLs 301 per `url-map.md`. hreflang/canonical for fallback pages: `url-map.md`. (Q-024) NEW
@@ -475,7 +477,7 @@ NEW keys (English first, Georgian alongside, Q-058):
 | `t_feature_disabled` | This feature is currently turned off. | ეს ფუნქცია ამჟამად გამორთულია. |
 | `t_content_shown_in_georgian` | This content is not available in English yet, so it is shown in Georgian. | ეს კონტენტი ინგლისურად ჯერ არ არის ხელმისაწვდომი, ამიტომ ნაჩვენებია ქართულად. |
 | `t_paid` (check legacy for an existing key before adding) | Paid | გადახდილია |
-| `t_validator_georgian_field_characters` (**PROPOSED P-136**, R-5.3a) | These characters are not allowed: :chars. Use Georgian or Latin letters, digits, spaces and - _ . , ! ? ( ) | ეს სიმბოლოები დაუშვებელია: :chars. გამოიყენეთ ქართული ან ლათინური ასოები, ციფრები, ჰარი და - _ . , ! ? ( ) |
+| `t_validator_georgian_field_characters` (ACCEPTED P-136, R-5.3a) | These characters are not allowed: :chars. Use Georgian or Latin letters, digits, spaces and - _ . , ! ? ( ) | ეს სიმბოლოები დაუშვებელია: :chars. გამოიყენეთ ქართული ან ლათინური ასოები, ციფრები, ჰარი და - _ . , ! ? ( ) |
 
 ## Edge cases
 - EC-1 A toggle is switched OFF while items are in progress (for example custom offers or bank transfer): new items are blocked; items already paid continue to completion, refund or dispute, and their money flows keep working. (ACCEPTED P-13 / AC-11)
@@ -512,8 +514,11 @@ Owner decisions on the proposed items (Owner 2026-09-28): all of P-1…P-13 ACCE
 - **P-12 Balance corrections.** Staff cannot type balances. They post a ledger adjustment with a reason, recorded in the audit log (replaces the legacy direct edit).
 - **P-13 Settings not carried over / toggle behaviour.** GEL-only (no currency/exchange-rate settings); appearance colours/fonts come from design tokens, not admin settings; switching a feature OFF blocks new items but lets in-progress items finish (EC-1, EC-2).
 
-Added after approval (2026-09-29, parity gaps G-1 and G-2) — **PROPOSED, awaiting Owner sign-off at the Phase 2 gate:**
-- **P-135 (register row S-128).** New setting `ledger.reconciliation.run_time`, default 03:00 Georgian time: when the nightly money check runs. The check itself is specified in spec 05 AC-44…AC-47.
-- **P-136 Georgian-field character set (R-5.3a).** "Normal punctuation" becomes an exact list: Georgian letters ა–ჰ, Latin letters a–z/A–Z, digits 0–9, spaces/tabs/line breaks and the 8 marks `- _ . , ! ? ( )` — the list legacy used for projects. Everything else (for example `:`, quotes, `/`, `%`, `₾`, emoji) is refused with a message naming the characters. Legacy gigs had no list at all, so for gigs this is a change; the Owner chooses the scope in **Q-109**.
+Added after approval (2026-09-29, parity gaps G-1 and G-2) — **ACCEPTED by the Owner at the Phase 2 gate, 2026-09-30:**
+- **P-135 (register row S-128). ACCEPTED (Q-111).** New setting `ledger.reconciliation.run_time`, default 03:00 Georgian time: when the nightly money check runs. The check itself is specified in spec 05 AC-44…AC-47. S-128 is edited in the **payments** settings area (Q-137, spec 16).
+- **P-136 Georgian-field character set (R-5.3a). ACCEPTED (Q-109 option (a), Q-111).** "Normal punctuation" becomes an exact list: Georgian letters ა–ჰ, Latin letters a–z/A–Z, digits 0–9, spaces/tabs/line breaks and the 8 marks `- _ . , ! ? ( )` — the list legacy used for projects. Everything else (for example `:`, quotes, `/`, `%`, `₾`, emoji) is refused with a message naming the characters. One list for gigs and projects; the English project fields keep the approved rule.
+
+Owner gate answers, 2026-09-30 (new register row, no PROPOSED item):
+- **S-129 `withdrawals.security_change_pause_hours`** (Q-144): default 24 hours, admin-configurable like the other withdrawal limits. Behaviour in spec 14 AC-21…AC-23 and spec 16 AC-42.
 
 New questions raised by this spec (in `docs/01-discovery/open-questions.md`): **Q-068** (launch values of legacy settings whose production values are unknown, incl. custom offers ON at launch), **Q-069** (Premium "top offers" and "contact project authors"), **Q-070** (BOG surcharge total and scope), **Q-071** (auto-release timer after a pause), **Q-072** (global 2FA toggle). All answered by the Owner on 2026-09-28.
