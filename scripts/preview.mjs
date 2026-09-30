@@ -5,6 +5,7 @@
 // Then `pnpm dev` (API + worker, web :3100, admin :3200). Stop with Ctrl+C.
 // With Docker installed, prefer `pnpm infra:up` + `pnpm dev` (docs/SETUP-LOCAL.md).
 import { exec, spawn } from 'node:child_process';
+import { createRequire } from 'node:module';
 import { connect } from 'node:net';
 import { resolve } from 'node:path';
 import { promisify } from 'node:util';
@@ -35,6 +36,18 @@ while (!(await up())) await new Promise((r) => setTimeout(r, 300));
 
 console.log('preview: applying database migrations…');
 await promisify(exec)('npx prisma migrate deploy', { cwd: api, env });
+// Owner 2026-09-30: email 2FA (S-056) starts OFF locally for easy log-in; the admin panel turns it on.
+// Only written when the row does not exist yet, so an admin-panel choice is never overridden.
+{
+  const pg = createRequire(resolve(api, 'package.json'))('pg');
+  const client = new pg.Client({ connectionString: env.DATABASE_URL });
+  await client.connect();
+  await client.query(
+    `INSERT INTO settings (key, register_id, value, current_version, updated_at)
+     VALUES ('auth.two_factor.enabled', 'S-056', 'false'::jsonb, 1, now()) ON CONFLICT (key) DO NOTHING`,
+  );
+  await client.end();
+}
 
 const dev = spawn('pnpm', ['dev'], { cwd: root, env, stdio: 'inherit', shell: true });
 children.push(dev);

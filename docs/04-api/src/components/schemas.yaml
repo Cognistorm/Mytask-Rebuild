@@ -251,7 +251,7 @@ CommonErrorCode:
     FILE_TOO_LARGE: '[422] File size above the purpose limit (settings register).'
     FILE_PURPOSE_MISMATCH: '[422] A file uploaded for another purpose or by another owner was referenced.'
     RATE_LIMITED: '[429] Too many requests; see `Retry-After`.'
-    APP_VERSION_UNSUPPORTED: '[426] Mobile app older than `X-Min-App-Version` (ADR-014 §5); the app asks the user to update.'
+    APP_VERSION_UNSUPPORTED: '[426] Mobile app (`X-MyTask-App-Version`) older than S-130 for its platform (ADR-014 §5, ADR-018); `details.minVersion`, `details.platform`; messageKey t_app_update_required. The app shows the update screen.'
     MAINTENANCE: '[503] Maintenance mode S-121 is ON (spec 16 AC-70). Not returned for admin, webhooks or health.'
     SERVICE_UNAVAILABLE: '[503] A dependency is down; retry later.'
     INTERNAL_ERROR: '[500] Unexpected error; `X-Request-Id` identifies it in the logs.'

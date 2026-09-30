@@ -1,5 +1,5 @@
 # ADR-018: Mobile app version header for the minimum-version gate
-Date: 2026-09-30 | Status: **proposed** (needs Owner approval, Q-153) | Amends: ADR-014 §5, contract 1.0.0 (additive), spec 00 register (new row)
+Date: 2026-09-30 | Status: **accepted** (Owner 2026-09-30, Q-153 (a)) | Amends: ADR-014 §5, contract 1.0.0 (additive), spec 00 register (new row)
 
 ## Context
 - ADR-014 §5 and the contract ("Global rules") say: responses carry `X-Min-App-Version`, and an app older than that gets `426 APP_VERSION_UNSUPPORTED` so it can ask the user to update. Store apps cannot be updated instantly, so this gate is how we retire an old API behaviour safely.
@@ -7,7 +7,7 @@ Date: 2026-09-30 | Status: **proposed** (needs Owner approval, Q-153) | Amends: 
 - ADR-014 says the minimum version comes "from a setting", but the settings register (spec 00, S-001…S-129) has no such row.
 - `push_tokens.app_version` already exists in the data model (spec 15 AC-20); it is filled at push registration only, not per request.
 
-## Decision (proposed)
+## Decision
 1. **Header.** The mobile app sends `X-MyTask-App-Version: <major>.<minor>.<patch>` (the store version, from `expo-constants` `nativeApplicationVersion`) on **every** request, next to `X-MyTask-Client: ios|android`. `packages/api-client` adds it when the app passes `appVersion`; web and admin never send it.
 2. **Setting.** New register row **S-130 `mobile.min_app_version`**: `{ ios: "x.y.z", android: "x.y.z" }`, default `{ ios: "0.0.0", android: "0.0.0" }` (gate effectively OFF), edited in the admin settings (spec 16, `settings.system.write`), versioned and audited like every setting (ADR-005).
 3. **Rule (API, one middleware).** Only when `X-MyTask-Client` is `ios` or `android`:

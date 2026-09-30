@@ -482,3 +482,31 @@ describe('client IP chain (ADR-013 §19 a–c)', () => {
     expect(ok.ip).toBe('1.1.1.1');
   });
 });
+
+describe('mobile version gate (ADR-018, S-130)', () => {
+  it('ios/android get X-Min-App-Version; an older app gets 426 on normal calls, health stays open', async () => {
+    await setSetting('S-130', 'mobile.min_app_version', { ios: '2.0.0', android: '0.0.0' });
+    const old = { 'X-MyTask-Client': 'ios', 'X-MyTask-App-Version': '1.9.9' };
+    const refused = await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .set(old)
+      .send({ email: 'x@example.com', password: 'Secret123' });
+    expect(refused.status).toBe(426);
+    expect(refused.body).toMatchObject({
+      code: 'APP_VERSION_UNSUPPORTED',
+      details: { minVersion: '2.0.0', platform: 'ios' },
+    });
+    expect(refused.headers['x-min-app-version']).toBe('2.0.0');
+    const health = await request(app.getHttpServer()).get('/api/v1/health').set(old);
+    expect(health.status).toBe(200);
+    const current = await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .set({ ...old, 'X-MyTask-App-Version': '2.0.0' })
+      .send({ email: 'x@example.com', password: 'Secret123' });
+    expect(current.status).toBe(401);
+    const android = await request(app.getHttpServer())
+      .get('/api/v1/health')
+      .set({ 'X-MyTask-Client': 'android' });
+    expect(android.headers['x-min-app-version']).toBe('0.0.0');
+  });
+});

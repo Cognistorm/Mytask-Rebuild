@@ -710,7 +710,7 @@ Default in spec 14: (a) 7 days before the request was created; the detail also a
 Recommendation: accept both defaults. If you want the window editable in the admin, it becomes a new register row next to S-129.
 When: slice 14.
 
-## Phase 3 platform-core questions (orchestrator/devops, 2026-09-30) — Q-152 answered by Owner 2026-09-30
+## Phase 3 platform-core questions (orchestrator/devops, 2026-09-30) — Q-152 and Q-153 answered by Owner 2026-09-30
 
 ### Q-152
 MinIO, the local file storage named in ADR-009/ADR-015, no longer publishes a ready-to-run image, so it cannot be started with `docker compose up`. This only affects your computer (production storage is unchanged). Proposed replacement: SeaweedFS (free, Apache-2.0), with RustFS as the fallback; details and alternatives in `docs/03-architecture/adr/017-local-object-storage-after-minio.md`.
@@ -724,3 +724,4 @@ The mobile app must tell the API its version so that very old app versions can b
 Options: (a) accept ADR-018 and S-130 as proposed; (b) accept without the admin setting (minimum version changed only by a code release); (c) no version gate.
 Recommendation: (a).
 When: before the mobile app is published (Phase 6); the contract edit can be done any time after approval.
+**Answer (Owner, 2026-09-30): (a) accept ADR-018 and S-130.**

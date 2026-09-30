@@ -32,3 +32,8 @@ ETag:
   description: Entity tag for conditional GET (`If-None-Match` → 304).
   schema:
     type: string
+
+XMinAppVersion:
+  description: Lowest supported mobile app version for the calling platform (S-130, ADR-018). Only on responses to `ios`/`android` clients.
+  schema:
+    type: string

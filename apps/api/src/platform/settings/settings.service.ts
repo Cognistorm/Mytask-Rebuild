@@ -17,6 +17,10 @@ export const settingsRegistry = {
   'S-062': { key: 'auth.login_throttle.max_attempts', default: 5 },
   'S-063': { key: 'auth.login_throttle.lock_minutes', default: 15 },
   'S-100': { key: 'notifications.admin_recipients', default: ['ir.gvazava@gmail.com'] },
+  'S-130': {
+    key: 'mobile.min_app_version',
+    default: { ios: '0.0.0', android: '0.0.0' } as { ios: string; android: string },
+  },
   'S-124': {
     key: 'auth.two_factor.trigger',
     default: 'new_device' as 'new_device' | 'new_device_or_ip',

@@ -18,6 +18,8 @@ export function contractPath(env: Env): string {
   return found;
 }
 
+const GLOBAL_STATUSES = new Set([426, 503]);
+
 export function contractValidator(env: Env): RequestHandler[] {
   const validateResponses =
     env.OPENAPI_VALIDATE_RESPONSES !== undefined
@@ -26,7 +28,17 @@ export function contractValidator(env: Env): RequestHandler[] {
   return OpenApiValidator.middleware({
     apiSpec: contractPath(env),
     validateRequests: { allowUnknownQueryParameters: false },
-    validateResponses: validateResponses ? { removeAdditional: false } : false,
+    validateResponses: validateResponses
+      ? {
+          removeAdditional: false,
+          // Global statuses are not listed per operation (CONVENTIONS §7.2): 426 APP_VERSION_UNSUPPORTED
+          // (ADR-018) and 503 MAINTENANCE / SERVICE_UNAVAILABLE. Every other mismatch still fails.
+          onError: (err, _body, req) => {
+            if (GLOBAL_STATUSES.has(req.res?.statusCode ?? 0)) return;
+            throw err;
+          },
+        }
+      : false,
     // Authentication is enforced by the auth guards (slice 01), not by the schema validator.
     validateSecurity: false,
     // Formats are validated by the contract's patterns; unknown formats must not crash the validator.

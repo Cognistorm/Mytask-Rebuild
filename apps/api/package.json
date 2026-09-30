@@ -14,7 +14,8 @@
     "test": "prisma generate && vitest run",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
-    "db:seed": "tsx prisma/seed.ts"
+    "db:seed": "tsx prisma/seed.ts",
+    "setting:set": "node scripts/set-setting.mjs"
   },
   "dependencies": {
     "@mytask/i18n": "workspace:*",

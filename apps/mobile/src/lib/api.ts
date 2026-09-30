@@ -36,11 +36,20 @@ export async function clearSession(): Promise<void> {
 
 export const getDeviceToken = () => SecureStore.getItemAsync(KEYS.device);
 
+/** The app shows its update screen when the API answers 426 (ADR-018). */
+const updateListeners = new Set<() => void>();
+export function onUpdateRequired(listener: () => void): () => void {
+  updateListeners.add(listener);
+  return () => updateListeners.delete(listener);
+}
+
 export function mobileApi(locale: Locale) {
   return createApiClient({
     baseUrl,
     client: Platform.OS === 'ios' ? 'ios' : 'android',
     locale,
+    appVersion: Constants.expoConfig?.version,
+    onUpdateRequired: () => updateListeners.forEach((l) => l()),
     getAccessToken: () => accessToken,
     refresh: {
       getRefreshToken: () => SecureStore.getItemAsync(KEYS.refresh),

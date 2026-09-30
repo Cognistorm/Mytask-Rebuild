@@ -129,6 +129,7 @@
   "t_app_name_has_approved_ur_unblock_request": "{{app_name}} has approved your unblock request for {{amount}}.",
   "t_app_name_has_declined_ur_refund_request": "{{app_name}} has declined your refund request",
   "t_app_name_has_declined_ur_unblock_request": "{{app_name}} has declined your unblock request for {{amount}}.",
+  "t_app_update_required": "A new version of MyTask is available. Please update the app to continue.",
   "t_appeal_the_closure": "Appeal the closure",
   "t_appearance_settings": "Appearance settings",
   "t_appearance_settings_sidebar": "Appearance",

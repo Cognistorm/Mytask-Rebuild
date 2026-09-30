@@ -1,5 +1,7 @@
 import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
+import { router, Stack } from 'expo-router';
+import { useEffect } from 'react';
+import { onUpdateRequired } from '../lib/api';
 import { StatusBar } from 'expo-status-bar';
 import { lightTheme } from '@mytask/tokens/native';
 
@@ -11,6 +13,7 @@ export default function RootLayout() {
     'FiraGO-SemiBold': require('../../../../packages/assets/fonts/ttf/FiraGO-SemiBold.ttf'),
     'FiraGO-Bold': require('../../../../packages/assets/fonts/ttf/FiraGO-Bold.ttf'),
   });
+  useEffect(() => onUpdateRequired(() => router.replace('/update')), []);
   if (!loaded) return null;
 
   return (

@@ -42,6 +42,18 @@ XMyTaskClient:
     type: string
     enum: [web, admin, ios, android]
 
+XMyTaskAppVersion:
+  name: X-MyTask-App-Version
+  in: header
+  required: false
+  description: |
+    Store version of the mobile app (`ios`/`android` clients), sent on every request by `packages/api-client`
+    (ADR-018). Compared with S-130 `mobile.min_app_version`: older → `426 APP_VERSION_UNSUPPORTED`. Missing or
+    malformed → served. Web and admin never send it.
+  schema:
+    type: string
+    pattern: '^[0-9]+\.[0-9]+\.[0-9]+$'
+
 Cursor:
   name: cursor
   in: query

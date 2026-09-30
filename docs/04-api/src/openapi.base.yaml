@@ -5,7 +5,7 @@
 openapi: 3.1.0
 info:
   title: MyTask.ge API
-  version: 1.0.0
+  version: 1.1.0
   summary: One API for the MyTask.ge website, mobile apps (iOS, Android) and admin panel.
   description: |
     **Status: approved by the Owner 2026-09-30 as the contract** (Phase 2 gate, version 1.0.0, including
@@ -52,7 +52,9 @@ info:
     - **Staff** endpoints (`/admin/*`) are served on the admin host only, accept only staff-audience tokens,
       and each declares one RBAC permission in `x-permission.permission` (ADR-010, spec 16).
     - **Maintenance** (S-121): user endpoints answer `503 MAINTENANCE`; admin, webhooks and health keep working.
-    - **Mobile version gate**: responses carry `X-Min-App-Version`; older apps get `426 APP_VERSION_UNSUPPORTED`.
+    - **Mobile version gate** (ADR-018): the apps send `X-MyTask-App-Version` (parameter `XMyTaskAppVersion`); responses
+      to `ios`/`android` carry `X-Min-App-Version` (S-130); an older app gets `426 APP_VERSION_UNSUPPORTED`
+      (`details.minVersion`, `details.platform`). Always served: health, public config, i18n bundles, BOG webhook.
 
     ## Vendor extensions used on operations
     `x-permission` (who may call; required), `x-covers` (spec ACs covered; required), `x-money`

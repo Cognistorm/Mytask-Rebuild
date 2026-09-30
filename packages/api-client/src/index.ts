@@ -24,6 +24,10 @@ export interface ApiClientOptions {
   /** Fixed extra headers (SSR only: `X-MyTask-Service-Auth`, `X-MyTask-Visitor-IP`, `X-MyTask-Visitor-UA`). */
   headers?: Record<string, string>;
   fetch?: typeof globalThis.fetch;
+  /** Mobile store version, sent as `X-MyTask-App-Version` (ADR-018). */
+  appVersion?: string;
+  /** Called on `426 APP_VERSION_UNSUPPORTED` (the app shows its update screen). */
+  onUpdateRequired?: (minVersion: string | undefined) => void;
   /**
    * Automatic refresh (ADR-002 §1). Web: `{}` (the refresh cookie is sent by the browser). Mobile: give
    * `getRefreshToken` and store the new tokens in `onSession` (SecureStore). `onSignedOut` runs when refresh fails.
@@ -81,6 +85,7 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
       const locale = typeof options.locale === 'function' ? options.locale() : options.locale;
       request.headers.set('Accept-Language', locale ?? 'ka');
       if (options.client) request.headers.set('X-MyTask-Client', options.client);
+      if (options.appVersion) request.headers.set('X-MyTask-App-Version', options.appVersion);
       for (const [name, value] of Object.entries(options.headers ?? {})) {
         request.headers.set(name, value);
       }
@@ -93,6 +98,16 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
     },
   };
   client.use(headers);
+
+  if (options.onUpdateRequired) {
+    const notify = options.onUpdateRequired;
+    client.use({
+      onResponse({ response }) {
+        if (response.status === 426) notify(response.headers.get('X-Min-App-Version') ?? undefined);
+        return response;
+      },
+    });
+  }
 
   if (options.refresh) {
     const refreshCfg = options.refresh;
