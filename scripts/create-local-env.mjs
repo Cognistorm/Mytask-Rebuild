@@ -50,6 +50,7 @@ const lines = [
   `INTERNAL_SERVICE_TOKEN=${secret(32)}`,
   `JWT_PRIVATE_KEY=${b64(jwt.privateKey)}`,
   `JWT_PUBLIC_KEY=${b64(jwt.publicKey)}`,
+  `SETTINGS_ENCRYPTION_KEY=${randomBytes(32).toString('base64')}`,
   '',
   'API_INTERNAL_URL=http://localhost:3000/api/v1',
   'API_DEV_PROXY_ORIGIN=http://localhost:3000',

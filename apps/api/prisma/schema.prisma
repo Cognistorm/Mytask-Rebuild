@@ -132,13 +132,14 @@ model User {
   updatedAt         DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
   deletedAt         DateTime?     @map("deleted_at") @db.Timestamptz(6)
 
-  profile            UserProfile?
-  authTokens         AuthToken[]
-  sessions           Session[]
-  trustedDevices     TrustedDevice[]
+  profile             UserProfile?
+  authTokens          AuthToken[]
+  sessions            Session[]
+  trustedDevices      TrustedDevice[]
   twoFactorChallenges TwoFactorChallenge[]
-  referralsMade      Referral[]    @relation("referrer")
-  referredBy         Referral?     @relation("referred")
+  referralsMade       Referral[]           @relation("referrer")
+  referredBy          Referral?            @relation("referred")
+  socialAccounts      SocialAccount[]
 
   @@map("users")
 }
@@ -172,22 +173,22 @@ model AuthToken {
 
 /// One row per login on one device (ADR-002 §1). staff_id gets its FK when the staff table arrives (slice 01 part B).
 model Session {
-  id           String               @id @default(uuid(7)) @db.Uuid
-  principalType PrincipalType       @map("principal_type")
-  userId       String?              @map("user_id") @db.Uuid
-  staffId      String?              @map("staff_id") @db.Uuid
-  familyId     String               @map("family_id") @db.Uuid
-  client       ClientKind
-  deviceIdHash Bytes                @map("device_id_hash")
-  userAgent    String?              @map("user_agent")
-  deviceLabel  String?              @map("device_label")
-  ip           String?              @db.Inet
-  createdAt    DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
-  lastUsedAt   DateTime             @default(now()) @map("last_used_at") @db.Timestamptz(6)
-  expiresAt    DateTime             @map("expires_at") @db.Timestamptz(6)
-  revokedAt    DateTime?            @map("revoked_at") @db.Timestamptz(6)
-  revokeReason SessionRevokeReason? @map("revoke_reason")
-  user         User?                @relation(fields: [userId], references: [id])
+  id            String               @id @default(uuid(7)) @db.Uuid
+  principalType PrincipalType        @map("principal_type")
+  userId        String?              @map("user_id") @db.Uuid
+  staffId       String?              @map("staff_id") @db.Uuid
+  familyId      String               @map("family_id") @db.Uuid
+  client        ClientKind
+  deviceIdHash  Bytes                @map("device_id_hash")
+  userAgent     String?              @map("user_agent")
+  deviceLabel   String?              @map("device_label")
+  ip            String?              @db.Inet
+  createdAt     DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  lastUsedAt    DateTime             @default(now()) @map("last_used_at") @db.Timestamptz(6)
+  expiresAt     DateTime             @map("expires_at") @db.Timestamptz(6)
+  revokedAt     DateTime?            @map("revoked_at") @db.Timestamptz(6)
+  revokeReason  SessionRevokeReason? @map("revoke_reason")
+  user          User?                @relation(fields: [userId], references: [id])
   refreshTokens RefreshToken[]
 
   @@map("sessions")
@@ -257,12 +258,12 @@ model TwoFactorChallenge {
 // ---------------------------------------------------------------- 3.K Settings (read side; admin editing is slice 16)
 
 model Setting {
-  key               String   @id
-  registerId        String   @unique @map("register_id") @db.VarChar(6)
-  value             Json
-  currentVersion    Int      @map("current_version")
-  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
-  updatedByStaffId  String?  @map("updated_by_staff_id") @db.Uuid
+  key              String   @id
+  registerId       String   @unique @map("register_id") @db.VarChar(6)
+  value            Json
+  currentVersion   Int      @map("current_version")
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedByStaffId String?  @map("updated_by_staff_id") @db.Uuid
 
   @@map("settings")
 }
@@ -270,18 +271,18 @@ model Setting {
 // ---------------------------------------------------------------- 3.L Referrals (pending referral stored at register; credit = slice 09)
 
 model Referral {
-  id               String         @id @default(uuid(7)) @db.Uuid
-  legacyId         BigInt?        @map("legacy_id")
-  referrerUserId   String         @map("referrer_user_id") @db.Uuid
-  referredUserId   String         @unique @map("referred_user_id") @db.Uuid
-  codeUsed         String         @map("code_used") @db.Char(8)
-  status           ReferralStatus @default(pending)
-  verifiedAt       DateTime?      @map("verified_at") @db.Timestamptz(6)
-  pointsJournalId  BigInt?        @map("points_journal_id")
-  benefitSubscriptionId String?   @map("benefit_subscription_id") @db.Uuid
-  createdAt        DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
-  referrer         User           @relation("referrer", fields: [referrerUserId], references: [id])
-  referred         User           @relation("referred", fields: [referredUserId], references: [id])
+  id                    String         @id @default(uuid(7)) @db.Uuid
+  legacyId              BigInt?        @map("legacy_id")
+  referrerUserId        String         @map("referrer_user_id") @db.Uuid
+  referredUserId        String         @unique @map("referred_user_id") @db.Uuid
+  codeUsed              String         @map("code_used") @db.Char(8)
+  status                ReferralStatus @default(pending)
+  verifiedAt            DateTime?      @map("verified_at") @db.Timestamptz(6)
+  pointsJournalId       BigInt?        @map("points_journal_id")
+  benefitSubscriptionId String?        @map("benefit_subscription_id") @db.Uuid
+  createdAt             DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  referrer              User           @relation("referrer", fields: [referrerUserId], references: [id])
+  referred              User           @relation("referred", fields: [referredUserId], references: [id])
 
   @@map("referrals")
 }
@@ -457,20 +458,20 @@ enum RestrictionStatus {
 }
 
 model UserRestriction {
-  id                 String            @id @default(uuid(7)) @db.Uuid
-  legacyId           BigInt?           @map("legacy_id")
-  userId             String            @map("user_id") @db.Uuid
-  message            String
-  filesRequired      Boolean           @map("files_required")
-  status             RestrictionStatus @default(pending)
+  id                String             @id @default(uuid(7)) @db.Uuid
+  legacyId          BigInt?            @map("legacy_id")
+  userId            String             @map("user_id") @db.Uuid
+  message           String
+  filesRequired     Boolean            @map("files_required")
+  status            RestrictionStatus  @default(pending)
   /// Reason of a rejected appeal, shown to the user (contract AdminRestriction.decisionReason; not in data-model §3.A).
-  decisionReason     String?           @map("decision_reason")
-  createdByStaffId   String?           @map("created_by_staff_id") @db.Uuid
-  createdAt          DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
-  resolvedByStaffId  String?           @map("resolved_by_staff_id") @db.Uuid
-  resolvedAt         DateTime?         @map("resolved_at") @db.Timestamptz(6)
-  deletedAt          DateTime?         @map("deleted_at") @db.Timestamptz(6)
-  appeal             RestrictionAppeal?
+  decisionReason    String?            @map("decision_reason")
+  createdByStaffId  String?            @map("created_by_staff_id") @db.Uuid
+  createdAt         DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  resolvedByStaffId String?            @map("resolved_by_staff_id") @db.Uuid
+  resolvedAt        DateTime?          @map("resolved_at") @db.Timestamptz(6)
+  deletedAt         DateTime?          @map("deleted_at") @db.Timestamptz(6)
+  appeal            RestrictionAppeal?
 
   @@map("user_restrictions")
 }
@@ -483,4 +484,31 @@ model RestrictionAppeal {
   restriction   UserRestriction @relation(fields: [restrictionId], references: [id])
 
   @@map("restriction_appeals")
+}
+
+/// Social login links (data-model §3.A `social_accounts`, ADR-002 §7). Legacy `users.provider_name/provider_id`
+/// migrate here. Facebook and X only log in through an existing link (Q-156).
+enum SocialProvider {
+  google
+  facebook
+  github
+  linkedin
+  twitter
+
+  @@map("social_provider")
+}
+
+model SocialAccount {
+  id             String         @id @default(uuid(7)) @db.Uuid
+  userId         String         @map("user_id") @db.Uuid
+  provider       SocialProvider
+  providerUserId String         @map("provider_user_id")
+  email          String         @db.Citext
+  avatarUrl      String?        @map("avatar_url")
+  createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  user           User           @relation(fields: [userId], references: [id])
+
+  @@unique([provider, providerUserId])
+  @@index([userId])
+  @@map("social_accounts")
 }

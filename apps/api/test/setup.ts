@@ -7,6 +7,7 @@ process.env.DATABASE_URL ??= 'postgresql://mytask:mytask@localhost:5432/mytask_t
 process.env.REDIS_URL ??= 'memory://';
 process.env.APP_URL ??= 'http://localhost:3100';
 process.env.ADMIN_URL ??= 'http://localhost:3200';
+process.env.SETTINGS_ENCRYPTION_KEY ??= Buffer.alloc(32, 7).toString('base64');
 process.env.INTERNAL_SERVICE_TOKEN ??= randomBytes(32).toString('hex');
 process.env.MAIL_TRANSPORT = 'log';
 if (!process.env.JWT_PRIVATE_KEY) {

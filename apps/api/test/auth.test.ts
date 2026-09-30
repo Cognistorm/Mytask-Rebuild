@@ -58,6 +58,7 @@ afterAll(async () => {
   await app?.close();
 });
 beforeEach(async () => {
+  await prisma.settingVersion.deleteMany();
   await prisma.setting.deleteMany();
   app.get(SettingsService).invalidate();
   await app.get(RedisService).client.flushall();

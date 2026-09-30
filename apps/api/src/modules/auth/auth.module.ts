@@ -9,12 +9,15 @@ import { PasswordService } from './password.service';
 import { RecaptchaService } from './recaptcha.service';
 import { ReferralService } from './referral.service';
 import { SessionsService } from './sessions.service';
+import { SocialAuthService } from './social/social-auth.service';
+import { SocialKeysService } from './social/social-keys.service';
+import { SocialAuthController } from './social/social.controller';
 import { ThrottleService } from './throttle.service';
 import { TokensService } from './tokens.service';
 import { TwoFactorService } from './two-factor.service';
 
 @Module({
-  controllers: [AuthController, MeController],
+  controllers: [AuthController, MeController, SocialAuthController],
   providers: [
     AuthService,
     AccountService,
@@ -25,6 +28,8 @@ import { TwoFactorService } from './two-factor.service';
     ThrottleService,
     TokensService,
     TwoFactorService,
+    SocialAuthService,
+    SocialKeysService,
     // Deny by default: every route needs a session unless marked @Public (ADR-010 style).
     { provide: APP_GUARD, useClass: AuthGuard },
   ],

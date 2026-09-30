@@ -2,6 +2,7 @@
 // settings screen shows (spec 16 AC-51). Defaults = approved production values of the spec 00 register.
 // Rows of later slices are added by those slices. Meanings: English from spec 00, Georgian alongside (Q-058).
 import type { components } from '@mytask/types';
+import type { StoredSecret } from './secret-box';
 
 type Permission = components['schemas']['PermissionCode'];
 type Area = components['schemas']['SettingArea'];
@@ -23,10 +24,20 @@ interface RowMeta<D> {
   critical?: boolean;
   /** Needs a re-login within 15 minutes (spec 16 AC-7, Q-145). */
   stepUp?: boolean;
+  /** Social-login provider row with an encrypted write-only secret (ADR-005 §8, Q-155). */
+  socialProvider?: boolean;
   writePermission: Permission;
 }
 
 const row = <D>(m: RowMeta<D>) => m;
+
+/** Stored value of S-065…S-069 (ADR-005 §8): the secret is sealed by SecretBox, never returned. */
+export interface SocialProviderStored {
+  isEnabled: boolean;
+  clientId: string | null;
+  clientSecret: StoredSecret | null;
+}
+const SOCIAL_OFF: SocialProviderStored = { isEnabled: false, clientId: null, clientSecret: null };
 
 export const settingsRegistry = {
   'S-052': row({
@@ -228,6 +239,86 @@ export const settingsRegistry = {
     source: 'BR-004',
     tag: 'LEGACY',
     stepUp: true,
+    writePermission: 'settings.auth.write',
+  }),
+  'S-065': row({
+    key: 'auth.social.google',
+    default: SOCIAL_OFF,
+    area: 'auth',
+    type: 'structured',
+    meaning: {
+      en: 'Google login: enabled + client ID + client secret (write-only)',
+      ka: 'Google-ით შესვლა: ჩართვა + client ID + client secret (მხოლოდ ჩაწერა)',
+    },
+    source: 'Q-032, BR-006',
+    tag: 'LEGACY',
+    critical: true,
+    stepUp: true,
+    socialProvider: true,
+    writePermission: 'settings.auth.write',
+  }),
+  'S-066': row({
+    key: 'auth.social.facebook',
+    default: SOCIAL_OFF,
+    area: 'auth',
+    type: 'structured',
+    meaning: {
+      en: 'Facebook login: enabled + client ID + client secret (write-only)',
+      ka: 'Facebook-ით შესვლა: ჩართვა + client ID + client secret (მხოლოდ ჩაწერა)',
+    },
+    source: 'Q-032',
+    tag: 'LEGACY',
+    critical: true,
+    stepUp: true,
+    socialProvider: true,
+    writePermission: 'settings.auth.write',
+  }),
+  'S-067': row({
+    key: 'auth.social.github',
+    default: SOCIAL_OFF,
+    area: 'auth',
+    type: 'structured',
+    meaning: {
+      en: 'GitHub login: enabled + client ID + client secret (write-only)',
+      ka: 'GitHub-ით შესვლა: ჩართვა + client ID + client secret (მხოლოდ ჩაწერა)',
+    },
+    source: 'Q-032',
+    tag: 'LEGACY',
+    critical: true,
+    stepUp: true,
+    socialProvider: true,
+    writePermission: 'settings.auth.write',
+  }),
+  'S-068': row({
+    key: 'auth.social.linkedin',
+    default: SOCIAL_OFF,
+    area: 'auth',
+    type: 'structured',
+    meaning: {
+      en: 'LinkedIn login: enabled + client ID + client secret (write-only)',
+      ka: 'LinkedIn-ით შესვლა: ჩართვა + client ID + client secret (მხოლოდ ჩაწერა)',
+    },
+    source: 'Q-032',
+    tag: 'LEGACY',
+    critical: true,
+    stepUp: true,
+    socialProvider: true,
+    writePermission: 'settings.auth.write',
+  }),
+  'S-069': row({
+    key: 'auth.social.twitter',
+    default: SOCIAL_OFF,
+    area: 'auth',
+    type: 'structured',
+    meaning: {
+      en: 'Twitter/X login: enabled + client ID + client secret (write-only)',
+      ka: 'Twitter/X-ით შესვლა: ჩართვა + client ID + client secret (მხოლოდ ჩაწერა)',
+    },
+    source: 'Q-032',
+    tag: 'LEGACY',
+    critical: true,
+    stepUp: true,
+    socialProvider: true,
     writePermission: 'settings.auth.write',
   }),
   'S-100': row({

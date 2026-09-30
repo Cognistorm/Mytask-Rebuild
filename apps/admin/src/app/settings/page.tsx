@@ -119,7 +119,95 @@ export default function SettingsPage() {
   );
 }
 
+type SocialValue = components['schemas']['SettingSocialProviderValue'];
+
+/**
+ * S-065…S-069 (ADR-005 §8, spec 16 AC-54): switch + client ID + write-only secret. The saved secret is never
+ * shown, only "set / not set"; an empty secret field keeps it, "clear" removes it.
+ */
+function SocialProviderRow({
+  row,
+  onSave,
+}: {
+  row: Entry;
+  onSave: (row: Entry, value: unknown) => void;
+}) {
+  const v = row.value as SocialValue;
+  const [enabled, setEnabled] = useState(v.isEnabled);
+  const [clientId, setClientId] = useState(v.clientId ?? '');
+  const [secret, setSecret] = useState('');
+  const [clear, setClear] = useState(false);
+  const id = `setting-${row.registerId}`;
+
+  function save() {
+    onSave(row, {
+      isEnabled: enabled,
+      clientId: clientId.trim() || null,
+      ...(clear ? { clientSecret: null } : secret ? { clientSecret: secret } : {}),
+    });
+    setSecret('');
+    setClear(false);
+  }
+
+  return (
+    <li className="admin-card" data-testid={`social-${row.registerId}`}>
+      <strong>
+        {row.registerId} {row.meaning.ka}
+      </strong>
+      <span className="auth-muted">
+        {t(v.clientSecret.isSet ? 't_client_secret_set' : 't_client_secret_not_set')}
+        {row.stepUpRequired ? ` · ${t('t_reauth_required')}` : ''}
+      </span>
+      <label className="auth-check">
+        <input
+          type="checkbox"
+          role="switch"
+          aria-checked={enabled}
+          checked={enabled}
+          onChange={(e) => setEnabled(e.target.checked)}
+        />
+        {t('t_social_login_enabled')}
+      </label>
+      <span className="admin-row-edit">
+        <label htmlFor={`${id}-cid`}>{t('t_client_id')}</label>
+        <input id={`${id}-cid`} value={clientId} onChange={(e) => setClientId(e.target.value)} />
+      </span>
+      <span className="admin-row-edit">
+        <label htmlFor={`${id}-secret`}>{t('t_client_secret_new')}</label>
+        <input
+          id={`${id}-secret`}
+          type="password"
+          autoComplete="new-password"
+          value={secret}
+          disabled={clear}
+          onChange={(e) => setSecret(e.target.value)}
+        />
+      </span>
+      {v.clientSecret.isSet && (
+        <label className="auth-check">
+          <input type="checkbox" checked={clear} onChange={(e) => setClear(e.target.checked)} />
+          {t('t_clear_client_secret')}
+        </label>
+      )}
+      <button type="button" className="auth-button" onClick={save}>
+        {t('t_save')}
+      </button>
+    </li>
+  );
+}
+
 function SettingRow({ row, onSave }: { row: Entry; onSave: (row: Entry, value: unknown) => void }) {
+  if (row.isSecret) return <SocialProviderRow row={row} onSave={onSave} />;
+  return <PlainSettingRow row={row} onSave={onSave} />;
+}
+
+function PlainSettingRow({
+  row,
+  onSave,
+}: {
+  row: Entry;
+  onSave: (row: Entry, value: unknown) => void;
+}) {
   const [draft, setDraft] = useState(() =>
     typeof row.value === 'object' ? JSON.stringify(row.value) : String(row.value),
   );

@@ -1,12 +1,12 @@
 // User row -> contract `Me` (getMe, AuthSession.user). Fields of later slices get their neutral values:
-// avatar (slice 02 files), plan/premium (slice 09), country/city (slice 02), KYC (slice 02), social (part B).
+// avatar (slice 02 files), plan/premium (slice 09), country/city (slice 02), KYC (slice 02), social = linked providers.
 import type { components } from '@mytask/types';
-import type { User, UserProfile } from '../../generated/prisma/client';
+import type { SocialProvider, User, UserProfile } from '../../generated/prisma/client';
 
 export type Me = components['schemas']['Me'];
 
 export function toMe(
-  user: User & { profile: UserProfile | null },
+  user: User & { profile: UserProfile | null; socialAccounts?: { provider: SocialProvider }[] },
   twoFactorAvailable: boolean,
 ): Me {
   return {
@@ -31,7 +31,7 @@ export function toMe(
     countryCode: null,
     city: null,
     kycStatus: 'none',
-    socialProviders: [],
+    socialProviders: [...new Set((user.socialAccounts ?? []).map((a) => a.provider))],
     createdAt: user.createdAt.toISOString(),
   };
 }

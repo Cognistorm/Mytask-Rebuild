@@ -52,6 +52,11 @@ export const envSchema = z
     MAIL_TRANSPORT: z.enum(['smtp', 'log']).default('smtp'),
     MAIL_FROM_ADDRESS: z.email().default('no-reply@mytask.ge'),
     MAIL_FROM_NAME: z.string().default('MyTask.ge'),
+    /** AES-256-GCM key for secret settings (social-login client secrets, ADR-005 §8): base64 of 32 bytes. */
+    SETTINGS_ENCRYPTION_KEY: z
+      .string()
+      .refine((v) => Buffer.from(v, 'base64').length === 32, 'must be base64 of 32 random bytes')
+      .optional(),
     /** reCAPTCHA v3 server secret; only read while S-061 is ON (spec 01 AC-18). */
     RECAPTCHA_SECRET_KEY: z.string().optional(),
     /** API tests only (ADR-002 §2); refused in production below. */
@@ -70,6 +75,13 @@ export const envSchema = z
         code: 'custom',
         path: ['SMTP_URL'],
         message: 'required in production (emails carry codes and links)',
+      });
+    }
+    if (env.NODE_ENV === 'production' && !env.SETTINGS_ENCRYPTION_KEY) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['SETTINGS_ENCRYPTION_KEY'],
+        message: 'required in production (social-login secrets are stored encrypted, ADR-005 §8)',
       });
     }
     if (env.NODE_ENV === 'production' && env.MAIL_TRANSPORT === 'log') {

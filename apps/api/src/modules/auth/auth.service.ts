@@ -337,13 +337,17 @@ export class AuthService {
     });
     const cookies = isCookieClient(ctx.client);
     const twoFactorAvailable = await this.settings.get('S-056');
+    const socialAccounts = await this.prisma.socialAccount.findMany({
+      where: { userId: user.id },
+      select: { provider: true },
+    });
     return {
       kind: 'session',
       tokens,
       deviceId,
       rememberMe,
       body: {
-        user: toMe(user, twoFactorAvailable),
+        user: toMe({ ...user, socialAccounts }, twoFactorAvailable),
         // Browsers get HttpOnly cookies instead of body tokens (ADR-002 §2).
         accessToken: cookies ? null : tokens.accessToken,
         accessTokenExpiresAt: tokens.accessTokenExpiresAt.toISOString(),
@@ -366,7 +370,7 @@ export class AuthService {
       throw new ApiException(401, 'UNAUTHENTICATED', 't_unauthorized');
     const user = await this.prisma.user.findUniqueOrThrow({
       where: { id: outcome.userId },
-      include: { profile: true },
+      include: { profile: true, socialAccounts: { select: { provider: true } } },
     });
     const cookies = isCookieClient(ctx.client);
     return {
@@ -502,7 +506,7 @@ export class AuthService {
     }
   }
 
-  private async uniqueReferralCode(tx: Prisma.TransactionClient): Promise<string> {
+  async uniqueReferralCode(tx: Prisma.TransactionClient): Promise<string> {
     for (let i = 0; i < 10; i++) {
       const code = randomReferralCode();
       if (!(await tx.user.findUnique({ where: { referralCode: code }, select: { id: true } })))

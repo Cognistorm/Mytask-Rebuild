@@ -33,7 +33,7 @@ export class AccountService {
   async me(userId: string): Promise<S['Me']> {
     const user = await this.prisma.user.findUniqueOrThrow({
       where: { id: userId },
-      include: { profile: true },
+      include: { profile: true, socialAccounts: { select: { provider: true } } },
     });
     return toMe(user, await this.settings.get('S-056'));
   }

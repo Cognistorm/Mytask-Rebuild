@@ -575,3 +575,101 @@ describe('part B-2b: restrictions and appeals (spec 01 AC-19, AC-46…AC-50; spe
     expect(denied.status).toBe(403);
   });
 });
+
+describe('part B-2c: social-login provider rows S-065…S-069 (ADR-005 §8, Q-155; spec 16 AC-54, 00 EC-10)', () => {
+  it('secret is write-only: never returned or audited; ON without keys refused; keys switch the login on', async () => {
+    const staff = await makeStaff();
+    const auth = { Authorization: `Bearer ${await login(staff)}` };
+    const api = () => request(app.getHttpServer());
+    await api()
+      .post('/api/v1/admin/auth/reauth')
+      .set(auth)
+      .send({ method: 'password', password: PASSWORD });
+    const path = '/api/v1/admin/settings/auth.social.google';
+
+    const initial = await api().get(path).set(auth);
+    expect(initial.body).toMatchObject({
+      isSecret: true,
+      isSet: false,
+      value: { isEnabled: false, clientId: null, clientSecret: { isSet: false, updatedAt: null } },
+    });
+
+    const noKeys = await api()
+      .patch(path)
+      .set(auth)
+      .send({ value: { isEnabled: true, clientId: 'cid' }, expectedVersion: 1 });
+    expect(noKeys.status).toBe(422);
+    expect(noKeys.body.code).toBe('BUSINESS_RULE_VIOLATION');
+
+    const saved = await api()
+      .patch(path)
+      .set(auth)
+      .send({
+        value: { isEnabled: true, clientId: 'cid-1', clientSecret: 'top-secret-value' },
+        expectedVersion: 1,
+      });
+    expect(saved.status).toBe(200);
+    expect(saved.body).toMatchObject({
+      isSet: true,
+      version: 2,
+      value: { isEnabled: true, clientId: 'cid-1' },
+    });
+    expect(JSON.stringify(saved.body)).not.toContain('top-secret-value');
+
+    const stored = await prisma.setting.findUniqueOrThrow({ where: { key: 'auth.social.google' } });
+    expect(JSON.stringify(stored.value)).not.toContain('top-secret-value');
+    const audit = await prisma.auditLog.findFirstOrThrow({
+      where: { action: 'settings.update', targetId: 'S-065' },
+      orderBy: { id: 'desc' },
+    });
+    expect(JSON.stringify([audit.before, audit.after, audit.reason])).not.toContain(
+      'top-secret-value',
+    );
+    expect(audit.after).toMatchObject({
+      value: { clientSecretSet: true, clientSecretReplaced: true },
+    });
+    const ev = await prisma.outboxEvent.findFirstOrThrow({
+      where: { eventType: 'EV-124', aggregateId: 'S-065' },
+    });
+    expect(JSON.stringify(ev.payload)).not.toContain('top-secret-value');
+
+    // The login now starts with the saved client ID; omitting the secret keeps it.
+    app.get(SettingsService).invalidate();
+    const start = await api()
+      .post('/api/v1/auth/social/google/authorize')
+      .set({ 'X-MyTask-Client': 'web', Origin: 'http://localhost:3100' })
+      .send({ redirectUri: 'http://localhost:3100/auth/google/callback' });
+    expect(start.status).toBe(200);
+    expect(new URL(start.body.authorizationUrl).searchParams.get('client_id')).toBe('cid-1');
+    const kept = await api()
+      .patch(path)
+      .set(auth)
+      .send({ value: { isEnabled: true, clientId: 'cid-2' }, expectedVersion: 2 });
+    expect(kept.status).toBe(200);
+    expect(kept.body.isSet).toBe(true);
+
+    // Clearing the secret while ON is refused; switching off and clearing works.
+    const clearOn = await api()
+      .patch(path)
+      .set(auth)
+      .send({
+        value: { isEnabled: true, clientId: 'cid-2', clientSecret: null },
+        expectedVersion: 3,
+      });
+    expect(clearOn.status).toBe(422);
+    const off = await api()
+      .patch(path)
+      .set(auth)
+      .send({
+        value: { isEnabled: false, clientId: null, clientSecret: null },
+        expectedVersion: 3,
+      });
+    expect(off.status).toBe(200);
+    app.get(SettingsService).invalidate();
+    const disabled = await api()
+      .post('/api/v1/auth/social/google/authorize')
+      .set({ 'X-MyTask-Client': 'web', Origin: 'http://localhost:3100' })
+      .send({ redirectUri: 'http://localhost:3100/auth/google/callback' });
+    expect(disabled.status).toBe(403);
+  });
+});

@@ -4,6 +4,8 @@
 export const COOKIE_ACCESS = '__Host-mt_at';
 export const COOKIE_DEVICE = '__Host-mt_did';
 export const COOKIE_REFRESH = '__Secure-mt_rt';
+/** Social login binding nonce (ADR-002 §7, SEC-09): host-only, 10 minutes. */
+export const COOKIE_OAUTH = '__Host-mt_oauth';
 export const REFRESH_COOKIE_PATH = '/api/v1/auth';
 
 /** Access token 15 minutes; user refresh 30 days sliding (ADR-002 §1). */
