@@ -1,0 +1,1935 @@
+# D6 — schemas for specs 15 (notifications) and 16 (admin platform). Written by the P2-B4 D6 group run (2026-09-29).
+# Names start with a D6 schemaPrefix (src/ownership.yaml), optionally preceded by "Admin".
+# Shared schemas are referenced as '../components/schemas.yaml#/X', own ones as '#/X'.
+
+# ═══════════════════════════ Error codes ═══════════════════════════
+D6ErrorCode:
+  type: string
+  description: Domain error codes of D6 (CONVENTIONS §7.3). Everything else uses `CommonErrorCode` plus `details.messageKey`.
+  enum:
+    - STAFF_LOGIN_FAILED
+    - STAFF_IP_BANNED
+    - STAFF_TWO_FACTOR_CODE_INVALID
+    - STAFF_TWO_FACTOR_CODE_EXPIRED
+    - STAFF_TWO_FACTOR_TOO_MANY_ATTEMPTS
+    - STAFF_TWO_FACTOR_RESEND_WAIT
+    - STAFF_TWO_FACTOR_LOCKED
+    - STAFF_PASSWORD_LINK_EXPIRED
+    - STAFF_CURRENT_PASSWORD_WRONG
+    - STAFF_CANNOT_EDIT_OWN_ROLES
+    - STAFF_LAST_SUPER_ADMIN
+    - ROLE_SYSTEM_READ_ONLY
+    - ROLE_PERMISSION_NOT_GRANTABLE
+    - ROLE_IN_USE
+    - SETTING_MANAGED_ELSEWHERE
+    - CUSTOM_CODE_HOST_NOT_ALLOWED
+    - CUSTOM_CODE_FIXED_VENDOR_REQUIRED
+    - FEE_REQUIRES_PAYMENT_FLOW
+    - TRANSLATION_PLACEHOLDERS_MISMATCH
+    - NOTIFICATION_UNSUBSCRIBE_LINK_INVALID
+    - WEBHOOK_SENDGRID_SIGNATURE_INVALID
+  x-enumDescriptions:
+    STAFF_LOGIN_FAILED: '[401] Wrong username/email or password, unknown account, disabled account or invitation not yet accepted (one generic answer, no enumeration; counts towards the S-064 IP ban). messageKey t_invalid_login_credentials_pls_try_again'
+    STAFF_IP_BANNED: '[403] The IP reached S-064 failed staff logins and is banned from the staff login (spec 01 AC-51, spec 16 AC-2). messageKey t_ip_banned'
+    STAFF_TWO_FACTOR_CODE_INVALID: '[422] Wrong 6-digit code (login or re-authentication). messageKey t_2fa_code_invalid'
+    STAFF_TWO_FACTOR_CODE_EXPIRED: '[422] Code older than S-057 minutes. messageKey t_2fa_code_expired'
+    STAFF_TWO_FACTOR_TOO_MANY_ATTEMPTS: '[422] S-058 wrong attempts: the code no longer works; request a new one. messageKey t_2fa_too_many_attempts'
+    STAFF_TWO_FACTOR_RESEND_WAIT: '[429] Resend cooldown (60 s) or 5 codes per 15 minutes reached (spec 01 AC-27). messageKey t_2fa_resend_wait'
+    STAFF_TWO_FACTOR_LOCKED: '[429] 10 wrong codes for this staff account within one hour across challenges (login and re-authentication): code checks refused for S-063 minutes, even for a correct code (ADR-002 §5, SEC-03, spec 01 AC-54; staff member emailed once per lock, EV-129). `details.retryAfterSeconds`, `details.params.minutes` (remaining minutes, rounded up). messageKey t_2fa_locked'
+    STAFF_PASSWORD_LINK_EXPIRED: '[422] Invitation (48 h, spec 16 AC-3) or password-reset link expired or already used. messageKey t_password_reset_link_expired'
+    STAFF_CURRENT_PASSWORD_WRONG: '[422] Current password wrong (own password change, re-authentication). messageKey t_ur_current_pass_does_not_match'
+    STAFF_CANNOT_EDIT_OWN_ROLES: '[403] A staff member tried to change their own roles or disable their own account (spec 16 AC-5). messageKey t_cannot_edit_own_roles'
+    STAFF_LAST_SUPER_ADMIN: '[409] The change would leave no active Super-admin (spec 16 AC-5). messageKey t_last_super_admin'
+    ROLE_SYSTEM_READ_ONLY: '[403] The Super-admin system role cannot be edited or deleted (spec 16 AC-10). messageKey t_u_dont_have_permissions_to_do_action'
+    ROLE_PERMISSION_NOT_GRANTABLE: '[422] `settings.custom_code.write` cannot be granted to a role other than Super-admin (spec 16 AC-10, Q-085). messageKey t_u_dont_have_permissions_to_do_action'
+    ROLE_IN_USE: '[409] The role is still assigned to staff and cannot be deleted (spec 16 AC-10). messageKey t_category_in_use'
+    SETTING_MANAGED_ELSEWHERE: '[422] This register row is not edited through the generic settings endpoint: fee rules S-010…S-018 → `/admin/fee-rules`; S-121 → `/admin/system/maintenance`. `details.operationId` names the right operation. messageKey none (the admin UI never offers it)'
+    CUSTOM_CODE_HOST_NOT_ALLOWED: '[422] Custom code (S-110) references hosts that are not in S-127, or S-127 would drop a host still used (spec 16 AC-74, EC-10). `details.hosts` lists them. messageKey t_custom_code_host_not_allowed'
+    CUSTOM_CODE_FIXED_VENDOR_REQUIRED: '[422] A host added to S-127 was not confirmed as a fixed-code vendor (`fixedCodeConfirmed: true`); nothing is saved (spec 16 AC-74a; Owner 2026-09-30 Q-146). `details.hosts` lists them. messageKey t_custom_code_fixed_vendor_required'
+    FEE_REQUIRES_PAYMENT_FLOW: '[422] The project posting fee (S-016, `project.posting_fee`) cannot be switched ON while no posting-payment flow exists (spec 16 AC-49). messageKey t_fee_requires_payment_flow'
+    TRANSLATION_PLACEHOLDERS_MISMATCH: '[422] The override''s placeholders differ from the base value (spec 16 AC-64). `details.placeholders` lists the expected ones. messageKey t_translation_placeholders_mismatch'
+    NOTIFICATION_UNSUBSCRIBE_LINK_INVALID: '[422] The one-click unsubscribe token is invalid or older than 30 days (spec 15 AC-30). messageKey t_unsubscribe_link_invalid'
+    WEBHOOK_SENDGRID_SIGNATURE_INVALID: '[403] SendGrid Event Webhook signature or timestamp check failed; nothing is stored. messageKey none (machine caller)'
+
+# ═══════════════════════════ Notifications (spec 15) ═══════════════════════════
+NotificationEventId:
+  type: string
+  pattern: '^EV-[0-9]{2,3}$'
+  description: Catalogue row of spec 15 (e.g. `EV-40`). One notification row per event and recipient (AC-3).
+  examples: [EV-40]
+
+NotificationCategory:
+  type: string
+  enum: [security, transactional, messages, project_alerts, reviews, referrals, admin]
+  description: |
+    Preference category of the catalogue (spec 15 matrix "Cat"): `security` (S), `transactional` (T),
+    switchable `messages` (O-msg), `project_alerts` (O-proj), `reviews` (O-rev), `referrals` (O-ref),
+    `admin` (A, S-100 recipients only; never in a user's centre).
+
+NotificationSwitchableCategory:
+  type: string
+  enum: [messages, project_alerts, reviews, referrals]
+  description: The only categories a user can switch off (spec 15 AC-27, R-N7, P-106).
+
+NotificationChannel:
+  type: string
+  enum: [email, push, in_app, sms]
+
+NotificationParamValue:
+  description: |
+    One text parameter. Strings are **plain text** and must be rendered as text, never as HTML
+    (spec 15 AC-15). Money parameters are `Money` (the client formats them); counts are integers;
+    dates are `Timestamp` strings. Values are stored when the notification is created (spec 15 EC-2).
+  oneOf:
+    - type: string
+      maxLength: 500
+    - type: integer
+    - $ref: '../components/schemas.yaml#/Money'
+
+Notification:
+  type: object
+  description: |
+    One in-app notification (data-model §3.O). The text is **not** pre-rendered: clients render
+    `textKey` with `params` in the reader's current language (spec 15 AC-13, EC-1). `targetPath` is
+    locale-free (url-map §7.2): web adds `/en/` for English readers, mobile maps it to a screen
+    (spec 15 AC-5, AC-24). A target that no longer exists shows the destination's normal empty state
+    (AC-16).
+  required: [id, eventId, category, textKey, params, targetPath, targetType, targetId, isRead, readAt, createdAt]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    eventId: {$ref: '#/NotificationEventId'}
+    category: {$ref: '#/NotificationCategory'}
+    textKey:
+      type: string
+      pattern: '^t_[a-z0-9_]+$'
+      examples: [t_seller_has_delivered_ur_order]
+    params:
+      type: object
+      additionalProperties: {$ref: '#/NotificationParamValue'}
+      description: 'Placeholder values without the leading colon (`{"title": "Logo design", "amount": {"amount": 5000, "currency": "GEL"}}`).'
+    targetPath:
+      type: [string, 'null']
+      maxLength: 500
+      pattern: '^/'
+      description: Locale-free path of the destination (e.g. `/account/orders/{uid}`), or null when there is none (migrated rows without mapping point to the dashboard, EC-8).
+    targetType:
+      type: [string, 'null']
+      description: 'Kind of the linked item, e.g. `order_item`, `contract`, `custom_offer`, `gig`, `project`, `proposal`, `withdrawal`, `refund_request`, `conversation`, `subscription`, `kyc`, `portfolio_item`.'
+    targetId:
+      type: [string, 'null']
+      description: Id of the linked item (uuid, or the public id for legacy rows).
+    isRead: {type: boolean}
+    readAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+NotificationPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      required: [unreadCount]
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/Notification'}
+        unreadCount:
+          type: integer
+          minimum: 0
+          description: Unread notifications of the caller at response time (the bell shows `99+` above 99, spec 15 AC-12).
+
+NotificationUnreadCount:
+  type: object
+  description: Bell and app-icon badge counters (spec 15 AC-12, AC-25).
+  required: [unreadCount, unseenConversationCount, badgeCount]
+  properties:
+    unreadCount:
+      type: integer
+      minimum: 0
+      description: Unread in-app notifications.
+    unseenConversationCount:
+      type: integer
+      minimum: 0
+      description: Conversations with unseen messages (computed from D5 read state).
+    badgeCount:
+      type: integer
+      minimum: 0
+      description: App icon badge = `unreadCount + unseenConversationCount` (spec 15 AC-25, P-108).
+
+NotificationReadAllResult:
+  type: object
+  required: [markedCount, unreadCount]
+  properties:
+    markedCount:
+      type: integer
+      minimum: 0
+      description: How many notifications were unread and are now read.
+    unreadCount:
+      type: integer
+      minimum: 0
+      description: Always 0 unless a new notification arrived meanwhile.
+
+NotificationPreferenceCategory:
+  type: object
+  description: One switchable category with its channel switches. `null` = the channel does not exist for this category (e.g. `project_alerts` has no push, `referrals` has no email; spec 15 AC-27).
+  required: [category, emailEnabled, pushEnabled]
+  properties:
+    category: {$ref: '#/NotificationSwitchableCategory'}
+    emailEnabled: {type: [boolean, 'null']}
+    pushEnabled: {type: [boolean, 'null']}
+
+NotificationPreferences:
+  type: object
+  description: |
+    The caller's notification preferences (spec 15 AC-27…AC-29). Everything is ON until the user
+    changes it (AC-29). `lockedCategories` are always sent (shown as the "Always on" group with
+    `t_notification_category_locked_hint`); in-app rows are always created.
+  required: [categories, lockedCategories, pushAvailable]
+  properties:
+    categories:
+      type: array
+      items: {$ref: '#/NotificationPreferenceCategory'}
+    lockedCategories:
+      type: array
+      items: {$ref: '#/NotificationCategory'}
+      description: Always `[security, transactional]`.
+    pushAvailable:
+      type: boolean
+      description: S-101 is ON. When false the app hides push switches (tokens are kept, spec 15 AC-25).
+
+NotificationPreferenceChange:
+  type: object
+  required: [category, channel, enabled]
+  properties:
+    category: {$ref: '#/NotificationSwitchableCategory'}
+    channel:
+      type: string
+      enum: [email, push]
+    enabled: {type: boolean}
+
+NotificationPreferencesUpdateRequest:
+  type: object
+  description: One or more switch changes. A channel that does not exist for the category (e.g. `referrals` + `email`) is refused with `VALIDATION_FAILED`.
+  required: [changes]
+  properties:
+    changes:
+      type: array
+      minItems: 1
+      maxItems: 8
+      items: {$ref: '#/NotificationPreferenceChange'}
+
+NotificationUnsubscribeRequest:
+  type: object
+  required: [token]
+  properties:
+    token:
+      type: string
+      minLength: 16
+      maxLength: 512
+      description: Signed token from the email footer link or the `List-Unsubscribe` URL (user, category; valid 30 days, spec 15 AC-30).
+
+NotificationUnsubscribeResult:
+  type: object
+  required: [category, channel]
+  properties:
+    category: {$ref: '#/NotificationSwitchableCategory'}
+    channel:
+      type: string
+      const: email
+
+NotificationTestEmailRequest:
+  type: object
+  required: [email]
+  properties:
+    email: {$ref: '../components/schemas.yaml#/EmailAddress'}
+
+NotificationTestEmailResult:
+  type: object
+  description: Result of the live SendGrid test (spec 15 AC-32; UI texts `t_test_email_sent` / `t_test_email_failed`).
+  required: [email, status, providerMessage, providerMessageId]
+  properties:
+    email: {$ref: '../components/schemas.yaml#/EmailAddress'}
+    status:
+      type: string
+      enum: [sent, failed]
+    providerMessage:
+      type: [string, 'null']
+      description: Provider error text when `failed` (no secrets).
+    providerMessageId: {type: [string, 'null']}
+
+NotificationDeliveryStatus:
+  type: string
+  enum: [queued, sent, failed, suppressed]
+  description: data-model §3.O `notification_deliveries.status` (spec 15 AC-4).
+
+NotificationSuppressionReason:
+  type: string
+  enum: [preference, rate_cap, undeliverable, account_inactive, push_disabled]
+  description: |
+    Why a delivery was `suppressed`: `preference` (spec 15 AC-28), `rate_cap` (30 emails / 60 pushes per
+    hour, AC-34), `undeliverable` (bounce/spam mark, AC-11), `account_inactive` (banned or deleted
+    user, EC-5), `push_disabled` (S-101 OFF or no token, AC-25).
+
+NotificationDelivery:
+  type: object
+  description: One delivery attempt record (email, push or SMS), kept 90 days (spec 15 AC-4, R-N9). Staff view only.
+  required: [id, channel, status, suppressionReason, eventId, templateKey, locale, recipientUser, recipientEmail, attempts, error, providerMessageId, createdAt, sentAt, canRetry]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    channel:
+      type: string
+      enum: [email, push, sms]
+    status: {$ref: '#/NotificationDeliveryStatus'}
+    suppressionReason:
+      oneOf: [{$ref: '#/NotificationSuppressionReason'}, {type: 'null'}]
+    eventId: {$ref: '#/NotificationEventId'}
+    templateKey:
+      type: string
+      description: Email class or text key used (e.g. `Buyer/OrderDelivered`, `t_push_new_message`).
+    locale: {$ref: '../components/schemas.yaml#/Locale'}
+    recipientUser:
+      oneOf: [{$ref: '../components/schemas.yaml#/UserSummary'}, {type: 'null'}]
+      description: Null for admin (S-100), staff and newsletter/contact recipients.
+    recipientEmail:
+      oneOf: [{$ref: '../components/schemas.yaml#/EmailAddress'}, {type: 'null'}]
+    attempts: {type: integer, minimum: 0}
+    error:
+      type: [string, 'null']
+      description: Last provider error (redacted).
+    providerMessageId: {type: [string, 'null']}
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    sentAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    canRetry:
+      type: boolean
+      description: True for `failed` emails only (spec 16 AC-69 "Retry").
+
+NotificationDeliveryPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/NotificationDelivery'}
+
+# ═══════════════════════════ Push tokens ═══════════════════════════
+PushPlatform:
+  type: string
+  enum: [ios, android]
+
+PushTokenPutRequest:
+  type: object
+  description: Registration of this app installation's Expo push token (spec 15 AC-20). The installation id comes from the path.
+  required: [platform, expoToken, locale, appVersion]
+  properties:
+    platform: {$ref: '#/PushPlatform'}
+    expoToken:
+      type: string
+      maxLength: 255
+      pattern: '^Expo(nent)?PushToken\[.+\]$'
+    locale:
+      $ref: '../components/schemas.yaml#/Locale'
+      description: App language; push texts use it (spec 15 AC-23, R-N4). Send again when the user changes the app language.
+    appVersion:
+      type: string
+      maxLength: 32
+      examples: ['1.4.0']
+
+PushToken:
+  type: object
+  required: [installationId, platform, locale, appVersion, lastSeenAt, createdAt]
+  properties:
+    installationId: {$ref: '../components/schemas.yaml#/Uuid'}
+    platform: {$ref: '#/PushPlatform'}
+    locale: {$ref: '../components/schemas.yaml#/Locale'}
+    appVersion: {type: string}
+    lastSeenAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+# ═══════════════════════════ SendGrid webhook ═══════════════════════════
+SendGridEventBatch:
+  type: array
+  maxItems: 1000
+  description: |
+    SendGrid Event Webhook body: an array of event objects. The API reads only `email`, `event`
+    (`processed`, `delivered`, `deferred`, `dropped`, `bounce`, `spamreport`, `unsubscribe`…),
+    `timestamp`, `sg_event_id`, `sg_message_id`, `reason`/`type`; everything else is ignored.
+    SendGrid's field names are snake_case, so items are not modelled here (raw pass-through).
+  items:
+    type: object
+    additionalProperties: true
+
+# ═══════════════════════════ Analytics (ADR-012) ═══════════════════════════
+AnalyticsClientEventType:
+  type: string
+  enum: [page_view, app_open, screen_view]
+  description: Client-side events. Server events (registration, login, gig view, project view, order paid…) are recorded by the API itself and never sent by clients (ADR-012 §1).
+
+AnalyticsPlatform:
+  type: string
+  enum: [web, ios, android, server]
+
+AnalyticsClientEvent:
+  type: object
+  required: [type, occurredAt, platform, locale]
+  properties:
+    type: {$ref: '#/AnalyticsClientEventType'}
+    occurredAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    platform:
+      type: string
+      enum: [web, ios, android]
+    locale: {$ref: '../components/schemas.yaml#/Locale'}
+    pathTemplate:
+      type: [string, 'null']
+      maxLength: 200
+      description: 'Route template without ids (e.g. `/service/[slug]`) for `page_view`.'
+    screen:
+      type: [string, 'null']
+      maxLength: 100
+      description: Screen name for `screen_view` (mobile).
+    referrerDomain:
+      type: [string, 'null']
+      maxLength: 253
+      description: Domain only, never the full referrer URL.
+    utm:
+      type: [object, 'null']
+      properties:
+        source: {type: [string, 'null'], maxLength: 100}
+        medium: {type: [string, 'null'], maxLength: 100}
+        campaign: {type: [string, 'null'], maxLength: 100}
+    entityType:
+      type: [string, 'null']
+      enum: [gig, project, user, null]
+    entityId:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+
+AnalyticsEventBatchRequest:
+  type: object
+  required: [events]
+  properties:
+    events:
+      type: array
+      minItems: 1
+      maxItems: 50
+      items: {$ref: '#/AnalyticsClientEvent'}
+
+AnalyticsIngestResult:
+  type: object
+  required: [accepted]
+  properties:
+    accepted:
+      type: integer
+      minimum: 0
+      description: Events queued for enrichment (bots and malformed events are dropped silently).
+
+AnalyticsWidget:
+  type: string
+  description: The widgets of spec 16 AC-66 (ACCEPTED P-120).
+  enum:
+    - registrations
+    - logins
+    - page_views
+    - unique_visitors
+    - app_opens
+    - countries
+    - cities
+    - device_types
+    - operating_systems
+    - browsers
+    - platforms
+    - referrer_domains
+    - top_gigs
+    - top_projects
+    - paid_orders
+    - new_gigs
+    - new_projects
+
+AnalyticsPeriod:
+  type: string
+  enum: [last_7_days, last_30_days, last_90_days, last_365_days, custom]
+  description: Period picker of spec 16 AC-66; `custom` needs `from` and `to`. Always compared with the previous period of the same length.
+
+AnalyticsGranularity:
+  type: string
+  enum: [day, week, month]
+
+AnalyticsSeriesPoint:
+  type: object
+  required: [bucketStart, value, previousValue, amount, previousAmount]
+  properties:
+    bucketStart: {$ref: '../components/schemas.yaml#/DateOnly'}
+    value: {type: integer, minimum: 0}
+    previousValue:
+      type: [integer, 'null']
+      description: Same bucket position in the previous period.
+    amount:
+      oneOf: [{$ref: '../components/schemas.yaml#/Money'}, {type: 'null'}]
+      description: '`paid_orders` volume only.'
+    previousAmount:
+      oneOf: [{$ref: '../components/schemas.yaml#/Money'}, {type: 'null'}]
+
+AnalyticsRow:
+  type: object
+  description: One row of a breakdown or top-list widget.
+  required: [label, code, gig, project, value, previousValue, amount, isLegacy]
+  properties:
+    label:
+      type: string
+      description: Display value (country or city name in the requested language, browser, OS, domain…).
+    code:
+      type: [string, 'null']
+      description: Machine value (ISO country code, platform, device type) for maps and filters.
+    gig:
+      oneOf: [{$ref: '../components/schemas.yaml#/GigRef'}, {type: 'null'}]
+    project:
+      oneOf: [{$ref: '../components/schemas.yaml#/ProjectRef'}, {type: 'null'}]
+    value: {type: integer, minimum: 0}
+    previousValue: {type: [integer, 'null']}
+    amount:
+      oneOf: [{$ref: '../components/schemas.yaml#/Money'}, {type: 'null'}]
+    isLegacy:
+      type: boolean
+      description: Row built from imported legacy aggregates (Q-101), shown with `t_admin_legacy_data`.
+
+AnalyticsWidgetResult:
+  type: object
+  description: |
+    Data of one analytics widget from the daily aggregates (ADR-012 §4). First-party only: no IP is
+    shown or sent anywhere (spec 16 AC-67). Time series widgets fill `series`; breakdowns and top
+    lists fill `rows` (top 20 for countries and cities).
+  required: [widget, periodFrom, periodTo, previousPeriodFrom, previousPeriodTo, granularity, series, rows, totalValue, previousTotalValue, totalAmount, previousTotalAmount, includesLegacyData, geoIpAttribution]
+  properties:
+    widget: {$ref: '#/AnalyticsWidget'}
+    periodFrom: {$ref: '../components/schemas.yaml#/DateOnly'}
+    periodTo: {$ref: '../components/schemas.yaml#/DateOnly'}
+    previousPeriodFrom: {$ref: '../components/schemas.yaml#/DateOnly'}
+    previousPeriodTo: {$ref: '../components/schemas.yaml#/DateOnly'}
+    granularity:
+      oneOf: [{$ref: '#/AnalyticsGranularity'}, {type: 'null'}]
+    series:
+      type: array
+      items: {$ref: '#/AnalyticsSeriesPoint'}
+    rows:
+      type: array
+      items: {$ref: '#/AnalyticsRow'}
+    totalValue: {type: integer, minimum: 0}
+    previousTotalValue: {type: [integer, 'null']}
+    totalAmount:
+      oneOf: [{$ref: '../components/schemas.yaml#/Money'}, {type: 'null'}]
+    previousTotalAmount:
+      oneOf: [{$ref: '../components/schemas.yaml#/Money'}, {type: 'null'}]
+    includesLegacyData:
+      type: boolean
+      description: Part of the period is covered by imported legacy aggregates (spec 16 AC-67).
+    geoIpAttribution:
+      type: [string, 'null']
+      description: GeoIP database attribution for location widgets (`t_admin_geoip_attribution`, ADR-012 §2).
+
+# ═══════════════════════════ Staff auth (spec 16 A, spec 01 AC-29/AC-51) ═══════════════════════════
+AdminAuthLoginRequest:
+  type: object
+  required: [login, password]
+  properties:
+    login:
+      type: string
+      minLength: 1
+      maxLength: 254
+      description: Username or email of the staff account (spec 16 AC-2).
+    password:
+      type: string
+      minLength: 1
+      maxLength: 128
+      description: Legacy staff hashes (bcrypt) are verified and rehashed to Argon2id on success (ADR-002 §3).
+    recaptchaToken:
+      type: [string, 'null']
+      maxLength: 4096
+      description: Required when S-061 is ON (staff login is always subject to S-061, spec 01 R-A10).
+
+AdminAuthTwoFactorChallenge:
+  type: object
+  description: '`202` answer of login/re-authentication when an email code is needed (S-060, trigger S-124; spec 01 AC-29).'
+  required: [challengeId, channel, maskedEmail, expiresAt, resendAvailableAt]
+  properties:
+    challengeId: {$ref: '../components/schemas.yaml#/Uuid'}
+    channel:
+      type: string
+      const: email
+    maskedEmail:
+      type: string
+      examples: ['ir***@gmail.com']
+    expiresAt:
+      $ref: '../components/schemas.yaml#/Timestamp'
+      description: S-057 after sending.
+    resendAvailableAt:
+      $ref: '../components/schemas.yaml#/Timestamp'
+      description: 60 seconds after the last send (spec 01 AC-27).
+
+AdminAuthTwoFactorVerifyRequest:
+  type: object
+  required: [challengeId, code]
+  properties:
+    challengeId: {$ref: '../components/schemas.yaml#/Uuid'}
+    code:
+      type: string
+      pattern: '^[0-9]{6}$'
+
+AdminAuthTwoFactorResendRequest:
+  type: object
+  required: [challengeId]
+  properties:
+    challengeId: {$ref: '../components/schemas.yaml#/Uuid'}
+
+AdminAuthRefreshRequest:
+  type: object
+  description: Cookie clients (the admin app) send an empty body; the refresh token comes from the `__Secure-mt_staff_rt` cookie. Only test clients with `STAFF_BODY_TOKENS_ENABLED` send it here (never in production, SEC-17).
+  properties:
+    refreshToken:
+      type: [string, 'null']
+      maxLength: 512
+
+AdminAuthSession:
+  type: object
+  description: |
+    A started or refreshed staff session (ADR-002 §1, ADR-010 §2). The API always sets the host-only
+    cookies `__Host-mt_staff_at` and `__Secure-mt_staff_rt` (path `/api/v1/admin/auth`) on `admin.mytask.ge`.
+    **In production `accessToken` and `refreshToken` are always null** (the admin host is cookie-only,
+    SEC-17). They are filled only when the API runs with `STAFF_BODY_TOKENS_ENABLED=true` (API tests; the
+    API refuses to start with it when `NODE_ENV=production`) and the request is not from the admin app
+    (`X-MyTask-Client` other than `admin`). The session ends 12 hours after login whatever the refreshes
+    (spec 16 AC-2).
+  required: [staff, accessToken, accessTokenExpiresAt, refreshToken, sessionExpiresAt]
+  properties:
+    staff: {$ref: '#/AdminMe'}
+    accessToken: {type: [string, 'null']}
+    accessTokenExpiresAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    refreshToken: {type: [string, 'null']}
+    sessionExpiresAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+AdminAuthReauthPasswordRequest:
+  type: object
+  required: [method, password]
+  properties:
+    method:
+      type: string
+      const: password
+    password:
+      type: string
+      minLength: 1
+      maxLength: 128
+
+AdminAuthReauthCodeRequest:
+  type: object
+  description: Only when staff 2FA (S-060) is ON; the code comes from `adminRequestReauthCode`.
+  required: [method, challengeId, code]
+  properties:
+    method:
+      type: string
+      const: email_code
+    challengeId: {$ref: '../components/schemas.yaml#/Uuid'}
+    code:
+      type: string
+      pattern: '^[0-9]{6}$'
+
+AdminAuthReauthRequest:
+  description: 'Re-authentication for high-risk actions (spec 16 AC-7): the password, or the emailed 2FA code when S-060 is ON.'
+  oneOf:
+    - $ref: '#/AdminAuthReauthPasswordRequest'
+    - $ref: '#/AdminAuthReauthCodeRequest'
+  discriminator:
+    propertyName: method
+    mapping:
+      password: '#/AdminAuthReauthPasswordRequest'
+      email_code: '#/AdminAuthReauthCodeRequest'
+
+AdminAuthReauthResult:
+  type: object
+  required: [reauthenticatedUntil]
+  properties:
+    reauthenticatedUntil:
+      $ref: '../components/schemas.yaml#/Timestamp'
+      description: High-risk operations (`x-permission.stepUp`) are allowed until this time (15 minutes, spec 16 AC-7).
+
+AdminAuthPasswordResetRequest:
+  type: object
+  required: [email]
+  properties:
+    email: {$ref: '../components/schemas.yaml#/EmailAddress'}
+
+AdminAuthPasswordTokenRequest:
+  type: object
+  required: [token]
+  properties:
+    token:
+      type: string
+      minLength: 16
+      maxLength: 512
+
+AdminAuthPasswordTokenInfo:
+  type: object
+  description: What a set-password link is for, so the page can show the right title or the "expired link" state before the form.
+  required: [kind, username, maskedEmail, expiresAt]
+  properties:
+    kind:
+      type: string
+      enum: [invitation, reset]
+    username: {type: string}
+    maskedEmail: {type: string}
+    expiresAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+AdminAuthPasswordSetRequest:
+  type: object
+  description: Sets the password from an invitation (48 h, spec 16 AC-3) or a staff password-reset link (spec 16 EC-2). Password rule R-A2 of spec 01 (8–60 characters, one uppercase Latin letter, one digit).
+  required: [token, password, passwordConfirmation]
+  properties:
+    token:
+      type: string
+      minLength: 16
+      maxLength: 512
+    password:
+      type: string
+      minLength: 8
+      maxLength: 60
+      pattern: '^(?=.*[A-Z])(?=.*[0-9]).{8,60}$'
+    passwordConfirmation:
+      type: string
+      maxLength: 60
+
+AdminAuthEmailConfirmRequest:
+  type: object
+  required: [token]
+  properties:
+    token:
+      type: string
+      minLength: 16
+      maxLength: 512
+
+# ═══════════════════════════ Own staff profile (/admin/me) ═══════════════════════════
+AdminMe:
+  type: object
+  description: |
+    The signed-in staff member with the effective permission list. The admin app uses `permissions` to
+    hide menu items and buttons (cosmetic only; the API enforces, spec 16 AC-9). Role or permission
+    changes apply within 1 minute (AC-12); the event `admin.permissions_changed` tells the app to re-read.
+  required: [id, username, fullName, email, pendingEmail, locale, roles, permissions, isSuperAdmin, twoFactorRequired, reauthenticatedUntil, lastLoginAt]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    username: {type: string}
+    fullName: {type: string}
+    email: {$ref: '../components/schemas.yaml#/EmailAddress'}
+    pendingEmail:
+      oneOf: [{$ref: '../components/schemas.yaml#/EmailAddress'}, {type: 'null'}]
+      description: New address waiting for its confirmation link (spec 16 AC-6).
+    locale:
+      $ref: '../components/schemas.yaml#/Locale'
+      description: Admin interface language (spec 16 AC-76).
+    roles:
+      type: array
+      items: {$ref: '#/RoleSummary'}
+    permissions:
+      type: array
+      items: {$ref: '#/PermissionCode'}
+    isSuperAdmin: {type: boolean}
+    twoFactorRequired:
+      type: boolean
+      description: S-060 is ON (staff email 2FA).
+    reauthenticatedUntil:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+      description: End of the current 15-minute re-authentication window, if any (spec 16 AC-7).
+    lastLoginAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+
+AdminMeUpdateRequest:
+  type: object
+  properties:
+    fullName:
+      type: string
+      minLength: 1
+      maxLength: 100
+    locale: {$ref: '../components/schemas.yaml#/Locale'}
+
+AdminMePasswordChangeRequest:
+  type: object
+  required: [currentPassword, newPassword, newPasswordConfirmation]
+  properties:
+    currentPassword:
+      type: string
+      minLength: 1
+      maxLength: 128
+    newPassword:
+      type: string
+      minLength: 8
+      maxLength: 60
+      pattern: '^(?=.*[A-Z])(?=.*[0-9]).{8,60}$'
+      description: Password rule R-A2 of spec 01.
+    newPasswordConfirmation:
+      type: string
+      maxLength: 60
+
+AdminMeEmailChangeRequest:
+  type: object
+  required: [newEmail]
+  properties:
+    newEmail: {$ref: '../components/schemas.yaml#/EmailAddress'}
+
+# ═══════════════════════════ Staff accounts (spec 16 A, B) ═══════════════════════════
+StaffStatus:
+  type: string
+  enum: [active, disabled]
+  description: data-model §3.P `staff.status`. There is no delete (spec 16 AC-4).
+
+StaffMember:
+  type: object
+  description: A staff account as shown in the Staff list and detail (spec 16 AC-13).
+  required: [id, username, fullName, email, pendingEmail, locale, status, roles, hasPassword, invitationExpiresAt, twoFactorRequired, trustedDeviceCount, activeSessionCount, lastLoginAt, lastLoginCountryCode, isLegacy, createdAt, createdBy, disabledAt]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    username: {type: string}
+    fullName: {type: string}
+    email: {$ref: '../components/schemas.yaml#/EmailAddress'}
+    pendingEmail:
+      oneOf: [{$ref: '../components/schemas.yaml#/EmailAddress'}, {type: 'null'}]
+    locale: {$ref: '../components/schemas.yaml#/Locale'}
+    status: {$ref: '#/StaffStatus'}
+    roles:
+      type: array
+      items: {$ref: '#/RoleSummary'}
+    hasPassword:
+      type: boolean
+      description: False while the invitation has not been accepted (spec 16 AC-3).
+    invitationExpiresAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+      description: Expiry of the current invitation link; in the past = expired, can be re-sent.
+    twoFactorRequired:
+      type: boolean
+      description: 2FA state column of the list (S-060 applies to every staff member).
+    trustedDeviceCount:
+      type: integer
+      minimum: 0
+    activeSessionCount:
+      type: integer
+      minimum: 0
+    lastLoginAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    lastLoginCountryCode:
+      oneOf: [{$ref: '../components/schemas.yaml#/CountryCode'}, {type: 'null'}]
+      description: Country of the last login IP (local GeoIP, ADR-012); the raw IP is in the audit log only.
+    isLegacy:
+      type: boolean
+      description: Imported from the legacy `admins` table (spec 16 AC-8).
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    createdBy:
+      oneOf: [{$ref: '../components/schemas.yaml#/StaffSummary'}, {type: 'null'}]
+    disabledAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+
+StaffMemberPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/StaffMember'}
+
+StaffCreateRequest:
+  type: object
+  description: New staff account without a password; the invitation email EV-123 is sent (spec 16 AC-3). No shared accounts.
+  required: [fullName, username, email, locale, roleIds]
+  properties:
+    fullName:
+      type: string
+      minLength: 1
+      maxLength: 100
+    username:
+      type: string
+      minLength: 3
+      maxLength: 60
+      pattern: '^[A-Za-z0-9_]+$'
+    email: {$ref: '../components/schemas.yaml#/EmailAddress'}
+    locale: {$ref: '../components/schemas.yaml#/Locale'}
+    roleIds:
+      type: array
+      minItems: 1
+      uniqueItems: true
+      items: {$ref: '../components/schemas.yaml#/Uuid'}
+
+StaffRolesReplaceRequest:
+  type: object
+  required: [roleIds]
+  properties:
+    roleIds:
+      type: array
+      uniqueItems: true
+      items: {$ref: '../components/schemas.yaml#/Uuid'}
+      description: The complete new role list. Empty removes all access without disabling the account (contract default, slice item Q-140).
+
+# ═══════════════════════════ Roles and permissions (spec 16 B) ═══════════════════════════
+PermissionCode:
+  type: string
+  description: The fixed permission catalogue of spec 16 (ACCEPTED P-114; `src/ownership.yaml` staffPermissions). `settings.custom_code.write` is Super-admin only.
+  enum:
+    - dashboard.read
+    - analytics.read
+    - users.read
+    - users.edit
+    - users.activate
+    - users.restrict
+    - users.ban
+    - users.delete
+    - users.email
+    - security.ip_bans
+    - kyc.review
+    - gigs.moderate
+    - portfolio.moderate
+    - projects.moderate
+    - proposals.moderate
+    - offers.moderate
+    - reviews.moderate
+    - comments.moderate
+    - reports.handle
+    - chat.read
+    - chat.moderate
+    - orders.read
+    - payments.read
+    - payments.offline.approve
+    - refunds.thread.write
+    - refunds.resolve
+    - escrow.release
+    - escrow.refund
+    - withdrawals.approve
+    - ledger.adjust
+    - points.adjust
+    - subscriptions.manage
+    - promo_codes.write
+    - fees.write
+    - catalog.write
+    - content.write
+    - newsletter.manage
+    - support.handle
+    - translations.write
+    - settings.read
+    - settings.plans.write
+    - settings.payments.write
+    - settings.escrow.write
+    - settings.withdrawals.write
+    - settings.marketplace.write
+    - settings.subscriptions.write
+    - settings.auth.write
+    - settings.moderation.write
+    - settings.media.write
+    - settings.chat.write
+    - settings.notifications.write
+    - settings.content.write
+    - settings.custom_code.write
+    - settings.system.write
+    - system.logs.read
+    - system.health.read
+    - audit.read
+    - staff.manage
+
+PermissionInfo:
+  type: object
+  required: [code, area, descriptionKey, isGrantable]
+  properties:
+    code: {$ref: '#/PermissionCode'}
+    area:
+      type: string
+      enum: [home, users, moderation, chat, money, catalog_content, settings, system]
+      description: Grouping of the role editor (spec 16 catalogue "Area").
+    descriptionKey:
+      type: string
+      pattern: '^t_perm_[a-z0-9_]+$'
+      description: '`t_perm_<code with dots as underscores>` (spec 16 Texts).'
+    isGrantable:
+      type: boolean
+      description: False only for `settings.custom_code.write` (Super-admin only, Q-085).
+
+PermissionList:
+  type: object
+  required: [permissions]
+  properties:
+    permissions:
+      type: array
+      items: {$ref: '#/PermissionInfo'}
+
+RoleSummary:
+  type: object
+  required: [id, code, name, isSystem]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    code:
+      type: string
+      examples: [financial_manager]
+    name:
+      type: string
+      description: In the caller's admin language.
+    isSystem:
+      type: boolean
+      description: True for Super-admin (not editable, not deletable).
+
+Role:
+  type: object
+  description: A role with its permissions (spec 16 AC-10, AC-11). Seeded roles `super_admin`, `customer_support`, `financial_manager`, `content_moderator` (P-114) are data and editable, except Super-admin.
+  required: [id, code, name, description, isSystem, permissions, staffCount, createdAt, updatedAt, updatedBy]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    code: {type: string}
+    name: {$ref: '../components/schemas.yaml#/LocalizedString'}
+    description:
+      oneOf: [{$ref: '../components/schemas.yaml#/LocalizedString'}, {type: 'null'}]
+    isSystem: {type: boolean}
+    permissions:
+      type: array
+      items: {$ref: '#/PermissionCode'}
+    staffCount:
+      type: integer
+      minimum: 0
+      description: Staff accounts holding the role (a role in use cannot be deleted).
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    updatedAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    updatedBy:
+      oneOf: [{$ref: '../components/schemas.yaml#/StaffSummary'}, {type: 'null'}]
+
+RoleList:
+  type: object
+  required: [roles]
+  properties:
+    roles:
+      type: array
+      items: {$ref: '#/Role'}
+
+RoleCreateRequest:
+  type: object
+  description: The role `code` is generated by the API from the English (else Georgian) name.
+  required: [name, permissions]
+  properties:
+    name: {$ref: '#/RoleNameInput'}
+    description:
+      oneOf: [{$ref: '#/RoleDescriptionInput'}, {type: 'null'}]
+    permissions:
+      type: array
+      uniqueItems: true
+      items: {$ref: '#/PermissionCode'}
+
+RoleUpdateRequest:
+  type: object
+  properties:
+    name: {$ref: '#/RoleNameInput'}
+    description:
+      oneOf: [{$ref: '#/RoleDescriptionInput'}, {type: 'null'}]
+    permissions:
+      type: array
+      uniqueItems: true
+      items: {$ref: '#/PermissionCode'}
+      description: The complete new permission list.
+
+RoleNameInput:
+  type: object
+  required: [ka]
+  properties:
+    ka:
+      type: string
+      minLength: 1
+      maxLength: 60
+    en:
+      type: [string, 'null']
+      maxLength: 60
+
+RoleDescriptionInput:
+  type: object
+  required: [ka]
+  properties:
+    ka:
+      type: string
+      maxLength: 500
+    en:
+      type: [string, 'null']
+      maxLength: 500
+
+# ═══════════════════════════ Audit log (spec 16 C, ADR-010 §5) ═══════════════════════════
+AuditEntry:
+  type: object
+  description: |
+    One append-only audit entry (data-model §3.P). There is no operation to edit or delete entries
+    (spec 16 AC-15). Secrets are redacted in `before`/`after`.
+  required: [id, occurredAt, actor, permission, action, targetType, targetId, before, after, reason, ipAddress, userAgent, requestId, journalId, pointsJournalId]
+  properties:
+    id:
+      type: string
+      pattern: '^[0-9]+$'
+      description: bigint identity (data-model §1), as a string.
+    occurredAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    actor: {$ref: '../components/schemas.yaml#/ActorRef'}
+    permission:
+      oneOf: [{$ref: '#/PermissionCode'}, {type: 'null'}]
+      description: Permission used (null for `@self`, user and system actions).
+    action:
+      type: string
+      examples: [withdrawal.mark_paid, setting.update, chat.conversation.read]
+    targetType:
+      type: [string, 'null']
+      examples: [user, withdrawal, setting, fee_rule, staff, role]
+    targetId: {type: [string, 'null']}
+    before:
+      type: [object, 'null']
+      additionalProperties: true
+    after:
+      type: [object, 'null']
+      additionalProperties: true
+    reason: {type: [string, 'null']}
+    ipAddress: {type: [string, 'null']}
+    userAgent: {type: [string, 'null']}
+    requestId: {type: [string, 'null']}
+    journalId:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+      description: Ledger journal of money actions (spec 16 AC-14).
+    pointsJournalId:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+
+AuditEntryPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/AuditEntry'}
+
+# ═══════════════════════════ Dashboard (spec 16 D) ═══════════════════════════
+AdminDashboardQueue:
+  type: string
+  description: The queue counters of spec 16 AC-17.
+  enum:
+    - pending_gigs
+    - pending_portfolio_items
+    - pending_projects
+    - pending_proposals
+    - pending_custom_offers
+    - pending_blog_comments
+    - pending_kyc
+    - open_reports
+    - pending_restriction_appeals
+    - open_disputes
+    - pending_unblock_requests
+    - pending_withdrawals
+    - pending_bank_transfers
+    - new_support_messages
+    - legacy_hold_residuals
+    - failed_notification_deliveries
+
+AdminDashboardQueueCounter:
+  type: object
+  required: [queue, count, permission]
+  properties:
+    queue: {$ref: '#/AdminDashboardQueue'}
+    count: {type: integer, minimum: 0}
+    permission:
+      $ref: '#/PermissionCode'
+      description: Permission of the queue (the counter is returned only if the caller holds it).
+
+AdminDashboardQueueCounters:
+  type: object
+  required: [counters, generatedAt]
+  properties:
+    counters:
+      type: array
+      items: {$ref: '#/AdminDashboardQueueCounter'}
+    generatedAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+AdminDashboardKpis:
+  type: object
+  description: Non-money KPIs and the newest users and gigs for the chosen period (spec 16 AC-18).
+  required: [periodFrom, periodTo, newUsers, totalUsers, activeGigs, activeProjects, completedOrders, directMessagesSent, newestUsers, newestGigs]
+  properties:
+    periodFrom: {$ref: '../components/schemas.yaml#/DateOnly'}
+    periodTo: {$ref: '../components/schemas.yaml#/DateOnly'}
+    newUsers: {type: integer, minimum: 0}
+    totalUsers: {type: integer, minimum: 0}
+    activeGigs:
+      type: integer
+      minimum: 0
+      description: Current count.
+    activeProjects:
+      type: integer
+      minimum: 0
+      description: Current count.
+    completedOrders: {type: integer, minimum: 0}
+    directMessagesSent:
+      type: integer
+      minimum: 0
+      description: Messages in `direct` conversations (fixes D-16-16).
+    newestUsers:
+      type: array
+      maxItems: 10
+      items: {$ref: '../components/schemas.yaml#/UserSummary'}
+    newestGigs:
+      type: array
+      maxItems: 10
+      items: {$ref: '../components/schemas.yaml#/GigRef'}
+
+AdminDashboardMoneyKpis:
+  type: object
+  description: Money KPIs from the ledger, never from order totals (spec 16 AC-18, P-119, fixes D-16-15).
+  required: [periodFrom, periodTo, paidVolume, platformFeeRevenue, cardSurchargeRevenue, withdrawalsPaid, totalOnHold]
+  properties:
+    periodFrom: {$ref: '../components/schemas.yaml#/DateOnly'}
+    periodTo: {$ref: '../components/schemas.yaml#/DateOnly'}
+    paidVolume:
+      $ref: '../components/schemas.yaml#/Money'
+      description: GMV — verified payments of gig orders, project payments and custom offers.
+    platformFeeRevenue: {$ref: '../components/schemas.yaml#/Money'}
+    cardSurchargeRevenue: {$ref: '../components/schemas.yaml#/Money'}
+    withdrawalsPaid: {$ref: '../components/schemas.yaml#/Money'}
+    totalOnHold:
+      $ref: '../components/schemas.yaml#/Money'
+      description: Current platform HOLD balance (not period-bound).
+
+# ═══════════════════════════ Reports queue (spec 16 AC-28, P-118) ═══════════════════════════
+ReportStatus:
+  type: string
+  enum: [pending, dismissed, resolved]
+  description: Status of the reports of one item. `dismissed`/`resolved` need a note (spec 16 AC-28). See the D6 handoff on data-model `report_status` (`pending, seen, resolved`).
+
+ReportTarget:
+  type: object
+  description: The reported item. Exactly one of `user`, `gig`, `project`, `proposal` is set by `type`; `owner` is the user responsible for the item.
+  required: [type, id, user, gig, project, proposal, owner, isAvailable]
+  properties:
+    type: {$ref: '../components/schemas.yaml#/ReportTargetType'}
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    user:
+      oneOf: [{$ref: '../components/schemas.yaml#/UserSummary'}, {type: 'null'}]
+    gig:
+      oneOf: [{$ref: '../components/schemas.yaml#/GigRef'}, {type: 'null'}]
+    project:
+      oneOf: [{$ref: '../components/schemas.yaml#/ProjectRef'}, {type: 'null'}]
+      description: The project, or the project of the reported proposal.
+    proposal:
+      oneOf: [{$ref: '#/ReportProposalRef'}, {type: 'null'}]
+    owner:
+      oneOf: [{$ref: '../components/schemas.yaml#/UserSummary'}, {type: 'null'}]
+    isAvailable:
+      type: boolean
+      description: False when the item was deleted meanwhile ("Open item" then shows not found).
+
+ReportProposalRef:
+  type: object
+  required: [id, excerpt]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    excerpt:
+      type: string
+      description: First characters of the proposal text.
+
+ReportedItem:
+  type: object
+  description: One row of the reports queue, grouped by reported item with the number of reports (spec 16 AC-28).
+  required: [target, status, reportCount, pendingReportCount, firstReportedAt, lastReportedAt, decidedAt, decidedBy, decisionNote]
+  properties:
+    target: {$ref: '#/ReportTarget'}
+    status: {$ref: '#/ReportStatus'}
+    reportCount: {type: integer, minimum: 1}
+    pendingReportCount: {type: integer, minimum: 0}
+    firstReportedAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    lastReportedAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    decidedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    decidedBy:
+      oneOf: [{$ref: '../components/schemas.yaml#/StaffSummary'}, {type: 'null'}]
+    decisionNote: {type: [string, 'null']}
+
+ReportedItemPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/ReportedItem'}
+
+ReportEntry:
+  type: object
+  description: One report about the item (reporter, reason, date; spec 16 AC-28). Reporters are not notified of decisions.
+  required: [id, reporter, reason, status, createdAt]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    reporter: {$ref: '../components/schemas.yaml#/UserSummary'}
+    reason: {type: string}
+    status: {$ref: '#/ReportStatus'}
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+ReportEntryPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/ReportEntry'}
+
+ReportDecisionRequest:
+  type: object
+  required: [note]
+  properties:
+    note:
+      type: string
+      minLength: 1
+      maxLength: 1000
+      description: Required note (internal, staff only).
+
+# ═══════════════════════════ Settings register (spec 16 I, O; ADR-005) ═══════════════════════════
+SettingArea:
+  type: string
+  description: Areas of spec 16 "Settings areas" with their write permission (`SettingEntry.writePermission`).
+  enum: [plans, fees, payments, escrow, withdrawals, marketplace, subscriptions, auth, moderation, media, chat, notifications, content, custom_code, system]
+
+SettingType:
+  type: string
+  description: Value type from the code registry (ADR-005 §1); decides the control and the JSON shape of `value`.
+  enum: [boolean, integer, money, basis_points, enum, list, email_list, localized_text, image, structured, time, secret]
+
+SettingValue:
+  description: |
+    JSON value whose shape follows `SettingEntry.type`: `boolean`; `integer` (or null = unlimited, R-2.2);
+    `money` → `Money`; `basis_points` → integer; `enum` → string; `list`/`email_list` → string array;
+    `localized_text` → `LocalizedString`; `image` → file id (uuid) of a ready public image; `time` →
+    `"HH:MM"`; `structured` → object documented by the register row (S-110 → `CustomCodeValue`, S-127 →
+    `CustomCodeAllowedHostsValue`);
+    `secret` → write-only string. Never a floating-point number.
+
+SettingEntry:
+  type: object
+  description: |
+    One register row (spec 00 §4) as shown in the Settings screen (spec 16 AC-51). Secret rows
+    (S-065…S-069) never return a value: `value` is null and `isSet` tells "set / not set" (AC-54).
+    S-110 and S-127 are returned only to holders of `settings.custom_code.write` (AC-72).
+    Rows added after an Owner approval and not yet accepted carry `registerStatus: proposed`; at the 2026-09-30 gate every row S-001…S-129 is `approved` (S-128 accepted with P-135, Q-111; S-129 NEW, Q-144).
+  required: [key, registerId, area, type, unit, meaning, value, isSet, defaultValue, allowedValues, minimum, maximum, source, tag, registerStatus, isVersioned, isSecret, isPublic, isCritical, stepUpRequired, writePermission, version, updatedAt, updatedBy]
+  properties:
+    key:
+      type: string
+      pattern: '^[a-z0-9_]+(\.[a-z0-9_]+)+$'
+      examples: [escrow.auto_release.hours]
+    registerId:
+      type: string
+      pattern: '^S-[0-9]{3}$'
+    area: {$ref: '#/SettingArea'}
+    type: {$ref: '#/SettingType'}
+    unit:
+      type: [string, 'null']
+      description: Display unit (`hours`, `days`, `minutes`, `MB`, `count`…).
+    meaning: {$ref: '../components/schemas.yaml#/LocalizedString'}
+    value:
+      $ref: '#/SettingValue'
+    isSet:
+      type: [boolean, 'null']
+      description: Secret rows only.
+    defaultValue:
+      $ref: '#/SettingValue'
+    allowedValues:
+      type: [array, 'null']
+      items: {type: string}
+      description: Enum and set values allowed by the register.
+    minimum: {type: [integer, 'null']}
+    maximum: {type: [integer, 'null']}
+    source:
+      type: string
+      description: Register "Source" column (Q-IDs, legacy file).
+    tag:
+      type: string
+      description: Register "Tag" column (LEGACY / NEW / CHANGE / ACCEPTED…).
+    registerStatus:
+      type: string
+      enum: [approved, proposed]
+    isVersioned:
+      type: boolean
+      description: Row marked V (history with versions, e.g. S-008/S-009).
+    isSecret: {type: boolean}
+    isPublic:
+      type: boolean
+      description: Exposed to clients through `getPublicConfig` (D1).
+    isCritical:
+      type: boolean
+      description: A change sends EV-124 to every S-100 address (spec 16 AC-56).
+    stepUpRequired:
+      type: boolean
+      description: Saving needs re-authentication within 15 minutes in the same staff session (spec 16 AC-7; Q-145) — S-008/S-009 plan prices, security rows S-052, S-053, S-056…S-064, S-124, social-login keys S-065…S-069, S-100, S-110, S-127.
+    writePermission: {$ref: '#/PermissionCode'}
+    version: {type: integer, minimum: 1}
+    updatedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    updatedBy:
+      oneOf: [{$ref: '../components/schemas.yaml#/StaffSummary'}, {type: 'null'}]
+
+SettingList:
+  type: object
+  required: [settings]
+  properties:
+    settings:
+      type: array
+      items: {$ref: '#/SettingEntry'}
+
+SettingUpdateRequest:
+  type: object
+  description: New value of one register row. `expectedVersion` prevents silent overwrites (spec 16 EC-3). For secret rows a string replaces the value and `null` clears it (AC-54).
+  required: [value, expectedVersion]
+  properties:
+    value:
+      $ref: '#/SettingValue'
+    expectedVersion:
+      type: integer
+      minimum: 1
+    reason:
+      type: [string, 'null']
+      maxLength: 1000
+
+SettingVersion:
+  type: object
+  required: [version, value, effectiveFrom, changedBy, reason, restoredFromVersion]
+  properties:
+    version: {type: integer, minimum: 1}
+    value:
+      $ref: '#/SettingValue'
+      description: Null for secret rows (never returned).
+    effectiveFrom: {$ref: '../components/schemas.yaml#/Timestamp'}
+    changedBy:
+      oneOf: [{$ref: '../components/schemas.yaml#/StaffSummary'}, {type: 'null'}]
+      description: Null for the seeded default and migrated production values.
+    reason: {type: [string, 'null']}
+    restoredFromVersion: {type: [integer, 'null']}
+
+SettingVersionPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/SettingVersion'}
+
+SettingRestoreRequest:
+  type: object
+  required: [version, expectedVersion]
+  properties:
+    version:
+      type: integer
+      minimum: 1
+      description: The version whose value becomes a new change (spec 16 AC-53).
+    expectedVersion:
+      type: integer
+      minimum: 1
+    reason:
+      type: [string, 'null']
+      maxLength: 1000
+
+CustomCodeValue:
+  type: object
+  description: |
+    Shape of the S-110 `appearance.custom_code` value (type `structured`), edited through
+    `adminUpdateSetting` by the Super-admin only. `enabled: false` is the "Disable custom code"
+    switch (spec 16 AC-75); legacy code is imported with `enabled: false`. Every external host used
+    must be listed in S-127 (AC-74). Rendered only on public web pages (AC-73).
+  required: [enabled, head, footer]
+  properties:
+    enabled: {type: boolean}
+    head:
+      type: [string, 'null']
+      maxLength: 50000
+    footer:
+      type: [string, 'null']
+      maxLength: 50000
+
+CustomCodeAllowedHostsValue:
+  type: object
+  description: |
+    Shape of the S-127 `appearance.custom_code.allowed_hosts` value (type `structured`; spec 00 S-127,
+    spec 16 AC-74, AC-74a, R-A10; Owner 2026-09-30 Q-146 (c)). Only fixed-code vendors (analytics or
+    advertising pixels, version-pinned where the vendor allows it); no tag managers or other hosts whose
+    code can change outside MyTask. The public-page CSP allows exactly these hosts (ADR-013 §7). Written by
+    the Super-admin through `adminUpdateSetting` (re-authentication, critical row, audited).
+  required: [hosts]
+  properties:
+    hosts:
+      type: array
+      maxItems: 50
+      uniqueItems: true
+      items: {$ref: '#/CustomCodeAllowedHost'}
+
+CustomCodeAllowedHost:
+  type: object
+  description: One allowed host with its fixed-code confirmation. In requests `confirmedBy` / `confirmedAt` are ignored (the API sets them for newly added hosts and keeps them for hosts already listed); in responses they are always filled.
+  required: [host, fixedCodeConfirmed]
+  properties:
+    host:
+      type: string
+      maxLength: 253
+      pattern: '^(\*\.)?([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$'
+      description: Lower-case hostname; no wildcard except a leading `*.` for subdomains (spec 00 S-127).
+    fixedCodeConfirmed:
+      const: true
+      description: The Super-admin ticked `t_custom_code_fixed_vendor_confirm` for this host (hint `t_custom_code_fixed_vendor_hint`). A missing or false value for a newly added host → `422 CUSTOM_CODE_FIXED_VENDOR_REQUIRED`.
+    confirmedBy:
+      oneOf: [{$ref: '../components/schemas.yaml#/StaffSummary'}, {type: 'null'}]
+    confirmedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+
+# ═══════════════════════════ Commission & Fee module (spec 16 H, ADR-005 §6) ═══════════════════════════
+FeeCalcType:
+  type: string
+  enum: [percent_bp, fixed_tetri]
+  description: data-model `fee_calc_type`. `percent_bp` uses `rate` (basis points = 2 decimals of a percent); `fixed_tetri` uses `fixedAmount`.
+
+FeeAppliesTo:
+  type: string
+  enum: [gig_order, project_payment, custom_offer, withdrawal, topup, project_posting]
+
+FeePayer:
+  type: string
+  enum: [buyer, freelancer]
+
+FeeRule:
+  type: object
+  description: |
+    Current version of one fee rule (spec 16 AC-46). Rules are never edited in place; each change
+    inserts a new version effective immediately (P-123); transactions keep the version they used
+    (00 AC-9). Promo codes never reduce fees; there is no promo field (AC-50, `t_admin_promo_never_on_fees`).
+  required: [id, code, registerId, name, enabled, calcType, rate, fixedAmount, payer, appliesTo, plan, version, effectiveFrom, changedBy, reason, canEnable]
+  properties:
+    id:
+      $ref: '../components/schemas.yaml#/Uuid'
+      description: Id of this version row (the `feeRuleVersionId` in `FeeLine` snapshots).
+    code:
+      type: string
+      pattern: '^[a-z_]+(\.[a-z_]+)+$'
+      examples: [withdrawal.standard]
+    registerId:
+      type: [string, 'null']
+      pattern: '^S-[0-9]{3}$'
+      description: S-010…S-018 for the seeded rules; null for rules added later.
+    name: {$ref: '../components/schemas.yaml#/LocalizedString'}
+    enabled: {type: boolean}
+    calcType: {$ref: '#/FeeCalcType'}
+    rate:
+      oneOf: [{$ref: '../components/schemas.yaml#/BasisPoints'}, {type: 'null'}]
+    fixedAmount:
+      oneOf: [{$ref: '../components/schemas.yaml#/Money'}, {type: 'null'}]
+    payer: {$ref: '#/FeePayer'}
+    appliesTo:
+      type: array
+      minItems: 1
+      items: {$ref: '#/FeeAppliesTo'}
+    plan:
+      oneOf: [{$ref: '../components/schemas.yaml#/PlanCode'}, {type: 'null'}]
+      description: Plan scope (e.g. withdrawal fees per plan), null = all plans.
+    version: {type: integer, minimum: 1}
+    effectiveFrom: {$ref: '../components/schemas.yaml#/Timestamp'}
+    changedBy:
+      oneOf: [{$ref: '../components/schemas.yaml#/StaffSummary'}, {type: 'null'}]
+    reason: {type: [string, 'null']}
+    canEnable:
+      type: boolean
+      description: False for `project.posting_fee` while no posting-payment flow exists (switch disabled with `t_fee_requires_payment_flow`, AC-49).
+
+FeeRuleList:
+  type: object
+  required: [feeRules]
+  properties:
+    feeRules:
+      type: array
+      items: {$ref: '#/FeeRule'}
+
+FeeRuleValues:
+  type: object
+  description: |
+    Editable values of a rule. Validation (spec 16 AC-47): `rate` 0–10000 bp (0–100% with at most 2
+    decimals); `fixedAmount` 0–100,000.00 GEL (0–10,000,000 tetri); exactly one of `rate`/`fixedAmount`
+    per `calcType`; payer allowed for the purpose (withdrawal → freelancer; card surcharge and top-up →
+    buyer). Violations → `400 VALIDATION_FAILED` with field errors.
+  required: [enabled, calcType, payer]
+  properties:
+    enabled: {type: boolean}
+    calcType: {$ref: '#/FeeCalcType'}
+    rate:
+      oneOf: [{$ref: '../components/schemas.yaml#/BasisPoints'}, {type: 'null'}]
+    fixedAmount:
+      oneOf: [{$ref: '../components/schemas.yaml#/Money'}, {type: 'null'}]
+    payer: {$ref: '#/FeePayer'}
+    plan:
+      oneOf: [{$ref: '../components/schemas.yaml#/PlanCode'}, {type: 'null'}]
+
+FeeRuleUpdateRequest:
+  allOf:
+    - $ref: '#/FeeRuleValues'
+    - type: object
+      required: [expectedVersion, reason]
+      properties:
+        expectedVersion:
+          type: integer
+          minimum: 1
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 1000
+
+FeeRuleCreateRequest:
+  allOf:
+    - $ref: '#/FeeRuleValues'
+    - type: object
+      description: A new rule for a supported purpose; it is always created OFF (`enabled` must be false, spec 16 AC-49, 00 §4.2).
+      required: [code, name, appliesTo, reason]
+      properties:
+        code:
+          type: string
+          pattern: '^[a-z_]+(\.[a-z_]+)+$'
+          maxLength: 100
+        name: {$ref: '#/FeeRuleNameInput'}
+        appliesTo:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: {$ref: '#/FeeAppliesTo'}
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 1000
+
+FeeRuleNameInput:
+  type: object
+  required: [ka]
+  properties:
+    ka:
+      type: string
+      minLength: 1
+      maxLength: 100
+    en:
+      type: [string, 'null']
+      maxLength: 100
+
+FeeRulePreviewRequest:
+  allOf:
+    - $ref: '#/FeeRuleValues'
+    - type: object
+      required: [appliesTo]
+      properties:
+        code:
+          type: [string, 'null']
+          description: Rule being edited (its other active rules are included in the example); null for a new rule.
+        appliesTo: {$ref: '#/FeeAppliesTo'}
+
+FeeRulePreview:
+  type: object
+  description: Live example on a 100.00 GEL item (spec 16 AC-47, `t_admin_fee_example`), computed by the same `calculateFees` function as checkout (ADR-005 §6). Nothing is saved.
+  required: [itemPrice, buyerPays, freelancerReceives, platformRevenue, lines]
+  properties:
+    itemPrice: {$ref: '../components/schemas.yaml#/Money'}
+    buyerPays: {$ref: '../components/schemas.yaml#/Money'}
+    freelancerReceives:
+      $ref: '../components/schemas.yaml#/Money'
+      description: Freelancer HOLD (orders, payments, offers) or payout (withdrawals).
+    platformRevenue: {$ref: '../components/schemas.yaml#/Money'}
+    lines:
+      type: array
+      items: {$ref: '#/FeePreviewLine'}
+
+FeePreviewLine:
+  type: object
+  required: [feeCode, payer, amount]
+  properties:
+    feeCode: {type: string}
+    payer: {$ref: '#/FeePayer'}
+    amount: {$ref: '../components/schemas.yaml#/Money'}
+
+FeeRuleVersionPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/FeeRule'}
+
+FeeRuleRestoreRequest:
+  type: object
+  required: [version, expectedVersion, reason]
+  properties:
+    version:
+      type: integer
+      minimum: 1
+    expectedVersion:
+      type: integer
+      minimum: 1
+    reason:
+      type: string
+      minLength: 1
+      maxLength: 1000
+
+# ═══════════════════════════ Translations (spec 16 AC-64, ADR-006 §4) ═══════════════════════════
+TranslationOverrideTexts:
+  type: object
+  required: [ka, en]
+  properties:
+    ka: {type: [string, 'null']}
+    en: {type: [string, 'null']}
+
+TranslationOverrideEntry:
+  type: object
+  description: One UI key with its base value from `packages/i18n` and the database override (spec 16 AC-64).
+  required: [key, placeholders, base, override, isUnused, updatedAt, updatedBy]
+  properties:
+    key:
+      type: string
+      pattern: '^t_[a-z0-9_]+$'
+    placeholders:
+      type: array
+      items: {type: string}
+      description: Placeholders of the base value (an override must contain the same).
+    base: {$ref: '#/TranslationOverrideTexts'}
+    override: {$ref: '#/TranslationOverrideTexts'}
+    isUnused:
+      type: boolean
+      description: Override kept for a key no longer in the base files (spec 16 EC-9).
+    updatedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    updatedBy:
+      oneOf: [{$ref: '../components/schemas.yaml#/StaffSummary'}, {type: 'null'}]
+
+TranslationOverrideEntryPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/TranslationOverrideEntry'}
+
+TranslationOverridePutRequest:
+  type: object
+  required: [value]
+  properties:
+    value:
+      type: string
+      minLength: 1
+      maxLength: 5000
+      description: Plain text; HTML is refused (`VALIDATION_FAILED`, field code `html_not_allowed`).
+
+TranslationOverrideExport:
+  type: object
+  description: '"Export overrides" JSON file for committing to `packages/i18n` (spec 16 AC-64, ADR-006 §4).'
+  required: [generatedAt, ka, en, unusedKeys]
+  properties:
+    generatedAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    ka:
+      type: object
+      additionalProperties: {type: string}
+    en:
+      type: object
+      additionalProperties: {type: string}
+    unusedKeys:
+      type: array
+      items: {type: string}
+
+# ═══════════════════════════ System (spec 16 N) ═══════════════════════════
+SystemLogLevel:
+  type: string
+  enum: [warn, error, fatal]
+
+SystemLogSource:
+  type: string
+  enum: [api, worker, ws]
+  description: data-model §3.P `system_log.source` (`ws` = websocket gateway).
+
+SystemLogEntry:
+  type: object
+  description: One stored log entry (last 30 days, redacted; spec 16 AC-68). Raw log files are never downloadable.
+  required: [id, level, source, message, requestId, context, createdAt]
+  properties:
+    id:
+      type: string
+      pattern: '^[0-9]+$'
+    level: {$ref: '#/SystemLogLevel'}
+    source: {$ref: '#/SystemLogSource'}
+    message: {type: string}
+    requestId: {type: [string, 'null']}
+    context:
+      type: object
+      additionalProperties: true
+      description: Redacted context (no secrets, tokens, passwords or codes; ADR-013 §11).
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+SystemLogEntryPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/SystemLogEntry'}
+
+JobHealth:
+  type: object
+  description: Status of one background job from `sweeper_runs` (ADR-008 §8, spec 16 AC-69).
+  required: [job, isMinuteJob, lastStartedAt, lastSuccessAt, lastError, lastProcessedCount, isFailing]
+  properties:
+    job:
+      type: string
+      description: 'Worker job name (ADR-008 §5), e.g. `escrow-auto-release`, `award-expiry`, `refund-auto-reject`, `offer-expiry`, `subscription-renewal`, `renewal-reminder`, `analytics-rollup`, `geoip-update`, `ledger-reconcile`.'
+    isMinuteJob:
+      type: boolean
+      description: Runs every minute; red after 15 minutes without success.
+    lastStartedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    lastSuccessAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    lastError: {type: [string, 'null']}
+    lastProcessedCount: {type: [integer, 'null']}
+    isFailing: {type: boolean}
+
+QueueHealth:
+  type: object
+  required: [queue, waiting, active, delayed, failed]
+  properties:
+    queue:
+      type: string
+      description: BullMQ queue (ADR-008 §4), e.g. `email`, `push`, `files-scan`, `bog-reconcile`, `ledger-reconcile`, `analytics`.
+    waiting: {type: integer, minimum: 0}
+    active: {type: integer, minimum: 0}
+    delayed: {type: integer, minimum: 0}
+    failed: {type: integer, minimum: 0}
+
+SystemHealth:
+  type: object
+  description: System health screen (spec 16 AC-69, P-121). Problems also trigger EV-125 (spec 15 AC-39).
+  required: [generatedAt, jobs, queues, lastBogCallbackAt, emailFailureRate, failedDeliveryCount]
+  properties:
+    generatedAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    jobs:
+      type: array
+      items: {$ref: '#/JobHealth'}
+    queues:
+      type: array
+      items: {$ref: '#/QueueHealth'}
+    lastBogCallbackAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    emailFailureRate:
+      oneOf: [{$ref: '../components/schemas.yaml#/BasisPoints'}, {type: 'null'}]
+      description: Failed share of emails in the last hour (alert above 2000 bp = 20%, spec 15 AC-39).
+    failedDeliveryCount:
+      type: integer
+      minimum: 0
+      description: Failed deliveries of the last 90 days (dashboard counter, spec 16 AC-17).
+
+SystemCacheRefreshResult:
+  type: object
+  required: [refreshed, refreshedAt]
+  properties:
+    refreshed:
+      type: array
+      items:
+        type: string
+        enum: [public_pages, settings, translations]
+    refreshedAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+# ═══════════════════════════ Maintenance (spec 16 AC-70, S-121) ═══════════════════════════
+MaintenanceTextInput:
+  type: object
+  required: [ka]
+  properties:
+    ka:
+      type: string
+      minLength: 1
+      maxLength: 2000
+    en:
+      type: [string, 'null']
+      maxLength: 2000
+
+MaintenanceState:
+  type: object
+  description: |
+    Maintenance mode (S-121) with its headline and message. While ON, user endpoints answer
+    `503 MAINTENANCE`; admin, the BOG callback, health, jobs and notifications keep working (AC-70).
+    Null headline/message → the defaults `t_maintenance_default_headline` / `t_maintenance_default_message`.
+  required: [enabled, headline, message, enabledAt, enabledBy, version]
+  properties:
+    enabled: {type: boolean}
+    headline:
+      oneOf: [{$ref: '../components/schemas.yaml#/LocalizedString'}, {type: 'null'}]
+    message:
+      oneOf: [{$ref: '../components/schemas.yaml#/LocalizedString'}, {type: 'null'}]
+    enabledAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    enabledBy:
+      oneOf: [{$ref: '../components/schemas.yaml#/StaffSummary'}, {type: 'null'}]
+    version:
+      type: integer
+      minimum: 1
+      description: S-121 version (for `expectedVersion`).
+
+MaintenanceUpdateRequest:
+  type: object
+  required: [enabled, expectedVersion]
+  properties:
+    enabled: {type: boolean}
+    headline:
+      oneOf: [{$ref: '#/MaintenanceTextInput'}, {type: 'null'}]
+    message:
+      oneOf: [{$ref: '#/MaintenanceTextInput'}, {type: 'null'}]
+    expectedVersion:
+      type: integer
+      minimum: 1
+
+MaintenancePreviewLink:
+  type: object
+  description: Single-use link (token of at least 128 bits, stored hashed, bound to the staff session, 5 minutes) to `mytask.ge`; opening it sets the host-only bypass cookie `__Host-mt_preview` bound to the staff session and redirects to a URL without the token (no shared secret, P-112; `adminCreateMaintenancePreviewLink`).
+  required: [url, expiresAt]
+  properties:
+    url: {$ref: '../components/schemas.yaml#/HttpUrl'}
+    expiresAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+# ═══════════════════════════ Realtime payloads (realtime.md) ═══════════════════════════
+NotificationCreatedEvent:
+  type: object
+  description: '`notification.created` (room `user:{userId}`): a new in-app notification; update the bell and the open list (spec 15 AC-12).'
+  required: [notification, unreadCount]
+  properties:
+    notification: {$ref: '#/Notification'}
+    unreadCount: {type: integer, minimum: 0}
+
+NotificationReadEvent:
+  type: object
+  description: '`notification.read` (room `user:{userId}`): notifications were marked read on some device; every tab and device updates (spec 15 AC-14, EC-3).'
+  required: [notificationIds, allRead, unreadCount]
+  properties:
+    notificationIds:
+      type: array
+      items: {$ref: '../components/schemas.yaml#/Uuid'}
+      description: Empty when `allRead` is true.
+    allRead: {type: boolean}
+    unreadCount: {type: integer, minimum: 0}
+
+NotificationBadgeEvent:
+  type: object
+  description: '`badge.updated` (room `user:{userId}`): new bell / app-icon badge counts (spec 15 AC-12, AC-25).'
+  required: [unreadCount, unseenConversationCount, badgeCount]
+  properties:
+    unreadCount: {type: integer, minimum: 0}
+    unseenConversationCount: {type: integer, minimum: 0}
+    badgeCount: {type: integer, minimum: 0}
+
+AdminQueueCountersEvent:
+  type: object
+  description: '`admin.queue_counters_updated` (room `staff-permission:{permission}`): new counts of the queues guarded by that permission (spec 16 AC-17).'
+  required: [counters]
+  properties:
+    counters:
+      type: array
+      items: {$ref: '#/AdminDashboardQueueCounter'}
+
+StaffPermissionsChangedEvent:
+  type: object
+  description: '`admin.permissions_changed` (room `staff:{staffId}`): the staff member''s roles or a role''s permissions changed; the admin app re-reads `adminGetMe` (spec 16 AC-12). The API applies the change within 1 minute regardless.'
+  required: [staffId, permissions]
+  properties:
+    staffId: {$ref: '../components/schemas.yaml#/Uuid'}
+    permissions:
+      type: array
+      items: {$ref: '#/PermissionCode'}

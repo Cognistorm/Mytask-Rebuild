@@ -1,0 +1,2839 @@
+# D2 — paths for specs 03 (categories and search), 04 (gigs), 07 (reviews), 17 (content and SEO) and the
+# spec 16 ACs delegated to D2 (16 AC-19, 20, 25, 26, 31, 60…63). Written by the P2-B4 D2 group run
+# (2026-09-29). Rules: docs/04-api/CONVENTIONS.md. Schemas: ../schemas/d2.yaml; shared: ../components/.
+#
+# Web page numbers: public lists that the web renders with numbered pages kept in the URL (spec 03 AC-8,
+# spec 17 AC-15, spec 07 AC-15; url-map §2 `?page=N`) accept an optional `page` (1-based) as an
+# alternative to `cursor` (ADR-011 §4) and return `totalCount`. Mobile uses `cursor` (infinite scroll).
+# Requested as a shared parameter in the D2 handoff.
+
+# ═════════════════════════ Catalog (spec 03) ═════════════════════════
+/categories:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: listCategories
+    summary: Gig category tree (3 levels)
+    description: |
+      The whole tree for the header menu, the mobile accordion, category pages and the gig wizard
+      (spec 03 AC-1, AC-2; spec 04 AC-4). Names in the request language with Georgian fallback (AC-4).
+      Cached; changes by staff appear within 60 seconds.
+    tags: [Catalog]
+    security: []
+    x-permission: {audience: public}
+    x-covers: ['03 AC-1', '03 AC-2', '03 AC-4', '04 AC-4']
+    responses:
+      '200':
+        description: The tree.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/CategoryTree'}
+      '429': {$ref: '../components/responses.yaml#/TooManyRequests'}
+
+/categories/lookup:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: lookupCategory
+    summary: Resolve a category page by its slug path
+    description: |
+      `/categories/{c}`, `/categories/{c}/{s}`, `/categories/{c}/{s}/{child}` (spec 03 AC-3). Each lower
+      level must belong to the level above; otherwise 404. On 404 the web asks `resolveRedirect` (an old
+      slug after a staff slug change answers 301, spec 17 AC-10) before showing the 404 page. The gig
+      list of the page is `searchGigs?categoryId=`.
+    tags: [Catalog]
+    security: []
+    x-permission: {audience: public}
+    x-covers: ['03 AC-3', '03 AC-4', '03 AC-35']
+    parameters:
+      - name: path
+        in: query
+        required: true
+        description: 'One to three slugs joined by `/`, e.g. `graphics-design/logo-design`.'
+        schema: {type: string, minLength: 1, maxLength: 500}
+    responses:
+      '200':
+        description: The category.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/CategoryDetail'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/categories/{categoryId}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: categoryId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: getCategory
+    summary: Get a gig category (any level)
+    tags: [Catalog]
+    security: []
+    x-permission: {audience: public}
+    x-covers: ['03 AC-3']
+    responses:
+      '200':
+        description: The category.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/CategoryDetail'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/project-categories:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: listProjectCategories
+    summary: Project categories with their skills
+    description: Active project categories and their active skills (spec 03 AC-31, P-31), for explore chips, the post-project form (at most S-076 skills per project, spec 10) and category pages.
+    tags: [Catalog]
+    security: []
+    x-permission: {audience: public}
+    x-covers: ['03 AC-31']
+    x-settings: [S-076]
+    responses:
+      '200':
+        description: The list.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/ProjectCategoryList'}
+      '429': {$ref: '../components/responses.yaml#/TooManyRequests'}
+
+/project-categories/lookup:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: lookupProjectCategory
+    summary: Resolve /explore/projects/{category}[/{skill}]
+    description: 'Spec 03 AC-33: the category must exist and, when given, the skill must belong to it (P-31 fixes the legacy lookup in the gig table); otherwise 404. With S-075 OFF → 403 FEATURE_DISABLED (AC-34).'
+    tags: [Catalog]
+    security: []
+    x-permission: {audience: public, toggles: [S-075]}
+    x-covers: ['03 AC-33', '03 AC-34']
+    parameters:
+      - {name: slug, in: query, required: true, schema: {type: string, minLength: 1, maxLength: 160}}
+      - {name: skillSlug, in: query, required: false, schema: {type: string, minLength: 1, maxLength: 100}}
+    responses:
+      '200':
+        description: The category (and skill).
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/ProjectCategoryLookupResult'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/countries:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: listCountries
+    summary: Active countries
+    description: Active countries with names in the request language (profile forms, billing). Inactive countries are not offered (spec 16 AC-62, P-125).
+    tags: [Catalog]
+    security: []
+    x-permission: {audience: public}
+    x-covers: ['16 AC-62']
+    responses:
+      '200':
+        description: The list.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/CountryList'}
+      '429': {$ref: '../components/responses.yaml#/TooManyRequests'}
+
+# ═════════════════════════ Search and freelancer lists (spec 03) ═════════════════════════
+/search/gigs:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: searchGigs
+    summary: Search and category gig lists (filters, sorts, Premium boost)
+    description: |
+      One operation for `/search` and every category level (spec 03 AC-3, AC-6…AC-23; ADR-011).
+      - Listed: active gigs of listable owners (active/verified, not banned, restricted or deleted; R-S1, P-29). English requests include gigs without English text; cards show the Georgian title (AC-7).
+      - `q`: every word must appear (any order, case-insensitive) in the title or description, Georgian or English, whatever the UI language; `- _ ' " / \ ` + ` count as spaces; longer than 100 characters is cut; only separators = empty (AC-19, AC-20, EC-5, EC-6, R-S5, R-S9).
+      - `categoryId`: gigs whose category, sub-category or child category is that node (AC-3).
+      - Filters (R-S2, P-27): `rating` N → average ≥ N (5 = exactly 5.0); `minPrice`/`maxPrice` in tetri, limits included; `minPrice > maxPrice` → 400 `VALIDATION_FAILED` field `minPrice` messageKey `t_min_price_greater_than_max`; `deliveryTime` N → delivery time ≤ N days (0-day gigs included).
+      - Sort (AC-13…AC-16, R-S3): see `SearchGigSort`. The boost never adds gigs; Premium status is at most 60 s old (AC-17).
+      - 42 per page (AC-8): clients send `limit=42`. `totalCount` is returned. Empty result = empty `data` (clients show `t_we_couldnt_find_anthing_search_term`, AC-21).
+      - Every listed card counts as an impression for gig analytics (spec 04 AC-39, ADR-012 server event).
+      Errors: 400 VALIDATION_FAILED (price range, unknown enum), 404 NOT_FOUND (unknown `categoryId`).
+    tags: [Search]
+    security: [{}, {userBearer: []}, {userCookie: []}]
+    x-permission: {audience: optional-user, ownership: 'none (a signed-in caller gets `isFavorite` on cards)'}
+    x-covers: ['03 AC-3', '03 AC-6', '03 AC-7', '03 AC-8', '03 AC-9', '03 AC-10', '03 AC-11', '03 AC-12', '03 AC-13', '03 AC-14', '03 AC-15', '03 AC-16', '03 AC-17', '03 AC-18', '03 AC-19', '03 AC-20', '03 AC-21', '03 AC-23', '07 AC-10']
+    parameters:
+      - {name: q, in: query, required: false, schema: {type: string, maxLength: 1000}}
+      - {name: categoryId, in: query, required: false, schema: {type: string, format: uuid}}
+      - {name: minPrice, in: query, required: false, description: 'Integer tetri (the web converts the legacy `min_price` GEL value with up to 2 decimals).', schema: {type: integer, format: int64, minimum: 0}}
+      - {name: maxPrice, in: query, required: false, description: 'Integer tetri.', schema: {type: integer, format: int64, minimum: 0}}
+      - {name: deliveryTime, in: query, required: false, description: 'At most N days (1, 2, 3, 4, 5, 6 days, 1, 2, 3 weeks, 1 month).', schema: {type: integer, enum: [1, 2, 3, 4, 5, 6, 7, 14, 21, 30]}}
+      - {name: rating, in: query, required: false, description: 'Average rating ≥ N (5 = exactly 5.0).', schema: {type: integer, minimum: 1, maximum: 5}}
+      - {name: sort, in: query, required: false, schema: {$ref: '../schemas/d2.yaml#/SearchGigSort'}}
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/Limit'
+      - $ref: '../components/parameters.yaml#/PageNumber'
+    responses:
+      '200':
+        description: One page of gig cards, with `totalCount`.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/GigCardPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/search/projects:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: searchProjects
+    summary: Explore projects (list, category, skill, keyword)
+    description: |
+      `/explore/projects`, `/explore/projects/{category}`, `/explore/projects/{category}/{skill}` (spec 03
+      AC-32…AC-34). Projects with status active or completed, newest first, 40 per page (clients send
+      `limit=40`), `totalCount` returned. `q` uses the word rule of `searchGigs` on project title and
+      description in either language; English requests include projects without English text. With
+      S-075 OFF → 403 FEATURE_DISABLED (clients show the feature-disabled state, AC-34).
+      Errors: 400, 403 FEATURE_DISABLED, 404 (unknown category or skill not in the category).
+    tags: [Search]
+    security: [{}, {userBearer: []}, {userCookie: []}]
+    x-permission: {audience: optional-user, ownership: none, toggles: [S-075], notes: 'the token only decides the username masking of the project owner (Premium and owner see it)'}
+    x-covers: ['03 AC-32', '03 AC-33', '03 AC-34']
+    parameters:
+      - {name: q, in: query, required: false, schema: {type: string, maxLength: 1000}}
+      - {name: projectCategoryId, in: query, required: false, schema: {type: string, format: uuid}}
+      - {name: skillId, in: query, required: false, schema: {type: string, format: uuid}}
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/Limit'
+      - $ref: '../components/parameters.yaml#/PageNumber'
+    responses:
+      '200':
+        description: One page of project rows, with `totalCount`.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/SearchProjectCardPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/sellers:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: listSellers
+    summary: Freelancers list (/sellers)
+    description: |
+      Users who are active or verified, not banned, restricted or deleted, with at least one active gig
+      (spec 03 AC-27, P-30). Order: a mix that changes once a day (Tbilisi date), the same for everyone,
+      so paging is stable (R-S7, EC-8); no Premium boost (R-S3.7). 40 per page (clients send `limit=40`),
+      `totalCount` returned.
+    tags: [Search]
+    security: []
+    x-permission: {audience: public}
+    x-covers: ['03 AC-27']
+    parameters:
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/Limit'
+      - $ref: '../components/parameters.yaml#/PageNumber'
+    responses:
+      '200':
+        description: One page of freelancer cards.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/SellerCardPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+
+/hire/{keyword}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: keyword
+      in: path
+      required: true
+      schema: {type: string, minLength: 1, maxLength: 100}
+  get:
+    operationId: listHireSellers
+    summary: Freelancers with a skill (/hire/{keyword})
+    description: |
+      When at least one user skill has exactly this slug: the skill (title `t_hire_the_best_skill_name_experts`)
+      and users (AC-27 status rules, no gig required) with a skill whose slug or name contains the
+      keyword; daily mix order; 42 per page (clients send `limit=42`); `totalCount` returned (spec 03
+      AC-28, EC-7). When no skill has this exact slug → 404 NOT_FOUND, and the web answers 302 to
+      `/search?q={keyword with + for spaces}` (under `/en/` for English, AC-29, url-map §3).
+    tags: [Search]
+    security: []
+    x-permission: {audience: public}
+    x-covers: ['03 AC-28', '03 AC-29']
+    parameters:
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/Limit'
+      - $ref: '../components/parameters.yaml#/PageNumber'
+    responses:
+      '200':
+        description: The skill and one page of freelancer cards.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/HireSellerPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+
+# ═════════════════════════ Gigs (spec 04) ═════════════════════════
+/gigs:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: listGigs
+    summary: Public gigs of one seller (profile list)
+    description: |
+      Active gigs of a listable owner, newest first (the profile gig list, spec 02 AC-8: 6 at a time →
+      `limit=6`; no Premium boost, spec 03 R-S3.7). Cards carry the Featured badge (spec 03 AC-18).
+      Unknown or non-listable username → empty page.
+    tags: [Gigs]
+    security: [{}, {userBearer: []}, {userCookie: []}]
+    x-permission: {audience: optional-user, ownership: 'none (a signed-in caller gets `isFavorite`)'}
+    x-covers: ['03 AC-18']
+    parameters:
+      - {name: sellerUsername, in: query, required: true, schema: {type: string, minLength: 1, maxLength: 60}}
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/Limit'
+    responses:
+      '200':
+        description: One page of gig cards.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/GigCardPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+  post:
+    operationId: createGig
+    summary: Create a gig (wizard submit)
+    description: |
+      Saves the whole wizard (spec 04 AC-3…AC-16, AC-19). Validation (all field errors at once in
+      `details.fields`, AC-19):
+      - titles/descriptions: lengths (AC-4); Georgian fields need a Georgian letter
+        (`georgian_letter_required`, `t_validator_georgian_letter_required`) and only the R-5.3a
+        character set (`georgian_field_characters`, `t_validator_georgian_field_characters`,
+        shared `FieldError.refusedCharacters` / `params.chars` — P-136 ACCEPTED (Q-109, Q-111), spec 00
+        R-5.3a); English fields refuse Georgian letters and need a Latin letter
+        (`georgian_letters_not_allowed`, `t_validator_english_only`, AC-6);
+      - category chain: sub-category under category, child under sub-category;
+      - price ≥ 100 tetri (`t_price_min`), upgrades ≤ 10 (`t_upgrades_limit_reached`), FAQ ≤ 10
+        (`t_faq_limit_reached`), revisions 0…S-041 (`t_validator_revisions_range`, AC-9), SEO both or none
+        (`t_seo_both_fields_required`, AC-15);
+      - files: `ready` files of the caller with purposes `gig_thumbnail` / `gig_image` / `gig_document`;
+        1…S-077 images; documents only while S-080 is ON, 0…S-081 (422 FILE_* per file, AC-14).
+      Plan limit (AC-3, R-G3): non-deleted gigs ≥ S-001 (Standard) or S-002 (Premium) → 422
+      PLAN_LIMIT_REACHED (`t_plan_gig_limit_reached`, `details.limit`, `details.settingId`).
+      Result (AC-16): slug = transliterated Georgian title (≤ 138) + `-` + uid (AC-33); S-070 ON →
+      `active`; S-070 OFF → `pending` and EV-19 `Admin/PendingGig` to every S-100 address.
+      Errors: 400 VALIDATION_FAILED, 401, 403 ACCOUNT_RESTRICTED, 422 PLAN_LIMIT_REACHED / FILE_NOT_READY / FILE_PURPOSE_MISMATCH / FILE_TYPE_NOT_ALLOWED / FILE_TOO_LARGE.
+    tags: [Gigs]
+    x-permission: {audience: user, ownership: 'caller becomes the owner'}
+    x-covers: ['04 AC-3', '04 AC-4', '04 AC-5', '04 AC-6', '04 AC-8', '04 AC-9', '04 AC-11', '04 AC-12', '04 AC-13', '04 AC-14', '04 AC-15', '04 AC-16', '04 AC-19', '04 AC-33', '00 AC-5']
+    x-settings: [S-001, S-002, S-041, S-070, S-077, S-078, S-080, S-081, S-082, S-100]
+    x-notifications: [EV-19]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d2.yaml#/GigCreateRequest'}
+    responses:
+      '201':
+        description: The created gig in the owner's form (`status` active or pending).
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/GigOwnerView'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+/gigs/mine:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: listMyGigs
+    summary: My gigs (Selling → Gigs)
+    description: The caller's non-deleted gigs, newest first, with status (Active, Pending, Rejected + reason) and orders in queue (spec 04 AC-20). Empty page → `t_no_gigs_yet`.
+    tags: [Gigs]
+    x-permission: {audience: user, ownership: self}
+    x-covers: ['04 AC-20']
+    parameters:
+      - name: status
+        in: query
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: array
+          items: {type: string, enum: [active, pending, rejected]}
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/Limit'
+    responses:
+      '200':
+        description: One page of the caller's gigs.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/GigOwnerListItemPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+
+/gigs/creation-eligibility:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: getGigCreationEligibility
+    summary: May the caller open the gig wizard (plan limit)
+    description: Checked when the wizard opens (spec 04 AC-1, AC-2, P-35). `canCreate = false` → the client shows `t_plan_gig_limit_reached` with the limit and "Upgrade to Premium" (`/subscription?gigs=true`). Guests get 401 and are sent to login (AC-1).
+    tags: [Gigs]
+    x-permission: {audience: user, ownership: self}
+    x-covers: ['04 AC-1', '04 AC-2']
+    x-settings: [S-001, S-002]
+    responses:
+      '200':
+        description: The eligibility.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/GigCreationEligibility'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+/gigs/lookup:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: lookupGig
+    summary: Get a gig page by its public uid
+    description: |
+      `/service/{slug}`: the web takes the text after the last `-` of the slug as the uid (matched
+      case-insensitively) and calls this. Same result and visibility rules as `getGig`. If the requested
+      slug differs from the returned `slug` (old title, legacy English-UI slug, different case) the web
+      answers 301 to the current slug (spec 04 AC-33, P-33; spec 17 AC-3; url-map §4.1).
+    tags: [Gigs]
+    security: [{}, {userBearer: []}, {userCookie: []}]
+    x-permission: {audience: optional-user, ownership: 'active gigs of listable owners: anyone; pending/rejected: owner only; others get 404'}
+    x-covers: ['04 AC-26', '04 AC-33', '17 AC-3']
+    parameters:
+      - {name: uid, in: query, required: true, schema: {type: string, minLength: 1, maxLength: 40}}
+    responses:
+      '200':
+        description: The gig.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/Gig'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/gigs/{gigId}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: gigId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: getGig
+    summary: Get a gig page
+    description: |
+      The gig page (spec 04 AC-26). Visibility (AC-28): active gig of a listable owner (spec 03 P-29) →
+      everyone; pending → owner only (banner `t_this_gig_not_activated_yet`); rejected → owner only;
+      deleted or non-listable owner → 404 (staff use `adminGetGig`). English requests without English
+      text return the Georgian text with `contentLocale: ka` and 200 (AC-27). `seller.isAcceptingOrders`
+      and `seller.unavailableUntil` drive the unavailable notice (AC-29); `viewer.isOwner` replaces the
+      favourite button with "Edit gig" (AC-30). Reviews tab: `listReviews?gigId=`; "You may also like":
+      `listRelatedGigs`. A GET never counts a visit: clients call `recordGigView` (AC-34).
+    tags: [Gigs]
+    security: [{}, {userBearer: []}, {userCookie: []}]
+    x-permission: {audience: optional-user, ownership: 'active gigs of listable owners: anyone; pending/rejected: owner only; others get 404'}
+    x-covers: ['04 AC-26', '04 AC-27', '04 AC-28', '04 AC-29', '04 AC-30', '03 AC-18', '07 AC-10', '07 AC-14', '17 AC-4']
+    responses:
+      '200':
+        description: The gig.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/Gig'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+  patch:
+    operationId: updateGig
+    summary: Edit an own gig
+    description: |
+      Same validation as `createGig` for the fields sent (spec 04 AC-21; the child category is saved,
+      fixing legacy). `revisionsAllowed` must be within today's S-041 when sent (AC-10). Lists replace
+      the whole list in order (gallery add/remove/reorder without re-upload, 1…S-077 images, AC-23).
+      The plan limit never blocks an edit (AC-25). Moderation (AC-22, R-G4): S-070 OFF → status
+      `pending` (leaves public lists until approved; EV-19 to S-100; orders already placed continue,
+      EC-4); S-070 ON → stays/becomes `active`. The slug changes only when the Georgian title changes
+      (old slugs 301 by uid, AC-33, EC-7). Deleted gigs cannot be edited (404).
+      Errors: 400 VALIDATION_FAILED, 401, 403 ACCOUNT_RESTRICTED, 404, 422 FILE_*.
+    tags: [Gigs]
+    x-permission: {audience: user, ownership: owner of the gig; others get 404}
+    x-covers: ['04 AC-5', '04 AC-6', '04 AC-9', '04 AC-10', '04 AC-11', '04 AC-12', '04 AC-14', '04 AC-15', '04 AC-19', '04 AC-21', '04 AC-22', '04 AC-23', '04 AC-25', '04 AC-33']
+    x-settings: [S-041, S-070, S-077, S-078, S-080, S-081, S-082, S-100]
+    x-notifications: [EV-19]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d2.yaml#/GigUpdateRequest'}
+    responses:
+      '200':
+        description: The updated gig in the owner's form.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/GigOwnerView'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+  delete:
+    operationId: deleteGig
+    summary: Delete an own gig
+    description: |
+      Refused with 409 GIG_HAS_ORDERS_IN_QUEUE (`t_this_gig_has_orders_in_queue_delete`) while paid order
+      items are unfinished (R-G8). Otherwise status `deleted`: gone from public pages and My gigs, no longer
+      counted for the plan limit; past orders and reviews keep their data (spec 04 AC-24, EC-1).
+    tags: [Gigs]
+    x-permission: {audience: user, ownership: owner of the gig; others get 404}
+    x-covers: ['04 AC-24']
+    responses:
+      '204': {$ref: '../components/responses.yaml#/NoContent'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+/gigs/{gigId}/owner-view:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: gigId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: getGigOwnerView
+    summary: Own gig for the edit form
+    description: Both languages, file ids, status and rejection reason (shown in the edit screen, spec 04 AC-18, AC-21; CONVENTIONS §11 owner edit reads).
+    tags: [Gigs]
+    x-permission: {audience: user, ownership: owner of the gig; others get 404}
+    x-covers: ['04 AC-18', '04 AC-21']
+    responses:
+      '200':
+        description: The gig in the owner's form.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/GigOwnerView'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/gigs/{gigId}/related:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: gigId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: listRelatedGigs
+    summary: '"You may also like" for a gig'
+    description: |
+      Spec 04 AC-32 (P-137 ACCEPTED by the Owner 2026-09-30, Q-110). Candidates: other active gigs of listable owners (same seller
+      not excluded). Shown if at least one of: M1 same sub-category; M2 its title contains the viewed
+      gig's whole title; M3 its description contains the viewed gig's whole title; M4 its description
+      contains the viewed gig's whole description. "Contains" = case-insensitive substring on plain text
+      (no formatting); `%` and `_` are ordinary characters. Texts compared in the request language (English
+      text, or Georgian where English is missing) on both sides. Random order on every call, at most 40,
+      no Premium boost, no filling up. Empty `gigs` → the section is hidden. Visibility of the viewed
+      gig as in `getGig` (404 otherwise).
+    tags: [Gigs]
+    security: [{}, {userBearer: []}, {userCookie: []}]
+    x-permission: {audience: optional-user, ownership: 'same visibility as getGig; others get 404'}
+    x-covers: ['04 AC-32']
+    responses:
+      '200':
+        description: Up to 40 gig cards.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/GigRelatedList'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/gigs/{gigId}/views:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: gigId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: recordGigView
+    summary: Record a gig page visit
+    description: |
+      Called by the browser (after the page renders) and by the app when a gig page opens, so the user
+      agent and IP are the visitor's. Views by the owner are ignored. Increases the visit counter and
+      records device, browser, OS, referrer domain and country/city from the local GeoIP file; the IP is
+      never stored or sent to a third party (spec 04 AC-34, Q-055, ADR-012). Bots are filtered.
+    tags: [Gigs]
+    security: [{}, {userBearer: []}, {userCookie: []}]
+    x-permission: {audience: optional-user, ownership: 'none (owner views are not counted)'}
+    x-covers: ['04 AC-34']
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d2.yaml#/GigViewCreateRequest'}
+    responses:
+      '202':
+        description: Accepted (recorded asynchronously). No body.
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '429': {$ref: '../components/responses.yaml#/TooManyRequests'}
+
+/gigs/{gigId}/analytics:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: gigId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: getGigAnalytics
+    summary: Analytics of an own gig
+    description: Totals (sales, clicks, impressions, reviews), breakdowns (devices, browsers, OS, referrers, countries, cities from the platform's own IP-location source) and recent orders (spec 04 AC-39, ADR-012). Other users get 404.
+    tags: [Gigs]
+    x-permission: {audience: user, ownership: owner of the gig; others get 404}
+    x-covers: ['04 AC-39']
+    responses:
+      '200':
+        description: The analytics.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/GigAnalytics'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/gigs/{gigId}/reports:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: gigId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: createGigReport
+    summary: Report a gig
+    description: |
+      Saves the report for the staff reports queue (D6 `adminListReports`, spec 16 AC-28) and sends EV-22
+      `Admin/GigReported` to every S-100 address (spec 04 AC-37, AC-38, P-36). Success text
+      `t_gig_reported_successfully`. Guests get 401 (clients show `t_pls_login_or_register_to_report_this_gig`).
+      Errors: 400 (reason 6–500), 401, 403 FORBIDDEN `t_gig_owner_cant_report_his_gig` (own gig) or
+      ACCOUNT_RESTRICTED, 404 (gig not public, incl. deleted after the page opened, EC-10), 409 DUPLICATE
+      `t_looks_like_alrdy_reported_this_gig` (second report by the same user).
+      Anti-abuse limit (SEC-23, CONVENTIONS §14): 10 reports per user per hour across the four report
+      operations → `429 RATE_LIMITED`.
+    tags: [Gigs]
+    x-permission: {audience: user, ownership: 'anyone except the owner of the gig (403)'}
+    x-covers: ['04 AC-37', '04 AC-38']
+    x-settings: [S-100]
+    x-notifications: [EV-22]
+    x-rate-limit: 10 reports per user per hour, shared by createUserReport, createGigReport, createProjectReport and createProposalReport (SEC-23)
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d2.yaml#/GigReportCreateRequest'}
+    responses:
+      '201':
+        description: The report was saved.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/GigReport'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+      '429': {$ref: '../components/responses.yaml#/TooManyRequests'}
+
+# ═════════════════════════ Favourites (spec 04 AC-35, AC-36) ═════════════════════════
+/favorites:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: listFavorites
+    summary: My favourite gigs
+    description: The caller's saved gigs that are still listable, newest saved first, 42 per page (clients send `limit=42`). Saved gigs that are deleted, pending or whose owner is not listable are not returned, and return when active again (spec 04 AC-36, EC-11). Empty → `t_no_favorites_yet`.
+    tags: [Favorites]
+    x-permission: {audience: user, ownership: self}
+    x-covers: ['04 AC-36']
+    parameters:
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/Limit'
+    responses:
+      '200':
+        description: One page of gig cards (`isFavorite` true).
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/GigCardPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+
+/favorites/{gigId}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: gigId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  put:
+    operationId: putFavorite
+    summary: Add a gig to my favourites
+    description: Idempotent (spec 04 AC-35, `t_gig_has_been_added_to_favorite_list`). Own gig → 403 (R-G10). Gig not public → 404. Guests get 401 (clients show `t_pls_login_or_register_to_add_to_favovorite`).
+    tags: [Favorites]
+    x-permission: {audience: user, ownership: 'anyone except the owner of the gig (403)'}
+    x-covers: ['04 AC-35']
+    responses:
+      '200':
+        description: The gig is in the favourites.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/FavoriteGig'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+  delete:
+    operationId: deleteFavorite
+    summary: Remove a gig from my favourites
+    description: Idempotent (spec 04 AC-35, AC-36, `t_gig_removed_from_ur_favorite_list`).
+    tags: [Favorites]
+    x-permission: {audience: user, ownership: self}
+    x-covers: ['04 AC-35', '04 AC-36']
+    responses:
+      '204': {$ref: '../components/responses.yaml#/NoContent'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+
+# ═════════════════════════ Admin gigs (spec 16 AC-19, AC-20; spec 04 AC-17, AC-18) ═════════════════════════
+/admin/gigs:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: adminListGigs
+    summary: Gigs list and moderation queue
+    description: |
+      With `status=pending` this is the gig moderation queue (spec 16 AC-19): oldest submission first, 50
+      per page, filters date / owner (`userId`) / category, `totalCount` returned (queue counter). Other
+      statuses: all gigs, newest first (`deleted` includes owner deletions and staff removals, `deletedBy`).
+      `userId` feeds the user page "Gigs" tab (spec 16 AC-31). Empty queue → `t_admin_queue_empty`.
+    tags: [Admin Gigs]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: gigs.moderate, ownership: none}
+    x-covers: ['16 AC-19', '16 AC-20', '16 AC-31']
+    parameters:
+      - name: status
+        in: query
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: array
+          items: {$ref: '../schemas/d2.yaml#/GigStatus'}
+      - {name: categoryId, in: query, required: false, description: 'Any level.', schema: {type: string, format: uuid}}
+      - {name: q, in: query, required: false, description: 'Title (either language) or uid.', schema: {type: string, maxLength: 200}}
+      - $ref: '../components/parameters.yaml#/UserIdFilter'
+      - $ref: '../components/parameters.yaml#/CreatedFrom'
+      - $ref: '../components/parameters.yaml#/CreatedTo'
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/AdminLimit'
+    responses:
+      '200':
+        description: One page of gigs, with `totalCount`.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/AdminGigListItemPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+/admin/gigs/{gigId}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: gigId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: adminGetGig
+    summary: Gig detail for staff (any status)
+    description: The content as the public would see it (both languages) plus the owner summary (status, plan, KYC state, number of reports, earlier rejections) (spec 16 AC-19, AC-20; spec 04 AC-28 staff may see pending, rejected and deleted gigs).
+    tags: [Admin Gigs]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: gigs.moderate, ownership: none}
+    x-covers: ['16 AC-19', '16 AC-20', '04 AC-28']
+    responses:
+      '200':
+        description: The gig.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/AdminGig'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/admin/gigs/{gigId}/publish:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: gigId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: adminPublishGig
+    summary: Publish a pending gig
+    description: |
+      pending → active (sets `publishedAt` the first time). The owner gets EV-20 `GigPublished` (email)
+      and `t_ur_gig_title_has_been_published` (in-app + push) linking to the gig page (spec 04 AC-17).
+      First decision wins: a gig no longer pending → 409 STATE_CONFLICT `t_item_already_decided` (spec 16 AC-19).
+    tags: [Admin Gigs]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: gigs.moderate, ownership: none}
+    x-covers: ['04 AC-17', '16 AC-19', '16 AC-20']
+    x-audit: gig.publish
+    x-notifications: [EV-20]
+    x-emits: [gig.status_changed]
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema: {$ref: '../components/schemas.yaml#/StaffOptionalNoteRequest'}
+    responses:
+      '200':
+        description: The published gig.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/AdminGig'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+/admin/gigs/{gigId}/reject:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: gigId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: adminRejectGig
+    summary: Reject a pending gig with a reason
+    description: |
+      pending → rejected with `reason` (≤ 1,000, shown to the owner on My gigs and in the edit screen).
+      The owner gets EV-21 `YourGigNeedsChanges` (email with the reason) and
+      `t_ur_gig_needs_changes_rejected_admin` (in-app + push) linking to My gigs (spec 04 AC-18). First
+      decision wins → 409 STATE_CONFLICT `t_item_already_decided` (spec 16 AC-19).
+    tags: [Admin Gigs]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: gigs.moderate, ownership: none}
+    x-covers: ['04 AC-18', '16 AC-19', '16 AC-20']
+    x-audit: gig.reject
+    x-notifications: [EV-21]
+    x-emits: [gig.status_changed]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../components/schemas.yaml#/StaffReasonRequest'}
+    responses:
+      '200':
+        description: The rejected gig.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/AdminGig'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+/admin/gigs/{gigId}/remove:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: gigId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: adminRemoveGig
+    summary: Remove an active gig (internal reason)
+    description: |
+      active → deleted exactly like an owner deletion, with an internal reason; refused with 409
+      GIG_HAS_ORDERS_IN_QUEUE while orders are in progress (spec 16 AC-20, P-117). Also the "remove gig"
+      shortcut of the reports queue (spec 16 AC-28). No notification to the owner is specified.
+      Errors: 409 GIG_HAS_ORDERS_IN_QUEUE, 409 STATE_CONFLICT (not active).
+    tags: [Admin Gigs]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: gigs.moderate, ownership: none}
+    x-covers: ['16 AC-20']
+    x-audit: gig.remove
+    x-emits: [gig.status_changed]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../components/schemas.yaml#/StaffReasonRequest'}
+    responses:
+      '200':
+        description: The removed gig.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/AdminGig'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+/admin/gigs/{gigId}/restore:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: gigId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: adminRestoreGig
+    summary: Restore a staff-removed gig within 30 days
+    description: |
+      Only gigs removed by staff (`deletedBy = staff`), within 30 days of the removal (spec 16 AC-20);
+      the gig returns to `active` (the status it had when removed). Later → 422 GIG_RESTORE_WINDOW_EXPIRED;
+      not a staff removal → 409 STATE_CONFLICT. Plan-limit and re-moderation effects: contract default, slice item Q-123.
+    tags: [Admin Gigs]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: gigs.moderate, ownership: none}
+    x-covers: ['16 AC-20']
+    x-audit: gig.restore
+    x-emits: [gig.status_changed]
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema: {$ref: '../components/schemas.yaml#/StaffOptionalNoteRequest'}
+    responses:
+      '200':
+        description: The restored gig.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/AdminGig'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+# ═════════════════════════ Reviews (spec 07) ═════════════════════════
+/reviews:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: listReviews
+    summary: Reviews of a gig, of a profile, or my written/received reviews
+    description: |
+      Newest first. Exactly one scope:
+      - `gigId`: visible buyer→freelancer reviews of the gig's order items (gig page tab, `/reviews/{gigUid}`
+        with 30 per page and the star filter `rating`, spec 07 AC-15; `limit=10` for the tab, EC-5).
+      - `subjectUsername` + `direction`: a profile's lists "From clients" (`about_freelancer`) and "From
+        freelancers" (`about_client`), each review with what it was for (AC-16).
+      - `authorship=written|received` (+ optional `direction`): the caller's tabs "Written" and "Received"
+        of Buying → My reviews / Selling → Reviews (AC-17). "Written" includes the caller's hidden reviews
+        (status `hidden`, `t_review_hidden_by_moderator`, AC-19); every other scope returns visible reviews only.
+      Deleted reviewers read "Deleted user" (`author.isDeleted`, AC-18). `authorship` without sign-in → 401.
+      Errors: 400 (no scope or several), 401, 404 (unknown gig).
+    tags: [Reviews]
+    security: [{}, {userBearer: []}, {userCookie: []}]
+    x-permission: {audience: optional-user, ownership: 'public for gigId/subjectUsername (visible only); authorship scope = the caller''s own reviews'}
+    x-covers: ['07 AC-10', '07 AC-15', '07 AC-16', '07 AC-17', '07 AC-18', '07 AC-19', '02 AC-10']
+    parameters:
+      - {name: gigId, in: query, required: false, schema: {type: string, format: uuid}}
+      - {name: subjectUsername, in: query, required: false, schema: {type: string, minLength: 1, maxLength: 60}}
+      - {name: authorship, in: query, required: false, schema: {type: string, enum: [written, received]}}
+      - {name: direction, in: query, required: false, schema: {$ref: '../schemas/d2.yaml#/ReviewDirection'}}
+      - {name: rating, in: query, required: false, description: 'Star filter (5…1).', schema: {type: integer, minimum: 1, maximum: 5}}
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/Limit'
+      - $ref: '../components/parameters.yaml#/PageNumber'
+    responses:
+      '200':
+        description: One page of reviews (`totalCount` for the gig scope).
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/ReviewPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+  post:
+    operationId: createReview
+    summary: Write a review of a completed work item
+    description: |
+      One review per side per completed item (spec 07 R-V1, R-V2): gig order items, custom offers and
+      project contract payments whose money was released to the freelancer (buyer completion,
+      auto-release or an admin decision that paid the freelancer, EC-2). The direction comes from the
+      caller's role. Published at once (`t_review_submitted`, AC-6). In the same transaction the gig
+      rating and both user rating blocks are recalculated (AC-13). The reviewed user gets EV-47
+      `ReviewReceived` (email) + `t_u_have_received_new_rating` (in-app + push) (AC-9).
+      Errors: 400 VALIDATION_FAILED (rating 1–5, text 1–800), 401, 403 ACCOUNT_RESTRICTED,
+      404 (caller is not the buyer/client or the freelancer of the item, AC-4), 409 REVIEW_ALREADY_EXISTS
+      (`details.reviewId`, AC-7), 422 REVIEW_NOT_ALLOWED (not completed, canceled or refunded, AC-1).
+    tags: [Reviews]
+    x-permission: {audience: user, ownership: buyer/client or freelancer of the item; others get 404; never about oneself}
+    x-covers: ['07 AC-1', '07 AC-2', '07 AC-3', '07 AC-4', '07 AC-6', '07 AC-7', '07 AC-9', '07 AC-13', '11 AC-44', '12 AC-35']
+    x-notifications: [EV-47]
+    x-emits: [review.received]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d2.yaml#/ReviewCreateRequest'}
+    responses:
+      '201':
+        description: The published review.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/Review'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+/reviews/eligibility:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: getReviewEligibility
+    summary: Can I review this work item
+    description: '"Leave a review" button and the review form (spec 07 AC-1…AC-3, AC-7): `canReview`, or the existing own review to edit. Non-parties get 404 (AC-4).'
+    tags: [Reviews]
+    x-permission: {audience: user, ownership: buyer/client or freelancer of the item; others get 404}
+    x-covers: ['07 AC-1', '07 AC-2', '07 AC-3', '07 AC-4', '07 AC-7']
+    parameters:
+      - {name: itemType, in: query, required: true, schema: {$ref: '../components/schemas.yaml#/WorkItemType'}}
+      - {name: itemId, in: query, required: true, schema: {type: string, format: uuid}}
+    responses:
+      '200':
+        description: The eligibility.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/ReviewEligibility'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/reviews/reviewable-items:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: listReviewableItems
+    summary: '"To review" list'
+    description: 'Completed items the caller took part in and has not reviewed yet, newest completion first (spec 07 AC-5, AC-17). `role=buyer` → Buying tab (items where the caller was the buyer/client); `role=freelancer` → Selling tab. No time limit (EC-4). Empty → `t_nothing_to_review`.'
+    tags: [Reviews]
+    x-permission: {audience: user, ownership: self}
+    x-covers: ['07 AC-5', '07 AC-17']
+    parameters:
+      - {name: role, in: query, required: true, schema: {type: string, enum: [buyer, freelancer]}}
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/Limit'
+    responses:
+      '200':
+        description: One page of items to review.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/ReviewableItemPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+
+/reviews/summary:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: getUserReviewSummary
+    summary: A user's two rating blocks
+    description: '"As a freelancer" and "As a client": average (one decimal, P-56), count and 5…1-star breakdown of visible reviews from gig orders, custom offers and projects (spec 07 AC-11, AC-12, AC-14; spec 02 AC-10). Profiles not visible publicly (spec 02) → 404.'
+    tags: [Reviews]
+    security: []
+    x-permission: {audience: public}
+    x-covers: ['07 AC-11', '07 AC-12', '07 AC-13', '07 AC-14', '02 AC-10']
+    parameters:
+      - {name: username, in: query, required: true, schema: {type: string, minLength: 1, maxLength: 60}}
+    responses:
+      '200':
+        description: The two blocks.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/ReviewUserSummary'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/reviews/{reviewId}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: reviewId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: getReview
+    summary: Review details
+    description: The review details page (spec 07 AC-17). A hidden review is returned only to its author (with status `hidden`, AC-19); anyone else gets 404.
+    tags: [Reviews]
+    security: [{}, {userBearer: []}, {userCookie: []}]
+    x-permission: {audience: optional-user, ownership: 'visible reviews: anyone; hidden: author only; others get 404'}
+    x-covers: ['07 AC-17', '07 AC-18', '07 AC-19']
+    responses:
+      '200':
+        description: The review.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/Review'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+  patch:
+    operationId: updateReview
+    summary: Edit my review
+    description: |
+      The author changes rating and/or text at any time (same rules as creation); the review shows
+      "edited" with the date; all affected averages are recalculated in the same transaction
+      (`t_review_updated_succes`). No notification. Authors cannot delete reviews (spec 07 AC-8, AC-13,
+      R-V4, P-55). Last save wins (EC-7).
+    tags: [Reviews]
+    x-permission: {audience: user, ownership: author of the review; others get 404}
+    x-covers: ['07 AC-8', '07 AC-13']
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d2.yaml#/ReviewUpdateRequest'}
+    responses:
+      '200':
+        description: The updated review.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/Review'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+# ═════════════════════════ Admin reviews (spec 07 AC-19, AC-20; spec 16 AC-25) ═════════════════════════
+/admin/reviews:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: adminListReviews
+    summary: Reviews list for staff
+    description: Filters rating, status, direction, source; search `q` by username or gig title/uid; `userId` = reviews written or received by the user (user page tab, spec 16 AC-31). Newest first, 50 per page (spec 07 AC-20, spec 16 AC-25).
+    tags: [Admin Reviews]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: reviews.moderate, ownership: none}
+    x-covers: ['07 AC-20', '16 AC-25', '16 AC-31']
+    parameters:
+      - {name: rating, in: query, required: false, schema: {type: integer, minimum: 1, maximum: 5}}
+      - {name: status, in: query, required: false, schema: {$ref: '../schemas/d2.yaml#/ReviewStatus'}}
+      - {name: direction, in: query, required: false, schema: {$ref: '../schemas/d2.yaml#/ReviewDirection'}}
+      - {name: source, in: query, required: false, schema: {$ref: '../schemas/d2.yaml#/ReviewSource'}}
+      - {name: gigId, in: query, required: false, schema: {type: string, format: uuid}}
+      - {name: q, in: query, required: false, schema: {type: string, maxLength: 200}}
+      - $ref: '../components/parameters.yaml#/UserIdFilter'
+      - $ref: '../components/parameters.yaml#/CreatedFrom'
+      - $ref: '../components/parameters.yaml#/CreatedTo'
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/AdminLimit'
+    responses:
+      '200':
+        description: One page of reviews.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/AdminReviewPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+/admin/reviews/{reviewId}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: reviewId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: adminGetReview
+    summary: Review detail for staff
+    tags: [Admin Reviews]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: reviews.moderate, ownership: none}
+    x-covers: ['16 AC-25']
+    responses:
+      '200':
+        description: The review.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/AdminReview'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/admin/reviews/{reviewId}/hide:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: reviewId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: adminHideReview
+    summary: Hide a review (internal reason)
+    description: |
+      visible → hidden with an internal reason (not shown to users). It disappears from gig pages,
+      profiles, `/reviews/{gig}` and every average (recalculated in the same transaction); the author
+      still sees it in "Written" with `t_review_hidden_by_moderator`. No notification. No hard delete
+      exists (spec 07 AC-19, AC-13, R-V6; spec 16 AC-25). Already hidden → 409 STATE_CONFLICT.
+    tags: [Admin Reviews]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: reviews.moderate, ownership: none}
+    x-covers: ['07 AC-13', '07 AC-19', '16 AC-25']
+    x-audit: review.hide
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../components/schemas.yaml#/StaffReasonRequest'}
+    responses:
+      '200':
+        description: The hidden review.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/AdminReview'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+/admin/reviews/{reviewId}/unhide:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: reviewId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: adminUnhideReview
+    summary: Unhide a review
+    description: hidden → visible; the review and the averages are restored (spec 07 AC-19, AC-13; spec 16 AC-25). Not hidden → 409 STATE_CONFLICT.
+    tags: [Admin Reviews]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: reviews.moderate, ownership: none}
+    x-covers: ['07 AC-13', '07 AC-19', '16 AC-25']
+    x-audit: review.unhide
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema: {$ref: '../components/schemas.yaml#/StaffOptionalNoteRequest'}
+    responses:
+      '200':
+        description: The visible review.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/AdminReview'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+
+# ═════════════════════════ Admin catalog (spec 16 AC-60…AC-62) ═════════════════════════
+# The catalogue has no read permission of its own (spec 16 catalogue); reads use `catalog.write`.
+/admin/categories:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: adminListCategories
+    summary: All gig categories (3 levels, flat list)
+    tags: [Admin Catalog]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: catalog.write, ownership: none}
+    x-covers: ['16 AC-60']
+    responses:
+      '200':
+        description: Every category with usage counts.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/AdminCategoryList'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+  post:
+    operationId: adminCreateCategory
+    summary: Create a gig category, sub-category or child category
+    description: 'Fields of spec 16 AC-60 (name ka/en ≤ 60, slug unique per level ≤ 60, description ≤ 300, SEO text above/below, icon and image for the top level, home visibility, position). At most 3 levels (a parent of depth 3 → 422 BUSINESS_RULE_VIOLATION). Slug taken → 409 DUPLICATE (field `slug`).'
+    tags: [Admin Catalog]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: catalog.write, ownership: none}
+    x-covers: ['16 AC-60', '03 AC-1', '03 AC-5']
+    x-audit: category.create
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d2.yaml#/CategoryCreateRequest'}
+    responses:
+      '201':
+        description: The created category.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/AdminCategory'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+/admin/categories/{categoryId}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: categoryId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: adminGetCategory
+    summary: Get a gig category for editing
+    tags: [Admin Catalog]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: catalog.write, ownership: none}
+    x-covers: ['16 AC-60']
+    responses:
+      '200':
+        description: The category.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/AdminCategory'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+  patch:
+    operationId: adminUpdateCategory
+    summary: Edit a gig category
+    description: |
+      A new slug makes the old category URLs (both languages, and the sub-/child-category URLs below it)
+      answer 301 to the new ones through `resolveRedirect`; the old slug cannot be reused at the same
+      level while it redirects (spec 16 AC-60, spec 17 AC-10, EC-3). `isVisibleOnHome` controls only the
+      home row (spec 03 AC-5). Renames apply to gigs at once (spec 04 EC-3).
+    tags: [Admin Catalog]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: catalog.write, ownership: none}
+    x-covers: ['16 AC-60', '03 AC-5', '17 AC-10']
+    x-audit: category.update
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d2.yaml#/CategoryUpdateRequest'}
+    responses:
+      '200':
+        description: The updated category.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/AdminCategory'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+  delete:
+    operationId: adminDeleteCategory
+    summary: Delete an unused gig category
+    description: Refused with 409 CATEGORY_IN_USE (`t_category_in_use`) while it has children, gigs or linked project categories (spec 16 AC-60, spec 03 EC-2).
+    tags: [Admin Catalog]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: catalog.write, ownership: none}
+    x-covers: ['16 AC-60']
+    x-audit: category.delete
+    responses:
+      '204': {$ref: '../components/responses.yaml#/NoContent'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+/admin/project-categories:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: adminListProjectCategories
+    summary: All project categories
+    tags: [Admin Catalog]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: catalog.write, ownership: none}
+    x-covers: ['16 AC-61']
+    responses:
+      '200':
+        description: The list.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/AdminProjectCategoryList'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+  post:
+    operationId: adminCreateProjectCategory
+    summary: Create a project category
+    description: Name ka/en, slug, SEO description, image and exactly one linked top-level gig category (spec 16 AC-61, spec 03 AC-31, R-S8, P-31). A non-top-level `gigCategoryId` → 422 BUSINESS_RULE_VIOLATION; slug taken → 409 DUPLICATE.
+    tags: [Admin Catalog]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: catalog.write, ownership: none}
+    x-covers: ['16 AC-61', '03 AC-31']
+    x-audit: project_category.create
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d2.yaml#/ProjectCategoryCreateRequest'}
+    responses:
+      '201':
+        description: The created project category.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/AdminProjectCategory'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+/admin/project-categories/{projectCategoryId}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: projectCategoryId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: adminGetProjectCategory
+    summary: Get a project category
+    tags: [Admin Catalog]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: catalog.write, ownership: none}
+    x-covers: ['16 AC-61']
+    responses:
+      '200':
+        description: The project category.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/AdminProjectCategory'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+  patch:
+    operationId: adminUpdateProjectCategory
+    summary: Edit a project category
+    tags: [Admin Catalog]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: catalog.write, ownership: none}
+    x-covers: ['16 AC-61', '03 AC-31']
+    x-audit: project_category.update
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d2.yaml#/ProjectCategoryUpdateRequest'}
+    responses:
+      '200':
+        description: The updated project category.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/AdminProjectCategory'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+  delete:
+    operationId: adminDeleteProjectCategory
+    summary: Delete an unused project category
+    description: Refused with 409 CATEGORY_IN_USE while skills or projects reference it (spec 16 AC-61).
+    tags: [Admin Catalog]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: catalog.write, ownership: none}
+    x-covers: ['16 AC-61']
+    x-audit: project_category.delete
+    responses:
+      '204': {$ref: '../components/responses.yaml#/NoContent'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+/admin/skills:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: adminListSkills
+    summary: Project skills
+    tags: [Admin Catalog]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: catalog.write, ownership: none}
+    x-covers: ['16 AC-61']
+    parameters:
+      - {name: projectCategoryId, in: query, required: false, schema: {type: string, format: uuid}}
+      - {name: q, in: query, required: false, schema: {type: string, maxLength: 100}}
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/AdminLimit'
+    responses:
+      '200':
+        description: One page of skills.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/AdminSkillPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+  post:
+    operationId: adminCreateSkill
+    summary: Create a skill in a project category
+    tags: [Admin Catalog]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: catalog.write, ownership: none}
+    x-covers: ['16 AC-61', '03 AC-31']
+    x-audit: skill.create
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d2.yaml#/SkillCreateRequest'}
+    responses:
+      '201':
+        description: The created skill.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/AdminSkill'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+/admin/skills/{skillId}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: skillId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: adminGetSkill
+    summary: Get a skill
+    tags: [Admin Catalog]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: catalog.write, ownership: none}
+    x-covers: ['16 AC-61']
+    responses:
+      '200':
+        description: The skill.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/AdminSkill'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+  patch:
+    operationId: adminUpdateSkill
+    summary: Edit a skill
+    tags: [Admin Catalog]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: catalog.write, ownership: none}
+    x-covers: ['16 AC-61']
+    x-audit: skill.update
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d2.yaml#/SkillUpdateRequest'}
+    responses:
+      '200':
+        description: The updated skill.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/AdminSkill'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+  delete:
+    operationId: adminDeleteSkill
+    summary: Delete an unused skill
+    description: Refused with 409 CATEGORY_IN_USE (`t_category_in_use`) while projects use it (spec 16 AC-61).
+    tags: [Admin Catalog]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: catalog.write, ownership: none}
+    x-covers: ['16 AC-61']
+    x-audit: skill.delete
+    responses:
+      '204': {$ref: '../components/responses.yaml#/NoContent'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+/admin/countries:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: adminListCountries
+    summary: All countries (active and inactive)
+    tags: [Admin Catalog]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: catalog.write, ownership: none}
+    x-covers: ['16 AC-62']
+    responses:
+      '200':
+        description: The list.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/AdminCountryList'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+/admin/countries/{countryCode}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: countryCode
+      in: path
+      required: true
+      description: ISO 3166-1 alpha-2 (countries have a smallint id, not a uuid; the code is their natural key).
+      schema: {$ref: '../components/schemas.yaml#/CountryCode'}
+  patch:
+    operationId: adminUpdateCountry
+    summary: Edit a country's names or active switch
+    tags: [Admin Catalog]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: catalog.write, ownership: none}
+    x-covers: ['16 AC-62']
+    x-audit: country.update
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d2.yaml#/CountryUpdateRequest'}
+    responses:
+      '200':
+        description: The updated country.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/AdminCountry'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+  delete:
+    operationId: adminDeleteCountry
+    summary: Delete an unused country
+    description: Refused with 409 COUNTRY_IN_USE while any user references it (spec 16 AC-62, P-125).
+    tags: [Admin Catalog]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: catalog.write, ownership: none}
+    x-covers: ['16 AC-62']
+    x-audit: country.delete
+    responses:
+      '204': {$ref: '../components/responses.yaml#/NoContent'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+
+# ═════════════════════════ CMS pages (spec 17 B) ═════════════════════════
+/pages:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: listPages
+    summary: Active CMS pages (footer, Help & legal)
+    description: Active pages with footer column and position (spec 17 AC-9, AC-37) and the mobile Account → Help & legal list (AC-13). S-114 footer/social links come from `getPublicConfig`.
+    tags: [Content]
+    security: []
+    x-permission: {audience: public}
+    x-covers: ['17 AC-9', '17 AC-13', '17 AC-37']
+    responses:
+      '200':
+        description: The pages.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/PageLinkList'}
+      '429': {$ref: '../components/responses.yaml#/TooManyRequests'}
+
+/pages/lookup:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: lookupPage
+    summary: Get a CMS page by slug
+    description: |
+      `/page/{slug}` and `/en/page/{slug}` (spec 17 AC-6), and `/gita` / `/en/gita` with slug `gita` and
+      layout `landing` (AC-46). Unknown or inactive slug → 404 (the web then asks `resolveRedirect` for
+      an old slug, AC-10). External-link pages return `externalUrl` and the web answers 302 (AC-7).
+      English without English content → Georgian text, `contentLocale: ka`, 200 (AC-4). Terms and
+      Privacy carry the clause flag and "Last updated" (AC-11). Mobile renders the same content natively (AC-13).
+    tags: [Content]
+    security: []
+    x-permission: {audience: public}
+    x-covers: ['17 AC-4', '17 AC-6', '17 AC-7', '17 AC-11', '17 AC-13', '17 AC-46']
+    parameters:
+      - {name: slug, in: query, required: true, schema: {type: string, minLength: 1, maxLength: 160}}
+    responses:
+      '200':
+        description: The page.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/PageDetail'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/pages/{pageId}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: pageId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: getPage
+    summary: Get an active CMS page
+    tags: [Content]
+    security: []
+    x-permission: {audience: public}
+    x-covers: ['17 AC-6']
+    responses:
+      '200':
+        description: The page.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/PageDetail'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/admin/pages:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: adminListPages
+    summary: All CMS pages (with the "to review" flag)
+    tags: [Admin Content]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: content.write, ownership: none}
+    x-covers: ['17 AC-8', '17 AC-14', '16 AC-63']
+    responses:
+      '200':
+        description: The pages.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/AdminPageList'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+  post:
+    operationId: adminCreatePage
+    summary: Create a CMS page
+    description: Fields of spec 17 AC-8 (content sanitised on save, CONVENTIONS §19 profile `staff_content`; per-language SEO, P-127). Slug taken or still redirecting for another page → 409 DUPLICATE.
+    tags: [Admin Content]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: content.write, ownership: none}
+    x-covers: ['17 AC-8', '16 AC-63']
+    x-audit: page.create
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d2.yaml#/PageCreateRequest'}
+    responses:
+      '201':
+        description: The created page.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/AdminPageDetail'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+/admin/pages/{pageId}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: pageId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: adminGetPage
+    summary: Get a CMS page for editing (both languages, preview)
+    tags: [Admin Content]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: content.write, ownership: none}
+    x-covers: ['17 AC-8', '16 AC-63']
+    responses:
+      '200':
+        description: The page.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/AdminPageDetail'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+  patch:
+    operationId: adminUpdatePage
+    summary: Edit a CMS page
+    description: |
+      Saving content clears the "to review" flag (AC-14) and moves "Last updated" (AC-11). A new slug adds
+      a 301 from every old URL of the page in both languages, one hop (AC-10, EC-3). The staff chat-review
+      clause of Terms/Privacy is a template section, not part of `content` (AC-11, EC-9).
+    tags: [Admin Content]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: content.write, ownership: none}
+    x-covers: ['17 AC-8', '17 AC-10', '17 AC-14', '16 AC-63']
+    x-audit: page.update
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d2.yaml#/PageUpdateRequest'}
+    responses:
+      '200':
+        description: The updated page.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/AdminPageDetail'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+# ═════════════════════════ Blog (spec 17 C) ═════════════════════════
+/blog/articles:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: listBlogArticles
+    summary: Published blog articles
+    description: Newest first, 20 per page (`?page=N` on the web), each with cover, title, excerpt, date and comment count (spec 17 AC-15). S-117 OFF → 403 FEATURE_DISABLED (the web shows `t_feature_disabled`, 200, noindex, AC-16). Empty → `t_no_articles_yet`.
+    tags: [Blog]
+    security: []
+    x-permission: {audience: public, toggles: [S-117]}
+    x-covers: ['17 AC-15', '17 AC-16']
+    parameters:
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/Limit'
+      - $ref: '../components/parameters.yaml#/PageNumber'
+    responses:
+      '200':
+        description: One page of article cards, with `totalCount`.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/BlogArticleCardPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+/blog/articles/lookup:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: lookupBlogArticle
+    summary: Get a published article by slug
+    description: '`/blog/{slug}` (spec 17 AC-15). Draft or hidden → 404 (AC-17); old slug → 404 then `resolveRedirect` (AC-10). English fallback as AC-4. S-117 OFF → 403 FEATURE_DISABLED (AC-16).'
+    tags: [Blog]
+    security: []
+    x-permission: {audience: public, toggles: [S-117]}
+    x-covers: ['17 AC-4', '17 AC-15', '17 AC-16']
+    parameters:
+      - {name: slug, in: query, required: true, schema: {type: string, minLength: 1, maxLength: 160}}
+    responses:
+      '200':
+        description: The article.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/BlogArticle'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/blog/articles/{articleId}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: articleId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: getBlogArticle
+    summary: Get a published article
+    tags: [Blog]
+    security: []
+    x-permission: {audience: public, toggles: [S-117]}
+    x-covers: ['17 AC-15']
+    responses:
+      '200':
+        description: The article.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/BlogArticle'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/blog/articles/{articleId}/comments:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: articleId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: listBlogComments
+    summary: Published comments of an article
+    description: Newest first, 40 per page (clients send `limit=40`), with the stored full name, avatar and date (spec 17 AC-18). S-117 or S-118 OFF → 403 FEATURE_DISABLED (no comment section).
+    tags: [Blog]
+    security: []
+    x-permission: {audience: public, toggles: [S-117, S-118]}
+    x-covers: ['17 AC-18']
+    parameters:
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/Limit'
+    responses:
+      '200':
+        description: One page of comments.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/BlogCommentPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+  post:
+    operationId: createBlogComment
+    summary: Comment on an article
+    description: |
+      Signed-in, active users only (guests get 401 → `t_login_required_to_comment` with a login link back
+      to the article; restricted/banned → 403, spec 01 AC-19). Plain text 1–1,500. S-074 ON → `published`
+      (`t_ur_comment_has_been_successfully_added`); OFF → `pending` (`t_ur_comment_will_be_published_soon`)
+      and EV-115 to every S-100 address. S-118 is enforced on the server (fixes D-17-3). At most 5 per user
+      per 10 minutes → 429 RATE_LIMITED `t_too_many_requests_try_later` (spec 17 AC-18, AC-19).
+    tags: [Blog]
+    x-permission: {audience: user, ownership: none, toggles: [S-117, S-118]}
+    x-covers: ['17 AC-18', '17 AC-19']
+    x-settings: [S-074, S-100]
+    x-notifications: [EV-115]
+    x-rate-limit: 5 requests / 10 min per user
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d2.yaml#/BlogCommentCreateRequest'}
+    responses:
+      '201':
+        description: The comment (`published` or `pending`).
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/BlogComment'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '429': {$ref: '../components/responses.yaml#/TooManyRequests'}
+
+/admin/blog/articles:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: adminListBlogArticles
+    summary: All blog articles (any status)
+    tags: [Admin Content]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: content.write, ownership: none}
+    x-covers: ['17 AC-17', '16 AC-63']
+    parameters:
+      - {name: status, in: query, required: false, schema: {$ref: '../schemas/d2.yaml#/BlogArticleStatus'}}
+      - {name: q, in: query, required: false, schema: {type: string, maxLength: 200}}
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/AdminLimit'
+    responses:
+      '200':
+        description: One page of articles.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/AdminBlogArticlePage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+  post:
+    operationId: adminCreateBlogArticle
+    summary: Create a blog article
+    description: Slug (unique), title and content per language, cover (`blog_image`), SEO per language, status draft/published/hidden; `publishedAt` is set the first time it is published (spec 17 AC-17, P-129).
+    tags: [Admin Content]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: content.write, ownership: none}
+    x-covers: ['17 AC-17', '16 AC-63']
+    x-audit: blog_article.create
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d2.yaml#/BlogArticleCreateRequest'}
+    responses:
+      '201':
+        description: The created article.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/AdminBlogArticle'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+/admin/blog/articles/{articleId}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: articleId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: adminGetBlogArticle
+    summary: Get a blog article for editing
+    tags: [Admin Content]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: content.write, ownership: none}
+    x-covers: ['17 AC-17']
+    responses:
+      '200':
+        description: The article.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/AdminBlogArticle'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+  patch:
+    operationId: adminUpdateBlogArticle
+    summary: Edit, publish or hide a blog article
+    description: Hiding keeps the comments (spec 17 EC-2). A new slug adds a 301 from the old URLs (AC-10). Migrated articles arrive hidden and are published here (AC-22).
+    tags: [Admin Content]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: content.write, ownership: none}
+    x-covers: ['17 AC-10', '17 AC-17', '16 AC-63']
+    x-audit: blog_article.update
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d2.yaml#/BlogArticleUpdateRequest'}
+    responses:
+      '200':
+        description: The updated article.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/AdminBlogArticle'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+/admin/blog-comments:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: adminListBlogComments
+    summary: Blog comments and the pending queue
+    description: '`status=pending` is the moderation queue while S-074 is OFF (oldest first, 50 per page, `totalCount`, spec 16 AC-19, AC-26); otherwise all comments newest first. `userId` = comments by that user (spec 16 AC-31).'
+    tags: [Admin Content]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: comments.moderate, ownership: none}
+    x-covers: ['17 AC-20', '16 AC-19', '16 AC-26', '16 AC-31']
+    parameters:
+      - {name: status, in: query, required: false, schema: {$ref: '../schemas/d2.yaml#/BlogCommentStatus'}}
+      - {name: articleId, in: query, required: false, schema: {type: string, format: uuid}}
+      - $ref: '../components/parameters.yaml#/UserIdFilter'
+      - $ref: '../components/parameters.yaml#/CreatedFrom'
+      - $ref: '../components/parameters.yaml#/CreatedTo'
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/AdminLimit'
+    responses:
+      '200':
+        description: One page of comments.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/AdminBlogCommentPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+/admin/blog-comments/{commentId}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: commentId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  delete:
+    operationId: adminDeleteBlogComment
+    summary: Delete a comment (spam)
+    tags: [Admin Content]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: comments.moderate, ownership: none}
+    x-covers: ['17 AC-20', '16 AC-26']
+    x-audit: blog_comment.delete
+    responses:
+      '204': {$ref: '../components/responses.yaml#/NoContent'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/admin/blog-comments/{commentId}/publish:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: commentId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: adminPublishBlogComment
+    summary: Publish a comment
+    description: pending or hidden → published (spec 17 AC-20). Already published (e.g. decided by another staff member) → 409 STATE_CONFLICT `t_item_already_decided` (spec 16 AC-19).
+    tags: [Admin Content]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: comments.moderate, ownership: none}
+    x-covers: ['17 AC-20', '16 AC-19', '16 AC-26']
+    x-audit: blog_comment.publish
+    responses:
+      '200':
+        description: The comment.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/AdminBlogComment'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+/admin/blog-comments/{commentId}/hide:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: commentId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: adminHideBlogComment
+    summary: Hide a comment
+    description: pending or published → hidden; it disappears publicly (spec 17 AC-20). Already hidden → 409 STATE_CONFLICT `t_item_already_decided`.
+    tags: [Admin Content]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: comments.moderate, ownership: none}
+    x-covers: ['17 AC-20', '16 AC-19', '16 AC-26']
+    x-audit: blog_comment.hide
+    responses:
+      '200':
+        description: The comment.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/AdminBlogComment'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+# ═════════════════════════ Contact and support (spec 17 D) ═════════════════════════
+/contact-messages:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  post:
+    operationId: createContactMessage
+    summary: Send a contact-form message
+    description: |
+      Stores name, email, subject, message, user id if signed in, page language (`Accept-Language`), IP and
+      user agent; answers `t_your_message_support_received_success`; sends EV-116 to every S-100 address
+      with the message text (spec 17 AC-23, AC-24). Accepted from banned or logged-out users (EC-8). Web
+      sends `captchaToken` while S-061 is ON (missing or low score → `400 VALIDATION_FAILED` field `captchaToken`, messageKey `t_validator_recaptcha`, same as D1 auth forms); mobile relies on the
+      rate limits. More than 5 messages within one hour from the same IP or the same email → 429
+      `t_too_many_requests_try_later` (AC-25, P-130).
+    tags: [Contact]
+    security: [{}, {userBearer: []}, {userCookie: []}]
+    x-permission: {audience: optional-user, ownership: 'none (a signed-in sender is linked to the message)'}
+    x-covers: ['17 AC-23', '17 AC-24', '17 AC-25']
+    x-settings: [S-061, S-100]
+    x-notifications: [EV-116]
+    x-rate-limit: 5 requests / 1 h per IP and 5 / 1 h per email
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d2.yaml#/ContactMessageCreateRequest'}
+    responses:
+      '201':
+        description: Stored.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/ContactMessageReceipt'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+      '429': {$ref: '../components/responses.yaml#/TooManyRequests'}
+
+/admin/support-messages:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: adminListSupportMessages
+    summary: Support inbox
+    description: Messages by status (new first, then oldest first; spec 17 AC-26). `userId` = messages sent by that user (spec 16 AC-31). `totalCount` returned (new-message counter).
+    tags: [Admin Content]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: support.handle, ownership: none}
+    x-covers: ['17 AC-26', '16 AC-31', '16 AC-63']
+    parameters:
+      - name: status
+        in: query
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: array
+          items: {$ref: '../schemas/d2.yaml#/SupportMessageStatus'}
+      - {name: q, in: query, required: false, description: 'Name, email or subject.', schema: {type: string, maxLength: 200}}
+      - $ref: '../components/parameters.yaml#/UserIdFilter'
+      - $ref: '../components/parameters.yaml#/CreatedFrom'
+      - $ref: '../components/parameters.yaml#/CreatedTo'
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/AdminLimit'
+    responses:
+      '200':
+        description: One page of messages.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/AdminSupportMessagePage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+/admin/support-messages/{supportMessageId}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: supportMessageId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: adminGetSupportMessage
+    summary: Get a support message
+    description: Read only (GET never changes state); the admin UI calls `adminMarkSupportMessageSeen` when it opens the message (spec 17 AC-26).
+    tags: [Admin Content]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: support.handle, ownership: none}
+    x-covers: ['17 AC-26']
+    responses:
+      '200':
+        description: The message.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/AdminSupportMessage'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/admin/support-messages/{supportMessageId}/mark-seen:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: supportMessageId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: adminMarkSupportMessageSeen
+    summary: Mark a support message as seen
+    description: Sets `seenAt` once (idempotent) (spec 17 AC-26).
+    tags: [Admin Content]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: support.handle, ownership: none}
+    x-covers: ['17 AC-26']
+    x-audit: support_message.mark_seen
+    responses:
+      '200':
+        description: The message.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/AdminSupportMessage'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/admin/support-messages/{supportMessageId}/reply:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: supportMessageId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: adminReplySupportMessage
+    summary: Reply to a support message by email
+    description: Sends EV-117 `SupportReply` to the sender's email in the language the message was written in (subject default "`t_re_subject_short` + original subject"), stores the reply text and sets `replied` (spec 17 AC-26). Staff toast `t_message_reply_sent_successfully`.
+    tags: [Admin Content]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: support.handle, ownership: none}
+    x-covers: ['17 AC-26']
+    x-audit: support_message.reply
+    x-notifications: [EV-117]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d2.yaml#/SupportMessageReplyRequest'}
+    responses:
+      '200':
+        description: The message (status `replied`).
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/AdminSupportMessage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/admin/support-messages/{supportMessageId}/close:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: supportMessageId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: adminCloseSupportMessage
+    summary: Close a support message
+    description: Sets `closed` (spec 17 AC-26). Already closed → 409 STATE_CONFLICT.
+    tags: [Admin Content]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: support.handle, ownership: none}
+    x-covers: ['17 AC-26']
+    x-audit: support_message.close
+    responses:
+      '200':
+        description: The message (status `closed`).
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/AdminSupportMessage'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+# ═════════════════════════ Newsletter (spec 17 E) ═════════════════════════
+/newsletter/subscriptions:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  post:
+    operationId: createNewsletterSubscription
+    summary: Sign up for the newsletter (double opt-in)
+    description: |
+      Invalid email → 400 field `email` `t_pls_enter_valid_email_address` (AC-29). Otherwise always the same
+      answer `t_we_sent_verification_link_newsletter` whatever the address state: new, pending or
+      unsubscribed → a new token valid 7 days (earlier ones stop working) and EV-118 in the page language;
+      confirmed → no email (AC-30, P-131). S-120 OFF → 403 FEATURE_DISABLED (AC-28). At most 3 sign-ups per
+      email and 10 per IP per hour → 429. Web only (no sign-up in the app, P-131).
+    tags: [Newsletter]
+    security: []
+    x-permission: {audience: public, toggles: [S-120]}
+    x-covers: ['17 AC-28', '17 AC-29', '17 AC-30']
+    x-notifications: [EV-118]
+    x-rate-limit: 3 requests / 1 h per email and 10 / 1 h per IP
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d2.yaml#/NewsletterSubscriptionCreateRequest'}
+    responses:
+      '202':
+        description: Accepted (same body in every case).
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/NewsletterSubscriptionResult'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '429': {$ref: '../components/responses.yaml#/TooManyRequests'}
+
+/newsletter/confirmations:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  post:
+    operationId: confirmNewsletterSubscription
+    summary: Confirm a newsletter address with the emailed token
+    description: 'Called by the `/newsletter/verify?token=…` page (the legacy `?id=…` value is sent as `token`). Valid token → confirmed, EV-119 `NewsletterApproved` (with unsubscribe link), `t_newsletter_confirmed`. Invalid, used or expired → 422 NEWSLETTER_TOKEN_INVALID (`t_newsletter_link_invalid`; legacy tokens were not migrated, EC-5) (spec 17 AC-31).'
+    tags: [Newsletter]
+    security: []
+    x-permission: {audience: public}
+    x-covers: ['17 AC-31']
+    x-notifications: [EV-119]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d2.yaml#/NewsletterTokenRequest'}
+    responses:
+      '200':
+        description: Confirmed.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/NewsletterTokenResult'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+/newsletter/unsubscriptions:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  post:
+    operationId: unsubscribeNewsletter
+    summary: Unsubscribe with the token of a newsletter email
+    description: 'Called by the `/newsletter/unsubscribe?token=…` page and by the one-click `List-Unsubscribe-Post` handler of that page; no login. Sets unsubscribed and returns `t_newsletter_unsubscribed`; idempotent for an already unsubscribed address. Unknown token → 422 NEWSLETTER_TOKEN_INVALID (spec 17 AC-32, P-131).'
+    tags: [Newsletter]
+    security: []
+    x-permission: {audience: public}
+    x-covers: ['17 AC-32']
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d2.yaml#/NewsletterTokenRequest'}
+    responses:
+      '200':
+        description: Unsubscribed.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/NewsletterTokenResult'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+/admin/newsletter/subscribers:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: adminListNewsletterSubscribers
+    summary: Newsletter subscribers
+    description: List and search by status and email (spec 17 AC-33). No bulk campaign sending exists.
+    tags: [Admin Content]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: newsletter.manage, ownership: none}
+    x-covers: ['17 AC-33', '16 AC-63']
+    parameters:
+      - {name: status, in: query, required: false, schema: {$ref: '../schemas/d2.yaml#/NewsletterSubscriberStatus'}}
+      - {name: q, in: query, required: false, schema: {type: string, maxLength: 254}}
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/AdminLimit'
+    responses:
+      '200':
+        description: One page of subscribers, with `totalCount`.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/AdminNewsletterSubscriberPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+/admin/newsletter/subscribers/export:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: adminExportNewsletterSubscribers
+    summary: Export subscriber addresses (CSV or XLSX)
+    description: All, pending or confirmed addresses (spec 17 AC-33). Personal data → re-authentication within 15 minutes (403 REAUTH_REQUIRED) and an audit entry with the filter (spec 16 AC-77, AC-7).
+    tags: [Admin Content]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: newsletter.manage, ownership: none, stepUp: true}
+    x-covers: ['17 AC-33']
+    x-audit: newsletter_subscribers.export
+    parameters:
+      - {name: status, in: query, required: false, description: 'Omit for all.', schema: {type: string, enum: [pending, confirmed]}}
+      - {name: format, in: query, required: false, schema: {type: string, enum: [csv, xlsx], default: csv}}
+    responses:
+      '200':
+        description: 'The file (Content-Disposition attachment).'
+        content:
+          text/csv:
+            schema: {type: string}
+          application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+            schema: {type: string, format: binary}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+/admin/newsletter/subscribers/{subscriberId}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: subscriberId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  delete:
+    operationId: adminDeleteNewsletterSubscriber
+    summary: Delete a subscriber address
+    tags: [Admin Content]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: newsletter.manage, ownership: none}
+    x-covers: ['17 AC-33']
+    x-audit: newsletter_subscriber.delete
+    responses:
+      '204': {$ref: '../components/responses.yaml#/NoContent'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/admin/newsletter/subscribers/{subscriberId}/resend-confirmation:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: subscriberId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: adminResendNewsletterConfirmation
+    summary: Resend the confirmation to a pending address
+    description: New 7-day token, EV-118 in the subscriber's language (spec 17 AC-33). Not pending → 409 STATE_CONFLICT.
+    tags: [Admin Content]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: newsletter.manage, ownership: none}
+    x-covers: ['17 AC-33']
+    x-audit: newsletter_subscriber.resend_confirmation
+    x-notifications: [EV-118]
+    responses:
+      '200':
+        description: The subscriber.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/AdminNewsletterSubscriber'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+/admin/newsletter/subscribers/{subscriberId}/emails:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: subscriberId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: adminSendNewsletterSubscriberEmail
+    summary: Send one email to a confirmed subscriber
+    description: EV-120 `StaffEmail` with an unsubscribe link and `List-Unsubscribe` header (spec 17 AC-32, AC-33). Not confirmed → 409 STATE_CONFLICT.
+    tags: [Admin Content]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: newsletter.manage, ownership: none}
+    x-covers: ['17 AC-32', '17 AC-33']
+    x-audit: newsletter_subscriber.email
+    x-notifications: [EV-120]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d2.yaml#/NewsletterEmailCreateRequest'}
+    responses:
+      '202':
+        description: Queued.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/NewsletterEmailReceipt'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+
+# ═════════════════════════ Home (spec 03 AC-24…AC-26, spec 17 F) ═════════════════════════
+/home:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: getHome
+    summary: Home page data blocks (web and mobile)
+    description: |
+      Top gigs (4, active-Premium owners first, random, topped up, AC-24), category rows (visible top-level
+      categories, random order, up to 4 gigs each, Premium owners first, AC-25, AC-5), best sellers (S-108,
+      AC-26), featured categories (S-107), logo cloud (S-109) and recent articles (S-117 + S-119, spec 17
+      AC-21). Blocks of switched-off settings are null (spec 17 AC-35). Not cached per user except
+      `isFavorite` on cards.
+    tags: [Content]
+    security: [{}, {userBearer: []}, {userCookie: []}]
+    x-permission: {audience: optional-user, ownership: 'none (a signed-in caller gets `isFavorite`)'}
+    x-covers: ['03 AC-5', '03 AC-24', '03 AC-25', '03 AC-26', '17 AC-21', '17 AC-35']
+    x-settings: [S-107, S-108, S-109, S-117, S-119]
+    responses:
+      '200':
+        description: The blocks.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/Home'}
+      '429': {$ref: '../components/responses.yaml#/TooManyRequests'}
+
+/admin/home/logos:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: adminListHomeLogos
+    summary: Logo-cloud logos
+    tags: [Admin Content]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: content.write, ownership: none}
+    x-covers: ['17 AC-35', '16 AC-63']
+    responses:
+      '200':
+        description: All logos in order.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/AdminHomeLogoList'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+  post:
+    operationId: adminCreateHomeLogo
+    summary: Add a logo to the logo cloud
+    description: Name, link and order of a `home_logo` image (spec 17 AC-35, S-109).
+    tags: [Admin Content]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: content.write, ownership: none}
+    x-covers: ['17 AC-35', '16 AC-63']
+    x-audit: home_logo.create
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d2.yaml#/HomeLogoCreateRequest'}
+    responses:
+      '201':
+        description: The logo.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/AdminHomeLogo'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+/admin/home/logos/{logoId}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: logoId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  patch:
+    operationId: adminUpdateHomeLogo
+    summary: Edit a logo
+    tags: [Admin Content]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: content.write, ownership: none}
+    x-covers: ['17 AC-35']
+    x-audit: home_logo.update
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d2.yaml#/HomeLogoUpdateRequest'}
+    responses:
+      '200':
+        description: The logo.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/AdminHomeLogo'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+  delete:
+    operationId: adminDeleteHomeLogo
+    summary: Remove a logo
+    tags: [Admin Content]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: content.write, ownership: none}
+    x-covers: ['17 AC-35']
+    x-audit: home_logo.delete
+    responses:
+      '204': {$ref: '../components/responses.yaml#/NoContent'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+# ═════════════════════════ SEO: sitemap, redirects, outbound links (spec 17 A, H, I) ═════════════════════════
+/sitemaps:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: getSitemapIndex
+    summary: Sitemap index data
+    description: |
+      Parts of url-map §9 with their last change (spec 17 AC-43). Read by the Next.js route handler of
+      `/sitemap.xml` (cached 1 hour, ADR-008 §6). S-116 OFF → 404 NOT_FOUND, and the web serves
+      `/sitemap.xml` as 404 and omits the robots `Sitemap:` line (AC-44). Non-production environments are
+      handled by the web (AC-40).
+    tags: [SEO]
+    security: []
+    x-permission: {audience: public, notes: 'S-116 OFF → 404 (not 403), spec 17 AC-44'}
+    x-covers: ['17 AC-43', '17 AC-44']
+    x-settings: [S-116]
+    responses:
+      '200':
+        description: The parts.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/SitemapIndex'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/sitemaps/{part}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: part
+      in: path
+      required: true
+      schema: {$ref: '../schemas/d2.yaml#/SitemapPartName'}
+  get:
+    operationId: getSitemapPart
+    summary: One sitemap part (≤ 10,000 URLs)
+    description: |
+      Georgian paths with `lastModifiedAt` and whether English content exists (the `en` alternate is listed
+      only then, spec 17 AC-4, AC-43). Only public, indexable items: active gigs of listable owners,
+      projects active/completed, active CMS pages, published articles, categories, hire skills with at
+      least one listable user, profiles of active/verified users with an active gig, a public portfolio
+      item or a visible review (AC-41, P-133). Feature-disabled areas (blog S-117 OFF, projects S-075 OFF)
+      are left out. Changes appear within 1 hour. S-116 OFF or unknown part → 404.
+    tags: [SEO]
+    security: []
+    x-permission: {audience: public, notes: 'S-116 OFF → 404'}
+    x-covers: ['17 AC-4', '17 AC-41', '17 AC-43', '17 AC-44']
+    x-settings: [S-075, S-116, S-117]
+    responses:
+      '200':
+        description: The part.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/SitemapPart'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/redirects/resolve:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: resolveRedirect
+    summary: Resolve an old or legacy URL (web middleware look-up)
+    description: |
+      The data-dependent part of the redirect table (url-map §10; the static rules live in the web
+      middleware). Answers in one hop:
+      - gig slug → current slug by uid (301; 404 when missing/not public) (spec 04 AC-33, P-33, url-map §4.1);
+      - project `/project/{pid}[/{slug}]` → current slug by pid; portfolio slug by uid (spec 17 AC-3);
+      - old slugs of CMS pages, blog articles and gig categories after staff slug changes → current URL
+        (301, spec 17 AC-10, EC-3);
+      - legacy dashboard deep links with numeric ids (`/account/orders/requirements?orderId=&itemId=`,
+        `/account/reviews/create/{id}`, `/seller/orders/details/{id}`, `/inbox/{legacyUserId}`, …) → the new
+        uid paths (url-map §5);
+      - removed features → 410 where url-map §6 says so.
+      `location` keeps the language prefix of `path`; the web re-adds tracking parameters.
+    tags: [SEO]
+    security: [{}, {userBearer: []}, {userCookie: []}]
+    x-permission: {audience: optional-user, ownership: 'none (dashboard look-ups resolve only items the signed-in caller takes part in; otherwise 404)'}
+    x-covers: ['17 AC-2', '17 AC-3', '17 AC-10', '04 AC-33']
+    parameters:
+      - name: path
+        in: query
+        required: true
+        description: The requested path with its query string, e.g. `/en/service/old-slug-B1FC0AABEEF8071D2AC2`.
+        schema: {type: string, minLength: 1, maxLength: 2000, pattern: '^/'}
+    responses:
+      '200':
+        description: The resolution.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/RedirectResolution'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+
+/outbound-links/verify:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: verifyOutboundLink
+    summary: Check a /redirect interstitial link
+    description: |
+      The `/redirect?to=&sig=` page (spec 17 AC-47, P-134) shows the destination only if `to` is http/https and
+      `sig` is the server signature of it; otherwise 422 OUTBOUND_LINK_INVALID (`t_redirect_link_invalid`, also
+      for legacy encrypted values).
+      **Mandatory rules for every client (SEC-19; the signature proves only that the URL was well-formed, since
+      anyone may sign a URL, so these rules are what keeps `/redirect` from being an open redirect):**
+      1. The page **never redirects by itself** (no meta refresh, no script redirect, no timer, no HTTP 3xx);
+         only the user's click on Continue opens the destination (web: `rel="noopener noreferrer nofollow"`,
+         mobile: the warning dialog, then the system browser).
+      2. It shows the **full destination**, with the host decoded from punycode and shown prominently
+         (`host`), so look-alike domains are visible.
+      3. Only `http`/`https` destinations are accepted (the API refuses anything else).
+      4. The page is `noindex, nofollow` and excluded from the sitemap (url-map).
+      Stored content should preferably be linkified on the server (hrefs already signed) rather than by clients.
+    tags: [SEO]
+    security: []
+    x-permission: {audience: public}
+    x-covers: ['17 AC-47']
+    parameters:
+      - {name: to, in: query, required: true, schema: {type: string, minLength: 1, maxLength: 2000}}
+      - {name: sig, in: query, required: false, schema: {type: string, maxLength: 200}}
+    responses:
+      '200':
+        description: Valid link.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/OutboundLinkVerification'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+/outbound-links/signatures:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  post:
+    operationId: createOutboundLinkSignatures
+    summary: Sign external links found in plain-text user content
+    description: |
+      Staff HTML content (pages, blog) is returned with external links already rewritten to signed
+      `/redirect` hrefs. For plain-text user content that clients linkify (profile texts, messages,
+      descriptions), clients send the detected http/https URLs (≤ 50) and render the returned hrefs
+      (spec 17 AC-47). Mobile shows the same warning dialog before opening the system browser. Anyone may sign
+      any http/https URL, so a signature proves nothing about who made the link; this is acceptable **only**
+      because the interstitial rules of `verifyOutboundLink` are mandatory (never redirects by itself, full
+      punycode-decoded destination with the host prominent, http/https only, noindex; SEC-19). Server-side
+      linkified text is preferred for stored content.
+    tags: [SEO]
+    security: [{}, {userBearer: []}, {userCookie: []}]
+    x-permission: {audience: optional-user, ownership: none}
+    x-covers: ['17 AC-47']
+    x-rate-limit: 60 requests / 1 min per user or IP
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d2.yaml#/OutboundLinkSignatureRequest'}
+    responses:
+      '200':
+        description: Signed hrefs in request order.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d2.yaml#/OutboundLinkSignatureList'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '429': {$ref: '../components/responses.yaml#/TooManyRequests'}

@@ -1,0 +1,78 @@
+# Redocly CLI config for the MyTask.ge contract (pinned: @redocly/cli 2.55.0, see package.json).
+# Base: the `recommended` ruleset. Overrides below are deliberate; reasons in CONVENTIONS.md §13.
+# Lint the sources:  npm run lint     (builds src/openapi.root.yaml, then lints it)
+# Lint the bundle:   npx redocly lint openapi.yaml --config redocly.yaml
+extends:
+  - recommended
+
+rules:
+  # ── stricter than recommended (errors, not warnings) ──
+  operation-operationId: error
+  operation-operationId-unique: error
+  operation-operationId-url-safe: error
+  operation-summary: error
+  operation-2xx-response: error
+  operation-4xx-response: error            # every operation documents its errors (shared Error body)
+  operation-tag-defined: error             # only tags declared in src/openapi.base.yaml
+  tag-description: error
+  paths-kebab-case: error                  # /refund-requests, not /refundRequests
+  no-ambiguous-paths: error
+  no-identical-paths: error
+  no-path-trailing-slash: error
+  path-parameters-defined: error
+  security-defined: error                  # root default is user auth; public ops must say `security: []`
+  no-invalid-media-type-examples: error
+  no-invalid-schema-examples: error
+  no-server-trailing-slash: error
+  no-empty-servers: error
+
+  # ── relaxed, with reasons ──
+  # Shared schemas, event payloads (realtime.md) and group schemas are registered in components by
+  # scripts/build-root.mjs even before any path uses them; unused is expected during the parallel phase
+  # and for Socket.IO payloads that no REST operation returns.
+  no-unused-components: off
+  # Summaries are mandatory; long descriptions only where behaviour is not obvious.
+  operation-description: off
+  # Contract is proprietary; the license object carries an SPDX LicenseRef identifier without URL.
+  info-license-strict: off
+  # The first server is http://localhost:3000 on purpose: local-first development (CLAUDE.md rule 7).
+  # Production/staging servers are real hostnames; example.com is still never used.
+  no-server-example.com: off
+
+  # ── project rules (configurable assertions) ──
+  rule/operation-x-permission:
+    subject:
+      type: Operation
+      property: x-permission
+    assertions:
+      defined: true
+    message: Every operation needs `x-permission` (audience, ownership; staff permission) — CONVENTIONS.md §6.
+    severity: error
+  rule/operation-x-covers:
+    subject:
+      type: Operation
+      property: x-covers
+    assertions:
+      defined: true
+    message: Every operation needs `x-covers` (list of "NN AC-n"; empty list only with `x-covers-note`) — CONVENTIONS.md §12.
+    severity: error
+  rule/operation-id-camel-case:
+    subject:
+      type: Operation
+      property: operationId
+    assertions:
+      casing: camelCase
+    message: operationId must be camelCase (CONVENTIONS.md §3.3).
+    severity: error
+  rule/operation-has-tags:
+    subject:
+      type: Operation
+      property: tags
+    assertions:
+      defined: true
+      nonEmpty: true
+    message: Every operation has at least one tag from the tag list.
+    severity: error
+# Further project rules (camelCase properties, Money/Timestamp usage, x-permission content, admin
+# security, idempotency on x-money, pagination shape, error-code prefixes, ownership) are checked by
+# scripts/check-contract.mjs and scripts/build-root.mjs (CONVENTIONS.md §13).

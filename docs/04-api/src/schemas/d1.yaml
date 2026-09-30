@@ -1,0 +1,1618 @@
+# D1 — schemas for specs 00, 01, 02 (public config, i18n, auth, accounts, profiles, portfolio, KYC,
+# restrictions, dashboards, staff user management, IP bans). Written by the P2-B4 D1 group run (2026-09-29).
+# Names start with a D1 schemaPrefix (src/ownership.yaml), optionally preceded by "Admin".
+# Shared schemas are referenced as '../components/schemas.yaml#/Name'; own schemas as '#/Name'.
+
+# ═════════════════════════ Error codes ═════════════════════════
+D1ErrorCode:
+  type: string
+  description: |
+    Domain error codes of D1 (CONVENTIONS §7.3). Everything else uses `CommonErrorCode` plus
+    `details.messageKey` (e.g. `VALIDATION_FAILED` with `t_validator_unique`, `t_referral_code_invalid`,
+    `t_ur_current_pass_does_not_match`; `BUSINESS_RULE_VIOLATION` with
+    `t_cannot_delete_account_active_orders_projects`; `STATE_CONFLICT` with `t_item_already_decided`).
+  enum:
+    - AUTH_INVALID_CREDENTIALS
+    - AUTH_LOGIN_LOCKED
+    - AUTH_LOGIN_THROTTLED
+    - AUTH_LINK_INVALID
+    - AUTH_LINK_EXPIRED
+    - AUTH_ALREADY_VERIFIED
+    - AUTH_SOCIAL_EMAIL_EXISTS
+    - AUTH_SOCIAL_EMAIL_MISSING
+    - AUTH_SOCIAL_FAILED
+    - ACCOUNT_PENDING
+    - ACCOUNT_SUSPENDED
+    - TWO_FACTOR_CODE_INVALID
+    - TWO_FACTOR_CODE_EXPIRED
+    - TWO_FACTOR_TOO_MANY_ATTEMPTS
+    - TWO_FACTOR_RESEND_THROTTLED
+    - TWO_FACTOR_LOCKED
+  x-enumDescriptions:
+    AUTH_INVALID_CREDENTIALS: '[401] Wrong email or password, unknown email or a soft-deleted account (same answer for all, spec 01 AC-11, AC-15); messageKey t_invalid_login_credentials_pls_try_again'
+    AUTH_LOGIN_LOCKED: '[429] Account + IP locked after S-062 failed logins for S-063 minutes (spec 01 AC-16); `details.retryAfterSeconds`, `details.params.minutes`; messageKey t_too_many_login_attempts'
+    AUTH_LOGIN_THROTTLED: '[429] Slow mode after 20 failed logins for this account within one hour from any IPs: one attempt per 30 seconds is evaluated (ADR-002 §6, SEC-02, spec 01 AC-53; no hard lock; trusted-device and passed-reCAPTCHA attempts bypass the slot, SEC-30). `details.retryAfterSeconds`, `details.params.seconds` (= retryAfterSeconds); messageKey t_login_slow_mode'
+    AUTH_LINK_INVALID: '[422] Unknown or already used verification / reset / email-change link (spec 01 AC-8, AC-34); messageKey t_verification_email_not_exists (reset links: the client goes to login)'
+    AUTH_LINK_EXPIRED: '[422] The link is older than S-054 / S-055 minutes (spec 01 AC-8, AC-34; spec 02 AC-30); messageKey t_verification_email_link_expired or t_password_reset_link_expired'
+    AUTH_ALREADY_VERIFIED: '[409] Resend verification for an account that is not pending (spec 01 AC-9); messageKey t_already_verified_user'
+    AUTH_SOCIAL_EMAIL_EXISTS: '[409] Social email already belongs to an account with a password or another provider (spec 01 AC-39); messageKey t_socialite_error_email_exists'
+    AUTH_SOCIAL_EMAIL_MISSING: '[422] The provider returned no email address, or one it does not mark as verified (spec 01 AC-41, ADR-002 §7); `details.params.provider`; messageKey t_social_email_missing'
+    AUTH_SOCIAL_FAILED: '[422] OAuth state unknown, expired or already used; the client binding is missing or wrong (web cookie `__Host-mt_oauth`, mobile `codeVerifier`, SEC-09); or the provider refused the code exchange; messageKey t_toast_something_went_wrong'
+    ACCOUNT_PENDING: '[403] Correct credentials but the account is pending (spec 01 AC-13, AC-40); `details.verificationMethod` = email | admin; messageKey t_account_pending_verification or t_account_pending_admin_review'
+    ACCOUNT_SUSPENDED: '[403] The account is banned: at login, social login, refresh, and on every call made with a session that was ended by the ban (spec 01 AC-14, AC-40, AC-45); messageKey t_account_suspended'
+    TWO_FACTOR_CODE_INVALID: '[422] Wrong 2FA code; `details.attemptsLeft` (spec 01 AC-25); messageKey t_2fa_code_invalid'
+    TWO_FACTOR_CODE_EXPIRED: '[422] Code older than S-057 minutes (spec 01 AC-26); messageKey t_2fa_code_expired'
+    TWO_FACTOR_TOO_MANY_ATTEMPTS: '[422] S-058 wrong codes: this code no longer works, ask for a new one (spec 01 AC-25); messageKey t_2fa_too_many_attempts'
+    TWO_FACTOR_LOCKED: '[429] 10 wrong codes for this account within one hour across all challenges: code checks are refused for S-063 minutes, even for a correct code (ADR-002 §5, SEC-03, spec 01 AC-54; owner emailed once per lock, EV-129). `details.retryAfterSeconds`, `details.params.minutes` (remaining minutes, rounded up); messageKey t_2fa_locked'
+    TWO_FACTOR_RESEND_THROTTLED: '[429] Resend inside the 60-second cooldown or above 5 codes per 15 minutes (spec 01 AC-27); `details.retryAfterSeconds`, `details.params.seconds`; messageKey t_2fa_resend_wait'
+
+# ═════════════════════════ Platform ═════════════════════════
+HealthStatus:
+  type: object
+  description: Liveness only, no details (architecture §8). Readiness (DB, Redis, storage) is an internal port, not in this contract.
+  required: [status]
+  properties:
+    status: {type: string, const: ok}
+
+I18nBundle:
+  type: object
+  description: |
+    Runtime UI-string overrides saved by staff in the admin translation editor (ADR-006 §4, spec 16 AC-64).
+    The base strings ship in `packages/i18n/{ka,en}.json`; clients merge `overrides` on top. `version`
+    is a hash of the override set (also sent as `ETag`), so clients refetch only when it changes.
+  required: [locale, version, overrides, updatedAt]
+  properties:
+    locale: {$ref: '../components/schemas.yaml#/Locale'}
+    version: {type: string}
+    overrides:
+      type: object
+      description: Map `t_*` key → text (i18next `{{param}}` placeholders, no HTML).
+      additionalProperties: {type: string}
+    updatedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+
+PublicConfigUploadRule:
+  type: object
+  description: Upload limits of one file purpose, for client-side pre-checks only (the API re-checks in `createFileUpload`).
+  required: [enabled, maxSizeMb, maxFiles, allowedExtensions]
+  properties:
+    enabled: {type: boolean}
+    maxSizeMb: {type: [integer, 'null'], minimum: 0}
+    maxFiles: {type: [integer, 'null'], minimum: 0, description: 'null = no count limit for this purpose'}
+    allowedExtensions:
+      type: array
+      items: {type: string}
+      description: Lower-case extensions without dot; empty = the purpose's fixed list (e.g. avatar jpg/jpeg/png/webp, P-24).
+
+PublicConfigPlanLimits:
+  type: object
+  description: Plan limits (spec 00 §2). `null` = unlimited, `0` = not allowed (R-2.2).
+  required: [gigLimit, projectLimit, customOfferLimit]
+  properties:
+    gigLimit: {type: [integer, 'null'], minimum: 0}
+    projectLimit: {type: [integer, 'null'], minimum: 0}
+    customOfferLimit: {type: [integer, 'null'], minimum: 0}
+
+PublicConfig:
+  type: object
+  description: |
+    Every non-secret register value clients need to show or hide entry points and to pre-validate forms
+    (ADR-005 §9, CONVENTIONS §5.7). Read-only, cached with `ETag`; web revalidates, mobile refreshes on
+    start and on foreground. Clients use it for UX only: the API enforces every toggle and limit
+    itself (spec 00 AC-11). Secret rows (social-login keys) are never included; a social provider is
+    listed only when it is enabled **and** its keys are saved (spec 01 AC-37). Localized parts follow
+    `Accept-Language`. Other groups needing a new public row ask D1 through their handoff.
+  required: [version, i18n, appearance, branding, auth, plans, payments, escrow, projects, customOffers, revisions, withdrawals, uploads, chat, profile, content, seo, notifications, system]
+  properties:
+    version:
+      type: string
+      description: Hash of the whole configuration (same value as the `ETag`).
+    i18n:
+      type: object
+      required: [defaultLocale, languageSwitcherEnabled]
+      properties:
+        defaultLocale: {$ref: '../components/schemas.yaml#/Locale', description: S-103}
+        languageSwitcherEnabled: {type: boolean, description: S-104}
+    appearance:
+      type: object
+      required: [themeSwitcherEnabled, defaultTheme, homeFeaturedCategories, homeBestSellers, homeLogoCloud, homeBlogPosts]
+      properties:
+        themeSwitcherEnabled: {type: boolean, description: S-105}
+        defaultTheme: {type: string, enum: [light, dark], description: S-106}
+        homeFeaturedCategories: {type: boolean, description: S-107}
+        homeBestSellers: {type: boolean, description: S-108}
+        homeLogoCloud: {type: boolean, description: S-109}
+        homeBlogPosts: {type: boolean, description: S-119}
+    branding:
+      type: object
+      description: S-111 and S-112.
+      required: [siteTitle, siteSubtitle, titleSeparator, logoUrl, logoDarkUrl, logoTransparentUrl, faviconUrl, headerAnnouncement]
+      properties:
+        siteTitle: {type: string}
+        siteSubtitle: {type: [string, 'null']}
+        titleSeparator: {type: string}
+        logoUrl:
+          oneOf: [{$ref: '../components/schemas.yaml#/HttpUrl'}, {type: 'null'}]
+        logoDarkUrl:
+          oneOf: [{$ref: '../components/schemas.yaml#/HttpUrl'}, {type: 'null'}]
+        logoTransparentUrl:
+          oneOf: [{$ref: '../components/schemas.yaml#/HttpUrl'}, {type: 'null'}]
+        faviconUrl:
+          oneOf: [{$ref: '../components/schemas.yaml#/HttpUrl'}, {type: 'null'}]
+        headerAnnouncement:
+          description: S-112, resolved to the requested language (Georgian fallback). Null when empty.
+          oneOf:
+            - type: object
+              required: [text, url, contentLocale]
+              properties:
+                text: {type: string}
+                url:
+                  oneOf: [{$ref: '../components/schemas.yaml#/HttpUrl'}, {type: 'null'}]
+                contentLocale: {$ref: '../components/schemas.yaml#/ContentLocale'}
+            - type: 'null'
+    auth:
+      type: object
+      required: [recaptcha, twoFactorAvailable, socialProviders, passwordMinLength, passwordMaxLength]
+      properties:
+        recaptcha:
+          type: object
+          required: [enabled, siteKey]
+          properties:
+            enabled: {type: boolean, description: S-061}
+            siteKey:
+              type: [string, 'null']
+              description: Public reCAPTCHA site key from `.env` (not a secret); null while S-061 is OFF.
+        twoFactorAvailable:
+          type: boolean
+          description: S-056. OFF hides the 2FA switch (spec 01 AC-20).
+        socialProviders:
+          type: array
+          description: Providers enabled with saved keys (S-065…S-069, spec 01 AC-37).
+          items: {$ref: '#/SocialProvider'}
+        passwordMinLength: {type: integer, const: 8, description: 'R-A2 (fixed rule, P-14)'}
+        passwordMaxLength: {type: integer, const: 60, description: 'R-A2 (fixed rule, P-14)'}
+    plans:
+      type: object
+      required: [standard, premium, customOffersCountTowardLimit, premiumMonthlyPrice, premiumYearlyPrice, pointsPerPremiumMonth, pointsPerReferralSignup]
+      properties:
+        standard: {$ref: '#/PublicConfigPlanLimits', description: 'S-001, S-003, S-005'}
+        premium: {$ref: '#/PublicConfigPlanLimits', description: 'S-002, S-004, S-006'}
+        customOffersCountTowardLimit: {type: boolean, description: S-007}
+        premiumMonthlyPrice: {$ref: '../components/schemas.yaml#/Money', description: 'S-008 (display only; prices charged come from D3 quotes)'}
+        premiumYearlyPrice: {$ref: '../components/schemas.yaml#/Money', description: S-009}
+        pointsPerPremiumMonth: {type: integer, minimum: 0, description: S-045}
+        pointsPerReferralSignup: {type: integer, minimum: 0, description: 'S-046 (referral page text; the credit itself is D3 referral service)'}
+    payments:
+      type: object
+      required: [bogCardEnabled, walletEnabled, bankTransferEnabled, topupEnabled, topupMinAmount, topupMaxAmount, mobileCardSubscriptionEnabled]
+      properties:
+        bogCardEnabled: {type: boolean, description: S-019}
+        walletEnabled: {type: boolean, description: S-020}
+        bankTransferEnabled: {type: boolean, description: S-021}
+        topupEnabled: {type: boolean, description: S-022}
+        topupMinAmount: {$ref: '../components/schemas.yaml#/Money', description: S-023}
+        topupMaxAmount: {$ref: '../components/schemas.yaml#/Money', description: S-024}
+        mobileCardSubscriptionEnabled: {type: boolean, description: 'S-126 (ADR-016)'}
+    escrow:
+      type: object
+      required: [autoReleaseEnabled, autoReleaseHours, unblockRequestAvailable, unblockRequestWaitHours, refundSellerResponseDays]
+      properties:
+        autoReleaseEnabled: {type: boolean, description: S-025}
+        autoReleaseHours: {type: integer, minimum: 1, description: S-026}
+        unblockRequestAvailable:
+          type: boolean
+          description: 'Derived: S-025 OFF, or S-029 ON (P-5). Drives the "Unblock requests" menu (spec 02 AC-4).'
+        unblockRequestWaitHours: {type: integer, minimum: 0, description: S-028}
+        refundSellerResponseDays: {type: integer, minimum: 1, description: S-030}
+    projects:
+      type: object
+      required: [enabled, maxSkills, awardAcceptanceHours]
+      properties:
+        enabled: {type: boolean, description: S-075}
+        maxSkills: {type: integer, minimum: 0, description: S-076}
+        awardAcceptanceHours: {type: integer, minimum: 1, description: S-027}
+    customOffers:
+      type: object
+      required: [enabled, requireAdminApproval, expiryDays]
+      properties:
+        enabled: {type: boolean, description: S-034}
+        requireAdminApproval: {type: boolean, description: S-035}
+        expiryDays: {type: integer, minimum: 1, description: S-036}
+    revisions:
+      type: object
+      required: [maxAllowed]
+      properties:
+        maxAllowed: {type: integer, minimum: 0, description: S-041}
+    withdrawals:
+      type: object
+      required: [minAmount, period]
+      properties:
+        minAmount: {$ref: '../components/schemas.yaml#/Money', description: S-031}
+        period: {type: string, enum: [daily, weekly, monthly], description: S-032}
+    uploads:
+      type: object
+      description: 'Per file purpose (S-037…S-040, S-077…S-099). Gig video links: S-079.'
+      required: [gigImage, gigDocument, gigVideoLinkEnabled, gigMaxTags, projectThumbnail, requirementFile, delivery, audioUploadEnabled, portfolioImage, appealFile, offerAttachment, chatImage, chatFile]
+      properties:
+        gigImage: {$ref: '#/PublicConfigUploadRule', description: 'S-077, S-078'}
+        gigDocument: {$ref: '#/PublicConfigUploadRule', description: 'S-080, S-081, S-082'}
+        gigVideoLinkEnabled: {type: boolean, description: S-079}
+        gigMaxTags: {type: integer, minimum: 0, description: S-083}
+        projectThumbnail: {$ref: '#/PublicConfigUploadRule', description: S-078}
+        requirementFile: {$ref: '#/PublicConfigUploadRule', description: 'S-084, S-085'}
+        delivery: {$ref: '#/PublicConfigUploadRule', description: 'S-086, S-087'}
+        audioUploadEnabled: {type: boolean, description: S-088}
+        portfolioImage: {$ref: '#/PublicConfigUploadRule', description: 'S-089, S-090'}
+        appealFile: {$ref: '#/PublicConfigUploadRule', description: 'S-091, S-092, S-093'}
+        offerAttachment: {$ref: '#/PublicConfigUploadRule', description: 'S-037…S-040'}
+        chatImage: {$ref: '#/PublicConfigUploadRule', description: 'S-094, S-095, S-097'}
+        chatFile: {$ref: '#/PublicConfigUploadRule', description: 'S-094, S-096, S-097'}
+    chat:
+      type: object
+      required: [attachmentsEnabled, emojisEnabled, soundEnabled]
+      properties:
+        attachmentsEnabled: {type: boolean, description: S-094}
+        emojisEnabled: {type: boolean, description: S-098}
+        soundEnabled: {type: boolean, description: S-099}
+    profile:
+      type: object
+      required: [linkedAccountsEnabled]
+      properties:
+        linkedAccountsEnabled: {type: boolean, description: 'S-123 (P-25)'}
+    content:
+      type: object
+      required: [blogEnabled, blogCommentsEnabled, newsletterEnabled, hero, footer]
+      properties:
+        blogEnabled: {type: boolean, description: S-117}
+        blogCommentsEnabled: {type: boolean, description: S-118}
+        newsletterEnabled: {type: boolean, description: S-120}
+        hero: {$ref: '#/PublicConfigHero'}
+        footer: {$ref: '#/PublicConfigFooter'}
+    seo:
+      type: object
+      description: S-115 defaults and S-116 (integration run, requested by D2). Page-specific meta comes from the owning read operations.
+      required: [defaultMetaDescription, defaultKeywords, defaultOgImageUrl, facebookPageUrl, facebookAppId, twitterUsername, sitemapEnabled]
+      properties:
+        defaultMetaDescription: {type: [string, 'null'], description: 'S-115, in the requested language (Georgian fallback)'}
+        defaultKeywords: {type: [string, 'null'], description: S-115}
+        defaultOgImageUrl:
+          oneOf: [{$ref: '../components/schemas.yaml#/HttpUrl'}, {type: 'null'}]
+        facebookPageUrl:
+          oneOf: [{$ref: '../components/schemas.yaml#/HttpUrl'}, {type: 'null'}]
+        facebookAppId: {type: [string, 'null'], description: 'S-115 (fb:app_id, spec 17 AC-38)'}
+        twitterUsername: {type: [string, 'null'], description: 'S-115 (twitter:site)'}
+        sitemapEnabled: {type: boolean, description: S-116}
+    notifications:
+      type: object
+      required: [pushEnabled]
+      properties:
+        pushEnabled: {type: boolean, description: S-101}
+    system:
+      type: object
+      required: [maintenanceMode]
+      properties:
+        maintenanceMode: {type: boolean, description: 'S-121 (user endpoints answer 503 MAINTENANCE while ON)'}
+
+PublicConfigHero:
+  type: object
+  description: Home hero content (S-113), resolved to the requested language with Georgian fallback (integration run, requested by D2 for spec 17 / spec 03 home). Legacy `settings_hero` fields; empty texts are null.
+  required: [title, subtitle, imageUrls, contentLocale]
+  properties:
+    title: {type: [string, 'null']}
+    subtitle: {type: [string, 'null']}
+    imageUrls:
+      type: array
+      items: {$ref: '../components/schemas.yaml#/HttpUrl'}
+    contentLocale: {$ref: '../components/schemas.yaml#/ContentLocale'}
+
+PublicConfigFooter:
+  type: object
+  description: Footer settings (S-114). CMS page links of the footer columns come from D2 `listPages` (spec 17 AC-9); this block holds the extra links, the social links and the footer logos.
+  required: [links, socialLinks, logos]
+  properties:
+    links:
+      type: array
+      items:
+        type: object
+        required: [label, url]
+        properties:
+          label: {type: string}
+          url: {$ref: '../components/schemas.yaml#/HttpUrl'}
+    socialLinks:
+      type: array
+      items:
+        type: object
+        required: [network, url]
+        properties:
+          network: {type: string, description: 'e.g. facebook, instagram, linkedin, youtube, x (display icon key)'}
+          url: {$ref: '../components/schemas.yaml#/HttpUrl'}
+    logos:
+      type: array
+      items:
+        type: object
+        required: [name, imageUrl, linkUrl]
+        properties:
+          name: {type: string}
+          imageUrl: {$ref: '../components/schemas.yaml#/HttpUrl'}
+          linkUrl:
+            oneOf: [{$ref: '../components/schemas.yaml#/HttpUrl'}, {type: 'null'}]
+
+PublicConfigWebCustomCode:
+  type: object
+  description: |
+    Custom code for **public web pages only** (S-110 + S-127, spec 16 AC-73…AC-75), read by the Next.js
+    server when it renders a public page (never by the mobile app, the admin app, emails, or non-public
+    pages). `head` / `footer` are null while the switch is OFF; `allowedHosts` feeds the public-page
+    CSP (AC-74). Kept out of `PublicConfig` so the mobile bundle never receives it (integration run,
+    requested by D6).
+  required: [enabled, head, footer, allowedHosts]
+  properties:
+    enabled: {type: boolean}
+    head: {type: [string, 'null']}
+    footer: {type: [string, 'null']}
+    allowedHosts:
+      type: array
+      description: The hostnames of S-127 (each confirmed as a fixed-code vendor, spec 16 AC-74a, Q-146) for the CSP; the confirmation data stays in the admin API.
+      items: {type: string, maxLength: 253}
+
+# ═════════════════════════ Auth ═════════════════════════
+SocialProvider:
+  type: string
+  enum: [google, facebook, github, linkedin, twitter]
+  description: Social login providers S-065…S-069 (`twitter` = X).
+
+AuthNotice:
+  type: object
+  description: A localized success notice for auth flows (the screens show it). `message` is resolved from `messageKey` with `params`.
+  required: [messageKey, message, params]
+  properties:
+    messageKey: {type: string, pattern: '^t_[a-z0-9_]+$'}
+    message: {type: string}
+    params:
+      type: object
+      additionalProperties: {type: [string, integer]}
+
+AuthRecaptchaToken:
+  type: [string, 'null']
+  maxLength: 4096
+  description: reCAPTCHA v3 token (web) or the mobile SDK token (R-A10). Required while S-061 is ON, otherwise ignored; a missing or low-score (≤ 0.5) token gives `VALIDATION_FAILED` on field `recaptchaToken`, messageKey `t_validator_recaptcha` (spec 01 AC-18).
+
+AuthDeviceToken:
+  type: [string, 'null']
+  maxLength: 200
+  description: |
+    Mobile only: the device identifier the API issued earlier (`AuthSession.deviceToken`), stored in
+    SecureStore (ADR-002 §5). Web sends nothing: its identifier travels in the HttpOnly cookie `__Host-mt_did`.
+    Unknown or missing → the API issues a new identifier (a new, untrusted device for 2FA).
+
+PasswordValue:
+  type: string
+  minLength: 8
+  maxLength: 60
+  pattern: '^(?=.*[A-Z])(?=.*[0-9]).{8,60}$'
+  description: New password rule R-A2 (P-14) for register, reset and change; messageKey `t_password_validation_message`. Existing passwords that do not meet it keep working at login.
+
+RegisterRequest:
+  type: object
+  required: [fullName, username, email, password, acceptTerms]
+  properties:
+    fullName: {type: string, minLength: 3, maxLength: 60}
+    username:
+      type: string
+      minLength: 3
+      maxLength: 60
+      pattern: '^(?![0-9]+$)[A-Za-z0-9_]+$'
+      description: 'Letters, digits and underscore, not only digits, unique incl. deleted accounts (`t_validator_username`, `t_validator_min`, `t_validator_unique`, spec 01 AC-2).'
+    email:
+      type: string
+      format: email
+      maxLength: 60
+      description: Valid, domain resolves, unique incl. deleted accounts.
+    password: {$ref: '#/PasswordValue'}
+    acceptTerms:
+      type: boolean
+      const: true
+      description: Terms and privacy ticked (`t_you_must_agree_to_terms`).
+    referralCode:
+      type: [string, 'null']
+      pattern: '^[A-Z0-9]{8}$'
+      description: 'Optional; from the field or a `?ref=CODE` link (spec 01 AC-6). Unknown → `VALIDATION_FAILED` field `referralCode`, `t_referral_code_invalid`.'
+    recaptchaToken: {$ref: '#/AuthRecaptchaToken'}
+    deviceToken: {$ref: '#/AuthDeviceToken'}
+
+RegisterResult:
+  type: object
+  description: |
+    `outcome = logged_in` (S-052 OFF): `session` is set (spec 01 AC-3). `pending_email_verification` (S-052 ON,
+    S-053 = email): `notice` = `t_register_verification_email_sent` with `email`, `minutes` (AC-4).
+    `pending_admin_review` (S-053 = admin): `notice` = `t_register_verification_admin_pending` (AC-5).
+  required: [outcome, session, notice]
+  properties:
+    outcome:
+      type: string
+      enum: [logged_in, pending_email_verification, pending_admin_review]
+    session:
+      oneOf: [{$ref: '#/AuthSession'}, {type: 'null'}]
+    notice:
+      oneOf: [{$ref: '#/AuthNotice'}, {type: 'null'}]
+
+LoginRequest:
+  type: object
+  required: [email, password]
+  properties:
+    email: {type: string, format: email, maxLength: 254}
+    password:
+      type: string
+      minLength: 1
+      maxLength: 1024
+      description: Any stored password (legacy ones may not meet R-A2). 1,024 is a technical bound against hashing abuse.
+    rememberMe:
+      type: boolean
+      default: true
+      description: 'Web: ticked by default (spec 01 AC-10); unticked = browser-session refresh cookie. Mobile always stays signed in.'
+    recaptchaToken: {$ref: '#/AuthRecaptchaToken'}
+    deviceToken: {$ref: '#/AuthDeviceToken'}
+
+LogoutRequest:
+  type: object
+  description: Optional body of `logout` (integration run, requested by D6).
+  properties:
+    installationId:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+      description: Mobile only; the push token registered for this installation is removed with the session (spec 15 AC-21).
+
+AuthSession:
+  type: object
+  description: |
+    A new session (ADR-002 §1–§2). **Web** (`X-MyTask-Client: web`): tokens are set only as HttpOnly
+    cookies (`__Host-mt_at`, `__Secure-mt_rt`, device cookie `__Host-mt_did`) and the token fields below are `null`.
+    **Mobile** (`ios`/`android`): tokens are in the body; the app keeps them and `deviceToken` in
+    SecureStore. A restricted user gets a session too (`user.isRestricted = true`, spec 01 AC-19).
+  required: [user, accessToken, accessTokenExpiresAt, refreshToken, refreshTokenExpiresAt, deviceToken, isNewAccount]
+  properties:
+    user: {$ref: '#/Me'}
+    accessToken:
+      type: [string, 'null']
+      description: Ed25519 JWT, `aud = user`, 15 minutes. Null for web.
+    accessTokenExpiresAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    refreshToken:
+      type: [string, 'null']
+      description: Opaque, rotated on every refresh (reuse revokes the session family). Null for web.
+    refreshTokenExpiresAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    deviceToken:
+      type: [string, 'null']
+      description: Mobile only (see `AuthDeviceToken`). Null for web.
+    isNewAccount:
+      type: boolean
+      description: True when a social login created the account (spec 01 AC-38).
+
+TwoFactorChallenge:
+  type: object
+  description: |
+    Returned with `202` when a correct password (or social callback) needs an email code (spec 01 AC-22,
+    AC-30) and by `createMyTwoFactorChallenge` for re-authentication of accounts without a password: the 2FA
+    switch (AC-21, P-15) and, since P2-B5 (SEC-05, ADR-002 §5), an email change, saving payout details and
+    "log out other sessions". A code works only for its `purpose` and only once.
+  required: [challengeId, channel, purpose, emailMasked, codeLength, expiresAt, resendAvailableAt, notice]
+  properties:
+    challengeId: {$ref: '../components/schemas.yaml#/Uuid'}
+    channel: {type: string, const: email}
+    purpose: {$ref: '#/TwoFactorPurpose'}
+    emailMasked: {type: string, description: 'For `t_2fa_code_sent` (:email).'}
+    codeLength: {type: integer, const: 6}
+    expiresAt:
+      $ref: '../components/schemas.yaml#/Timestamp'
+      description: S-057 minutes after sending.
+    resendAvailableAt:
+      $ref: '../components/schemas.yaml#/Timestamp'
+      description: 60 seconds after the last send (R-A6).
+    notice: {$ref: '#/AuthNotice'}
+
+TwoFactorPurpose:
+  type: string
+  enum: [login, toggle_two_factor, email_change, payout_details, revoke_sessions]
+  description: |
+    What a code confirms (data-model `twofa_purpose`). `login` comes from `login` / `completeSocialLogin`;
+    the others are re-authentication codes for accounts without a password (`createMyTwoFactorChallenge`):
+    `toggle_two_factor` → `updateMyTwoFactor`, `email_change` → `updateMe` with a new `email`,
+    `payout_details` → `putPayoutDetails`, `revoke_sessions` → `revokeMyOtherSessions`.
+
+TwoFactorChallengeCreateRequest:
+  type: object
+  description: Optional body of `createMyTwoFactorChallenge`; without a body the purpose is `toggle_two_factor` (backwards compatible).
+  properties:
+    purpose:
+      type: string
+      enum: [toggle_two_factor, email_change, payout_details, revoke_sessions]
+      default: toggle_two_factor
+
+TwoFactorVerifyRequest:
+  type: object
+  required: [challengeId, code]
+  properties:
+    challengeId: {$ref: '../components/schemas.yaml#/Uuid'}
+    code: {type: string, pattern: '^[0-9]{6}$'}
+    deviceToken: {$ref: '#/AuthDeviceToken'}
+
+TwoFactorResendRequest:
+  type: object
+  required: [challengeId]
+  properties:
+    challengeId: {$ref: '../components/schemas.yaml#/Uuid'}
+
+TwoFactorSetting:
+  type: object
+  required: [enabled, available, notice]
+  properties:
+    enabled: {type: boolean, description: 'The user''s choice (kept while S-056 is OFF, Q-072).'}
+    available: {type: boolean, description: S-056.}
+    notice:
+      description: '`t_2fa_enabled` / `t_2fa_disabled` after a change.'
+      oneOf: [{$ref: '#/AuthNotice'}, {type: 'null'}]
+
+TwoFactorSettingUpdateRequest:
+  type: object
+  description: |
+    Re-authentication (spec 01 AC-21, P-15): accounts with a password send `currentPassword`; social-only
+    accounts first call `createMyTwoFactorChallenge` and send `challengeId` + `code`.
+  required: [enabled]
+  properties:
+    enabled: {type: boolean}
+    currentPassword: {type: [string, 'null'], maxLength: 1024}
+    challengeId:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+    code: {type: [string, 'null'], pattern: '^[0-9]{6}$'}
+
+SessionRefreshRequest:
+  type: object
+  description: Mobile sends the refresh token in the body; web sends nothing (cookie `__Secure-mt_rt`, path `/api/v1/auth`).
+  properties:
+    refreshToken: {type: [string, 'null'], maxLength: 200}
+
+SessionSummary:
+  type: object
+  description: One active session (one login on one device), spec 01 AC-43. Staff see the same shape on the user page (spec 16 AC-31).
+  required: [id, client, deviceLabel, browser, os, ip, countryCode, createdAt, lastActiveAt, isCurrent]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    client: {type: string, enum: [web, ios, android]}
+    deviceLabel: {type: [string, 'null'], description: 'e.g. "iPhone 15", parsed from the user agent / app.'}
+    browser: {type: [string, 'null']}
+    os: {type: [string, 'null']}
+    ip: {type: string, description: Last IP address.}
+    countryCode:
+      oneOf: [{$ref: '../components/schemas.yaml#/CountryCode'}, {type: 'null'}]
+      description: From the local GeoIP database (ADR-012).
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    lastActiveAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    isCurrent: {type: boolean, description: '"This device" (`t_this_device`); always false in staff views.'}
+
+SessionPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/SessionSummary'}
+
+SessionRevokeOthersRequest:
+  type: object
+  properties:
+    currentPassword:
+      type: [string, 'null']
+      maxLength: 1024
+      description: Required for accounts with a password (spec 01 AC-44).
+    challengeId:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+      description: Accounts without a password (SEC-05, ADR-002 §5) — a `revoke_sessions` challenge from `createMyTwoFactorChallenge`.
+    code:
+      type: [string, 'null']
+      pattern: '^[0-9]{6}$'
+      description: The emailed code of `challengeId`.
+
+SessionRevokeResult:
+  type: object
+  required: [revokedCount]
+  properties:
+    revokedCount: {type: integer, minimum: 0}
+
+EmailVerificationConfirmRequest:
+  type: object
+  description: Values from the link `/auth/verify?token&email` (web) or the app deep link.
+  required: [email, token]
+  properties:
+    email: {type: string, format: email, maxLength: 254}
+    token: {type: string, minLength: 16, maxLength: 200}
+
+EmailVerificationResendRequest:
+  type: object
+  required: [email]
+  properties:
+    email: {type: string, format: email, maxLength: 254}
+
+EmailChangeConfirmRequest:
+  type: object
+  required: [token]
+  properties:
+    token: {type: string, minLength: 16, maxLength: 200}
+
+PasswordResetRequest:
+  type: object
+  required: [email]
+  properties:
+    email: {type: string, format: email, maxLength: 254}
+
+PasswordResetTokenCheckRequest:
+  type: object
+  required: [email, token]
+  properties:
+    email: {type: string, format: email, maxLength: 254}
+    token: {type: string, minLength: 16, maxLength: 200}
+
+PasswordResetCompleteRequest:
+  type: object
+  required: [email, token, password, passwordConfirmation]
+  properties:
+    email: {type: string, format: email, maxLength: 254}
+    token: {type: string, minLength: 16, maxLength: 200}
+    password: {$ref: '#/PasswordValue'}
+    passwordConfirmation: {type: string, maxLength: 60, description: Must equal `password`.}
+
+PasswordChangeRequest:
+  type: object
+  required: [currentPassword, password, passwordConfirmation]
+  properties:
+    currentPassword: {type: string, minLength: 1, maxLength: 1024}
+    password: {$ref: '#/PasswordValue'}
+    passwordConfirmation: {type: string, maxLength: 60}
+
+SocialAuthorizeRequest:
+  type: object
+  required: [redirectUri]
+  properties:
+    redirectUri:
+      type: string
+      maxLength: 500
+      description: |
+        Where the provider sends the user back: the web callback page `/auth/{provider}/callback` (legacy
+        path kept, url-map §5) or, for the apps, the verified https App Link
+        `https://mytask.ge/app-return/auth/{provider}` (url-map §7; a custom scheme only where a provider
+        refuses https). Must be in the server-side allow-list for the client kind, else `VALIDATION_FAILED`.
+    referralCode:
+      type: [string, 'null']
+      pattern: '^[A-Z0-9]{8}$'
+      description: A `?ref=` code carried through the flow (spec 01 AC-38, P-17); validated like AC-6 when the account is created.
+    codeChallenge:
+      type: [string, 'null']
+      pattern: '^[A-Za-z0-9_-]{43}$'
+      description: |
+        Mobile only, **required** for `X-MyTask-Client: ios|android` (SEC-09): BASE64URL(SHA256(codeVerifier))
+        of a PKCE pair the app created and keeps. Web sends null (the API keeps the verifier and binds the
+        browser with the `__Host-mt_oauth` cookie).
+    codeChallengeMethod:
+      type: [string, 'null']
+      enum: [S256, null]
+      description: Always `S256` when `codeChallenge` is sent.
+
+SocialAuthorization:
+  type: object
+  description: |
+    The client opens `authorizationUrl` (browser / system browser). `state` is single-use and expires at
+    `expiresAt` (10 minutes). Web: the PKCE verifier stays on the server and the response sets the binding
+    cookie `__Host-mt_oauth`. Mobile: the app holds the PKCE verifier (ADR-002 §7, SEC-09).
+  required: [authorizationUrl, state, expiresAt]
+  properties:
+    authorizationUrl: {$ref: '../components/schemas.yaml#/HttpUrl'}
+    state: {type: string}
+    expiresAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+SocialCallbackRequest:
+  type: object
+  required: [code, state]
+  properties:
+    code: {type: string, minLength: 1, maxLength: 2048}
+    state: {type: string, minLength: 1, maxLength: 200}
+    codeVerifier:
+      type: [string, 'null']
+      minLength: 43
+      maxLength: 128
+      pattern: '^[A-Za-z0-9._~-]+$'
+      description: Mobile only, **required** when the flow was started with `codeChallenge` (SEC-09). Web sends null and is bound by the `__Host-mt_oauth` cookie.
+    deviceToken: {$ref: '#/AuthDeviceToken'}
+
+# ═════════════════════════ Account (/me) ═════════════════════════
+UserStatus:
+  type: string
+  enum: [pending, active, verified, banned]
+  description: 'Account status (spec 01 R-A1). `verified` is a legacy value treated like `active` (EC-9). Deleted accounts are soft-deleted (separate flag).'
+
+AccountTheme:
+  type: string
+  enum: [light, dark, system]
+  description: Theme choice (Q-059, Q-093). Null on the account = S-106 default.
+
+DashboardSide:
+  type: string
+  enum: [buying, selling]
+  description: Last chosen dashboard, shared by web and mobile; default `buying` (spec 02 AC-3, P-22).
+
+KycState:
+  type: string
+  enum: [none, pending, verified, declined]
+  description: The user's latest KYC verification status (`none` = never submitted).
+
+Me:
+  type: object
+  description: The signed-in user's own account (also allowed for restricted users, spec 01 AC-19).
+  required: [id, username, email, pendingEmail, emailVerifiedAt, fullName, avatar, status, isRestricted, hasPassword, twoFactorEnabled, twoFactorAvailable, locale, theme, lastDashboard, plan, premiumEndsAt, referralCode, countryCode, city, kycStatus, socialProviders, createdAt]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    username: {type: string}
+    email: {type: string, format: email}
+    pendingEmail:
+      type: [string, 'null']
+      format: email
+      description: New address waiting for confirmation (spec 02 AC-30, `t_email_change_pending`).
+    emailVerifiedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    fullName: {type: string}
+    avatar:
+      oneOf: [{$ref: '../components/schemas.yaml#/ImageVariants'}, {type: 'null'}]
+    status: {$ref: '#/UserStatus'}
+    isRestricted:
+      type: boolean
+      description: True → web sends every page to `/restricted`, mobile shows only the Restrictions screen (spec 01 AC-19).
+    hasPassword:
+      type: boolean
+      description: False for social-only accounts (change-password page shows the social notice, EC-3).
+    twoFactorEnabled: {type: boolean}
+    twoFactorAvailable: {type: boolean, description: S-056.}
+    locale: {$ref: '../components/schemas.yaml#/Locale'}
+    theme:
+      oneOf: [{$ref: '#/AccountTheme'}, {type: 'null'}]
+    lastDashboard: {$ref: '#/DashboardSide'}
+    plan: {$ref: '../components/schemas.yaml#/PlanCode'}
+    premiumEndsAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    referralCode: {type: string, pattern: '^[A-Z0-9]{8}$'}
+    countryCode:
+      oneOf: [{$ref: '../components/schemas.yaml#/CountryCode'}, {type: 'null'}]
+    city: {type: [string, 'null']}
+    kycStatus: {$ref: '#/KycState'}
+    socialProviders:
+      type: array
+      description: Providers linked to this account.
+      items: {$ref: '#/SocialProvider'}
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+MeUpdateRequest:
+  type: object
+  description: |
+    Account settings (spec 02 AC-29). Omitted fields are unchanged. `currentPassword` is required for
+    accounts with a password (wrong → `VALIDATION_FAILED` field `currentPassword`,
+    `t_ur_current_pass_does_not_match`). A new `email` starts the confirmation flow (AC-30) instead of
+    changing the address; for an account without a password a new `email` also needs `challengeId` +
+    `code` of an `email_change` challenge sent to the **current** address (SEC-05, ADR-002 §5).
+  properties:
+    username:
+      type: string
+      minLength: 3
+      maxLength: 60
+      pattern: '^(?![0-9]+$)[A-Za-z0-9_]+$'
+    email: {type: string, format: email, maxLength: 60}
+    fullName: {type: string, minLength: 1, maxLength: 60}
+    countryCode:
+      oneOf: [{$ref: '../components/schemas.yaml#/CountryCode'}, {type: 'null'}]
+      description: From the active country list (D2 `/countries`); null clears it.
+    city: {type: string, minLength: 1, maxLength: 60}
+    currentPassword: {type: [string, 'null'], maxLength: 1024}
+    challengeId:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+      description: Accounts without a password changing `email` — an `email_change` challenge (SEC-05).
+    code:
+      type: [string, 'null']
+      pattern: '^[0-9]{6}$'
+      description: The emailed code of `challengeId`.
+
+MePreferencesUpdateRequest:
+  type: object
+  properties:
+    lastDashboard: {$ref: '#/DashboardSide'}
+    theme:
+      oneOf: [{$ref: '#/AccountTheme'}, {type: 'null'}]
+    locale:
+      $ref: '../components/schemas.yaml#/Locale'
+      description: Language of emails and push (ADR-006 §2).
+
+# ═════════════════════════ Profiles ═════════════════════════
+UserSkillLevel:
+  type: string
+  enum: [beginner, intermediate, pro]
+  description: Shown as Beginner / Intermediate / Expert (`t_expert` for `pro`, legacy stored value).
+
+UserLanguageLevel:
+  type: string
+  enum: [basic, conversational, fluent, native]
+
+UserSkill:
+  type: object
+  required: [id, name, slug, experience]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    name: {type: string}
+    slug: {type: string, description: 'Made from the name by the API; links to `/hire/{slug}` (D2).'}
+    experience: {$ref: '#/UserSkillLevel'}
+
+UserSkillCreateRequest:
+  type: object
+  required: [name, experience]
+  properties:
+    name: {type: string, minLength: 1, maxLength: 30}
+    experience: {$ref: '#/UserSkillLevel'}
+
+UserSkillUpdateRequest:
+  type: object
+  properties:
+    name: {type: string, minLength: 1, maxLength: 30}
+    experience: {$ref: '#/UserSkillLevel'}
+
+UserLanguage:
+  type: object
+  required: [id, name, level]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    name: {type: string}
+    level: {$ref: '#/UserLanguageLevel'}
+
+UserLanguageCreateRequest:
+  type: object
+  required: [name, level]
+  properties:
+    name: {type: string, minLength: 1, maxLength: 100}
+    level: {$ref: '#/UserLanguageLevel'}
+
+UserLanguageUpdateRequest:
+  type: object
+  properties:
+    name: {type: string, minLength: 1, maxLength: 100}
+    level: {$ref: '#/UserLanguageLevel'}
+
+ProfileLinkedAccounts:
+  type: object
+  description: Linked profile URLs (spec 02 AC-21), shown only while S-123 is ON.
+  required: [facebook, twitter, dribbble, stackoverflow, github, youtube, vimeo]
+  properties:
+    facebook: {type: [string, 'null'], format: uri, maxLength: 160}
+    twitter: {type: [string, 'null'], format: uri, maxLength: 160}
+    dribbble: {type: [string, 'null'], format: uri, maxLength: 160}
+    stackoverflow: {type: [string, 'null'], format: uri, maxLength: 160}
+    github: {type: [string, 'null'], format: uri, maxLength: 160}
+    youtube: {type: [string, 'null'], format: uri, maxLength: 160}
+    vimeo: {type: [string, 'null'], format: uri, maxLength: 160}
+
+AvailabilityNotice:
+  type: object
+  description: '"Unavailable until" (spec 02 AC-22, BR-013). While set: no add-to-cart on the user''s gigs (D2/D4) and no offer requests (D4).'
+  required: [unavailableUntil, message]
+  properties:
+    unavailableUntil: {$ref: '../components/schemas.yaml#/DateOnly'}
+    message: {type: string}
+
+AvailabilityPutRequest:
+  type: object
+  required: [unavailableUntil, message]
+  properties:
+    unavailableUntil:
+      $ref: '../components/schemas.yaml#/DateOnly'
+      description: Must be in the future (Asia/Tbilisi), else `VALIDATION_FAILED` with `t_pls_select_availability_date_in_future`.
+    message: {type: string, minLength: 1, maxLength: 750}
+
+UserProfile:
+  type: object
+  description: |
+    Public profile `/profile/{username}` (spec 02 AC-8…AC-13). Active gigs come from D2
+    (`GET /gigs?sellerUsername=`, 6 per page, newest first) and the portfolio preview from
+    `listPortfolioItems`. There is no level or badge (X-05). Flags tell the client which buttons to show;
+    the operations behind them check again.
+  required: [id, username, fullName, headline, about, avatar, countryCode, timezone, isOnline, availability, lastDeliveryAt, createdAt, isEmailVerified, isIdVerified, isPremium, languages, skills, linkedAccounts, ratings, portfolioCount, isOwnProfile, canContact, canRequestOffer, canReport, isIndexable]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    username: {type: string}
+    fullName: {type: string}
+    headline: {type: [string, 'null']}
+    about: {type: [string, 'null']}
+    avatar:
+      oneOf: [{$ref: '../components/schemas.yaml#/ImageVariants'}, {type: 'null'}]
+    countryCode:
+      oneOf: [{$ref: '../components/schemas.yaml#/CountryCode'}, {type: 'null'}]
+    timezone:
+      type: [string, 'null']
+      description: IANA zone for "local time" (the client computes the clock).
+    isOnline: {type: boolean, description: 'Authenticated request in the last 10 minutes (R-P4).'}
+    availability:
+      oneOf: [{$ref: '#/AvailabilityNotice'}, {type: 'null'}]
+    lastDeliveryAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    createdAt:
+      $ref: '../components/schemas.yaml#/Timestamp'
+      description: Member since.
+    isEmailVerified: {type: boolean}
+    isIdVerified: {type: boolean, description: KYC approved (spec 02 AC-37).}
+    isPremium: {type: boolean}
+    languages:
+      type: array
+      items: {$ref: '#/UserLanguage'}
+    skills:
+      type: array
+      items: {$ref: '#/UserSkill'}
+    linkedAccounts:
+      description: Null while S-123 is OFF.
+      oneOf: [{$ref: '#/ProfileLinkedAccounts'}, {type: 'null'}]
+    ratings:
+      type: object
+      required: [asFreelancer, asClient]
+      properties:
+        asFreelancer: {$ref: '../components/schemas.yaml#/RatingBlock'}
+        asClient: {$ref: '../components/schemas.yaml#/RatingBlock'}
+    portfolioCount: {type: integer, minimum: 0, description: Public portfolio items.}
+    isOwnProfile: {type: boolean, description: 'Show "Edit profile" instead of "Contact me" / "Report user" (AC-13).'}
+    canContact: {type: boolean, description: 'Not own profile (guests are asked to log in, AC-11).'}
+    canRequestOffer:
+      type: boolean
+      description: 'S-034 ON, viewer signed in, not own profile, the user is available (AC-12).'
+    canReport: {type: boolean, description: Signed in and not own profile (AC-14).}
+    isIndexable:
+      type: boolean
+      description: False when the owner has no active gig, no public portfolio item and no visible review; the web then emits noindex, follow and the D2 sitemap leaves the profile out (spec 17 AC-41, P-133; integration run, requested by D2).
+
+UserReportCreateRequest:
+  type: object
+  required: [reason]
+  properties:
+    reason: {type: string, minLength: 1, maxLength: 1500}
+
+UserReport:
+  type: object
+  description: The caller's report of a profile (one per reporter; a second report replaces the first, spec 02 AC-14).
+  required: [id, reason, createdAt, updatedAt]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    reason: {type: string}
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    updatedAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+MeProfile:
+  type: object
+  description: The edit-profile form data (spec 02 AC-15, P-23).
+  required: [headline, about, avatar, skills, languages, linkedAccounts, linkedAccountsEnabled, availability]
+  properties:
+    headline: {type: [string, 'null']}
+    about: {type: [string, 'null']}
+    avatar:
+      oneOf: [{$ref: '../components/schemas.yaml#/ImageVariants'}, {type: 'null'}]
+    skills:
+      type: array
+      items: {$ref: '#/UserSkill'}
+    languages:
+      type: array
+      items: {$ref: '#/UserLanguage'}
+    linkedAccounts: {$ref: '#/ProfileLinkedAccounts'}
+    linkedAccountsEnabled: {type: boolean, description: S-123.}
+    availability:
+      oneOf: [{$ref: '#/AvailabilityNotice'}, {type: 'null'}]
+
+MeProfileUpdateRequest:
+  type: object
+  description: Each block saves on its own (spec 02 AC-15); send only the changed field. Empty is refused (`t_validator_required`).
+  properties:
+    headline: {type: string, minLength: 1, maxLength: 100}
+    about: {type: string, minLength: 1, maxLength: 1500}
+
+MeAvatarPutRequest:
+  type: object
+  required: [fileId]
+  properties:
+    fileId:
+      $ref: '../components/schemas.yaml#/Uuid'
+      description: A `ready` file of purpose `avatar` (JPG, JPEG, PNG, WEBP, ≤ 2 MB; no SVG, P-24).
+
+ProfileLinkedAccountsPutRequest:
+  type: object
+  description: All seven URLs at once; null clears one.
+  properties:
+    facebook: {type: [string, 'null'], format: uri, maxLength: 160}
+    twitter: {type: [string, 'null'], format: uri, maxLength: 160}
+    dribbble: {type: [string, 'null'], format: uri, maxLength: 160}
+    stackoverflow: {type: [string, 'null'], format: uri, maxLength: 160}
+    github: {type: [string, 'null'], format: uri, maxLength: 160}
+    youtube: {type: [string, 'null'], format: uri, maxLength: 160}
+    vimeo: {type: [string, 'null'], format: uri, maxLength: 160}
+
+# ═════════════════════════ Dashboard ═════════════════════════
+DashboardOrderRow:
+  type: object
+  description: One of the latest paid gig order items where the caller is the freelancer (spec 02 AC-6). Full items are D4's.
+  required: [orderItemId, displayId, gig, buyer, total, status, createdAt]
+  properties:
+    orderItemId: {$ref: '../components/schemas.yaml#/Uuid'}
+    displayId: {type: string, description: Order item uid.}
+    gig:
+      oneOf: [{$ref: '../components/schemas.yaml#/GigRef'}, {type: 'null'}]
+    buyer: {$ref: '../components/schemas.yaml#/UserSummary'}
+    total: {$ref: '../components/schemas.yaml#/Money'}
+    status:
+      type: string
+      enum: [awaiting_payment, paid, in_progress, delivered, revision_requested, completed, canceled, refunded]
+      description: data-model §4.1 `order_item_status`.
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+DashboardAwardedProjectRow:
+  type: object
+  description: One of the latest accepted awards of the caller (spec 02 AC-6). Full contracts are D5's.
+  required: [project, client, amount, acceptedAt]
+  properties:
+    project: {$ref: '../components/schemas.yaml#/ProjectRef'}
+    client: {$ref: '../components/schemas.yaml#/UserSummary'}
+    amount: {$ref: '../components/schemas.yaml#/Money'}
+    acceptedAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+DashboardUnreadContact:
+  type: object
+  required: [user, conversation, unreadCount]
+  properties:
+    user: {$ref: '../components/schemas.yaml#/UserSummary'}
+    conversation: {$ref: '../components/schemas.yaml#/ConversationRef'}
+    unreadCount: {type: integer, minimum: 1}
+
+DashboardSelling:
+  type: object
+  description: |
+    Selling Home (spec 02 AC-6, AC-7). Money figures come from the ledger (R-P7, 00 §3): `earnings` = total
+    released to the user's Available balance from gig orders, project payments and custom offers. A new user
+    gets zeros and empty lists (AC-7).
+  required: [user, kpis, unreadContacts, latestOrders, latestAwardedProjects]
+  properties:
+    user:
+      type: object
+      required: [fullName, isIdVerified, createdAt]
+      properties:
+        fullName: {type: string}
+        isIdVerified: {type: boolean}
+        createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    kpis:
+      type: object
+      required: [earnings, availableBalance, pendingBalance, totalReach, totalGigs, awardedProjects, completedOrders, pendingOrders, ordersInProgress, canceledOrders]
+      properties:
+        earnings: {$ref: '../components/schemas.yaml#/Money'}
+        availableBalance:
+          $ref: '../components/schemas.yaml#/Money'
+          description: May be negative for migrated balances (R-3.6).
+        pendingBalance:
+          $ref: '../components/schemas.yaml#/Money'
+          description: HOLD/Pending (`t_pending_balance_hint`).
+        totalReach: {type: integer, minimum: 0, description: Gig impressions.}
+        totalGigs: {type: integer, minimum: 0}
+        awardedProjects: {type: integer, minimum: 0, description: Accepted awards.}
+        completedOrders: {type: integer, minimum: 0}
+        pendingOrders: {type: integer, minimum: 0, description: 'Paid, not started.'}
+        ordersInProgress: {type: integer, minimum: 0, description: 'Started or delivered, not finished.'}
+        canceledOrders: {type: integer, minimum: 0}
+    unreadContacts:
+      type: array
+      maxItems: 6
+      items: {$ref: '#/DashboardUnreadContact'}
+    latestOrders:
+      type: array
+      maxItems: 7
+      items: {$ref: '#/DashboardOrderRow'}
+    latestAwardedProjects:
+      description: Null while S-075 (projects) is OFF.
+      oneOf:
+        - type: array
+          maxItems: 7
+          items: {$ref: '#/DashboardAwardedProjectRow'}
+        - type: 'null'
+
+# ═════════════════════════ Portfolio ═════════════════════════
+PortfolioStatus:
+  type: string
+  enum: [pending, active, rejected]
+  description: |
+    `pending` = waiting for review (S-071 OFF), visible only to the owner; `active` = public.
+    `rejected` = staff rejected it with a reason shown only to the owner (spec 02 AC-42, spec 16 AC-21;
+    Owner 2026-09-30 Q-117; data-model §3.B). A rejected item is never public (404 for everyone but the
+    owner); the owner's next edit sends it back per spec 02 AC-25 (`pending`, or `active` with S-071 ON).
+    Migrated items are never `rejected` (spec 02 EC-11).
+
+PortfolioItem:
+  type: object
+  required: [id, uid, slug, title, description, projectUrl, videoUrl, thumbnail, images, status, rejectionReason, rejectedAt, owner, isOwn, publishedAt, createdAt, updatedAt]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    uid: {type: string, description: Public id; part of the slug (url-map §4.3).}
+    slug: {type: string, description: Title slug + uid (spec 02 AC-24).}
+    title: {type: string}
+    description: {type: string}
+    projectUrl:
+      oneOf: [{$ref: '../components/schemas.yaml#/HttpUrl'}, {type: 'null'}]
+    videoUrl:
+      oneOf: [{$ref: '../components/schemas.yaml#/HttpUrl'}, {type: 'null'}]
+    thumbnail: {$ref: '../components/schemas.yaml#/ImageVariants'}
+    images:
+      type: array
+      items: {$ref: '../components/schemas.yaml#/ImageVariants'}
+    status: {$ref: '#/PortfolioStatus'}
+    rejectionReason:
+      type: [string, 'null']
+      maxLength: 1000
+      description: Only for the owner (and staff) while `rejected` (`t_portfolio_rejected_reason`, spec 02 AC-42); null otherwise. After the owner's next edit it is no longer returned (it stays in the audit log).
+    rejectedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+      description: When staff rejected it; only for the owner (and staff) while `rejected`, else null.
+    owner: {$ref: '../components/schemas.yaml#/UserSummary'}
+    isOwn: {type: boolean}
+    publishedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    updatedAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+PortfolioItemCard:
+  type: object
+  required: [id, uid, slug, title, thumbnail, status]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    uid: {type: string}
+    slug: {type: string}
+    title: {type: string}
+    thumbnail: {$ref: '../components/schemas.yaml#/ImageVariants'}
+    status:
+      $ref: '#/PortfolioStatus'
+      description: Other viewers only ever see `active`; the owner also sees `pending` ("Pending") and `rejected`.
+
+PortfolioItemPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/PortfolioItemCard'}
+
+PortfolioItemCreateRequest:
+  type: object
+  required: [title, description, thumbnailFileId, imageFileIds]
+  properties:
+    title: {type: string, minLength: 3, maxLength: 100}
+    description: {type: string, minLength: 10}
+    thumbnailFileId:
+      $ref: '../components/schemas.yaml#/Uuid'
+      description: '`ready` file, purpose `portfolio_image` (JPG/PNG ≤ S-090 MB).'
+    imageFileIds:
+      type: array
+      minItems: 1
+      description: 1 to S-089 gallery images (purpose `portfolio_image`, JPG/PNG ≤ S-090 MB each); more → `VALIDATION_FAILED`.
+      items: {$ref: '../components/schemas.yaml#/Uuid'}
+    projectUrl:
+      type: [string, 'null']
+      format: uri
+      maxLength: 120
+    videoUrl:
+      type: [string, 'null']
+      format: uri
+      maxLength: 120
+
+PortfolioItemUpdateRequest:
+  type: object
+  description: Omitted fields are unchanged; `imageFileIds` replaces the whole gallery (spec 02 AC-27).
+  properties:
+    title: {type: string, minLength: 3, maxLength: 100}
+    description: {type: string, minLength: 10}
+    thumbnailFileId: {$ref: '../components/schemas.yaml#/Uuid'}
+    imageFileIds:
+      type: array
+      minItems: 1
+      items: {$ref: '../components/schemas.yaml#/Uuid'}
+    projectUrl: {type: [string, 'null'], format: uri, maxLength: 120}
+    videoUrl: {type: [string, 'null'], format: uri, maxLength: 120}
+
+# ═════════════════════════ KYC ═════════════════════════
+KycDocumentType:
+  type: string
+  enum: [national_id, driver_license, passport]
+  description: '`t_kyc_document_id`, `t_kyc_document_driver_license`, `t_kyc_document_passport`.'
+
+KycStatus:
+  type: string
+  enum: [pending, verified, declined]
+
+KycVerification:
+  type: object
+  description: A KYC submission (spec 02 AC-36…AC-38). Files are private (bucket `kyc`); the owner downloads them with `getFileDownload`.
+  required: [id, documentType, status, provider, frontFile, backFile, selfieFile, declineReason, createdAt, reviewedAt]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    documentType: {$ref: '#/KycDocumentType'}
+    status: {$ref: '#/KycStatus'}
+    provider: {type: string, enum: [manual], description: 'S-122; future providers add values (AC-40).'}
+    frontFile: {$ref: '../components/schemas.yaml#/Attachment'}
+    backFile:
+      oneOf: [{$ref: '../components/schemas.yaml#/Attachment'}, {type: 'null'}]
+      description: Null for passports.
+    selfieFile: {$ref: '../components/schemas.yaml#/Attachment'}
+    declineReason: {type: [string, 'null'], description: 'Staff reason when declined (spec 16 AC-27).'}
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    reviewedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+
+KycOverview:
+  type: object
+  description: The Verification centre state (spec 02 AC-38). `canSubmit` is false while a verification is pending or verified.
+  required: [status, verification, canSubmit]
+  properties:
+    status: {$ref: '#/KycState'}
+    verification:
+      oneOf: [{$ref: '#/KycVerification'}, {type: 'null'}]
+    canSubmit: {type: boolean}
+
+KycVerificationCreateRequest:
+  type: object
+  required: [documentType, frontFileId, selfieFileId]
+  properties:
+    documentType: {$ref: '#/KycDocumentType'}
+    frontFileId:
+      $ref: '../components/schemas.yaml#/Uuid'
+      description: '`ready` file of purpose `kyc_document` (JPG/JPEG/PNG ≤ 5 MB).'
+    backFileId:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+      description: Required for `national_id` and `driver_license`; must be null for `passport` (`t_please_select_a_valid_document_type` on mismatch).
+    selfieFileId: {$ref: '../components/schemas.yaml#/Uuid'}
+
+# ═════════════════════════ Restrictions and appeals ═════════════════════════
+RestrictionStatus:
+  type: string
+  enum: [pending, submitted, approved, rejected]
+  description: 'pending → submitted (appeal sent) → approved | rejected (spec 01 R-A8).'
+
+RestrictionAppeal:
+  type: object
+  required: [id, restrictionId, message, files, createdAt]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    restrictionId: {$ref: '../components/schemas.yaml#/Uuid'}
+    message: {type: string}
+    files:
+      type: array
+      items: {$ref: '../components/schemas.yaml#/Attachment'}
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+Restriction:
+  type: object
+  description: One restriction of the caller, as shown in the Restrictions centre (spec 01 AC-19, AC-46…AC-49).
+  required: [id, message, filesRequired, status, createdAt, resolvedAt, appeal, canAppeal]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    message: {type: string, description: The staff message ("Read more").}
+    filesRequired: {type: boolean}
+    status: {$ref: '#/RestrictionStatus'}
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    resolvedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    appeal:
+      oneOf: [{$ref: '#/RestrictionAppeal'}, {type: 'null'}]
+    canAppeal: {type: boolean, description: Only while `pending` (one appeal per restriction; rejected ones cannot be appealed again).}
+
+RestrictionPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/Restriction'}
+
+RestrictionAppealCreateRequest:
+  type: object
+  required: [restrictionId, message]
+  properties:
+    restrictionId: {$ref: '../components/schemas.yaml#/Uuid'}
+    message: {type: string, minLength: 1, maxLength: 1500}
+    fileIds:
+      type: array
+      default: []
+      description: 'Files of purpose `appeal_file` (S-092 MB each, types S-093). Required (1 to S-091) when the restriction has `filesRequired`.'
+      items: {$ref: '../components/schemas.yaml#/Uuid'}
+
+# ═════════════════════════ Staff: users ═════════════════════════
+AdminUserListItem:
+  type: object
+  required: [id, legacyId, username, email, fullName, avatar, status, isRestricted, isDeleted, plan, kycStatus, countryCode, createdAt, lastActivityAt]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    legacyId: {type: [integer, 'null']}
+    username: {type: string}
+    email: {type: string, format: email}
+    fullName: {type: string}
+    avatar:
+      oneOf: [{$ref: '../components/schemas.yaml#/ImageVariants'}, {type: 'null'}]
+    status: {$ref: '#/UserStatus'}
+    isRestricted: {type: boolean}
+    isDeleted: {type: boolean}
+    plan: {$ref: '../components/schemas.yaml#/PlanCode'}
+    kycStatus: {$ref: '#/KycState'}
+    countryCode:
+      oneOf: [{$ref: '../components/schemas.yaml#/CountryCode'}, {type: 'null'}]
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    lastActivityAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+
+AdminUserPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/AdminUserListItem'}
+
+AdminUser:
+  type: object
+  description: |
+    Overview tab of the staff user page (spec 16 AC-31). The other tabs are the owners' admin lists
+    filtered with `?userId=` (balances/ledger D3, orders/offers D4, gigs/reviews D2, projects/proposals/
+    conversations D5, subscriptions/referrals/points D3, reports D6, history D6 audit) plus D1's
+    `adminListKycVerifications`, `adminListRestrictions` and `adminListUserSessions`.
+  required: [id, legacyId, username, email, pendingEmail, emailVerifiedAt, emailUndeliverable, fullName, headline, about, avatar, status, isRestricted, activeRestrictionCount, isDeleted, deletedAt, restorableUntil, bannedAt, plan, premiumEndsAt, kycStatus, locale, countryCode, city, hasPassword, twoFactorEnabled, socialProviders, referralCode, createdAt, lastActivityAt, lastLoginAt, lastLoginCountryCode]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    legacyId: {type: [integer, 'null']}
+    username: {type: string}
+    email: {type: string, format: email}
+    pendingEmail: {type: [string, 'null'], format: email}
+    emailVerifiedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    emailUndeliverable:
+      type: boolean
+      description: Hard bounce / spam complaint mark from spec 15 AC-11 (warning on the page).
+    fullName: {type: string}
+    headline: {type: [string, 'null']}
+    about: {type: [string, 'null']}
+    avatar:
+      oneOf: [{$ref: '../components/schemas.yaml#/ImageVariants'}, {type: 'null'}]
+    status: {$ref: '#/UserStatus'}
+    isRestricted: {type: boolean}
+    activeRestrictionCount: {type: integer, minimum: 0}
+    isDeleted: {type: boolean}
+    deletedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    restorableUntil:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+      description: deletedAt + 30 days (spec 16 AC-34).
+    bannedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    plan: {$ref: '../components/schemas.yaml#/PlanCode'}
+    premiumEndsAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    kycStatus: {$ref: '#/KycState'}
+    locale: {$ref: '../components/schemas.yaml#/Locale'}
+    countryCode:
+      oneOf: [{$ref: '../components/schemas.yaml#/CountryCode'}, {type: 'null'}]
+    city: {type: [string, 'null']}
+    hasPassword: {type: boolean}
+    twoFactorEnabled: {type: boolean}
+    socialProviders:
+      type: array
+      items: {$ref: '#/SocialProvider'}
+    referralCode: {type: string}
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    lastActivityAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    lastLoginAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    lastLoginCountryCode:
+      oneOf: [{$ref: '../components/schemas.yaml#/CountryCode'}, {type: 'null'}]
+      description: Country of the last login IP (local GeoIP, ADR-012); the IP itself is on the sessions tab.
+
+AdminUserUpdateRequest:
+  type: object
+  description: 'Fields staff may edit (spec 16 AC-32, P-117). No password, balance, email (use `adminChangeUserEmail`) or content fields of gigs/projects.'
+  properties:
+    username:
+      type: string
+      minLength: 3
+      maxLength: 60
+      pattern: '^(?![0-9]+$)[A-Za-z0-9_]+$'
+    fullName: {type: string, minLength: 1, maxLength: 60}
+    headline: {type: [string, 'null'], maxLength: 100}
+    about: {type: [string, 'null'], maxLength: 1500}
+    countryCode:
+      oneOf: [{$ref: '../components/schemas.yaml#/CountryCode'}, {type: 'null'}]
+
+AdminUserEmailChangeRequest:
+  type: object
+  required: [newEmail]
+  properties:
+    newEmail: {type: string, format: email, maxLength: 60}
+
+AdminUserEmailSendRequest:
+  type: object
+  description: Staff email to a user in the branded layout (spec 15 EV-120). Plain text; no HTML.
+  required: [subject, body]
+  properties:
+    subject: {type: string, minLength: 1, maxLength: 200}
+    body: {type: string, minLength: 1, maxLength: 10000}
+
+AdminUserActionResult:
+  type: object
+  description: Result of a staff action on a user (the updated overview).
+  required: [user]
+  properties:
+    user: {$ref: '#/AdminUser'}
+
+# ═════════════════════════ Staff: restrictions, appeals ═════════════════════════
+AdminRestrictionCreateRequest:
+  type: object
+  required: [userId, message, filesRequired]
+  properties:
+    userId: {$ref: '../components/schemas.yaml#/Uuid'}
+    message: {type: string, minLength: 1, description: Sent to the user in the restriction email (EV-07).}
+    filesRequired: {type: boolean}
+
+AdminRestriction:
+  type: object
+  required: [id, user, message, filesRequired, status, createdBy, createdAt, resolvedBy, resolvedAt, appeal, decisionReason]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    user: {$ref: '../components/schemas.yaml#/UserSummary'}
+    message: {type: string}
+    filesRequired: {type: boolean}
+    status: {$ref: '#/RestrictionStatus'}
+    createdBy:
+      oneOf: [{$ref: '../components/schemas.yaml#/StaffSummary'}, {type: 'null'}]
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    resolvedBy:
+      oneOf: [{$ref: '../components/schemas.yaml#/StaffSummary'}, {type: 'null'}]
+    resolvedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    appeal:
+      oneOf: [{$ref: '#/RestrictionAppeal'}, {type: 'null'}]
+    decisionReason: {type: [string, 'null'], description: Reason of an appeal rejection (spec 16 AC-19).}
+
+AdminRestrictionPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/AdminRestriction'}
+
+AdminRestrictionAppeal:
+  type: object
+  description: A queue item of "Restriction appeals" (spec 16 AC-29) with the restriction message, the user's answer and files.
+  required: [id, restriction, owner, message, files, createdAt]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    restriction: {$ref: '#/AdminRestriction'}
+    owner: {$ref: '../components/schemas.yaml#/ModerationOwnerSummary'}
+    message: {type: string}
+    files:
+      type: array
+      description: Download with `adminGetRestrictionAppealFileDownload` (audited).
+      items: {$ref: '../components/schemas.yaml#/Attachment'}
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+AdminRestrictionAppealPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/AdminRestrictionAppeal'}
+
+# ═════════════════════════ Staff: IP bans ═════════════════════════
+IpBan:
+  type: object
+  description: A banned IP of the staff login (spec 01 AC-51, AC-52). User logins are not affected.
+  required: [ip, failedAttempts, bannedAt, source, note, createdBy, createdAt]
+  properties:
+    ip: {type: string, description: IPv4 or IPv6 address.}
+    failedAttempts: {type: integer, minimum: 0}
+    bannedAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    source: {type: string, enum: [auto_threshold, manual]}
+    note: {type: [string, 'null']}
+    createdBy:
+      oneOf: [{$ref: '../components/schemas.yaml#/StaffSummary'}, {type: 'null'}]
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+IpBanPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/IpBan'}
+
+IpBanCreateRequest:
+  type: object
+  required: [ip]
+  properties:
+    ip:
+      type: string
+      maxLength: 45
+      description: IPv4 or IPv6 address (validated by the API).
+    note: {type: [string, 'null'], maxLength: 1000}
+
+# ═════════════════════════ Staff: portfolio, KYC ═════════════════════════
+AdminPortfolioItem:
+  type: object
+  description: A portfolio item as the public would see it plus the owner summary (spec 16 AC-19, AC-21).
+  required: [item, owner, decidedBy, decidedAt]
+  properties:
+    item: {$ref: '#/PortfolioItem'}
+    owner: {$ref: '../components/schemas.yaml#/ModerationOwnerSummary'}
+    decidedBy:
+      oneOf: [{$ref: '../components/schemas.yaml#/StaffSummary'}, {type: 'null'}]
+    decidedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+
+AdminPortfolioItemPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/AdminPortfolioItem'}
+
+AdminKycVerification:
+  type: object
+  description: A KYC queue item (spec 16 AC-27). Files open only through `adminGetKycFileDownload` (short-lived signed links, audited).
+  required: [verification, owner, reviewedBy]
+  properties:
+    verification: {$ref: '#/KycVerification'}
+    owner: {$ref: '../components/schemas.yaml#/ModerationOwnerSummary'}
+    reviewedBy:
+      oneOf: [{$ref: '../components/schemas.yaml#/StaffSummary'}, {type: 'null'}]
+
+AdminKycVerificationPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/AdminKycVerification'}
+
+# ═════════════════════════ Realtime payloads ═════════════════════════
+SessionRevokedEvent:
+  type: object
+  description: '`session.revoked` — sent by the gateway to the revoked session''s sockets before disconnecting them.'
+  required: [sessionId, reason]
+  properties:
+    sessionId: {$ref: '../components/schemas.yaml#/Uuid'}
+    reason:
+      type: string
+      enum: [logout, password_change, ban, user_revoked, staff_revoked, twofa_disabled, account_deleted, reuse_detected]
+      description: data-model §3.A `session_revoke_reason` (+ `account_deleted`); `ban` → show `t_account_suspended`.
+
+SessionExpiredEvent:
+  type: object
+  description: '`session.expired` — the access token of this socket expired; refresh (`refreshSession`) and reconnect.'
+  required: [sessionId]
+  properties:
+    sessionId: {$ref: '../components/schemas.yaml#/Uuid'}
+
+AccountUpdatedEvent:
+  type: object
+  description: '`account.updated` — something on the caller''s own account changed; re-read `getMe` (e.g. restricted → go to the Restrictions centre, KYC decided, email change confirmed).'
+  required: [userId, changes]
+  properties:
+    userId: {$ref: '../components/schemas.yaml#/Uuid'}
+    changes:
+      type: array
+      items:
+        type: string
+        enum: [restriction, status, kyc, email, profile, portfolio]

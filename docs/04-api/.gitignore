@@ -1,0 +1,3 @@
+# Group sandboxes of scripts/group-verify.mjs (never committed)
+.build/
+node_modules/

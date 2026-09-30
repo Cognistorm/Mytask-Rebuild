@@ -1,5 +1,5 @@
-# Status — updated 2026-09-28
-Phase: 2 — Blueprint (planned, not started) | Gate: not ready | Phase 1 gate: APPROVED by Owner 2026-09-28
+# Status — updated 2026-09-30
+Phase: 2 — Blueprint **CLOSED** | Phase 2 gate: **APPROVED by Owner 2026-09-30** (merged into `main`) | Phase 1 gate: APPROVED by Owner 2026-09-28 | Next: Phase 3
 
 ## Done
 - Kit copied; legacy code in /legacy/APP (confirmed = legacy `main`, production logic); vision filled
@@ -23,16 +23,43 @@ Phase: 2 — Blueprint (planned, not started) | Gate: not ready | Phase 1 gate: 
 - Security: all keys in .env; strict web-root isolation (logs/config never web-reachable); keep restrictions, appeals, IP banning, KYC
 
 ## In progress (agent → task)
-- none (Phase 2 plan waiting for the Owner to start Step 1)
+- none. Phase 2 closed 2026-09-30 (gate checklist: docs/handoffs/2026-09-30-orchestrator-to-owner-phase-2-gate.md)
 
 ## Blocked (reason, who must act)
-- none. Q-058…Q-067 answered 2026-09-28. Sub-points not addressed (specs propose, Owner approves at the gate): revision count range (Q-061a/c/d), staff 2FA (Q-063b), unblock-request fallback with auto-release ON (Q-067b), custom-offer fee defaults (Q-060d, assumed 0)
+- none
 - Known, accepted: no production schema dump (mapping built from migrations/models)
 
-## Next up (Step 1 of phase-2-plan.md; the two tasks can run in parallel)
-- P2-A1 product-analyst: docs/02-specs/README.md (spec list 00–17 + build order) + 00-platform-rules.md (settings register, plans/limits, removed features)
-- P2-C1 ui-ux-designer: docs/05-design/audit.md + packages/assets/ + SOURCES.md
-- Then Step 2: P2-A2 specs 01–04 || P2-B1 architecture.md + ADR-001…013
+## Done in Phase 2
+- P2-A1: 00-platform-rules.md **approved** (Owner 2026-09-28). Register now 124 rows (S-123 linked accounts, P-25; S-124 2FA trigger, Q-082)
+- P2-C1: docs/05-design/audit.md + packages/assets/ (Q-073…Q-080 answered; audit itself awaits Owner review at the gate)
+- P2-C2: packages/tokens (tokens.json + build/contrast scripts + dist, 162 contrast checks 0 failures) + docs/05-design/tokens.md + components.md (58 components, Phosphor icons) + M-mark proposal in packages/assets/brand/ = proposal, awaiting Owner (with P2-C3 preview). Handoff: docs/handoffs/2026-09-28-ui-ux-designer-to-orchestrator-p2-c2.md (5 questions)
+- P2-C3: docs/05-design/preview/index.html (+ preview.css, preview.js, fonts/) = done 2026-09-29, **awaiting Owner (O-5)**: open by double-click; tokens, all components (interactive), old vs new for home / gig / project / dashboard, brand. Verified in headless Chromium (0 errors, 162/162 contrast, 45/45 interaction checks, no horizontal scroll at 360). components.md: QuantityInput reserved (P-46), dashboard labels = legacy keys. Handoff: docs/handoffs/2026-09-29-ui-ux-designer-to-orchestrator-p2-c3.md (4 questions, copied as Q-105…Q-108)
+- P2-A2: specs 01-auth, 02-profiles-and-dashboards, 03-categories-and-search, 04-gigs **approved** (Owner 2026-09-28; P-14…P-37 accepted, P-15 adjusted by Q-082)
+- P2-A3: specs 05-payments-and-wallet (43 ACs), 06-gig-orders (45), 07-reviews (21), 09-subscriptions-points-referrals (37), 14-withdrawals (20) = **ready for Owner**. Every money movement mapped as ledger rows (MM-/PM-xx) for P2-B2. No new Q-IDs; PROPOSED P-38…P-65; proposed register rows S-125 (bank-transfer instructions), S-126 (mobile Premium card purchase switch). Handoff: docs/handoffs/2026-09-28-product-analyst-to-orchestrator-p2-a3.md
+- P2-A4: specs 08-messaging (34 ACs), 10-projects (29), 11-proposals-and-hiring (45), 12-custom-offers (36), 13-refunds-disputes-unblock (34) = **ready for Owner**. Money rows MM-11-01…04, MM-12-01…05, MM-13-01…06 (one release ref + one refund ref per escrow, fixes R-012). No new Q-IDs, no new register rows; PROPOSED P-66…P-105 (incl. P-71 Terms & Privacy staff-review wording for Q-083). Handoff: docs/handoffs/2026-09-28-product-analyst-to-orchestrator-p2-a4.md
+- P2-A5 (**approved** by Owner 2026-09-29: P-106…P-134 accepted, S-127 added to spec 00 → register 127 rows): specs 15-notifications (39 ACs; catalogue of 125 events; all 141 legacy notification items accounted: 120 kept, 8 merged, 13 removed; 42 NEW events), 16-admin-panel (78 ACs; RBAC with 4 default roles, audit log, all queues, money screens, Commission & Fee + settings UI, analytics, logs; AC-8 waits on Q-097), 17-content-and-seo (47 ACs; CMS + Terms/Privacy clause, blog, contact, newsletter, SEO meta/JSON-LD, sitemap index, robots, 301s) = **ready for Owner**. No new Q-IDs; PROPOSED P-106…P-134; proposed register row S-127 `appearance.custom_code.allowed_hosts` (in spec 16, spec 00 not edited). Handoff: docs/handoffs/2026-09-29-product-analyst-to-orchestrator-p2-a5.md
+- P2-B1: docs/03-architecture/architecture.md + ADR-001…016 = proposed. Q-081, Q-082, Q-086…Q-089 answered. **ADR-016 must be revised by the architect**: Premium is sold by BOG in the mobile app too (Q-081; store-billing risk to document). ADR-002 to reflect S-124; ADR-004 to follow Q-087 (standard BOG structure with clean interfaces, lead developer finalizes); ADR-008 to reflect Q-084 (fresh 72h on re-enable); ADR-013 to reflect Q-085. **Done in Step 4** (see P2-B2/B3)
+- P2-B2/B3: docs/03-architecture/data-model.md (120 entities; double-entry ledger in tetri with one HOLD account per escrow; 17 money invariants; every MM-/PM- row of specs 05, 06, 09, 11, 12, 13, 14 mapped to postings; points ledger; versioned settings/fee rules with snapshots; contract payment schedule for future milestones/hourly; timers as deadline columns incl. Q-084; legacy→new mapping with as-is opening balances) + docs/03-architecture/url-map.md (ka unprefixed, /en/; every legacy URL kept/301/302/404/410; hreflang/canonical; sitemap index; admin.mytask.ge; BOG return + mobile deep links) = proposed. ADR-002, 004, 008, 013, 016 revised (still proposed) + architecture.md updated. 10 Owner questions in docs/handoffs/2026-09-28-solution-architect-to-orchestrator-p2-b2-b3.md
+
+- P2-A6: docs/06-qa/plans/00-parity-master.md = **ready for Owner** (gate item 3). 69/69 BRs mapped (22 kept, 42 changed, 5 removed) + areas L/M/N; 141/141 legacy notifications (120 kept, 8 merged, 13 removed), cross-checked by script; X-01…X-20 absence tests; R-xxx not-to-reproduce list; 703 ACs judged (699 testable, 3 need a definition, 1 on Q-097 default). Gaps G-1…G-5 to product-analyst (none blocks the gate). Handoff: docs/handoffs/2026-09-29-qa-engineer-to-orchestrator-p2-a6.md
+- P2-C4: docs/05-design/screens/00…08 = **proposed** (gate item 8): home, gig page, gig wizard, project page + proposal form, checkout, order detail, dashboard switcher, chat. Existing components/tokens only; components.md corrected (§9.3 Enter = new line per spec 08 AC-11; §5.3 QuantityInput for revisions; §12 +7 `t_ui_*` strings). Q-105 label applied in the preview. Handoff: docs/handoffs/2026-09-29-ui-ux-designer-to-orchestrator-p2-c4.md
+
+- G-1…G-3 (product-analyst, 2026-09-29): closed as **PROPOSED P-135** (nightly ledger/BOG reconciliation, spec 05 AC-44…AC-47, EC-11…EC-14, new setting S-128 `ledger.reconciliation.run_time` default 03:00), **P-136** (Georgian-field character set, spec 00 R-5.3a) and **P-137** ("You may also like" rule, 04 AC-32). Open: Q-109, Q-110. Spec totals now 707 ACs. Handoff: docs/handoffs/2026-09-29-product-analyst-to-orchestrator-g1-g3.md
+- P2-B4 (solution-architect, 2026-09-29/30): **docs/04-api/openapi.yaml** = proposed contract. Built from sources in docs/04-api/src (foundation + 6 domain groups D1…D6 + integration). 477 operations on 398 paths, 763 schemas, 35 realtime events (realtime.md). `npm run verify:final` (docs/04-api): Redocly lint 0 errors / 0 warnings, check-contract 0/0, check-coverage 0/0. **Coverage 707/707 ACs** (621 API or API+JOB, 86 NOT-API with reason, 0 missing): table in docs/04-api/README.md, per spec in docs/04-api/coverage/. Rules in docs/04-api/CONVENTIONS.md. data-model.md (122 entities) and ADR-008 updated. Owner questions Q-111…Q-143 added to open-questions.md. Handoffs: docs/handoffs/2026-09-29-solution-architect-to-orchestrator-p2-b4-*.md
+- P2-B5 (security-reviewer, 2026-09-30): first verdict FAIL (1 High: SEC-01 client-IP trust chain). The architect fixed SEC-01 and 20 technical findings (ADR-002/004/009/010/012/013/015, contract). **Re-check verdict: PASS with conditions**, no Critical/High open. Reports: docs/06-qa/security/00-blueprint-2026-09-30.md + 01-blueprint-recheck-2026-09-30.md. Owner questions Q-144…Q-150 (+ Q-113) added
+
+- **Phase 2 gate APPROVED by the Owner 2026-09-30**: architecture + ADR-001…016, data model, URL map, API contract (`docs/04-api/openapi.yaml` v1.0.0), design, parity master, security verdict (PASS with conditions). Gate questions answered as recommended (open-questions.md, "Owner answers at the Phase 2 gate"): Q-109…Q-115, Q-117, Q-119…Q-121, Q-137, Q-144…Q-146. Applied the same day: specs 00, 01, 02, 04, 05, 08, 10, 13, 14, 15, 16 (P-135…P-137 accepted; S-128 + new S-129 withdrawal security pause 24 h, register 129 rows; EV-126…EV-129; 8 new ACs → **715 ACs**), then the contract/data model/ADRs (verify:final 0 errors, **715/715 covered**; SEC-30 and SEC-31 fixed). Handoffs: docs/handoffs/2026-09-30-product-analyst-to-orchestrator-gate-answers.md, 2026-09-30-solution-architect-to-orchestrator-gate-answers.md
+
+## Next up
+- **Phase 3 (platform core)**: orchestrator plans it from docs/03-architecture/phase-2-plan.md §6 and architecture.md (monorepo, docker compose, CI, generated types from openapi.yaml, auth slice 01)
+- Security conditions carried into Phase 3: backend implements the ADR-013 §19 client-IP tests before slice 01's review; SEC-31/SEC-32 notes in their slices; social-login binding reviewed before any provider is switched ON
+- Contract rule from now on: every change to openapi.yaml / data model needs an ADR + handoff (CLAUDE.md rule 2)
 
 ## Decisions waiting for Owner
-- Approve starting Phase 2 Step 1 per docs/03-architecture/phase-2-plan.md
+- Q-097 legacy admin accounts + roles (by Phase 5); Q-147 data retention/erasure (before the Phase 5 KYC import); Q-151 withdrawal flag look-back 7 days + first payout-details save starts the pause (defaults applied, before slice 14); whether a "100% promo code" includes a fixed discount ≥ the Premium price (contract assumes yes); slice items Q-116, Q-118, Q-122…Q-136, Q-138…Q-143, Q-148…Q-150; Q-104 deferred; ADR-015 hosting provider before Phase 6
+- Owner action (SEC-28): revoke the Binance and findip keys and remove the Binance bot from the legacy server (Owner doing it by hand)
+- Approve ADR-001…016 (as revised in Step 4), the design audit, tokens and components (with the P2-C3 preview) at the Phase 2 gate
+- At the gate: the parity master (docs/06-qa/plans/00-parity-master.md) and the key screen layouts (docs/05-design/screens/); one non-blocking design point: checkout column order (screens/00-README.md)
+- Done 2026-09-29: specs 15, 16, 17 **approved** (P-106…P-134 accepted, S-127 added); Q-105…Q-108 answered as recommended (Q-105 "მოქმედებები"; Q-106 light plate kept; Q-107 size tokens in Phase 3; Q-108 screenshots optional)
+- Q-097: list the legacy admin accounts to migrate and their roles (no recommendation possible; spec 16 AC-8 waits on it, safe default proposed in P-115). Done 2026-09-29: specs 08, 10–13 **approved** (P-66…P-105 accepted); Q-095, Q-096, Q-098…Q-103 accepted as recommended; Q-104 deferred (not a blocker)
+- Done 2026-09-28: Q-083…Q-085 and Q-090…Q-094 answered; money specs 05, 06, 07, 09, 14 **approved** (P-38…P-65 accepted; P-46 set spec 04 to quantity always 1; S-125, S-126 added to spec 00, register now 126 rows); "M" mark approved

@@ -1,0 +1,1170 @@
+# D4 — schemas for specs 06 (gig orders, cart), 12 (custom offers), 13 (refunds, disputes, unblock)
+# and the shared escrow lifecycle (deliveries, revision requests, completion) used by gig order items,
+# project contract payments (D5) and custom offers (data-model §3.I, CONVENTIONS §5.2).
+# Written by the P2-B4 D4 group run (2026-09-29). Names use the D4 prefixes of src/ownership.yaml.
+# Shared schemas are referenced from ../components/schemas.yaml; never another group's file.
+
+# ───────────────────────── Error codes ─────────────────────────
+D4ErrorCode:
+  type: string
+  description: Domain error codes of D4 (CONVENTIONS §7.3). Rule refusals without a code of their own use the common codes with `details.messageKey`.
+  enum:
+    - CART_ITEM_NOT_ORDERABLE
+    - CART_UPGRADE_NOT_FOUND
+    - ORDER_ITEMS_NO_LONGER_AVAILABLE
+    - ORDER_REQUIREMENTS_MISSING
+    - REVISION_LIMIT_REACHED
+    - DISPUTE_OPEN
+    - OFFER_NO_LONGER_AVAILABLE
+    - OFFER_USER_UNAVAILABLE
+    - OFFER_PAYMENT_IN_PROGRESS
+    - REFUND_ALREADY_REQUESTED
+    - REFUND_NOT_ELIGIBLE
+    - UNBLOCK_NOT_AVAILABLE
+    - UNBLOCK_TOO_EARLY
+    - UNBLOCK_NO_DELIVERY
+    - UNBLOCK_ALREADY_PENDING
+  x-enumDescriptions:
+    CART_ITEM_NOT_ORDERABLE: '[422] The gig cannot be added or ordered: not active/listable, seller unavailable or restricted, or own gig (spec 06 AC-2, AC-6). `details.reason` = `gig_unavailable` | `seller_unavailable` | `own_gig`; messageKey t_u_cant_add_ur_own_gigs_to_shopping_cart, t_this_user_is_not_available_right_now_msg or t_an_item_in_your_cart_doesnot_exist.'
+    CART_UPGRADE_NOT_FOUND: '[422] A chosen upgrade does not exist on the gig (spec 06 AC-6); messageKey t_an_upgrade_in_item_in_cart_not_found. `details.upgradeIds` lists them.'
+    ORDER_ITEMS_NO_LONGER_AVAILABLE: '[422] "Pay" again on an awaiting-payment order whose gigs can no longer be ordered (spec 06 AC-11); returned by D3 `createPayment` for `source = order`; messageKey t_order_items_no_longer_available.'
+    ORDER_REQUIREMENTS_MISSING: '[422] Start pressed before the buyer sent the order details (spec 06 AC-16); messageKey t_buyer_didnt_send_requirements_yet_continue.'
+    REVISION_LIMIT_REACHED: '[422] Revisions used = revisions allowed (spec 06 AC-27); messageKey t_no_revisions_left.'
+    DISPUTE_OPEN: '[422] The buyer tries to complete or request a revision while a dispute is open (spec 06 AC-31, spec 13 AC-13; messageKey t_cannot_complete_during_dispute), or staff press "Release funds" / "Refund buyer" while a dispute is open (spec 13 AC-29, AC-30, Q-121; messageKey t_admin_refund_blocked_dispute_open for the refund).'
+    OFFER_NO_LONGER_AVAILABLE: '[422] The offer is withdrawn, declined, expired or rejected (spec 12 AC-17, AC-18); also returned by D3 `createPayment` for a custom-offer target; messageKey t_offer_no_longer_available.'
+    OFFER_USER_UNAVAILABLE: '[422] The other user cannot receive an offer or an offer request: unavailable (`details.availableFrom`), restricted, banned, deleted, pending, or the caller themself (spec 12 AC-4, AC-10); messageKey t_this_user_is_not_available_right_now_msg or t_user_cannot_receive_messages.'
+    OFFER_PAYMENT_IN_PROGRESS: '[409] Withdraw refused while a card payment for the offer is pending (spec 12 EC-2); messageKey t_payment_in_progress.'
+    REFUND_ALREADY_REQUESTED: '[409] The item already has a refund request, in any status (spec 13 AC-3). `details.refundRequestId` links to it; messageKey t_refund_already_requested.'
+    REFUND_NOT_ELIGIBLE: '[422] The item is not eligible now (spec 13 AC-1, AC-2, AC-4): unpaid, not started, canceled, completed or refunded, or in progress before its expected delivery date (`details.availableAt`); messageKey t_u_cant_request_refund_for_this_item_now, t_u_can_request_refund_when_expected_date_finish or t_refund_available_after_delivery_time_expires.'
+    UNBLOCK_NOT_AVAILABLE: '[403] Unblock requests exist only while S-025 is OFF or S-029 is ON (spec 13 AC-23, spec 06 AC-45). `details.settingId` = S-025.'
+    UNBLOCK_TOO_EARLY: '[422] Less than S-028 hours since the latest delivery (spec 13 AC-23). `details.availableAt`; messageKey t_unblock_request_72_hour_wait.'
+    UNBLOCK_NO_DELIVERY: '[422] The item has no delivery or is not in status delivered (spec 13 AC-23); messageKey t_unblock_request_no_delivery_found.'
+    UNBLOCK_ALREADY_PENDING: '[409] A pending unblock request exists for this item (spec 13 AC-23, 00 §4.18); messageKey t_you_already_have_request_for_this_order or t_you_already_have_request_for_this_project.'
+
+# ───────────────────────── Cart (spec 06 AC-1…AC-6, P-47) ─────────────────────────
+CartLineUpgrade:
+  type: object
+  description: A chosen gig upgrade with its current price (prices are always re-read, spec 06 AC-6).
+  required: [id, title, price, extraDays]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    title: {type: string}
+    price: {$ref: '../components/schemas.yaml#/Money'}
+    extraDays:
+      type: integer
+      minimum: 0
+      description: Shown as "+ N days".
+
+CartLine:
+  type: object
+  description: One cart line = one gig with quantity 1 (P-46) and its chosen upgrades, priced from current gig data.
+  required: [gig, seller, basePrice, upgrades, lineTotal, deliveryDays, revisionsAllowed, addedAt]
+  properties:
+    gig: {$ref: '../components/schemas.yaml#/GigRef'}
+    seller: {$ref: '../components/schemas.yaml#/UserSummary'}
+    basePrice: {$ref: '../components/schemas.yaml#/Money'}
+    upgrades:
+      type: array
+      items: {$ref: '#/CartLineUpgrade'}
+    lineTotal:
+      $ref: '../components/schemas.yaml#/Money'
+      description: Base price + chosen upgrades (computed by the API).
+    deliveryDays: {type: integer, minimum: 1}
+    revisionsAllowed: {type: integer, minimum: 0}
+    addedAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+CartNotice:
+  type: object
+  description: |
+    Something the last re-check changed (spec 06 AC-6): a failing gig line was removed
+    (`line_removed`, messageKey `t_an_item_in_your_cart_doesnot_exist`) or a missing upgrade was
+    removed from its line (`upgrade_removed`, messageKey `t_an_upgrade_in_item_in_cart_not_found`).
+  required: [kind, gigId, upgradeId, reason, messageKey]
+  properties:
+    kind: {type: string, enum: [line_removed, upgrade_removed]}
+    gigId: {$ref: '../components/schemas.yaml#/Uuid'}
+    upgradeId:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+    reason:
+      type: string
+      enum: [gig_unavailable, seller_unavailable, own_gig, upgrade_missing]
+    messageKey: {type: string, pattern: '^t_[a-z0-9_]+$'}
+
+Cart:
+  type: object
+  description: |
+    The caller's server-side cart (shared by web and mobile, P-47) or a priced guest cart
+    (`previewCart`). Every read re-validates the lines against current data (spec 06 AC-6); removed
+    lines/upgrades are reported once in `notices`. Totals are computed by the API.
+  required: [lines, itemCount, subtotal, notices, updatedAt]
+  properties:
+    lines:
+      type: array
+      items: {$ref: '#/CartLine'}
+    itemCount:
+      type: integer
+      minimum: 0
+      description: Header cart count (spec 06 AC-1).
+    subtotal: {$ref: '../components/schemas.yaml#/Money'}
+    notices:
+      type: array
+      items: {$ref: '#/CartNotice'}
+    updatedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+      description: Null for a guest preview.
+
+CartItemPutRequest:
+  type: object
+  description: Add a gig to the cart or replace its line (same gig again = new upgrade choice, spec 06 AC-1). Quantity is always 1 (P-46).
+  properties:
+    upgradeIds:
+      type: array
+      uniqueItems: true
+      maxItems: 50
+      items: {$ref: '../components/schemas.yaml#/Uuid'}
+      default: []
+
+CartLineInput:
+  type: object
+  required: [gigId]
+  properties:
+    gigId: {$ref: '../components/schemas.yaml#/Uuid'}
+    upgradeIds:
+      type: array
+      uniqueItems: true
+      maxItems: 50
+      items: {$ref: '../components/schemas.yaml#/Uuid'}
+      default: []
+    addedAt:
+      $ref: '../components/schemas.yaml#/Timestamp'
+      description: When the line was added on the device; used by `mergeCart` (the newer line wins, spec 06 AC-4).
+
+CartMergeRequest:
+  type: object
+  description: The guest cart kept on the device, merged into the account cart right after login (spec 06 AC-4).
+  required: [lines]
+  properties:
+    lines:
+      type: array
+      maxItems: 100
+      items: {$ref: '#/CartLineInput'}
+
+CartPreviewRequest:
+  type: object
+  description: A guest cart kept on the device, to be priced and validated by the API (spec 06 AC-3, AC-4).
+  required: [lines]
+  properties:
+    lines:
+      type: array
+      maxItems: 100
+      items: {$ref: '#/CartLineInput'}
+
+CartUpdatedEvent:
+  type: object
+  description: '`cart.updated` (room `user:{userId}`): the account cart changed on another device (spec 06 AC-4). Re-read with `getCart`.'
+  required: [itemCount]
+  properties:
+    itemCount: {type: integer, minimum: 0}
+
+# ───────────────────────── Shared escrow views (D4 escrow operations) ─────────────────────────
+EscrowWorkStatus:
+  type: string
+  enum: [paid, in_progress, delivered, revision_requested, completed, canceled, refunded]
+  description: |
+    Work status of the item behind a funded escrow (order item R-O1, contract R-H5, custom offer R-C4).
+    `paid` exists only for gig order items waiting for order details / start.
+
+EscrowAutoReleaseSetReason:
+  type: string
+  enum: [delivery, redelivery, refund_ended, reenabled, migration]
+  description: Which rule set the current auto-release deadline (data-model §3.I, ADR-008 §1).
+
+RefundRequestRef:
+  type: object
+  description: Minimal refund request reference embedded on items and escrows (spec 13 AC-3 "link to the existing request").
+  required: [id, uid, status, disputed]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    uid: {type: string}
+    status: {$ref: '#/RefundRequestStatus'}
+    disputed: {type: boolean}
+
+UnblockRequestRef:
+  type: object
+  required: [id, uid, status]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    uid: {type: string}
+    status: {$ref: '#/UnblockRequestStatus'}
+
+Escrow:
+  description: |
+    The escrow of one paid item (gig order item, contract payment or custom offer) as seen by its
+    buyer or freelancer: the shared `EscrowSummary` plus the parties, the item and the caller's
+    actions. `autoReleaseAt` is null while paused (`autoReleasePausedReason`) or not delivered; when
+    `autoReleaseEnabled` is false (S-025 OFF) clients hide the automatic completion date (spec 06 AC-36).
+  allOf:
+    - $ref: '../components/schemas.yaml#/EscrowSummary'
+    - type: object
+      required: [item, itemStatus, buyer, freelancer, expectedDeliveryAt, isLate, autoReleaseEnabled, refundRequest, unblockRequest, conversation, actions]
+      properties:
+        item: {$ref: '../components/schemas.yaml#/WorkItemRef'}
+        itemStatus: {$ref: '#/EscrowWorkStatus'}
+        buyer: {$ref: '../components/schemas.yaml#/UserSummary'}
+        freelancer: {$ref: '../components/schemas.yaml#/UserSummary'}
+        expectedDeliveryAt:
+          oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+        isLate:
+          type: boolean
+          description: Expected delivery date passed and not delivered ("Late" chip, spec 06 EC-8, 11 AC-34, 12 AC-23).
+        autoReleaseEnabled:
+          type: boolean
+          description: Current value of S-025.
+        refundRequest:
+          oneOf: [{$ref: '#/RefundRequestRef'}, {type: 'null'}]
+        unblockRequest:
+          oneOf: [{$ref: '#/UnblockRequestRef'}, {type: 'null'}]
+          description: The latest unblock request of this escrow (freelancer only; null for the buyer).
+        conversation:
+          oneOf: [{$ref: '../components/schemas.yaml#/ConversationRef'}, {type: 'null'}]
+          description: The item thread (order item / project / custom offer, D5).
+        actions: {$ref: '../components/schemas.yaml#/EscrowActions'}
+
+Delivery:
+  type: object
+  description: One delivery (append-only, numbered 1, 2, 3…; spec 06 R-O9, X-16). The file is downloaded with `getFileDownload` (parties) or `adminDownloadEscrowFile` (staff).
+  required: [id, escrowId, number, message, file, deliveredBy, isDuringDispute, answersRevisionRequestId, createdAt]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    escrowId: {$ref: '../components/schemas.yaml#/Uuid'}
+    number: {type: integer, minimum: 1}
+    message: {type: string, maxLength: 2500}
+    file:
+      oneOf: [{$ref: '../components/schemas.yaml#/Attachment'}, {type: 'null'}]
+    deliveredBy: {$ref: '../components/schemas.yaml#/UserSummary'}
+    isDuringDispute:
+      type: boolean
+      description: Delivered while a dispute was open; kept as evidence, did not start the timer (spec 13 AC-13).
+    answersRevisionRequestId:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+DeliveryPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/Delivery'}
+
+DeliveryCreateRequest:
+  type: object
+  description: A delivery (spec 06 AC-22, 11 AC-32, 12 AC-21). Message required, at most 2,500 characters; at most one `ready` file of purpose `delivery` uploaded with context `{escrowId}` (size S-086, types S-087).
+  required: [message]
+  properties:
+    message:
+      type: string
+      minLength: 1
+      maxLength: 2500
+    fileId:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+
+RevisionRequest:
+  type: object
+  description: A revision request (spec 06 AC-26, P-50). Counted when made; the message also appears in the item thread.
+  required: [id, escrowId, number, message, requestedBy, answeredByDeliveryId, createdAt]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    escrowId: {$ref: '../components/schemas.yaml#/Uuid'}
+    number: {type: integer, minimum: 1}
+    message: {type: string, maxLength: 750}
+    requestedBy: {$ref: '../components/schemas.yaml#/UserSummary'}
+    answeredByDeliveryId:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+RevisionRequestPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/RevisionRequest'}
+
+RevisionRequestCreateRequest:
+  type: object
+  required: [message]
+  properties:
+    message:
+      type: string
+      minLength: 1
+      maxLength: 750
+      description: What should be changed (required, ≤ 750, P-50).
+
+EscrowUpdatedEvent:
+  type: object
+  description: '`escrow.updated` (rooms `user:{buyerId}` and `user:{freelancerId}`): delivery, revision request, completion, auto-release, refund, pause or restart of the timer. Re-read the item or `getEscrow`.'
+  required: [escrowId, item, itemStatus]
+  properties:
+    escrowId: {$ref: '../components/schemas.yaml#/Uuid'}
+    item: {$ref: '../components/schemas.yaml#/WorkItemRef'}
+    itemStatus: {$ref: '#/EscrowWorkStatus'}
+
+# ───────────────────────── Gig orders (spec 06) ─────────────────────────
+OrderStatus:
+  type: string
+  enum: [awaiting_payment, paid, deleted]
+  description: Order (checkout) level status (data-model §3.F). `deleted` = the buyer deleted an unpaid order (no money moved, spec 06 AC-11).
+
+OrderItemStatus:
+  type: string
+  enum: [awaiting_payment, paid, in_progress, delivered, revision_requested, completed, canceled, refunded]
+  description: 'Spec 06 R-O1. `paid` = "Waiting for order details" until the details are sent (`requirements` null).'
+
+OrderItemListFilter:
+  type: string
+  enum: [awaiting_payment, waiting_for_details, active, completed, canceled_or_refunded]
+  description: |
+    List filters of spec 06 AC-42/AC-43 (omit = all). `active` = paid, in progress, delivered, revision
+    requested. `waiting_for_details` = paid without order details (freelancer list). `awaiting_payment`
+    applies to the buyer list only (the freelancer never sees unpaid orders).
+
+CompletionActor:
+  type: string
+  enum: [buyer, system, staff]
+
+OrderItemCancelActor:
+  type: string
+  enum: [buyer, freelancer, staff]
+
+OrderItemUpgrade:
+  type: object
+  description: Snapshot of a chosen upgrade at order time (R-O2, fixes R-036).
+  required: [title, price, extraDays]
+  properties:
+    title: {type: string}
+    price: {$ref: '../components/schemas.yaml#/Money'}
+    extraDays: {type: integer, minimum: 0}
+
+OrderItemRequirements:
+  type: object
+  description: The buyer's order details (spec 06 AC-13, P-48). Sanitised HTML (bold, italic, lists, links; profile `user_text_links`, CONVENTIONS §19).
+  required: [text, sentAt, updatedAt]
+  properties:
+    text: {type: string}
+    sentAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    updatedAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+OrderItemRequirementsPutRequest:
+  type: object
+  required: [text]
+  properties:
+    text:
+      type: string
+      minLength: 1
+      maxLength: 5000
+      description: Formatted text (allowed markup `p`, `br`, `strong`/`b`, `em`/`i`, `ul`, `ol`, `li`, `a[href=http(s)]`), 1–5,000 characters (P-48). The API sanitises it with profile `user_text_links` (CONVENTIONS §19); anything else is stripped.
+
+OrderItemActions:
+  type: object
+  description: Item-level actions for the caller (escrow-level actions are in `escrowActions`).
+  required: [canSendRequirements, canEditRequirements, canStart, canCancel, canPay, canDelete]
+  properties:
+    canSendRequirements: {type: boolean, description: 'Buyer; paid, no details yet (spec 06 AC-13).'}
+    canEditRequirements: {type: boolean, description: 'Buyer; details sent, not started (AC-14).'}
+    canStart: {type: boolean, description: 'Freelancer; paid (the API still refuses without details, AC-16).'}
+    canCancel: {type: boolean, description: 'Buyer or freelancer; paid and not started (AC-18…AC-20).'}
+    canPay: {type: boolean, description: 'Buyer; order awaiting payment (AC-11). Pay with D3 `createPayment` (`purpose: gig_order`, `source: order`).'}
+    canDelete: {type: boolean, description: 'Buyer; order awaiting payment (AC-11, AC-12).'}
+
+OrderItemBase:
+  type: object
+  description: One gig line of an order = one delivery flow = one review per side (R-O3). Snapshot fields never change after ordering (R-O2).
+  required: [id, uid, orderId, orderNumber, orderStatus, status, gig, buyer, freelancer, basePrice, upgrades, price, freelancerAmount, deliveryDays, extraDaysTotal, revisionsAllowed, requirements, startedAt, expectedDeliveryAt, isLate, completedAt, completedBy, canceledAt, canceledBy, refundedAt, escrow, conversation, payment, refundRequest, reviews, createdAt]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    uid:
+      type: string
+      description: Public id used in `/account/orders/{itemUid}` and `/seller/orders/{itemUid}`.
+    orderId: {$ref: '../components/schemas.yaml#/Uuid'}
+    orderNumber:
+      type: integer
+      format: int64
+      description: Order number shown to users.
+    orderStatus: {$ref: '#/OrderStatus'}
+    status: {$ref: '#/OrderItemStatus'}
+    gig:
+      $ref: '../components/schemas.yaml#/GigRef'
+      description: Title is the snapshot at order time.
+    buyer: {$ref: '../components/schemas.yaml#/UserSummary'}
+    freelancer: {$ref: '../components/schemas.yaml#/UserSummary'}
+    basePrice: {$ref: '../components/schemas.yaml#/Money'}
+    upgrades:
+      type: array
+      items: {$ref: '#/OrderItemUpgrade'}
+    price:
+      $ref: '../components/schemas.yaml#/Money'
+      description: Item price P = base price + upgrades (amount paid for the item, without card surcharge).
+    freelancerAmount:
+      $ref: '../components/schemas.yaml#/Money'
+      description: P′ = what the freelancer receives (today = P); shown in Selling → Orders (AC-43).
+    deliveryDays: {type: integer, minimum: 1}
+    extraDaysTotal: {type: integer, minimum: 0}
+    revisionsAllowed:
+      type: integer
+      minimum: 0
+      description: Snapshot (spec 06 AC-29).
+    requirements:
+      oneOf: [{$ref: '#/OrderItemRequirements'}, {type: 'null'}]
+    startedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    expectedDeliveryAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+      description: Start + delivery days + upgrades' extra days (snapshot, AC-17). Not moved by revisions (AC-26).
+    isLate:
+      type: boolean
+      description: In progress (or revision requested) and the expected delivery date has passed (AC-43, EC-8).
+    completedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    completedBy:
+      oneOf: [{$ref: '#/CompletionActor'}, {type: 'null'}]
+    canceledAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    canceledBy:
+      oneOf: [{$ref: '#/OrderItemCancelActor'}, {type: 'null'}]
+    refundedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    escrow:
+      oneOf: [{$ref: '../components/schemas.yaml#/EscrowSummary'}, {type: 'null'}]
+      description: Null while awaiting payment (no escrow before a verified payment, ADR-003 §7).
+    conversation:
+      oneOf: [{$ref: '../components/schemas.yaml#/ConversationRef'}, {type: 'null'}]
+      description: The delivery thread (D5, kind `order_item`); null while awaiting payment.
+    payment:
+      oneOf: [{$ref: '../components/schemas.yaml#/PaymentSummary'}, {type: 'null'}]
+      description: The order's paying payment, or its latest attempt while awaiting payment.
+    refundRequest:
+      oneOf: [{$ref: '#/RefundRequestRef'}, {type: 'null'}]
+    reviews:
+      type: array
+      items: {$ref: '../components/schemas.yaml#/ReviewRef'}
+      description: Reviews written on this item (spec 07, D2).
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+OrderItem:
+  description: An order item as seen by its buyer or its freelancer, with the caller's actions.
+  allOf:
+    - $ref: '#/OrderItemBase'
+    - type: object
+      required: [actions, escrowActions]
+      properties:
+        actions: {$ref: '#/OrderItemActions'}
+        escrowActions:
+          oneOf: [{$ref: '../components/schemas.yaml#/EscrowActions'}, {type: 'null'}]
+          description: Null while awaiting payment.
+
+OrderItemPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/OrderItem'}
+
+Order:
+  type: object
+  description: One checkout of the buyer (one or more items, possibly from several freelancers, EC-5). Visible to the buyer only; freelancers read their own items.
+  required: [id, number, status, subtotal, items, payment, createdAt, paidAt, deletedAt]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    number: {type: integer, format: int64}
+    status: {$ref: '#/OrderStatus'}
+    subtotal:
+      $ref: '../components/schemas.yaml#/Money'
+      description: Σ item prices P (stored prices; card surcharge is on the payment).
+    items:
+      type: array
+      items: {$ref: '#/OrderItem'}
+    payment:
+      oneOf: [{$ref: '../components/schemas.yaml#/PaymentSummary'}, {type: 'null'}]
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    paidAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    deletedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+
+OrderItemUpdatedEvent:
+  type: object
+  description: '`order.item_updated` (rooms `user:{buyerId}`, `user:{freelancerId}`; the freelancer only once paid): an order item changed status or details. Re-read with `getOrderItem`.'
+  required: [orderId, orderItemId, status]
+  properties:
+    orderId: {$ref: '../components/schemas.yaml#/Uuid'}
+    orderItemId: {$ref: '../components/schemas.yaml#/Uuid'}
+    status: {$ref: '#/OrderItemStatus'}
+
+AdminOrderItem:
+  description: Staff view of an order item (spec 16 AC-38, read-only; money tools are the escrow operations).
+  allOf:
+    - $ref: '#/OrderItemBase'
+    - type: object
+      required: [legacyRequirements, unblockRequest]
+      properties:
+        legacyRequirements:
+          type: [object, 'null']
+          description: Migrated legacy requirement answers, read-only (data-model §3.F).
+        unblockRequest:
+          oneOf: [{$ref: '#/UnblockRequestRef'}, {type: 'null'}]
+
+AdminOrderItemPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/AdminOrderItem'}
+
+AdminOrder:
+  type: object
+  required: [id, number, status, buyer, subtotal, items, payment, createdAt, paidAt, deletedAt]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    number: {type: integer, format: int64}
+    status: {$ref: '#/OrderStatus'}
+    buyer: {$ref: '../components/schemas.yaml#/UserSummary'}
+    subtotal: {$ref: '../components/schemas.yaml#/Money'}
+    items:
+      type: array
+      items: {$ref: '#/AdminOrderItem'}
+    payment:
+      oneOf: [{$ref: '../components/schemas.yaml#/PaymentSummary'}, {type: 'null'}]
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    paidAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    deletedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+
+# ───────────────────────── Custom offers (spec 12) ─────────────────────────
+CustomOfferStatus:
+  type: string
+  enum: [pending_approval, sent, rejected, declined, withdrawn, expired, in_progress, delivered, revision_requested, completed, canceled, refunded]
+  description: Spec 12 R-C4 / data-model §4.5. `pending_approval` only while S-035 is ON; `rejected` = rejected by staff.
+
+CustomOfferActions:
+  type: object
+  required: [canPay, canDecline, canWithdraw, canCancel]
+  properties:
+    canPay:
+      type: boolean
+      description: 'Buyer; sent, before expiry, S-034 ON (AC-12). Pay with D3 `createCheckoutQuote` / `createPayment` (`purpose: custom_offer`).'
+    canDecline: {type: boolean, description: 'Buyer; sent (AC-16).'}
+    canWithdraw: {type: boolean, description: 'Freelancer; sent or pending approval, no card payment pending (AC-17, EC-2).'}
+    canCancel: {type: boolean, description: 'Freelancer; paid and no delivery yet (AC-29).'}
+
+CustomOffer:
+  type: object
+  description: |
+    A custom offer as seen by its freelancer (author) or its buyer (recipient). Money: `price` P;
+    `freelancerAmount` P′ ("You receive", S-018); `buyerFee` Fb (S-017); `buyerPays` = P + Fb without
+    the card fee (spec 12 AC-8). All snapshotted at sending (R-C3).
+  required: [id, uid, status, freelancer, buyer, requestId, description, price, freelancerAmount, buyerFee, buyerPays, deliveryDays, revisionsAllowed, attachments, expiresAt, sentAt, respondedAt, paidAt, canceledAt, expectedDeliveryAt, isLate, declineReason, adminRejectionReason, escrow, conversation, directConversation, payment, refundRequest, reviews, actions, escrowActions, createdAt]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    uid:
+      type: string
+      description: Public id used in `/account/offers/{uid}`, `/seller/offers/{uid}`, `/checkout/offer/{uid}`.
+    status: {$ref: '#/CustomOfferStatus'}
+    freelancer: {$ref: '../components/schemas.yaml#/UserSummary'}
+    buyer: {$ref: '../components/schemas.yaml#/UserSummary'}
+    requestId:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+    description: {type: string}
+    price: {$ref: '../components/schemas.yaml#/Money'}
+    freelancerAmount: {$ref: '../components/schemas.yaml#/Money'}
+    buyerFee: {$ref: '../components/schemas.yaml#/Money'}
+    buyerPays: {$ref: '../components/schemas.yaml#/Money'}
+    deliveryDays: {type: integer, minimum: 1, maximum: 365}
+    revisionsAllowed: {type: integer, minimum: 0}
+    attachments:
+      type: array
+      items: {$ref: '../components/schemas.yaml#/Attachment'}
+      description: Downloaded with `getFileDownload` (both parties, AC-12).
+    expiresAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+      description: Sending (or approval) + S-036 days, stored (AC-9, AC-20); null while pending approval.
+    sentAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    respondedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    paidAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    canceledAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    expectedDeliveryAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+      description: Payment time + delivery days (AC-14).
+    isLate: {type: boolean, description: 'In progress past the expected delivery date (AC-23).'}
+    declineReason:
+      type: [string, 'null']
+    adminRejectionReason:
+      type: [string, 'null']
+      description: Staff reason (S-035 ON); shown to the freelancer only, null for the buyer.
+    escrow:
+      oneOf: [{$ref: '../components/schemas.yaml#/EscrowSummary'}, {type: 'null'}]
+    conversation:
+      oneOf: [{$ref: '../components/schemas.yaml#/ConversationRef'}, {type: 'null'}]
+      description: The offer thread (kind `custom_offer`, P-93), created at payment; null before.
+    directConversation:
+      oneOf: [{$ref: '../components/schemas.yaml#/ConversationRef'}, {type: 'null'}]
+      description: The direct conversation where the offer card appears (spec 08 AC-27).
+    payment:
+      oneOf: [{$ref: '../components/schemas.yaml#/PaymentSummary'}, {type: 'null'}]
+      description: Buyer only; the paying payment, or a pending card payment.
+    refundRequest:
+      oneOf: [{$ref: '#/RefundRequestRef'}, {type: 'null'}]
+    reviews:
+      type: array
+      items: {$ref: '../components/schemas.yaml#/ReviewRef'}
+    actions: {$ref: '#/CustomOfferActions'}
+    escrowActions:
+      oneOf: [{$ref: '../components/schemas.yaml#/EscrowActions'}, {type: 'null'}]
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+
+CustomOfferPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/CustomOffer'}
+
+CustomOfferCreateRequest:
+  type: object
+  description: |
+    Send an offer (spec 12 AC-6…AC-10, R-C2, R-C3). The recipient must share a direct conversation
+    with the freelancer (`conversationId`) or the offer answers the recipient's open request
+    (`requestId`, AC-5). Clients validate the typed price text (≤ 10 characters, ≤ 2 decimals,
+    `t_validator_offer_price_min`); the API receives integer tetri.
+  required: [buyerId, description, price, deliveryDays, revisionsAllowed]
+  properties:
+    buyerId: {$ref: '../components/schemas.yaml#/Uuid'}
+    conversationId:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+    requestId:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+    description:
+      type: string
+      minLength: 10
+      maxLength: 2500
+    price:
+      $ref: '../components/schemas.yaml#/Money'
+      description: 'P: at least 100 tetri (1.00 GEL, P-91) and at most 999,999,999,900 tetri (the largest amount a 10-character price text can express); otherwise `VALIDATION_FAILED` (`price.amount`, messageKey t_validator_offer_price_min).'
+    deliveryDays:
+      type: integer
+      minimum: 1
+      maximum: 365
+      description: messageKey t_validator_offer_days.
+    revisionsAllowed:
+      type: integer
+      minimum: 0
+      description: 0…S-041 (required, no default, P-3); above S-041 → `VALIDATION_FAILED` (t_validator_revisions_range).
+    attachmentFileIds:
+      type: array
+      uniqueItems: true
+      items: {$ref: '../components/schemas.yaml#/Uuid'}
+      default: []
+      description: '`ready` files of purpose `offer_attachment`; only while S-037 is ON; at most S-039 files, each ≤ S-038 MB, types S-040.'
+
+CustomOfferPreviewRequest:
+  type: object
+  required: [price]
+  properties:
+    price:
+      $ref: '../components/schemas.yaml#/Money'
+      description: The price being typed in the offer form.
+
+CustomOfferPreview:
+  type: object
+  description: '"You receive" and "Buyer pays" for the offer form (spec 12 AC-8), from the Commission & Fee module (P-6). Card fee excluded (added only at card checkout).'
+  required: [price, freelancerAmount, buyerFee, buyerPays, feeLines]
+  properties:
+    price: {$ref: '../components/schemas.yaml#/Money'}
+    freelancerAmount: {$ref: '../components/schemas.yaml#/Money'}
+    buyerFee: {$ref: '../components/schemas.yaml#/Money'}
+    buyerPays: {$ref: '../components/schemas.yaml#/Money'}
+    feeLines:
+      type: array
+      items: {$ref: '../components/schemas.yaml#/FeeLine'}
+
+CustomOfferDeclineRequest:
+  type: object
+  properties:
+    reason:
+      type: [string, 'null']
+      maxLength: 500
+      description: Optional reason, sent to the freelancer (AC-16).
+
+CustomOfferUpdatedEvent:
+  type: object
+  description: '`offer.updated` (rooms `user:{freelancerId}`, `user:{buyerId}`; the buyer not while pending approval): the offer changed status (card in chat and offer pages refresh).'
+  required: [customOfferId, status]
+  properties:
+    customOfferId: {$ref: '../components/schemas.yaml#/Uuid'}
+    status: {$ref: '#/CustomOfferStatus'}
+
+CustomOfferRequestStatus:
+  type: string
+  enum: [open, answered, declined, canceled]
+  description: Spec 12 R-C5. No expiry.
+
+CustomOfferRequestActions:
+  type: object
+  required: [canSendOffer, canDecline, canCancel]
+  properties:
+    canSendOffer: {type: boolean, description: 'Freelancer; open request, S-034 ON.'}
+    canDecline: {type: boolean, description: 'Freelancer; open request.'}
+    canCancel: {type: boolean, description: 'Buyer; open request.'}
+
+CustomOfferRequest:
+  type: object
+  description: A buyer's request for an offer (spec 12 AC-3…AC-5, P-92). Shown as a card in the direct conversation.
+  required: [id, status, buyer, freelancer, description, budgetIdea, wishedDays, conversation, answeredByOfferId, declineNote, createdAt, respondedAt, actions]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    status: {$ref: '#/CustomOfferRequestStatus'}
+    buyer: {$ref: '../components/schemas.yaml#/UserSummary'}
+    freelancer: {$ref: '../components/schemas.yaml#/UserSummary'}
+    description: {type: string}
+    budgetIdea:
+      oneOf: [{$ref: '../components/schemas.yaml#/Money'}, {type: 'null'}]
+    wishedDays: {type: [integer, 'null']}
+    conversation:
+      oneOf: [{$ref: '../components/schemas.yaml#/ConversationRef'}, {type: 'null'}]
+      description: The direct conversation where the request card appears.
+    answeredByOfferId:
+      oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
+    declineNote: {type: [string, 'null']}
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    respondedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    actions: {$ref: '#/CustomOfferRequestActions'}
+
+CustomOfferRequestPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/CustomOfferRequest'}
+
+CustomOfferRequestCreateRequest:
+  type: object
+  required: [freelancerId, description]
+  properties:
+    freelancerId: {$ref: '../components/schemas.yaml#/Uuid'}
+    description:
+      type: string
+      minLength: 10
+      maxLength: 2500
+    budgetIdea:
+      oneOf: [{$ref: '../components/schemas.yaml#/Money'}, {type: 'null'}]
+      description: Optional budget idea (GEL); pre-fills the offer price (AC-5). Must be positive.
+    wishedDays:
+      type: [integer, 'null']
+      minimum: 1
+      maximum: 365
+      description: Optional wished delivery time in days; pre-fills the offer (AC-5). Range assumed equal to the offer's 1–365 (technical limit, slice item Q-141).
+
+CustomOfferRequestDeclineRequest:
+  type: object
+  properties:
+    note:
+      type: [string, 'null']
+      maxLength: 500
+
+CustomOfferRequestUpdatedEvent:
+  type: object
+  description: '`offer.request_updated` (rooms `user:{buyerId}`, `user:{freelancerId}`): a request was created, answered, declined or canceled.'
+  required: [customOfferRequestId, status]
+  properties:
+    customOfferRequestId: {$ref: '../components/schemas.yaml#/Uuid'}
+    status: {$ref: '#/CustomOfferRequestStatus'}
+
+AdminCustomOffer:
+  description: Staff view of a custom offer (spec 12 AC-34, spec 16 AC-24; read-only apart from approve/reject and the escrow tools).
+  allOf:
+    - $ref: '#/CustomOffer'
+    - type: object
+      required: [unblockRequest, approvedAt, ownerSummary]
+      properties:
+        unblockRequest:
+          oneOf: [{$ref: '#/UnblockRequestRef'}, {type: 'null'}]
+        approvedAt:
+          oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+        ownerSummary:
+          $ref: '../components/schemas.yaml#/ModerationOwnerSummary'
+          description: The freelancer who sent the offer (spec 16 AC-19 owner summary; earlier rejections = rejected offers).
+
+AdminCustomOfferPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/AdminCustomOffer'}
+
+# ───────────────────────── Refunds and disputes (spec 13) ─────────────────────────
+RefundRequestStatus:
+  type: string
+  enum: [pending, accepted_by_seller, rejected_by_seller, accepted_by_admin, rejected_by_admin, closed]
+  description: Spec 13 R-R3 (legacy values kept). The dispute is the separate `disputed` flag.
+
+RefundClosedBy:
+  type: string
+  enum: [buyer, system, staff]
+  description: '`system` = closed because the item was completed or canceled; `staff` = "Release funds" (spec 13 AC-29).'
+
+DisputeStatus:
+  type: string
+  enum: [open, resolved]
+
+DisputeResolution:
+  type: string
+  enum: [refund_to_buyer, release_to_freelancer]
+  description: The two outcomes (no split, P-102).
+
+Dispute:
+  type: object
+  description: The dispute on a refund request (spec 13 AC-12…AC-18). `publicNote` is the staff note shown to both parties.
+  required: [id, refundRequestId, escrowId, status, resolution, publicNote, openedAt, resolvedAt]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    refundRequestId: {$ref: '../components/schemas.yaml#/Uuid'}
+    escrowId: {$ref: '../components/schemas.yaml#/Uuid'}
+    status: {$ref: '#/DisputeStatus'}
+    resolution:
+      oneOf: [{$ref: '#/DisputeResolution'}, {type: 'null'}]
+    publicNote: {type: [string, 'null']}
+    openedAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    resolvedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+
+DisputeCreateRequest:
+  type: object
+  required: [refundRequestId]
+  properties:
+    refundRequestId: {$ref: '../components/schemas.yaml#/Uuid'}
+
+RefundRequestActions:
+  type: object
+  required: [canAccept, canDecline, canClose, canDispute, canWrite]
+  properties:
+    canAccept: {type: boolean, description: 'Freelancer; pending (AC-6).'}
+    canDecline: {type: boolean, description: 'Freelancer; pending (AC-7).'}
+    canClose: {type: boolean, description: 'Buyer; pending (AC-10).'}
+    canDispute: {type: boolean, description: 'Buyer; rejected by seller, not disputed, money still on HOLD (AC-12).'}
+    canWrite: {type: boolean, description: 'Thread open: pending, rejected by seller or disputed (AC-21).'}
+
+RefundRequest:
+  description: A refund request on a gig order item, a project contract payment or a custom offer (spec 13 R-R1), as seen by its buyer or freelancer.
+  allOf:
+    - $ref: '#/RefundRequestBase'
+    - type: object
+      required: [dispute, actions]
+      properties:
+        dispute:
+          oneOf: [{$ref: '#/Dispute'}, {type: 'null'}]
+        actions: {$ref: '#/RefundRequestActions'}
+
+RefundRequestPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/RefundRequest'}
+
+RefundRequestCreateRequest:
+  type: object
+  required: [escrowId, reason]
+  properties:
+    escrowId:
+      $ref: '../components/schemas.yaml#/Uuid'
+      description: The escrow of the item (order item, contract payment or custom offer).
+    reason:
+      type: string
+      minLength: 1
+      maxLength: 1500
+
+RefundRequestDeclineRequest:
+  type: object
+  properties:
+    message:
+      type: [string, 'null']
+      maxLength: 1500
+      description: Optional explanation, added to the refund thread (P-100).
+
+RefundRequestUpdatedEvent:
+  type: object
+  description: '`refund.updated` (rooms `user:{buyerId}`, `user:{freelancerId}`): a refund request was created, answered, auto-rejected, closed, disputed or decided.'
+  required: [refundRequestId, status, disputed]
+  properties:
+    refundRequestId: {$ref: '../components/schemas.yaml#/Uuid'}
+    status: {$ref: '#/RefundRequestStatus'}
+    disputed: {type: boolean}
+
+AdminDispute:
+  description: Staff view of a dispute (spec 13 AC-15; spec 16 AC-40).
+  allOf:
+    - $ref: '#/Dispute'
+    - type: object
+      required: [internalReason, resolvedBy, openedBy, daysOpen, item, buyer, freelancer, pricePaid, escrow, refundReason, refundConversation, itemConversation, directConversation]
+      properties:
+        internalReason: {type: [string, 'null']}
+        resolvedBy:
+          oneOf: [{$ref: '../components/schemas.yaml#/StaffSummary'}, {type: 'null'}]
+        openedBy: {$ref: '../components/schemas.yaml#/UserSummary'}
+        daysOpen: {type: integer, minimum: 0}
+        item: {$ref: '../components/schemas.yaml#/WorkItemRef'}
+        buyer: {$ref: '../components/schemas.yaml#/UserSummary'}
+        freelancer: {$ref: '../components/schemas.yaml#/UserSummary'}
+        pricePaid:
+          $ref: '../components/schemas.yaml#/Money'
+          description: Item price P paid by the buyer.
+        escrow: {$ref: '../components/schemas.yaml#/EscrowSummary'}
+        refundReason: {type: string}
+        refundConversation:
+          $ref: '../components/schemas.yaml#/ConversationRef'
+          description: Refund thread; staff read it with D5 `adminListConversationMessages` and write with `adminCreateConversationMessage`.
+        itemConversation:
+          oneOf: [{$ref: '../components/schemas.yaml#/ConversationRef'}, {type: 'null'}]
+        directConversation:
+          oneOf: [{$ref: '../components/schemas.yaml#/ConversationRef'}, {type: 'null'}]
+          description: The parties' direct conversation; opening it is audit-logged by D5 (spec 08 AC-30).
+
+AdminDisputePage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/AdminDispute'}
+
+DisputeResolveRequest:
+  type: object
+  required: [resolution, internalReason]
+  properties:
+    resolution: {$ref: '#/DisputeResolution'}
+    internalReason:
+      type: string
+      minLength: 1
+      maxLength: 1000
+      description: Staff only, audited (t_internal_reason).
+    publicNote:
+      type: [string, 'null']
+      maxLength: 1000
+      description: Shown to both parties in the decision notification (t_public_note).
+
+AdminRefundRequest:
+  description: Staff view of a refund request (spec 16 AC-40).
+  allOf:
+    - $ref: '#/RefundRequestBase'
+    - type: object
+      required: [dispute, isSeenBySeller]
+      properties:
+        dispute:
+          oneOf: [{$ref: '#/AdminDispute'}, {type: 'null'}]
+        isSeenBySeller: {type: boolean}
+
+RefundRequestBase:
+  type: object
+  description: Refund request fields shared by the user view (`RefundRequest`) and the staff view (`AdminRefundRequest`).
+  required: [id, uid, status, disputed, closedBy, isAutoRejected, item, escrowId, buyer, freelancer, reason, amount, sellerDeadlineAt, respondedAt, closedAt, createdAt, conversation]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    uid:
+      type: string
+      description: Public id used in `/account/refunds/{refundUid}` and `/seller/refunds/{refundUid}`.
+    status: {$ref: '#/RefundRequestStatus'}
+    disputed: {type: boolean}
+    closedBy:
+      oneOf: [{$ref: '#/RefundClosedBy'}, {type: 'null'}]
+    isAutoRejected:
+      type: boolean
+      description: Rejected by the sweeper after S-030 ("No answer in time", AC-8).
+    item: {$ref: '../components/schemas.yaml#/WorkItemRef'}
+    escrowId: {$ref: '../components/schemas.yaml#/Uuid'}
+    buyer: {$ref: '../components/schemas.yaml#/UserSummary'}
+    freelancer: {$ref: '../components/schemas.yaml#/UserSummary'}
+    reason: {type: string}
+    amount:
+      $ref: '../components/schemas.yaml#/Money'
+      description: What a refund returns to the buyer's wallet = item price P (R-R4; card fee and buyer fees excluded).
+    sellerDeadlineAt:
+      $ref: '../components/schemas.yaml#/Timestamp'
+      description: Request time + S-030 days, stored (AC-5, AC-9); countdown while pending.
+    respondedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    closedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    conversation:
+      $ref: '../components/schemas.yaml#/ConversationRef'
+      description: The refund thread (D5, kind `refund`).
+
+AdminRefundRequestPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/AdminRefundRequest'}
+
+# ───────────────────────── Unblock requests (spec 13 AC-23…AC-28) ─────────────────────────
+UnblockRequestStatus:
+  type: string
+  enum: [pending, approved, rejected, closed]
+
+UnblockRequest:
+  type: object
+  description: A freelancer's request to release the funds of a delivered item while auto-release is OFF (P-5, P-103).
+  required: [id, uid, status, escrowId, item, amount, reason, rejectionReason, createdAt, resolvedAt]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    uid: {type: string}
+    status: {$ref: '#/UnblockRequestStatus'}
+    escrowId: {$ref: '../components/schemas.yaml#/Uuid'}
+    item: {$ref: '../components/schemas.yaml#/WorkItemRef'}
+    amount:
+      $ref: '../components/schemas.yaml#/Money'
+      description: Escrow balance when requested (display only; approval moves the escrow balance, AC-24).
+    reason: {type: string}
+    rejectionReason:
+      type: [string, 'null']
+      description: Staff reason when rejected (AC-26).
+    createdAt: {$ref: '../components/schemas.yaml#/Timestamp'}
+    resolvedAt:
+      oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+
+UnblockRequestPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/UnblockRequest'}
+
+UnblockRequestCreateRequest:
+  type: object
+  required: [escrowId, reason]
+  properties:
+    escrowId: {$ref: '../components/schemas.yaml#/Uuid'}
+    reason:
+      type: string
+      minLength: 10
+      maxLength: 1000
+      description: t_unblock_reason_hint.
+
+UnblockRequestUpdatedEvent:
+  type: object
+  description: '`unblock.updated` (room `user:{freelancerId}`): the freelancer''s unblock request was approved, rejected or closed.'
+  required: [unblockRequestId, status]
+  properties:
+    unblockRequestId: {$ref: '../components/schemas.yaml#/Uuid'}
+    status: {$ref: '#/UnblockRequestStatus'}
+
+AdminUnblockRequest:
+  allOf:
+    - $ref: '#/UnblockRequest'
+    - type: object
+      required: [freelancer, buyer, escrow, resolvedBy]
+      properties:
+        freelancer: {$ref: '../components/schemas.yaml#/UserSummary'}
+        buyer: {$ref: '../components/schemas.yaml#/UserSummary'}
+        escrow: {$ref: '../components/schemas.yaml#/EscrowSummary'}
+        resolvedBy:
+          oneOf: [{$ref: '../components/schemas.yaml#/StaffSummary'}, {type: 'null'}]
+
+AdminUnblockRequestPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      required: [creationOpen]
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/AdminUnblockRequest'}
+        creationOpen:
+          type: boolean
+          description: Banner of spec 16 AC-41 — freelancers can create requests now (S-025 OFF or S-029 ON).
+
+# ───────────────────────── Staff escrow views and tools (spec 16 AC-38, AC-39; spec 13 AC-29…AC-31) ─────────────────────────
+AdminEscrow:
+  description: Staff view of an escrow (HOLD) with its item, parties, timer state and open requests.
+  allOf:
+    - $ref: '../components/schemas.yaml#/EscrowSummary'
+    - type: object
+      required: [item, itemStatus, buyer, freelancer, expectedDeliveryAt, isOverdue, autoReleaseSetReason, autoReleaseHoursUsed, refundRequest, dispute, unblockRequest, conversation, closedByStaff]
+      properties:
+        item: {$ref: '../components/schemas.yaml#/WorkItemRef'}
+        itemStatus: {$ref: '#/EscrowWorkStatus'}
+        buyer:
+          oneOf: [{$ref: '../components/schemas.yaml#/UserSummary'}, {type: 'null'}]
+          description: Null only for migrated `legacy_hold` escrows.
+        freelancer: {$ref: '../components/schemas.yaml#/UserSummary'}
+        expectedDeliveryAt:
+          oneOf: [{$ref: '../components/schemas.yaml#/Timestamp'}, {type: 'null'}]
+        isOverdue:
+          type: boolean
+          description: See `adminListEscrows` `overdue` (reading documented there; slice item Q-122).
+        autoReleaseSetReason:
+          oneOf: [{$ref: '#/EscrowAutoReleaseSetReason'}, {type: 'null'}]
+        autoReleaseHoursUsed: {type: [integer, 'null']}
+        refundRequest:
+          oneOf: [{$ref: '#/RefundRequestRef'}, {type: 'null'}]
+        dispute:
+          oneOf: [{$ref: '#/Dispute'}, {type: 'null'}]
+        unblockRequest:
+          oneOf: [{$ref: '#/UnblockRequestRef'}, {type: 'null'}]
+        conversation:
+          oneOf: [{$ref: '../components/schemas.yaml#/ConversationRef'}, {type: 'null'}]
+        closedByStaff:
+          oneOf: [{$ref: '../components/schemas.yaml#/StaffSummary'}, {type: 'null'}]
+
+AdminEscrowPage:
+  allOf:
+    - $ref: '../components/schemas.yaml#/CursorPage'
+    - type: object
+      required: [totalAmount]
+      properties:
+        data:
+          type: array
+          items: {$ref: '#/AdminEscrow'}
+        totalAmount:
+          $ref: '../components/schemas.yaml#/Money'
+          description: Sum of `amount` over all escrows matching the filters (not only this page). With the default filter (`status = funded`) it equals the platform HOLD balance (spec 16 AC-39).
+
+EscrowStaffActionRequest:
+  type: object
+  description: Body of the staff tools "Release funds" and "Refund buyer" (spec 13 AC-29, AC-30).
+  required: [internalReason]
+  properties:
+    internalReason:
+      type: string
+      minLength: 1
+      maxLength: 1000
+      description: Staff only, audited.
+    publicNote:
+      type: [string, 'null']
+      maxLength: 1000
+      description: Sent to both parties with the notification.

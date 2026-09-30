@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+<!-- PROPOSAL for Owner approval (Q-075). Derived work: the "M" of the current MyTask wordmark (packages/assets/logo/mytask-logo-wordmark-trimmed.png), redrawn as vector geometry by ui-ux-designer, P2-C2, 2026-09-28. Colour: brand.700 #0D696C (logo teal). Favicon variant: cuts widened (g=24) for 16-32 px. -->
+<rect width="32" height="32" rx="7" fill="#0D696C"/>
+<path fill="#FFFFFF" transform="translate(6 6) scale(0.08064500000000001)" d="M0 20L72 122.86L72 248L0 248ZM10 0L70 0L124 77.14L178 0L238 0L152 122.86L152 248L96 248L96 122.86ZM248 248L176 248L176 122.86L248 20Z"/>
+</svg>

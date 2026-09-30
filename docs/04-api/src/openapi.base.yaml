@@ -1,0 +1,200 @@
+# Hand-written head of the contract. scripts/build-root.mjs adds `paths` and `components`
+# ($refs into src/paths/*.yaml, src/schemas/*.yaml, src/components/*.yaml) and writes
+# src/openapi.root.yaml, which Redocly lints and bundles into docs/04-api/openapi.yaml.
+# Only the solution-architect edits this file (CLAUDE.md golden rule 2, ADR-014).
+openapi: 3.1.0
+info:
+  title: MyTask.ge API
+  version: 1.0.0
+  summary: One API for the MyTask.ge website, mobile apps (iOS, Android) and admin panel.
+  description: |
+    **Status: approved by the Owner 2026-09-30 as the contract** (Phase 2 gate, version 1.0.0, including
+    the Owner's gate answers Q-109…Q-121, Q-137, Q-144…Q-146). From now on every change needs an ADR in
+    `docs/03-architecture/adr/` and a handoff to the backend, web and mobile engineers (CLAUDE.md rule 2).
+
+    **The contract is the law** (CLAUDE.md). Web (`apps/web`), mobile (`apps/mobile`) and admin
+    (`apps/admin`) use only this API through the generated `packages/types` + `packages/api-client`
+    (ADR-014). Business rules and permission checks live only in the API.
+
+    Binding conventions: `docs/04-api/CONVENTIONS.md`. Realtime events: `docs/04-api/realtime.md`.
+    Coverage (spec AC → operation): `docs/04-api/README.md`.
+
+    ## Global rules
+    - **Base path** `/api/v1`. Additive changes only within v1; clients ignore unknown fields and treat
+      unknown enum values as "other" (ADR-014 §5).
+    - **Language**: send `Accept-Language: ka|en` (default `ka`). Error messages and content are localized;
+      missing English content falls back to Georgian with `contentLocale: "ka"` (ADR-006).
+    - **Errors**: every non-2xx body is `{ code, message, details }` (schema `Error`); `code` is stable,
+      `message` localized. `X-Request-Id` is on every response.
+    - **Money**: `{ amount, currency }` with `amount` in integer **tetri** and `currency` = `GEL`
+      (ADR-003). Clients never compute prices, fees or totals; they display API values.
+    - **Dates**: ISO 8601 UTC with `Z`.
+    - **Lists**: cursor pagination `?cursor=&limit=` → `{ data, nextCursor }`.
+    - **Money operations** require `Idempotency-Key` (ADR-003 §6).
+    - **Auth** (ADR-002): Ed25519 JWT access token (15 min) + rotating opaque refresh token.
+      Mobile and server-side rendering send `Authorization: Bearer`; browsers use host-only HttpOnly
+      cookies set by the API (`__Host-mt_at`, `__Secure-mt_rt`, `__Host-mt_did`; admin `__Host-mt_staff_at`,
+      `__Secure-mt_staff_rt`). A revoked session stops working at once (deny-list, ADR-002 §1).
+    - **CSRF** (ADR-002 §2): every POST/PUT/PATCH/DELETE that is not sent with `Authorization: Bearer`,
+      including the public auth operations (register, login, 2FA, refresh, logout, social login, password
+      and email links), must send `X-MyTask-Client` (`web` on `mytask.ge`, `admin` on `admin.mytask.ge`)
+      and, when it carries a cookie, is a `web`/`admin` client or has an `Origin` header, an `Origin` that
+      **exactly equals** the origin of the host it was sent to (no same-site or suffix matching); otherwise
+      `403 CSRF_CHECK_FAILED`. Request bodies are `application/json` (else `400 VALIDATION_FAILED`, code
+      `unsupported_content_type`); the only exception is the RFC 8058 one-click unsubscribe form POST.
+    - **Client IP** (ADR-013 §14–§19): every "per IP" rule uses the one client IP set by the edge proxy;
+      `X-Forwarded-For` and similar headers sent by clients are ignored.
+    - **Account state** (any authenticated user operation, not listed per operation): a restricted user gets
+      `403 ACCOUNT_RESTRICTED` except on operations whose `x-permission.audience` is `restricted-user`
+      (restriction notice, appeals incl. `appeal_file` uploads, `/me`, logout, own notifications); a call
+      made with a session that was ended by a ban gets `403 ACCOUNT_SUSPENDED` (`t_account_suspended`,
+      spec 01 AC-45) and the client returns to the login screen.
+    - **Staff** endpoints (`/admin/*`) are served on the admin host only, accept only staff-audience tokens,
+      and each declares one RBAC permission in `x-permission.permission` (ADR-010, spec 16).
+    - **Maintenance** (S-121): user endpoints answer `503 MAINTENANCE`; admin, webhooks and health keep working.
+    - **Mobile version gate**: responses carry `X-Min-App-Version`; older apps get `426 APP_VERSION_UNSUPPORTED`.
+
+    ## Vendor extensions used on operations
+    `x-permission` (who may call; required), `x-covers` (spec ACs covered; required), `x-money`
+    (money/points operation; requires `Idempotency-Key`), `x-rate-limit`, `x-notifications`
+    (spec 15 events emitted), `x-emits` (realtime events), `x-settings` (register rows read),
+    `x-audit` (audit-log action written). Definitions: CONVENTIONS.md §6.
+  contact:
+    name: MyTask.ge (Owner)
+    url: https://mytask.ge/help/contact
+  license:
+    name: Proprietary. All rights reserved.
+    identifier: LicenseRef-MyTask-Proprietary
+
+servers:
+  - url: http://localhost:3000/api/v1
+    description: Local development (docker compose + pnpm dev). Serves both public and /admin operations.
+  - url: https://staging.mytask.ge/api/v1
+    description: Staging, public host (placeholder until Phase 5; basic-auth in front, noindex).
+  - url: https://admin.staging.mytask.ge/api/v1
+    description: Staging, admin host (placeholder). Use only for /admin/* operations.
+  - url: https://mytask.ge/api/v1
+    description: Production, public host (web same-origin, mobile). /admin/* is NOT served here.
+  - url: https://admin.mytask.ge/api/v1
+    description: Production, admin host (ADR-010). Use only for /admin/* operations (staff tokens, host-only cookies).
+
+# Default: a signed-in user. Public, staff and webhook operations override `security` (CONVENTIONS §6.2).
+security:
+  - userBearer: []
+  - userCookie: []
+
+tags:
+  # ── Foundation
+  - {name: Files, description: 'Uploads (presigned POST), status and private downloads (ADR-009). Owner: F0.'}
+  # ── D1
+  - {name: Platform, description: 'Health, public configuration and i18n bundles (spec 00, ADR-005 §9, ADR-006 §4). Owner: D1.'}
+  - {name: Auth, description: 'Registration, verification, login, 2FA, password reset, social login, sessions (spec 01, ADR-002). Owner: D1.'}
+  - {name: Account, description: 'The signed-in user''s own account and settings (`/me`) (specs 01, 02). Owner: D1.'}
+  - {name: Profiles, description: 'Public profiles, availability, username masking, profile reports (spec 02). Owner: D1.'}
+  - {name: Portfolio, description: 'Portfolio items (spec 02). Owner: D1.'}
+  - {name: KYC, description: 'ID verification (spec 02). Owner: D1.'}
+  - {name: Restrictions, description: 'Restriction notices and appeals (spec 01). Owner: D1.'}
+  - {name: Dashboard, description: 'Buyer/freelancer dashboard switcher and overview (spec 02). Owner: D1.'}
+  - {name: Admin Users, description: 'Staff: user search, user page, account actions, IP bans (spec 16 F). Owner: D1.'}
+  - {name: Admin KYC, description: 'Staff: KYC queue (spec 16 AC-27). Owner: D1.'}
+  - {name: Admin Portfolio, description: 'Staff: portfolio queue (spec 16 AC-21). Owner: D1.'}
+  - {name: Admin Restrictions, description: 'Staff: restrictions and appeals (spec 16 AC-29). Owner: D1.'}
+  # ── D2
+  - {name: Catalog, description: 'Gig categories (3 levels), project categories, skills, countries (spec 03). Owner: D2.'}
+  - {name: Search, description: 'Gig search, sellers list, /hire pages, ranking with the Premium boost (spec 03, ADR-011). Owner: D2.'}
+  - {name: Gigs, description: 'Gig wizard, my gigs, gig page, gig reports, gig analytics (spec 04). Owner: D2.'}
+  - {name: Favorites, description: 'Favourite gigs (spec 04). Owner: D2.'}
+  - {name: Reviews, description: 'Mutual reviews for gig orders, projects and custom offers (spec 07). Owner: D2.'}
+  - {name: Content, description: 'CMS pages, Terms and Privacy, home content (spec 17). Owner: D2.'}
+  - {name: Blog, description: 'Blog articles and comments (spec 17). Owner: D2.'}
+  - {name: Contact, description: 'Contact form / support messages (spec 17). Owner: D2.'}
+  - {name: Newsletter, description: 'Newsletter double opt-in (spec 17). Owner: D2.'}
+  - {name: SEO, description: 'SEO meta, sitemaps, redirects resolution, outbound link redirector (spec 17, url-map). Owner: D2.'}
+  - {name: Admin Gigs, description: 'Staff: gig moderation (spec 16 AC-20). Owner: D2.'}
+  - {name: Admin Reviews, description: 'Staff: review moderation (spec 16 AC-25). Owner: D2.'}
+  - {name: Admin Catalog, description: 'Staff: categories, project categories, skills, countries (spec 16 K). Owner: D2.'}
+  - {name: Admin Content, description: 'Staff: pages, blog, comments, newsletter, support messages, home content (spec 16 AC-26, AC-63). Owner: D2.'}
+  # ── D3
+  - {name: Checkout, description: 'Server-side quotes for every purpose (spec 05). Owner: D3.'}
+  - {name: Payments, description: 'Payments by card (BOG), wallet or bank transfer; status polling; receipts (spec 05, ADR-004). Owner: D3.'}
+  - {name: Webhooks, description: 'Inbound provider callbacks (BOG: D3; SendGrid events: D6). No user auth.'}
+  - {name: Wallet, description: 'Balances, transactions, HOLD list, top-ups (spec 05). Owner: D3.'}
+  - {name: Saved Cards, description: 'Saved cards and billing information (spec 05). Owner: D3.'}
+  - {name: Subscriptions, description: 'Plans, Premium by card or points, renewal, cancel/resume (spec 09, ADR-016). Owner: D3.'}
+  - {name: Points, description: 'Points ledger (spec 09). Owner: D3.'}
+  - {name: Referrals, description: 'Referral codes and promo codes (spec 09). Owner: D3.'}
+  - {name: Withdrawals, description: 'Payout details and withdrawal requests (spec 14). Owner: D3.'}
+  - {name: Admin Payments, description: 'Staff: payments, unapplied payments, bank transfers (spec 16 AC-36, AC-37, AC-43). Owner: D3.'}
+  - {name: Admin Ledger, description: 'Staff: ledger viewer, adjustments, points adjustments, legacy-hold residuals, reconciliation (spec 16 AC-32, AC-44, AC-45). Owner: D3.'}
+  - {name: Admin Withdrawals, description: 'Staff: withdrawals queue (spec 16 AC-42, spec 14). Owner: D3.'}
+  - {name: Admin Subscriptions, description: 'Staff: plans, subscriptions, promo codes, referral benefits (spec 16 J). Owner: D3.'}
+  # ── D4
+  - {name: Cart, description: 'Server-side cart shared by web and mobile (spec 06). Owner: D4.'}
+  - {name: Orders, description: 'Gig orders and order items: requirements, start, cancel (spec 06). Owner: D4.'}
+  - {name: Custom Offers, description: 'Offer requests and custom offers (spec 12). Owner: D4.'}
+  - {name: Escrows, description: 'Delivery, revision requests and completion shared by order items, contracts and offers (specs 06, 11, 12). Owner: D4.'}
+  - {name: Refunds, description: 'Refund requests and disputes (spec 13). Owner: D4.'}
+  - {name: Unblock Requests, description: 'Unblock requests while auto-release is OFF (spec 13). Owner: D4.'}
+  - {name: Admin Orders, description: 'Staff: orders and custom offers lists and detail, offer approval (spec 16 AC-24, AC-38). Owner: D4.'}
+  - {name: Admin Escrows, description: 'Staff: escrow list, "Release funds", "Refund buyer" (spec 16 AC-38, AC-39; spec 13). Owner: D4.'}
+  - {name: Admin Disputes, description: 'Staff: refund requests, disputes, unblock requests (spec 16 AC-40, AC-41). Owner: D4.'}
+  # ── D5
+  - {name: Conversations, description: 'Inbox and item threads: conversations, messages, read state (spec 08, ADR-007). Owner: D5.'}
+  - {name: Projects, description: 'Post, edit, close, delete projects; project pages; reports (spec 10). Owner: D5.'}
+  - {name: Proposals, description: 'Proposals (bids), award, accept/decline (spec 11). Owner: D5.'}
+  - {name: Contracts, description: 'Project contracts and their one escrow payment (spec 11). Owner: D5.'}
+  - {name: Admin Conversations, description: 'Staff: read-only conversations (audited), moderation, staff messages in refund threads (spec 16 AC-65, spec 08). Owner: D5.'}
+  - {name: Admin Projects, description: 'Staff: project and proposal moderation, contracts list (spec 16 AC-22, AC-23, AC-38). Owner: D5.'}
+  # ── D6
+  - {name: Notifications, description: 'Notification centre, preferences, push tokens (spec 15, ADR-007). Owner: D6.'}
+  - {name: Analytics, description: 'First-party analytics ingestion (ADR-012). Owner: D6.'}
+  - {name: Admin Auth, description: 'Staff login, 2FA, refresh, re-authentication, own profile (spec 16 A). Owner: D6.'}
+  - {name: Admin Staff, description: 'Staff accounts, roles, permissions (spec 16 A, B). Owner: D6.'}
+  - {name: Admin Audit, description: 'Audit log viewer and exports (spec 16 C). Owner: D6.'}
+  - {name: Admin Dashboard, description: 'Admin home: queue counters and KPIs (spec 16 D). Owner: D6.'}
+  - {name: Admin Reports, description: 'One queue for user, gig, project and proposal reports (spec 16 AC-28). Owner: D6.'}
+  - {name: Admin Settings, description: 'Settings register, Commission & Fee rules, custom code (spec 16 H, I, O; ADR-005). Owner: D6.'}
+  - {name: Admin Translations, description: 'UI translation overrides (spec 16 AC-64, ADR-006 §4). Owner: D6.'}
+  - {name: Admin Analytics, description: 'Analytics dashboards (spec 16 M). Owner: D6.'}
+  - {name: Admin System, description: 'System logs, job health, delivery log, maintenance, caches (spec 16 N). Owner: D6.'}
+  - {name: Admin Files, description: 'Staff uploads for public media (category/blog images, home logos). Owner: F0.'}
+
+x-tagGroups:
+  - {name: Platform and accounts, tags: [Platform, Auth, Account, Profiles, Portfolio, KYC, Restrictions, Dashboard, Files]}
+  - {name: Marketplace, tags: [Catalog, Search, Gigs, Favorites, Reviews, Cart, Orders, Custom Offers, Escrows, Refunds, Unblock Requests, Projects, Proposals, Contracts, Conversations]}
+  - {name: Money, tags: [Checkout, Payments, Wallet, Saved Cards, Subscriptions, Points, Referrals, Withdrawals, Webhooks]}
+  - {name: Content and engagement, tags: [Content, Blog, Contact, Newsletter, SEO, Notifications, Analytics]}
+  - {name: Admin, tags: [Admin Auth, Admin Staff, Admin Audit, Admin Dashboard, Admin Users, Admin KYC, Admin Portfolio, Admin Restrictions, Admin Gigs, Admin Reviews, Admin Catalog, Admin Content, Admin Payments, Admin Ledger, Admin Withdrawals, Admin Subscriptions, Admin Orders, Admin Escrows, Admin Disputes, Admin Conversations, Admin Projects, Admin Reports, Admin Settings, Admin Translations, Admin Analytics, Admin System, Admin Files]}
+
+components:
+  securitySchemes:
+    userBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        User access token (JWT, EdDSA/Ed25519, `aud = user`, 15 minutes; ADR-002 §1). Used by the mobile
+        apps and by the Next.js server for SSR. Refresh with `refreshSession`.
+    userCookie:
+      type: apiKey
+      in: cookie
+      name: __Host-mt_at
+      description: |
+        Browser session on `mytask.ge`: HttpOnly, Secure, SameSite=Lax, host-only (no `Domain`) access-token
+        cookie set by the API, Path `/` (refresh cookie `__Secure-mt_rt`, host-only, Path `/api/v1/auth`).
+        Unsafe methods also need `X-MyTask-Client: web` and an `Origin` exactly equal to the site origin
+        (CSRF, ADR-002 §2).
+    staffBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Staff access token (`aud = staff`). User tokens are refused on staff operations and vice versa (ADR-002 §2, ADR-010 §1). Sent by the admin app's own server (the token read from the staff cookie) and by API tests; staff tokens are returned in bodies only when `STAFF_BODY_TOKENS_ENABLED=true`, which production refuses (SEC-17).
+    staffCookie:
+      type: apiKey
+      in: cookie
+      name: __Host-mt_staff_at
+      description: |
+        Admin browser session on `admin.mytask.ge` (host-only cookie, Path `/`; refresh cookie
+        `__Secure-mt_staff_rt`, host-only, Path `/api/v1/admin/auth`). Unsafe methods also need
+        `X-MyTask-Client: admin` and an `Origin` exactly equal to the admin origin. In production the admin
+        host is cookie-only: staff tokens are never returned in response bodies (ADR-002 §2, SEC-17).

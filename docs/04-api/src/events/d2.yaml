@@ -1,0 +1,16 @@
+# D2 — realtime (Socket.IO) events emitted for specs 03, 04, 07, 17. Format: docs/04-api/realtime.md §4.
+# Payload schemas live in ../schemas/d2.yaml. Notifications (email/in-app/push) are D6's; these events
+# only let open screens refresh without polling.
+events:
+  - name: gig.status_changed
+    room: 'user:{ownerUserId}'
+    payload: GigStatusChangedEvent
+    emittedBy: [adminPublishGig, adminRejectGig, adminRemoveGig, adminRestoreGig]
+    covers: ['04 AC-17', '04 AC-18']
+    description: Staff changed the moderation state of the owner's gig; My gigs and the edit screen refresh (re-read with getGigOwnerView).
+  - name: review.received
+    room: 'user:{subjectUserId}'
+    payload: ReviewReceivedEvent
+    emittedBy: [createReview]
+    covers: ['07 AC-9']
+    description: A new review about the user was published; open review screens re-read listReviews / getUserReviewSummary.
