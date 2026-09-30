@@ -81,6 +81,15 @@ export function renderEmail(i: TemplateInput): RenderedEmail {
           url: `${i.adminUrl.replace(/\/$/, '')}/users`,
         },
       );
+    case 'EV-03':
+      // legacy/APP/app/Notifications/User/Everyone/AccountActivated.php:45-51
+      return layout(
+        i.locale,
+        t('t_subject_everyone_ur_account_activated'),
+        hello,
+        [t('t_ur_account_has_been_successfully_verified_email')],
+        { label: t('t_start_exploring'), url: link(i.appUrl, i.locale, '/') },
+      );
     case 'EV-04':
       return layout(
         i.locale,

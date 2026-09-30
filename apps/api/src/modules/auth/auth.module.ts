@@ -28,6 +28,13 @@ import { TwoFactorService } from './two-factor.service';
     // Deny by default: every route needs a session unless marked @Public (ADR-010 style).
     { provide: APP_GUARD, useClass: AuthGuard },
   ],
-  exports: [SessionsService, PasswordService, RecaptchaService, ThrottleService, TwoFactorService],
+  exports: [
+    SessionsService,
+    PasswordService,
+    RecaptchaService,
+    ThrottleService,
+    TwoFactorService,
+    ReferralService,
+  ],
 })
 export class AuthModule {}

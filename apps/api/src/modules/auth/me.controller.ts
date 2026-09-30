@@ -52,6 +52,16 @@ export class MeController {
     return this.account.revokeOthers(auth.userId, auth.sessionId, body, this.ctx(req));
   }
 
+  @Post('two-factor/challenges')
+  @HttpCode(202)
+  createChallenge(
+    @CurrentAuth() auth: AuthState,
+    @Body() body: S['TwoFactorChallengeCreateRequest'],
+    @Req() req: Request,
+  ): Promise<S['TwoFactorChallenge']> {
+    return this.account.createChallenge(auth.userId, body ?? {}, this.ctx(req));
+  }
+
   @Put('two-factor')
   updateTwoFactor(
     @CurrentAuth() auth: AuthState,

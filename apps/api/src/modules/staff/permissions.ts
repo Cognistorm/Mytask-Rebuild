@@ -70,3 +70,81 @@ const complete: [Missing] extends [never] ? true : Missing = true;
 void complete;
 
 export const SUPER_ADMIN_ROLE = 'super_admin';
+
+type Code = (typeof PERMISSIONS)[number];
+
+/**
+ * Default roles of a new installation (spec 16 AC-11, P-114 matrix). Editable data afterwards: the seed
+ * creates a role only when its code does not exist yet, and never changes an existing role.
+ */
+export const DEFAULT_ROLES: { code: string; name: string; permissions: Code[] }[] = [
+  {
+    code: 'customer_support',
+    name: 'Customer Support',
+    permissions: [
+      'dashboard.read',
+      'users.read',
+      'users.edit',
+      'users.activate',
+      'users.restrict',
+      'users.email',
+      'kyc.review',
+      'reports.handle',
+      'chat.read',
+      'orders.read',
+      'payments.read',
+      'refunds.thread.write',
+      'support.handle',
+      'settings.read',
+    ],
+  },
+  {
+    code: 'financial_manager',
+    name: 'Financial Manager',
+    permissions: [
+      'dashboard.read',
+      'analytics.read',
+      'users.read',
+      'chat.read',
+      'orders.read',
+      'payments.read',
+      'payments.offline.approve',
+      'refunds.thread.write',
+      'refunds.resolve',
+      'escrow.release',
+      'escrow.refund',
+      'withdrawals.approve',
+      'ledger.adjust',
+      'points.adjust',
+      'subscriptions.manage',
+      'promo_codes.write',
+      'settings.read',
+    ],
+  },
+  {
+    code: 'content_moderator',
+    name: 'Content Moderator',
+    permissions: [
+      'dashboard.read',
+      'users.read',
+      'users.restrict',
+      'users.ban',
+      'gigs.moderate',
+      'portfolio.moderate',
+      'projects.moderate',
+      'proposals.moderate',
+      'offers.moderate',
+      'reviews.moderate',
+      'comments.moderate',
+      'reports.handle',
+      'chat.read',
+      'chat.moderate',
+      'catalog.write',
+      'content.write',
+      'newsletter.manage',
+      'translations.write',
+      'settings.read',
+      'settings.content.write',
+    ],
+  },
+];

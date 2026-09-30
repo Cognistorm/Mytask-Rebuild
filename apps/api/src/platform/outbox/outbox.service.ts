@@ -8,6 +8,7 @@ import { PrismaService } from '../db/prisma.service';
 export type OutboxEventType =
   | 'EV-01' // VerifyEmail
   | 'EV-02' // Admin/PendingUser
+  | 'EV-03' // AccountActivated
   | 'EV-04' // PasswordReset
   | 'EV-05' // PasswordChanged
   | 'EV-06' // TwoFactorCode

@@ -4,11 +4,11 @@
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import type { components } from '@mytask/types';
+import { AdminNav } from '../../components/nav';
 import { Alert, AuthCard, Field, Submit } from '../../components/ui';
 import { splitErrors, t, useAdminApi, type ApiErrorBody } from '../../lib/client';
 
 type Entry = components['schemas']['SettingEntry'];
-type Me = components['schemas']['AdminMe'];
 
 const AREA_TITLE: Record<string, string> = {
   auth: 't_settings_area_auth',
@@ -19,7 +19,6 @@ const AREA_TITLE: Record<string, string> = {
 export default function SettingsPage() {
   const api = useAdminApi();
   const router = useRouter();
-  const [me, setMe] = useState<Me>();
   const [rows, setRows] = useState<Entry[]>([]);
   const [notice, setNotice] = useState<string>();
   const [err, setErr] = useState<ApiErrorBody>();
@@ -29,11 +28,9 @@ export default function SettingsPage() {
   const reauthErrors = splitErrors(err);
 
   const load = useCallback(async () => {
-    const who = await api.GET('/admin/me');
-    if (who.error) return router.replace('/login');
-    setMe(who.data);
     const list = await api.GET('/admin/settings', { params: { query: {} } });
-    if (list.data) setRows(list.data.settings);
+    if (list.error) return router.replace('/login');
+    setRows(list.data.settings);
   }, [api, router]);
 
   useEffect(() => {
@@ -70,11 +67,6 @@ export default function SettingsPage() {
     await save(next.row, next.value);
   }
 
-  async function logout() {
-    await api.POST('/admin/auth/logout');
-    router.replace('/login');
-  }
-
   if (pending) {
     return (
       <AuthCard
@@ -105,13 +97,8 @@ export default function SettingsPage() {
   const areas = [...new Set(rows.map((r) => r.area))];
   return (
     <main className="admin-page">
-      <header className="admin-header">
-        <h1 className="mt-text-h2">{t('t_settings')}</h1>
-        <span className="auth-muted">{me?.fullName}</span>
-        <button type="button" className="auth-link-button" onClick={logout}>
-          {t('t_logout')}
-        </button>
-      </header>
+      <AdminNav />
+      <h1 className="mt-text-h2">{t('t_settings')}</h1>
       {notice && <Alert kind="success">{notice}</Alert>}
       {err && err.code !== 'REAUTH_REQUIRED' && <Alert kind="error">{err.message}</Alert>}
       {areas.map((area) => (

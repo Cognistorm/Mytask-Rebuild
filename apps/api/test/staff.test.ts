@@ -240,3 +240,151 @@ describe('admin settings: the 2FA switch S-056 (spec 16 AC-51…AC-56, AC-7)', (
     expect(res.body.details.permission).toBe('settings.read');
   });
 });
+
+describe('part B-2a: IP bans, own password, activate, ban', () => {
+  const registerUser = (extra: object = {}) =>
+    request(app.getHttpServer())
+      .post('/api/v1/auth/register')
+      .set({ 'X-MyTask-Client': 'ios' })
+      .send({
+        fullName: 'U U U',
+        username: `w_${Date.now()}${Math.floor(Math.random() * 1000)}`,
+        email: `w${Date.now()}${Math.floor(Math.random() * 1000)}@example.com`,
+        password: 'Secret123',
+        acceptTerms: true,
+        ...extra,
+      });
+
+  it('banned IPs: add, list, duplicate, remove (spec 01 AC-52)', async () => {
+    const auth = { Authorization: `Bearer ${await login(await makeStaff())}` };
+    const add = await request(app.getHttpServer())
+      .post('/api/v1/admin/ip-bans')
+      .set(auth)
+      .send({ ip: '198.51.100.7', note: 'test' });
+    expect(add.status).toBe(201);
+    expect(add.body).toMatchObject({ ip: '198.51.100.7', source: 'manual' });
+    const dup = await request(app.getHttpServer())
+      .post('/api/v1/admin/ip-bans')
+      .set(auth)
+      .send({ ip: '198.51.100.7' });
+    expect(dup.status).toBe(409);
+    const list = await request(app.getHttpServer()).get('/api/v1/admin/ip-bans').set(auth);
+    expect(list.body.data.map((b: { ip: string }) => b.ip)).toContain('198.51.100.7');
+    expect(
+      (await request(app.getHttpServer()).delete('/api/v1/admin/ip-bans/198.51.100.7').set(auth))
+        .status,
+    ).toBe(204);
+    expect(
+      (await request(app.getHttpServer()).delete('/api/v1/admin/ip-bans/198.51.100.7').set(auth))
+        .status,
+    ).toBe(404);
+  });
+
+  it('own password change ends the other staff sessions (spec 16 AC-6)', async () => {
+    const staff = await makeStaff();
+    const first = await login(staff);
+    await app.get(RedisService).client.flushall(); // new device -> new code, not throttled
+    const second = await login(staff);
+    const wrong = await request(app.getHttpServer())
+      .post('/api/v1/admin/me/password')
+      .set('Authorization', `Bearer ${second}`)
+      .send({
+        currentPassword: 'nope',
+        newPassword: 'NewStaff99',
+        newPasswordConfirmation: 'NewStaff99',
+      });
+    expect(wrong.body.code).toBe('STAFF_CURRENT_PASSWORD_WRONG');
+    const ok = await request(app.getHttpServer())
+      .post('/api/v1/admin/me/password')
+      .set('Authorization', `Bearer ${second}`)
+      .send({
+        currentPassword: PASSWORD,
+        newPassword: 'NewStaff99',
+        newPasswordConfirmation: 'NewStaff99',
+      });
+    expect(ok.status).toBe(204);
+    expect(
+      (
+        await request(app.getHttpServer())
+          .get('/api/v1/admin/me')
+          .set('Authorization', `Bearer ${first}`)
+      ).status,
+    ).toBe(401);
+    expect(
+      (
+        await request(app.getHttpServer())
+          .get('/api/v1/admin/me')
+          .set('Authorization', `Bearer ${second}`)
+      ).status,
+    ).toBe(200);
+  });
+
+  it('activate a pending user: idempotent replay, EV-03, then 409 (spec 01 AC-5)', async () => {
+    const auth = { Authorization: `Bearer ${await login(await makeStaff())}` };
+    await prisma.setting.create({
+      data: {
+        key: 'auth.email_verification.required',
+        registerId: 'S-052',
+        value: true,
+        currentVersion: 1,
+      },
+    });
+    app.get(SettingsService).invalidate();
+    const pending = await registerUser();
+    expect(pending.body.outcome).toBe('pending_admin_review');
+    const user = await prisma.user.findFirstOrThrow({
+      where: { status: 'pending' },
+      orderBy: { createdAt: 'desc' },
+    });
+    const noKey = await request(app.getHttpServer())
+      .post(`/api/v1/admin/users/${user.id}/activate`)
+      .set(auth)
+      .send({});
+    expect(noKey.status).toBe(400);
+    const first = await request(app.getHttpServer())
+      .post(`/api/v1/admin/users/${user.id}/activate`)
+      .set({ ...auth, 'Idempotency-Key': '0190f5c2-7d3a-7cc1-9b1e-000000000001' })
+      .send({});
+    expect(first.status).toBe(200);
+    expect(first.body.user.status).toBe('active');
+    const replay = await request(app.getHttpServer())
+      .post(`/api/v1/admin/users/${user.id}/activate`)
+      .set({ ...auth, 'Idempotency-Key': '0190f5c2-7d3a-7cc1-9b1e-000000000001' })
+      .send({});
+    expect(replay.status).toBe(200);
+    expect(replay.headers['idempotent-replayed']).toBe('true');
+    const again = await request(app.getHttpServer())
+      .post(`/api/v1/admin/users/${user.id}/activate`)
+      .set({ ...auth, 'Idempotency-Key': '0190f5c2-7d3a-7cc1-9b1e-000000000002' })
+      .send({});
+    expect(again.status).toBe(409);
+    expect(
+      await prisma.outboxEvent.count({ where: { eventType: 'EV-03', aggregateId: user.id } }),
+    ).toBe(1);
+  });
+
+  it('ban ends every session at once (spec 01 AC-45)', async () => {
+    const auth = { Authorization: `Bearer ${await login(await makeStaff())}` };
+    const reg = await registerUser();
+    const userToken = reg.body.session.accessToken;
+    const ban = await request(app.getHttpServer())
+      .post(`/api/v1/admin/users/${reg.body.session.user.id}/ban`)
+      .set(auth)
+      .send({ reason: 'spam' });
+    expect(ban.status).toBe(200);
+    const me = await request(app.getHttpServer())
+      .get('/api/v1/me')
+      .set('Authorization', `Bearer ${userToken}`);
+    expect(me.status).toBe(403);
+    expect(me.body.code).toBe('ACCOUNT_SUSPENDED');
+  });
+
+  it('an account with a password gets 409 when asking for an emailed confirmation code', async () => {
+    const reg = await registerUser();
+    const res = await request(app.getHttpServer())
+      .post('/api/v1/me/two-factor/challenges')
+      .set('Authorization', `Bearer ${reg.body.session.accessToken}`)
+      .send({ purpose: 'revoke_sessions' });
+    expect(res.status).toBe(409);
+  });
+});

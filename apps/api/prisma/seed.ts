@@ -8,7 +8,7 @@ import { existsSync } from 'node:fs';
 import { hash, Algorithm } from '@node-rs/argon2';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../src/generated/prisma/client';
-import { PERMISSIONS, SUPER_ADMIN_ROLE } from '../src/modules/staff/permissions';
+import { DEFAULT_ROLES, PERMISSIONS, SUPER_ADMIN_ROLE } from '../src/modules/staff/permissions';
 
 if (!process.env.DATABASE_URL && existsSync('../../.env')) process.loadEnvFile('../../.env');
 if (process.env.NODE_ENV === 'production') {
@@ -38,6 +38,18 @@ async function main(): Promise<void> {
       where: { roleId_permissionCode: { roleId: role.id, permissionCode: code } },
       create: { roleId: role.id, permissionCode: code },
       update: {},
+    });
+  }
+
+  // Default roles (spec 16 AC-11, P-114): created once, never overwritten (roles are editable data).
+  for (const r of DEFAULT_ROLES) {
+    if (await prisma.role.findUnique({ where: { code: r.code } })) continue;
+    await prisma.role.create({
+      data: {
+        code: r.code,
+        name: r.name,
+        permissions: { create: r.permissions.map((permissionCode) => ({ permissionCode })) },
+      },
     });
   }
 

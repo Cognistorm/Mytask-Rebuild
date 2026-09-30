@@ -2,6 +2,7 @@ import { type MiddlewareConsumer, Module, type NestModule } from '@nestjs/common
 import { AuthModule } from './modules/auth/auth.module';
 import { StaffModule } from './modules/staff/staff.module';
 import { AuditModule } from './platform/audit/audit.service';
+import { IdempotencyModule } from './platform/idempotency/idempotency.service';
 import { AppVersionMiddleware } from './platform/app-version/app-version.middleware';
 import { RateLimitMiddleware } from './platform/rate-limit/rate-limit.middleware';
 import { ClientIpModule } from './platform/client-ip/client-ip.module';
@@ -24,6 +25,7 @@ import { SettingsModule } from './platform/settings/settings.module';
     ClientIpModule,
     OutboxModule,
     AuditModule,
+    IdempotencyModule,
     AuthModule,
     StaffModule,
   ],

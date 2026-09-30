@@ -86,3 +86,16 @@ describe('request id on early refusals (QA P3 bug 2)', () => {
     expect(res.headers['x-request-id']).toMatch(UUID);
   });
 });
+
+describe('Accept-Language normalisation (ADR-006 §2)', () => {
+  it('browser-style and wildcard values are served (en-US -> en, * -> ka)', async () => {
+    const en = await request(app.getHttpServer())
+      .get('/api/v1/does-not-exist')
+      .set('Accept-Language', 'en-US,en;q=0.9');
+    expect(en.body.message).toBe('Page not found');
+    const any = await request(app.getHttpServer())
+      .get('/api/v1/health')
+      .set('Accept-Language', '*');
+    expect(any.status).toBe(200);
+  });
+});

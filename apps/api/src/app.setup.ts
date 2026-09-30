@@ -7,6 +7,7 @@ import { Logger } from 'nestjs-pino';
 import type { Env } from './platform/config/env';
 import { csrfMiddleware } from './platform/csrf/csrf.middleware';
 import { ErrorFilter } from './platform/errors/error.filter';
+import { resolveLocale } from './platform/errors/messages';
 import { contractValidator } from './platform/openapi/contract';
 
 export const API_PREFIX = 'api/v1';
@@ -32,6 +33,12 @@ export function configureApp(app: NestExpressApplication, env: Env): void {
   app.use((req: Request & { id?: string }, res: Response, next: NextFunction) => {
     req.id = randomUUID();
     res.setHeader('X-Request-Id', req.id);
+    next();
+  });
+  // ADR-006 §2: only ka and en exist; any other Accept-Language (browsers send "en-US,en;q=0.9", tools "*")
+  // means the nearest of the two — never a 400 from the contract's enum.
+  app.use((req: Request, _res: Response, next: NextFunction) => {
+    req.headers['accept-language'] = resolveLocale(req.headers['accept-language']);
     next();
   });
   app.use(cookieParser());

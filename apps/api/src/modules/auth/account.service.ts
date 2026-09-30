@@ -13,7 +13,7 @@ import { PasswordService } from './password.service';
 import type { RequestContext } from './request-context';
 import { SessionsService } from './sessions.service';
 import { ThrottleService } from './throttle.service';
-import { TwoFactorService } from './two-factor.service';
+import { TwoFactorService, userOwner } from './two-factor.service';
 import { parseUserAgent } from './user-agent';
 
 type S = components['schemas'];
@@ -110,6 +110,27 @@ export class AccountService {
       'user_revoked',
     );
     return { revokedCount };
+  }
+
+  /**
+   * Accounts without a password confirm sensitive changes with an emailed code of one purpose (SEC-05,
+   * Q-144; spec 01 AC-21, AC-44). Accounts with a password use the password (409).
+   */
+  async createChallenge(
+    userId: string,
+    input: S['TwoFactorChallengeCreateRequest'],
+    ctx: RequestContext,
+  ) {
+    const purpose = input?.purpose ?? 'toggle_two_factor';
+    if (purpose === 'toggle_two_factor' && !(await this.settings.get('S-056'))) {
+      throw new ApiException(403, 'FEATURE_DISABLED', 't_toast_something_went_wrong', {
+        settingId: 'S-056',
+      });
+    }
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    if (user.passwordHash)
+      throw new ApiException(409, 'STATE_CONFLICT', 't_toast_something_went_wrong');
+    return this.twoFactor.createChallenge(userOwner(user), purpose, null, ctx.ip, ctx.t);
   }
 
   /** AC-20, AC-21, AC-31: switch email 2FA on or off after re-authentication. */

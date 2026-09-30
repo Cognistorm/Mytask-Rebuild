@@ -39,3 +39,21 @@ test('Super-admin switches email 2FA (S-056) on and off from the settings screen
   await page.getByRole('switch', { name: /^S-056 / }).click();
   await expect(page.getByRole('switch', { name: /^S-056 / })).toBeChecked({ checked: wasOn });
 });
+
+test('Super-admin adds and removes a banned IP (spec 01 AC-52)', async ({ page }) => {
+  test.skip(!log, 'needs the full stack (ADMIN_E2E_LOG)');
+  const password = /password: (\S+)/.exec(readFileSync(log!, 'utf8'))?.[1];
+  test.skip(!password, 'seed output not in this log');
+  await page.goto('/login');
+  await page.getByLabel('მომხმარებელი ან ელ-ფოსტის მისამართი').fill('owner');
+  await page.getByLabel('პაროლი', { exact: true }).fill(password!);
+  await page.getByRole('button', { name: 'ავტორიზაცია' }).click();
+  await expect(page).toHaveURL(/\/settings$/);
+  await page.getByRole('link', { name: 'დაბლოკილი IP მისამართები' }).click();
+  await page.getByLabel('Ip address', { exact: true }).fill('203.0.113.77');
+  await page.getByRole('button', { name: 'დამატება' }).click();
+  const row = page.getByTestId('ip-ban').filter({ hasText: '203.0.113.77' });
+  await expect(row).toBeVisible();
+  await row.getByRole('button').click();
+  await expect(row).toHaveCount(0);
+});
