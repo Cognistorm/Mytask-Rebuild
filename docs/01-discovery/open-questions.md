@@ -618,3 +618,42 @@ Options:
 (a) Apply the legacy rule to the real texts in the page language, with the Georgian fallback (spec 04 AC-32 as written, P-137).
 (b) "Same sub-category" only (what most newer gigs effectively got).
 Recommendation: (a). It is what the legacy code was written to do, and it only adds matches on top of (b).
+
+## API contract questions (solution-architect, P2-B4, 2026-09-29) — open
+Raised by the six group runs and consolidated by the integration run (`docs/handoffs/2026-09-29-solution-architect-to-orchestrator-p2-b4-integration.md`, "Open questions / risks"). Every item already has a safe default in `docs/04-api/openapi.yaml`; the Owner answer confirms or replaces it. **When = Gate** means answer at the Phase 2 gate (contract shape, money, permissions or a PROPOSED item); **slice** means it can wait for that feature slice.
+
+| # | Spec / AC | Question (plain language) | Safe default in the contract now | Recommendation | When |
+|---|---|---|---|---|---|
+| Q-111 | 05 AC-44…47, S-128, 00 R-5.3a (P-135, P-136) | Accept the proposed nightly money check (time setting S-128, default 03:00) and the Georgian-title character rule? | Operations exist, marked PROPOSED | Accept both | **Gate** |
+| Q-112 | 16 AC-9 (D6-Q1) | Staff actions on their own account (log out, own profile, re-login, maintenance preview) need no permission from the list — OK? | `@self`, own data only, audited | Accept (no catalogue change) | **Gate** |
+| Q-113 | 14 AC-13, 16 AC-42 (Q-D3-1) | Who may see the withdrawals list with IBANs: everyone with "payments read" (incl. Customer Support) or only "approve withdrawals"? | `payments.read` for list/detail | Use `withdrawals.approve` for list/detail too (less IBAN exposure) | **Gate** |
+| Q-114 | 16 AC-40, 08 AC-29 (Q-D5-4) | Refund threads: readable only with "refund thread write", or also by anyone with "read chats"? | Refund threads need `refunds.thread.write`; other threads `chat.read` | Keep | **Gate** |
+| Q-115 | 16 AC-24 (D4 risk) | Content moderators approve offers but cannot download offer attachments (needs "orders read"). Give them access? | No access | Accept as is, or grant `orders.read` to the moderator role | Gate |
+| Q-116 | 12 R-C2, 13 AC-13 (Q-D4-4) | Texts for "offer only to people you talk to" and "no revision during a dispute" | Generic refusal / reused text | Add the two keys above | slice (12/13) |
+| Q-117 | 16 AC-21 (Q-D1-1) | Portfolio "reject": keep a "rejected" state with a reason shown to the owner (and notify?) or reject = delete with reason? | `rejected` state + reason, no notification | Keep state; add a notification (new EV, marked NEW) | Gate (data model) |
+| Q-118 | 16 AC-28 (D6-Q5) | Old reports marked "seen" — import as open? | Imported as `pending` | Accept | slice (16) |
+| Q-119 | 16 AC-7 (Q-D3-2) | Re-login required before releasing/writing off old held balances? | Yes | Accept | Gate |
+| Q-120 | 16 AC-44 (Q-D3-3) | A negative old held balance: may staff "release" it (lowers Available) or only write it off? | Release refused if Available would go below 0 | Write-off only for negatives | Gate (money) |
+| Q-121 | 13 AC-30 (Q-D4-2) | "Refund buyer" while a dispute is open: allowed, or only via the dispute decision? | Refused (`DISPUTE_OPEN`) | Keep | Gate (money) |
+| Q-122 | 16 AC-39 (Q-D4-1) | Escrow "overdue" filter means: auto-release deadline passed, or delivery date passed without delivery, or both? | Either | Both (two filter values) | slice (16) |
+| Q-123 | 16 AC-20 (D2 Q1) | Restoring a removed gig: counts against the plan limit? back to "pending" when S-070 is OFF? notify the owner? | Restored to active, no notification, no limit check | Check the limit; notify (NEW event) | slice (04/16) |
+| Q-124 | 10 AC-1 vs EC-5 (Q-D5-1) | With projects switched OFF, may a pending award still be accepted? | Award accept/decline/revoke and contracts keep working | Keep | slice (10/11) |
+| Q-125 | 08 AC-19 (Q-D5-2) | "Chat now" from a masked project owner: may the chat show the real username? | Real username in chat | Keep (chat is a direct relationship) | slice (08) |
+| Q-126 | 11 AC-21 (Q-D5-3) | Text for re-proposing after declining an award | `t_u_already_submitted_a_bid_to_this_project` | Product-analyst adds a precise key | slice (11) |
+| Q-127 | 06/11/12 threads (Q-D5-5) | Attachments only in direct chats, not in item threads? | Text only in item threads | Keep | slice (08) |
+| Q-128 | 10 AC-14 (Q-D5-6) | Hiding a project with a waiting award: revoke the award? | Award stays pending, no new awards | Keep | slice (10) |
+| Q-129 | 08 AC-12 (Q-D5-7) | 30 messages/minute limit for all threads? | All kinds | Keep | slice (08) |
+| Q-130 | 01 AC-7, AC-9 (Q-D1-2/3) | Message for an already-used verification link; answer for resend to an unknown email | `AUTH_LINK_INVALID`; same success text (no enumeration) | Keep | slice (01) |
+| Q-131 | 02 AC-34 (Q-D1-4) | Account deletion: dialog only, no password? | No password | Keep (as spec) | slice (02) |
+| Q-132 | 01 EC-8 (Q-D1-6) | Staff "switch 2FA off" for a user under `users.edit` with a reason? | Yes, audited | Accept | slice (16) |
+| Q-133 | 09 (Q-D3-4) | Promo codes deletable only before first use (deactivate after)? | Yes | Accept | slice (09) |
+| Q-134 | 05 AC-36 (Q-D3-5) | Billing profile: keep legacy city and zip fields? | Not included | Add them (parity) | slice (05) — QA parity |
+| Q-135 | 17 AC-35 (D2 Q2, Q3) | Home: featured-category tiles vs category rows; keep the legacy "Latest projects" block? | Legacy behaviour; no "Latest projects" block | Keep the block via `searchProjects` | slice (17) |
+| Q-136 | 16 AC-69 (D6-Q4) | "Retry" of a failed email with the read permission `system.health.read`? | Yes (approved spec) | Accept | slice (16) |
+| Q-137 | 16 settings areas (D6-Q2) | Which settings area (permission) owns S-128? | `system` (Super-admin) | `payments` once P-135 is accepted | Gate (with Q-111) |
+| Q-138 | 15 catalogue (D6-Q3) | Staff password-reset and staff email-change emails have no EV row | Reuse user templates | Product-analyst adds EV rows | slice (15/16) |
+| Q-139 | 16 AC-7 (D6-Q6) | Staff re-login: password, or the emailed code only when 2FA is ON? | Password or code (S-060 ON) | Keep | slice (16) |
+| Q-140 | 16 AC-3, AC-5 (D6-Q7/Q8) | Allow removing all roles from a staff member; forbid editing a role you hold yourself? | Both as stated | Accept | slice (16) |
+| Q-141 | limits not in specs (Q-D1-5, D2 Q5, Q-D4-3, Q-D4-5, Q-D4-6, Q-D3-7) | Technical limits chosen: staff email subject 200 / body 10,000; support reply subject 200; offer-request days 1–365; offer price 1.00…9,999,999,999.00 GEL; order details 5,000 counted on submitted text; recon note 1–1,000; adjustment public note ≤ 500; points adjustment ≤ 1,000,000; referral benefit ≤ 120 months; plan features ≤ 30 lines; cart ≤ 100 lines / 50 upgrades | As listed | Accept; P2-B5 checks abuse limits | slice |
+| Q-142 | 04 (D2 Q7) | Migrated gigs with unknown "revisions allowed": how to display? | `null` | Show "not specified" | slice (04) |
+| Q-143 | 16 catalogue (D2 Q6) | Catalog/content screens are read with their write permission (no read permission exists) | write permission | Accept | slice (16) |
