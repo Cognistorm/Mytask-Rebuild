@@ -1,5 +1,5 @@
-# Status — updated 2026-09-29
-Phase: 2 — Blueprint (in progress, Steps 1–6 done) | Gate: not ready | Phase 1 gate: APPROVED by Owner 2026-09-28
+# Status — updated 2026-09-30
+Phase: 2 — Blueprint (Steps 1–8 done) | Gate: **ready for Owner review** (Step 9) | Phase 1 gate: APPROVED by Owner 2026-09-28
 
 ## Done
 - Kit copied; legacy code in /legacy/APP (confirmed = legacy `main`, production logic); vision filled
@@ -23,7 +23,7 @@ Phase: 2 — Blueprint (in progress, Steps 1–6 done) | Gate: not ready | Phase
 - Security: all keys in .env; strict web-root isolation (logs/config never web-reachable); keep restrictions, appeals, IP banning, KYC
 
 ## In progress (agent → task)
-- none. Step 6 done 2026-09-29 (P2-A6 parity master + P2-C4 key screen layouts). Step 7 (P2-B4 openapi.yaml) is ready to start
+- none. Steps 7 and 8 done 2026-09-30. Waiting for the Owner's gate review (Step 9): see docs/handoffs/2026-09-30-orchestrator-to-owner-phase-2-gate.md
 
 ## Blocked (reason, who must act)
 - none
@@ -44,12 +44,18 @@ Phase: 2 — Blueprint (in progress, Steps 1–6 done) | Gate: not ready | Phase
 - P2-A6: docs/06-qa/plans/00-parity-master.md = **ready for Owner** (gate item 3). 69/69 BRs mapped (22 kept, 42 changed, 5 removed) + areas L/M/N; 141/141 legacy notifications (120 kept, 8 merged, 13 removed), cross-checked by script; X-01…X-20 absence tests; R-xxx not-to-reproduce list; 703 ACs judged (699 testable, 3 need a definition, 1 on Q-097 default). Gaps G-1…G-5 to product-analyst (none blocks the gate). Handoff: docs/handoffs/2026-09-29-qa-engineer-to-orchestrator-p2-a6.md
 - P2-C4: docs/05-design/screens/00…08 = **proposed** (gate item 8): home, gig page, gig wizard, project page + proposal form, checkout, order detail, dashboard switcher, chat. Existing components/tokens only; components.md corrected (§9.3 Enter = new line per spec 08 AC-11; §5.3 QuantityInput for revisions; §12 +7 `t_ui_*` strings). Q-105 label applied in the preview. Handoff: docs/handoffs/2026-09-29-ui-ux-designer-to-orchestrator-p2-c4.md
 
+- G-1…G-3 (product-analyst, 2026-09-29): closed as **PROPOSED P-135** (nightly ledger/BOG reconciliation, spec 05 AC-44…AC-47, EC-11…EC-14, new setting S-128 `ledger.reconciliation.run_time` default 03:00), **P-136** (Georgian-field character set, spec 00 R-5.3a) and **P-137** ("You may also like" rule, 04 AC-32). Open: Q-109, Q-110. Spec totals now 707 ACs. Handoff: docs/handoffs/2026-09-29-product-analyst-to-orchestrator-g1-g3.md
+- P2-B4 (solution-architect, 2026-09-29/30): **docs/04-api/openapi.yaml** = proposed contract. Built from sources in docs/04-api/src (foundation + 6 domain groups D1…D6 + integration). 477 operations on 398 paths, 763 schemas, 35 realtime events (realtime.md). `npm run verify:final` (docs/04-api): Redocly lint 0 errors / 0 warnings, check-contract 0/0, check-coverage 0/0. **Coverage 707/707 ACs** (621 API or API+JOB, 86 NOT-API with reason, 0 missing): table in docs/04-api/README.md, per spec in docs/04-api/coverage/. Rules in docs/04-api/CONVENTIONS.md. data-model.md (122 entities) and ADR-008 updated. Owner questions Q-111…Q-143 added to open-questions.md. Handoffs: docs/handoffs/2026-09-29-solution-architect-to-orchestrator-p2-b4-*.md
+- P2-B5 (security-reviewer, 2026-09-30): first verdict FAIL (1 High: SEC-01 client-IP trust chain). The architect fixed SEC-01 and 20 technical findings (ADR-002/004/009/010/012/013/015, contract). **Re-check verdict: PASS with conditions**, no Critical/High open. Reports: docs/06-qa/security/00-blueprint-2026-09-30.md + 01-blueprint-recheck-2026-09-30.md. Owner questions Q-144…Q-150 (+ Q-113) added
+
 ## Next up
-- Step 7: P2-B4 openapi.yaml + coverage table (all specs approved; data model ready)
-- product-analyst, small: parity gaps G-1 (reconciliation AC, before Slice 4), G-2 ("normal punctuation" set) and G-3 ("similar title" rule), both before Slice 3
-- Then Step 8 B5 security review, Step 9 Owner gate
+- **Step 9: Owner gate review** (checklist: docs/handoffs/2026-09-30-orchestrator-to-owner-phase-2-gate.md)
+- After the gate, before Phase 3 slice 01 (security conditions): product-analyst updates specs 01, 02, 14, 15 (SEC-05 emailed-code confirmation for passwordless accounts; 2 NEW security emails for SEC-02/SEC-03); architect fixes SEC-30 (ADR-002 §6); backend implements the ADR-013 §19 client-IP tests
+- Later: SEC-31 in slice 05; social-login binding reviewed before any provider is switched ON; Q-147 (data retention) before the Phase 5 KYC import
+- Owner action now (SEC-28): revoke the Binance and findip keys and remove the Binance bot from the legacy server
 
 ## Decisions waiting for Owner
+- **Phase 2 gate (Step 9)**: approve architecture + ADR-001…016, data model, URL map, openapi.yaml as the contract, design (audit, tokens, components, preview, key screens; checkout column order), parity master, security verdict. Answer the "Gate" questions: Q-109, Q-110, Q-111 (accept P-135/P-136/P-137), Q-112…Q-115, Q-117, Q-119…Q-121, Q-137, Q-144…Q-146 (Q-113 = IBAN visibility). The others (Q-116, Q-118, Q-122…Q-143 slice items, Q-147…Q-150) can wait for their slice; Q-147 before Phase 5
 - Approve ADR-001…016 (as revised in Step 4), the design audit, tokens and components (with the P2-C3 preview) at the Phase 2 gate
 - At the gate: the parity master (docs/06-qa/plans/00-parity-master.md) and the key screen layouts (docs/05-design/screens/); one non-blocking design point: checkout column order (screens/00-README.md)
 - Done 2026-09-29: specs 15, 16, 17 **approved** (P-106…P-134 accepted, S-127 added); Q-105…Q-108 answered as recommended (Q-105 "მოქმედებები"; Q-106 light plate kept; Q-107 size tokens in Phase 3; Q-108 screenshots optional)
