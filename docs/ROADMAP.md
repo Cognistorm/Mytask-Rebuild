@@ -42,7 +42,7 @@ Done so far:
 - [x] 3.0.6 Slice 01 part B-2c: social login API with SEC-09 binding; provider keys S-065…S-069 in admin (contract 1.2.0).
 
 Remaining:
-- [ ] 3.1 Security re-review of platform core P3-1…P3-7 (the earlier run hit a usage limit) → `docs/06-qa/security/`.
+- [x] 3.1 Security re-review of platform core P3-1…P3-7 (the earlier run hit a usage limit) → `docs/06-qa/security/`. Done: review 03 PASS with conditions (1 Medium SEC-49, 7 Low SEC-50…56).
 - [ ] 3.2 Fix P3 QA minor findings BUG-04…BUG-08: import-report text, raw sizes, admin title, Playwright server reuse, hand-typed enums.
 - [ ] 3.3 Fix P3 QA minor findings BUG-09…BUG-14: SETUP-LOCAL notes, `s3-init` check, `/ka/` double redirect, error nits, second agent-rules file, stale docs.
 - [ ] 3.4 `getPublicConfig` part 1: registry rows for every `PublicConfig` field, using spec 00 defaults (approved values only).
@@ -58,7 +58,7 @@ Remaining:
 - [ ] 3.14 Architect: P3-9 study on isolating S-110 custom code (note or ADR).
 - [ ] 3.15 QA parity report for all of slice 01 → `docs/06-qa/reports/`.
 - [ ] 3.16 Security review of slice 01 B-1…B-2c, incl. SEC-09 → `docs/06-qa/security/`.
-- [ ] 3.17 Fix findings from 3.15/3.16 (split into 3.17a/b… if more than one step).
+- [ ] 3.17 Fix findings from 3.15/3.16, plus the before-slice-01-done items of review 03 (SEC-39, rest of SEC-35, SEC-50, SEC-51, SEC-45 tests) (split into 3.17a/b… if more than one step).
 - [ ] 3.18 Open PR `feat/auth` → `main`, CI green (Owner merges).
 - [ ] 3.19 **Phase 3 gate (Owner):** register / log in / log out on web and app; approve.
 
