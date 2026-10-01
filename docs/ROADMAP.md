@@ -57,7 +57,9 @@ Remaining:
 - [x] 3.12 Mobile: Account → Security (change password, 2FA switch, sessions).
 - [x] 3.13 Architect: record data-model gaps `staff.full_name` and the staff re-auth code purpose; add `/auth/password/update` and `/auth/verify` (with and without `/en`) to the App Link claims of url-map §7.2 (spec 01 screens table; app side done in 3.10/3.11).
 - [x] 3.14 Architect: P3-9 study on isolating S-110 custom code (note or ADR).
-- [ ] 3.15 QA parity report for all of slice 01 → `docs/06-qa/reports/`.
+- [ ] 3.15 QA parity report for all of slice 01 → `docs/06-qa/reports/` (split, 2026-10-01):
+  - [x] 3.15a Test plan `docs/06-qa/plans/01-auth.md` (AC → test case → evidence) + run every automated suite (lint, typecheck, API, web/admin E2E incl. full-stack via `pnpm preview`, mobile export) + API-level checks of the ACs on the running local stack; report part 1.
+  - [ ] 3.15b Screen parity vs live site and `/legacy/` (web + mobile), i18n check, cross-client check (web ↔ app), bugs + verdict; report complete.
 - [ ] 3.16 Security review of slice 01 B-1…B-2c, incl. SEC-09 → `docs/06-qa/security/`.
 - [ ] 3.17 Fix findings from 3.15/3.16 and the web 2FA switch for accounts without a password (emailed code, as mobile 3.12), the staff emailed re-auth code (`twofa_purpose` `staff_reauth`: Prisma enum + migration, `adminRequestReauthCode`, `adminReauthenticate` `method: email_code`; data-model §3.A, recorded in 3.13), plus the before-slice-01-done items of review 03 (SEC-39, rest of SEC-35 incl. register limit 10/hour/IP per Q-157, SEC-50, SEC-51, SEC-45 tests) (split into 3.17a/b… if more than one step).
 - [ ] 3.18 Open PR `feat/auth` → `main`, CI green (Owner merges).
@@ -267,7 +269,7 @@ Remaining:
 - [ ] 4.8.3 API: `listPlans`, `getCurrentSubscription`, `cancelSubscription`, `resumeSubscription`.
 - [ ] 4.8.4 Premium by card + auto-renew job + renewal reminder.
 - [ ] 4.8.5 API: `purchaseSubscriptionWithPoints`, `getPointsSummary`, `listPointsHistory`.
-- [ ] 4.8.6 API: `listReferrals`, `getReferralSummary`, `listPayments`.
+- [ ] 4.8.6 API: `listReferrals`, `getReferralSummary`, `listPayments`; implement `ReferralService.creditSignup` (slice 01 hook, currently a no-op) and credit every referral still `pending` for an already active user exactly once (QA 3.15a D-1).
 - [ ] 4.8.7 API admin: `adminListPlans`, `adminUpdatePlan`, `adminListSubscriptions`, `adminGiftSubscription` (+ cancel).
 - [ ] 4.8.8 API admin: promo codes CRUD + redemptions.
 - [ ] 4.8.9 API admin: referral benefits CRUD, `adminListReferrals`, `adminListPointsHistory`.
