@@ -69,6 +69,12 @@ export class AuthService {
     input: S['RegisterRequest'],
     ctx: RequestContext,
   ): Promise<{ result: S['RegisterResult']; session?: SessionResult }> {
+    const wait = await this.throttle.registerWait(ctx.ip);
+    if (wait > 0) {
+      throw new ApiException(429, 'RATE_LIMITED', 't_too_many_requests', {
+        retryAfterSeconds: wait,
+      });
+    }
     await this.requireRecaptcha(input.recaptchaToken, ctx);
     const [verificationRequired, method, linkMinutes] = await Promise.all([
       this.settings.get('S-052'),

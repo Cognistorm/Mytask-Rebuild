@@ -150,7 +150,7 @@
     x-covers: ['00 AC-1', '01 AC-1', '01 AC-2', '01 AC-3', '01 AC-4', '01 AC-5', '01 AC-6', '01 AC-18', '09 AC-23', '09 AC-25']
     x-settings: [S-052, S-053, S-054, S-061, S-046, S-100]
     x-notifications: [EV-01, EV-02]
-    x-rate-limit: 'global write limit per IP (CONVENTIONS §14); reCAPTCHA S-061'
+    x-rate-limit: '10 registrations per IP (IPv6 /64) per hour → 429 RATE_LIMITED with Retry-After (Q-157); global write limit per IP (CONVENTIONS §14); reCAPTCHA S-061'
     parameters:
       - $ref: '../components/parameters.yaml#/XMyTaskClient'
     requestBody:

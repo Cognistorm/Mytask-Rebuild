@@ -33,7 +33,8 @@ export class AppVersionMiddleware implements NestMiddleware {
     if (client !== 'ios' && client !== 'android') return next();
     const min = (await this.settings.get('S-130'))[client];
     res.setHeader('X-Min-App-Version', min);
-    if (EXEMPT.some((re) => re.test(req.originalUrl))) return next();
+    const url = req.originalUrl.toLowerCase(); // SEC-51
+    if (EXEMPT.some((re) => re.test(url))) return next();
 
     const version = String(req.headers['x-mytask-app-version'] ?? '');
     if (!SEMVER.test(version) || !SEMVER.test(min)) {

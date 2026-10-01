@@ -19,7 +19,8 @@ export function csrfMiddleware(env: Env) {
 
   return (req: Request, _res: Response, next: NextFunction) => {
     if (!UNSAFE.has(req.method)) return next();
-    const path = req.path;
+    // SEC-51: Express matches routes case-insensitively by default; the origin rule must not differ.
+    const path = req.path.toLowerCase();
     if (EXEMPT.some((re) => re.test(path))) return next();
     if (req.headers.authorization?.startsWith('Bearer ')) return next();
 

@@ -25,6 +25,18 @@ function isValidatorError(e: unknown): e is ValidatorError {
   );
 }
 
+/** Errors thrown by the JSON body parser (`entity.parse.failed`, `entity.too.large`, `charset.unsupported`, …). */
+function isBodyParserError(e: unknown): e is { type: string; status: number } {
+  const x = e as { type?: unknown; status?: unknown } | null;
+  return (
+    typeof x?.type === 'string' &&
+    typeof x.status === 'number' &&
+    x.status >= 400 &&
+    x.status < 500 &&
+    /^(entity|charset|encoding|request|parameters|stream)\./.test(x.type)
+  );
+}
+
 const STATUS_CODES: Record<number, ErrorCode> = {
   400: 'VALIDATION_FAILED',
   401: 'UNAUTHENTICATED',
@@ -88,6 +100,18 @@ export class ErrorFilter implements ExceptionFilter {
     if (exception instanceof ApiException) {
       ({ status, code, messageKey } = exception);
       details = { ...exception.details };
+    } else if (isBodyParserError(exception)) {
+      // SEC-39: malformed or oversized JSON is the client's error. Never log it: body-parser attaches the raw
+      // request text (which may hold a password) to the error.
+      status = 400;
+      code = 'VALIDATION_FAILED';
+      messageKey = defaultMessageKeys[code] ?? FALLBACK_MESSAGE_KEY;
+      const fieldCode = exception.type === 'entity.too.large' ? 'too_large' : 'invalid_json';
+      details = {
+        fields: [
+          { field: 'body', code: fieldCode, message: translate(messageKey, locale), messageKey },
+        ],
+      } as ErrorDetails;
     } else if (isValidatorError(exception)) {
       // express-openapi-validator (ADR-014 §3). 5xx from it = our response broke the contract.
       // 405 -> 404 and 413/415 -> 400: the contract only knows the statuses of CONVENTIONS §7.2.

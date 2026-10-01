@@ -65,7 +65,7 @@ Remaining:
   - [x] 3.17a Backend SEC-57 points 1–3 + 5 (**before merge**): staff login IP counter reserved atomically before the password check, reset only once a session is issued (after 2FA), ban keyed by `ipBucket` (/64) with the helper moved next to the client-IP resolver, staff writes limited to 120/IP-minute; burst + reset tests (probes P1, P2 as permanent tests).
   - [x] 3.17b Backend SEC-60 canonical IP bans + SEC-59 contract audit names (`setting.update`, `ip_ban.create/delete`, `staff.reauth`, write `staff.logout`) with a table test; architect note for SEC-57 point 4 in ADR-002 §6.
   - [x] 3.17c Backend staff emailed re-auth code: `twofa_purpose` `staff_reauth` (Prisma enum + migration), `adminRequestReauthCode`, `adminReauthenticate` `method: email_code`, tests.
-  - [ ] 3.17d Backend SEC-35 rest (register 10/hour/IP per Q-157 + EV-02 cap), SEC-42 per-operation keys (S-062, R-A9 by `ipBucket`), SEC-50 limiter placement, SEC-51 path case, SEC-39 body-parser errors.
+  - [x] 3.17d Backend SEC-35 rest (register 10/hour/IP per Q-157; EV-02 cap moved to 3.17l), SEC-42 per-operation keys (S-062, R-A9 by `ipBucket`), SEC-50 limiter placement, SEC-51 path case, SEC-39 body-parser errors.
   - [ ] 3.17e Backend SEC-37 (resend never revives old/exhausted challenges; password change/reset invalidates open login challenges, users + staff), SEC-41 + I-23 (`remember_me` carried on the session), SEC-47 (reCAPTCHA action + hostname, incl. staff login), SEC-58 (social delivery by stored client kind, P3 test); user re-auth codes (`updateMyTwoFactor`, `revokeMyOtherSessions`): an unknown/used/other-purpose challenge must answer 422 `TWO_FACTOR_CODE_EXPIRED` (today 404, not in the contract → 500), and the exhausting wrong code (`TWO_FACTOR_TOO_MANY_ATTEMPTS`) must count towards SEC-04 (found in 3.17c; staff side fixed there).
   - [ ] 3.17f SEC-45 tests (env tests SMTP_URL / SETTINGS_ENCRYPTION_KEY / memory:// / log; P4) + SEC-44 (server lost-race rule, client signs out only on 401).
   - [ ] 3.17g Web: 2FA switch for accounts without a password (emailed code, as mobile 3.12) + SEC-48 replaceState on `auth/password/update` and `auth/verify` + F-05 admin aria-label.
@@ -73,6 +73,7 @@ Remaining:
   - [ ] 3.17i Analyst/docs: BUG-04 terms text decision, F-04 spec text, F-01 mobile reCAPTCHA doc gap; F-02 routed sessions E2E by state.
   - [ ] 3.17j QA re-check report §10 (screens web ka + en, app source, web E2E on the production build).
   - [ ] 3.17k Security re-check of 3.17a–g (SEC-57 gate for the merge; the rest for slice 01 done).
+  - [!] 3.17l Backend EV-02 cap per hour (SEC-35) — **waits on Owner Q-159** (open-questions.md).
 - [ ] 3.18 Open PR `feat/auth` → `main`, CI green (Owner merges).
 - [ ] 3.19 **Phase 3 gate (Owner):** register / log in / log out on web and app; approve.
 

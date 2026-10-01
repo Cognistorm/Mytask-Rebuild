@@ -41,5 +41,8 @@ export const CODE_SENDS_WINDOW_SECONDS = 15 * 60;
 /** Email-sending endpoints (spec 01 R-A9, P-19). */
 export const LINK_EMAILS_PER_HOUR = 3;
 
+/** Registrations per client IP (IPv6 /64) per hour (Owner Q-157, SEC-35). */
+export const REGISTERS_PER_IP_PER_HOUR = 10;
+
 /** Per-account + IP login window (spec 01 AC-16: S-062 attempts per 15 minutes). */
 export const LOGIN_WINDOW_SECONDS = 15 * 60;

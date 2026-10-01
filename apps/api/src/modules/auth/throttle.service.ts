@@ -1,7 +1,8 @@
 // Brute-force protection counters (ADR-002 §5–§6, spec 01 AC-16, AC-25, AC-27, AC-36, AC-53…AC-55, R-A9).
-// All state is in Redis; every IP comes from ClientIpResolver. Keys of login counters use a hash of the
+// All state is in Redis; every IP comes from ClientIpResolver and is keyed by `ipBucket` (IPv6 /64, SEC-42). Keys of login counters use a hash of the
 // normalised email, so unknown and known emails behave identically (no account enumeration).
 import { Injectable } from '@nestjs/common';
+import { ipBucket } from '../../platform/client-ip/client-ip.resolver';
 import { sha256Hex } from '../../platform/crypto';
 import { RedisService } from '../../platform/redis/redis.module';
 import { SettingsService } from '../../platform/settings/settings.service';
@@ -13,6 +14,7 @@ import {
   CODE_SENDS_WINDOW_SECONDS,
   LINK_EMAILS_PER_HOUR,
   LOGIN_WINDOW_SECONDS,
+  REGISTERS_PER_IP_PER_HOUR,
   SLOW_MODE_FAILURES,
   SLOW_MODE_SLOT_SECONDS,
   SLOW_MODE_WINDOW_SECONDS,
@@ -58,7 +60,7 @@ export class ThrottleService {
    */
   async loginGate(email: string, ip: string, bypassSlot: boolean): Promise<LoginGate> {
     const acct = emailKey(email);
-    const lockKey = `auth:login:lock:${acct}:${ip}`;
+    const lockKey = `auth:login:lock:${acct}:${ipBucket(ip)}`;
     const lock = await this.ttl(lockKey);
     if (lock > 0) return { kind: 'locked', retryAfterSeconds: lock };
 
@@ -66,11 +68,11 @@ export class ThrottleService {
       this.settings.get('S-062'),
       this.settings.get('S-063'),
     ]);
-    const attempt = await this.hit(`auth:login:ip:${acct}:${ip}`, LOGIN_WINDOW_SECONDS);
+    const attempt = await this.hit(`auth:login:ip:${acct}:${ipBucket(ip)}`, LOGIN_WINDOW_SECONDS);
     if (attempt > maxAttempts) {
       await this.r.set(lockKey, '1', 'EX', lockMinutes * 60, 'NX');
       // Keep the counter (parallel requests keep hitting it) and let it end together with the lock.
-      await this.r.expire(`auth:login:ip:${acct}:${ip}`, lockMinutes * 60);
+      await this.r.expire(`auth:login:ip:${acct}:${ipBucket(ip)}`, lockMinutes * 60);
       return { kind: 'locked', retryAfterSeconds: Math.max(1, await this.ttl(lockKey)) };
     }
 
@@ -90,11 +92,11 @@ export class ThrottleService {
       this.settings.get('S-062'),
       this.settings.get('S-063'),
     ]);
-    const perIp = Number((await this.r.get(`auth:login:ip:${acct}:${ip}`)) ?? 0);
+    const perIp = Number((await this.r.get(`auth:login:ip:${acct}:${ipBucket(ip)}`)) ?? 0);
     if (perIp >= maxAttempts) {
-      await this.r.set(`auth:login:lock:${acct}:${ip}`, '1', 'EX', lockMinutes * 60);
+      await this.r.set(`auth:login:lock:${acct}:${ipBucket(ip)}`, '1', 'EX', lockMinutes * 60);
       // Keep the counter (parallel requests keep hitting it) and let it end together with the lock.
-      await this.r.expire(`auth:login:ip:${acct}:${ip}`, lockMinutes * 60);
+      await this.r.expire(`auth:login:ip:${acct}:${ipBucket(ip)}`, lockMinutes * 60);
     }
     const perAccount = await this.hit(`auth:login:acct:${acct}`, SLOW_MODE_WINDOW_SECONDS);
     return { slowModeStarted: perAccount === SLOW_MODE_FAILURES };
@@ -104,7 +106,7 @@ export class ThrottleService {
   async loginSucceeded(email: string, ip: string): Promise<void> {
     const acct = emailKey(email);
     await this.r.del(
-      `auth:login:ip:${acct}:${ip}`,
+      `auth:login:ip:${acct}:${ipBucket(ip)}`,
       `auth:login:acct:${acct}`,
       `auth:login:slot:${acct}`,
     );
@@ -212,12 +214,21 @@ export class ThrottleService {
     }
   }
 
+  // ------------------------------------------------------------------ registration (Q-157, SEC-35)
+
+  /** Counts a registration attempt; 0 = allowed, else seconds until the hourly window of the IP ends. */
+  async registerWait(ip: string): Promise<number> {
+    const key = `auth:register:ip:${ipBucket(ip)}`;
+    const n = await this.hit(key, 3600);
+    return n <= REGISTERS_PER_IP_PER_HOUR ? 0 : Math.max(1, await this.ttl(key));
+  }
+
   // ------------------------------------------------------------------ link emails (AC-36, R-A9)
 
   /** True when another email may be sent (≤ 3 per address and per IP per hour, silent above). */
   async allowLinkEmail(purpose: string, email: string, ip: string): Promise<boolean> {
     const byEmail = await this.hit(`auth:mail:${purpose}:e:${emailKey(email)}`, 3600);
-    const byIp = await this.hit(`auth:mail:${purpose}:ip:${ip}`, 3600);
+    const byIp = await this.hit(`auth:mail:${purpose}:ip:${ipBucket(ip)}`, 3600);
     return byEmail <= LINK_EMAILS_PER_HOUR && byIp <= LINK_EMAILS_PER_HOUR;
   }
 }

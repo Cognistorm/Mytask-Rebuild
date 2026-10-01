@@ -21,9 +21,10 @@ export class RateLimitMiddleware implements NestMiddleware {
   ) {}
 
   async use(req: Request, _res: Response, next: NextFunction): Promise<void> {
-    if (EXEMPT.some((re) => re.test(req.originalUrl))) return next();
+    const url = req.originalUrl.toLowerCase(); // SEC-51
+    if (EXEMPT.some((re) => re.test(url))) return next();
     const read = READ.has(req.method);
-    const kind = req.originalUrl.startsWith('/api/v1/admin/')
+    const kind = url.startsWith('/api/v1/admin/')
       ? read
         ? 'staff'
         : 'staff_write'

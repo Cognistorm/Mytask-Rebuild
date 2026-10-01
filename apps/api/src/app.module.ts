@@ -5,7 +5,6 @@ import { StaffModule } from './modules/staff/staff.module';
 import { AuditModule } from './platform/audit/audit.service';
 import { IdempotencyModule } from './platform/idempotency/idempotency.service';
 import { AppVersionMiddleware } from './platform/app-version/app-version.middleware';
-import { RateLimitMiddleware } from './platform/rate-limit/rate-limit.middleware';
 import { ClientIpModule } from './platform/client-ip/client-ip.module';
 import { ConfigModule } from './platform/config/config.module';
 import { DbModule } from './platform/db/db.module';
@@ -37,6 +36,6 @@ import { SettingsModule } from './platform/settings/settings.module';
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
-    consumer.apply(RateLimitMiddleware, AppVersionMiddleware).forRoutes('*path');
+    consumer.apply(AppVersionMiddleware).forRoutes('*path');
   }
 }
