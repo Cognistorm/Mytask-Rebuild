@@ -752,3 +752,12 @@ When: before any of S-066 / S-069 is switched ON.
 ### Q-157
 **Rate limits for SEC-35 / SEC-49** (`docs/06-qa/security/03-platform-core-recheck-2026-09-30.md`). (1) Is the global limit of 120 writes per IP per minute acceptable for mobile users who share one carrier IP (NAT)? (2) What per-IP limit applies to registration (review 02 SEC-35; the register limit is still missing)?
 **Answer (Owner, 2026-10-01):** (1) **yes**, 120 writes per IP per minute is kept (`rate-limit.middleware.ts` `LIMITS.write`); per-user keying for signed-in calls (SEC-49) is still to be built. (2) **10 registrations per hour per IP** (IPv6 keyed by /64, SEC-42). Built by the backend in ROADMAP 3.17 together with the EV-02 cap.
+
+## Custom-code isolation study (solution-architect, ROADMAP 3.14, 2026-10-01) — open
+
+### Q-158
+**How far to isolate the custom scripts (S-110) on public pages?** Study: `docs/03-architecture/adr/019-isolating-s110-custom-code.md`. Today the live site uses the custom-code slot for **Google Analytics 4** and **Microsoft Clarity** (heatmaps and session recordings). Running them in a separate, isolated frame breaks both (Clarity records an empty frame; Google Analytics counts become unreliable), so the study keeps them on the page as decided in Q-146 (c), and adds three safeguards: a full page load whenever a visitor moves from a public page to login, account, checkout or the inbox, so a script can never follow them there; the system refuses tag-manager containers (e.g. Google Tag Manager `GTM-…`) by itself, while still allowing the Google Analytics tag; and the visitor's name in the page header is hidden from session recordings.
+Options: (a) accept ADR-019 as proposed; (b) (a), and in addition show the custom scripts **only to visitors who are not logged in** — this removes the remaining risk (a script acting as a logged-in user) but Google Analytics and Clarity no longer see logged-in visitors; (c) build the isolated frame now (Clarity stops working, Analytics figures become unreliable); (d) no third-party scripts at all, only the platform's own analytics (ADR-012).
+Recommendation: (a). Choose (b) if analytics of logged-in visitors is not important to you.
+Note (no answer needed unless you disagree): the old main layout also hard-codes the Facebook SDK and the Messenger chat bubble (`main-app.blade.php:210-230`). Meta retired that chat plugin in 2024, so it is not carried over.
+When: before slice 17 (content/SEO); the page-layout split (point 2 of ADR-019) is cheapest if done soon, but does not block slice 01.

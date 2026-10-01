@@ -56,7 +56,7 @@ Remaining:
 - [x] 3.11 Mobile: resend verification + verify-email deep link.
 - [x] 3.12 Mobile: Account → Security (change password, 2FA switch, sessions).
 - [x] 3.13 Architect: record data-model gaps `staff.full_name` and the staff re-auth code purpose; add `/auth/password/update` and `/auth/verify` (with and without `/en`) to the App Link claims of url-map §7.2 (spec 01 screens table; app side done in 3.10/3.11).
-- [ ] 3.14 Architect: P3-9 study on isolating S-110 custom code (note or ADR).
+- [x] 3.14 Architect: P3-9 study on isolating S-110 custom code (note or ADR).
 - [ ] 3.15 QA parity report for all of slice 01 → `docs/06-qa/reports/`.
 - [ ] 3.16 Security review of slice 01 B-1…B-2c, incl. SEC-09 → `docs/06-qa/security/`.
 - [ ] 3.17 Fix findings from 3.15/3.16 and the web 2FA switch for accounts without a password (emailed code, as mobile 3.12), the staff emailed re-auth code (`twofa_purpose` `staff_reauth`: Prisma enum + migration, `adminRequestReauthCode`, `adminReauthenticate` `method: email_code`; data-model §3.A, recorded in 3.13), plus the before-slice-01-done items of review 03 (SEC-39, rest of SEC-35 incl. register limit 10/hour/IP per Q-157, SEC-50, SEC-51, SEC-45 tests) (split into 3.17a/b… if more than one step).
