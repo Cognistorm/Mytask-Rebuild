@@ -23,7 +23,7 @@ export async function runChecks(checks: ReadinessCheck[], timeoutMs = 2000) {
   return { ready: results.every(([, r]) => r === 'ok'), checks: checksOut };
 }
 
-export function startReadinessServer(port: number, checks: ReadinessCheck[]): Server {
+export function startReadinessServer(port: number, host: string, checks: ReadinessCheck[]): Server {
   const server = createServer((req, res) => {
     if (req.method !== 'GET' || req.url !== '/ready') {
       res.writeHead(404).end();
@@ -34,6 +34,6 @@ export function startReadinessServer(port: number, checks: ReadinessCheck[]): Se
       res.end(JSON.stringify({ status: ready ? 'ready' : 'not_ready', checks: out }));
     });
   });
-  server.listen(port);
+  server.listen(port, host);
   return server;
 }

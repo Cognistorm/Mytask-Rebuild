@@ -19,7 +19,7 @@ async function bootstrap(): Promise<void> {
 
   const prisma = app.get(PrismaService);
   const redis = app.get(RedisService);
-  const readiness = startReadinessServer(env.WORKER_READINESS_PORT, [
+  const readiness = startReadinessServer(env.WORKER_READINESS_PORT, env.READINESS_HOST, [
     { name: 'database', run: () => prisma.ping() },
     { name: 'redis', run: () => redis.ping() },
   ]);

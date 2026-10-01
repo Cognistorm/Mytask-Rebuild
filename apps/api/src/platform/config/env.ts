@@ -28,6 +28,8 @@ export const envSchema = z
     READINESS_PORT: z.coerce.number().int().positive().default(3001),
     /** Internal readiness port of the worker process. */
     WORKER_READINESS_PORT: z.coerce.number().int().positive().default(3002),
+    /** Interface the readiness servers bind to. Loopback by default, so `pnpm dev` never exposes them on the LAN. */
+    READINESS_HOST: z.string().min(1).default('127.0.0.1'),
     DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
     /** redis://… ; `memory://` = in-process Redis for Docker-free local previews only (refused in production). */
     REDIS_URL: z.url({ protocol: /^(rediss?|memory)$/ }),
