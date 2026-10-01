@@ -10,6 +10,7 @@ import { PasswordService } from '../auth/password.service';
 import type { RequestContext } from '../auth/request-context';
 import { SessionsService } from '../auth/sessions.service';
 import { ThrottleService } from '../auth/throttle.service';
+import { TwoFactorService } from '../auth/two-factor.service';
 
 type S = components['schemas'];
 
@@ -21,6 +22,7 @@ export class AdminSecurityService {
     private readonly passwords: PasswordService,
     private readonly sessions: SessionsService,
     private readonly throttle: ThrottleService,
+    private readonly twoFactor: TwoFactorService,
   ) {}
 
   async listBans(q?: string): Promise<S['IpBanPage']> {
@@ -143,6 +145,7 @@ export class AdminSecurityService {
         data: { passwordHash, passwordAlgo: 'argon2id' },
       });
       await tx.trustedDevice.deleteMany({ where: { principalType: 'staff', staffId } });
+      await this.twoFactor.cancelOpen({ kind: 'staff', id: staffId }, tx); // SEC-37
       await this.sessions.revokeWhere({ staffId, id: { not: sessionId } }, 'password_change', tx);
       await this.audit.write(
         {

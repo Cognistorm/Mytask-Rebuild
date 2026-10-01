@@ -35,6 +35,9 @@ export const CODE_CAP_WINDOW_SECONDS = 60 * 60;
 
 /** Code resend (spec 01 R-A6, AC-27). */
 export const CODE_RESEND_COOLDOWN_SECONDS = 60;
+
+/** SEC-37: a challenge older than this cannot be resent (log in again for a new one). Technical constant. */
+export const CHALLENGE_RESEND_MAX_AGE_MINUTES = 30;
 export const CODE_SENDS_PER_WINDOW = 5;
 export const CODE_SENDS_WINDOW_SECONDS = 15 * 60;
 

@@ -2,13 +2,13 @@
 // challenges, codes, trusted devices. Staff use the same tables (data-model §3.P) and STAFF_* error codes.
 import { Injectable } from '@nestjs/common';
 import type { Locale } from '@mytask/types';
-import type { TwofaPurpose, TwoFactorChallenge, User } from '../../generated/prisma/client';
+import type { Prisma, TwofaPurpose, TwoFactorChallenge, User } from '../../generated/prisma/client';
 import { PrismaService } from '../../platform/db/prisma.service';
 import { ApiException, type ErrorCode } from '../../platform/errors/api-exception';
 import { hashEquals, maskEmail, randomCode, sha256, type Bytes } from '../../platform/crypto';
 import { OutboxService } from '../../platform/outbox/outbox.service';
 import { SettingsService } from '../../platform/settings/settings.service';
-import { CODE_RESEND_COOLDOWN_SECONDS } from './auth.constants';
+import { CHALLENGE_RESEND_MAX_AGE_MINUTES, CODE_RESEND_COOLDOWN_SECONDS } from './auth.constants';
 import { ThrottleService } from './throttle.service';
 
 const codeHash = (challengeId: string, code: string) => sha256(`${challengeId}:${code}`);
@@ -169,6 +169,11 @@ export class TwoFactorService {
       !owner ||
       owner.kind !== kind ||
       challenge.consumedAt ||
+      // SEC-37: never revive a challenge that was replaced by a newer one or cancelled by a password change,
+      // reset or 2FA switch-off, nor one older than CHALLENGE_RESEND_MAX_AGE_MINUTES. An exhausted challenge
+      // (S-058 wrong codes) may still be resent: "Please request a new code" (t_2fa_too_many_attempts).
+      challenge.invalidatedAt ||
+      challenge.createdAt.getTime() < Date.now() - CHALLENGE_RESEND_MAX_AGE_MINUTES * 60_000 ||
       challenge.purpose !== 'login'
     ) {
       throw new ApiException(404, 'NOT_FOUND', 't_2fa_code_expired');
@@ -184,7 +189,6 @@ export class TwoFactorService {
         data: {
           codeHash: codeHash(challenge.id, code),
           attempts: 0,
-          invalidatedAt: null,
           expiresAt: new Date(Date.now() + ttlMinutes * 60_000),
         },
       });
@@ -226,6 +230,8 @@ export class TwoFactorService {
       throw new ApiException(404, 'NOT_FOUND', 't_2fa_code_expired');
     }
     const codes = CODES[owner.kind];
+    // Replaced by a newer code or cancelled by a password change, reset or 2FA switch-off (SEC-37).
+    if (challenge.invalidatedAt) throw new ApiException(422, codes.expired, 't_2fa_code_expired');
     const principal = `${owner.kind}:${owner.id}`;
     const lock = await this.throttle.codeLockSeconds(principal);
     if (lock > 0) {
@@ -256,13 +262,9 @@ export class TwoFactorService {
     }
     if (!hashEquals(codeHash(challenge.id, code), challenge.codeHash)) {
       const { attempts, max_attempts: maxAttempts } = reserved[0]!;
+      // An exhausted challenge is refused by `attempts < max_attempts` above; `invalidated_at` is kept for
+      // replaced or cancelled challenges only, which can never be resent (SEC-37).
       const exhausted = attempts >= maxAttempts;
-      if (exhausted) {
-        await this.prisma.twoFactorChallenge.update({
-          where: { id: challenge.id },
-          data: { invalidatedAt: new Date() },
-        });
-      }
       const { lockStarted, lockMinutes } = await this.throttle.codeFailed(
         principal,
         accountAttempt,
@@ -287,6 +289,14 @@ export class TwoFactorService {
     });
     if (consumed.count !== 1) throw new ApiException(404, 'NOT_FOUND', 't_2fa_code_expired');
     return { challenge, owner };
+  }
+
+  /** SEC-37: a password change or reset, or switching 2FA off, cancels every open code of the owner. */
+  async cancelOpen(o: Pick<CodeOwner, 'kind' | 'id'>, tx: Prisma.TransactionClient): Promise<void> {
+    await tx.twoFactorChallenge.updateMany({
+      where: { ...ownerWhere(o), consumedAt: null, invalidatedAt: null },
+      data: { invalidatedAt: new Date() },
+    });
   }
 
   /** AC-23: a correct code trusts the device (and the IP) for S-059 days. */

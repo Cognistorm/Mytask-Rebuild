@@ -492,6 +492,7 @@ export class AuthService {
       });
       // AC-31: forget trusted devices; AC-33: end every session.
       await tx.trustedDevice.deleteMany({ where: { userId: token.userId } });
+      await this.twoFactor.cancelOpen({ kind: 'user', id: token.userId }, tx); // SEC-37
       await this.sessions.revokeWhere({ userId: token.userId }, 'password_change', tx);
       await this.outbox.add(
         'EV-05',

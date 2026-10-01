@@ -59,6 +59,7 @@ export class AccountService {
         data: { passwordHash, passwordAlgo: 'argon2id', passwordChangedAt: new Date() },
       });
       await tx.trustedDevice.deleteMany({ where: { userId } }); // AC-31
+      await this.twoFactor.cancelOpen({ kind: 'user', id: userId }, tx); // SEC-37
       await this.sessions.revokeWhere({ userId, id: { not: sessionId } }, 'password_change', tx);
       await this.outbox.add('EV-05', { type: 'user', id: userId }, { userId, params: {} }, tx);
     });
@@ -148,7 +149,10 @@ export class AccountService {
     await this.reauthenticate(user, input, 'toggle_two_factor', ctx);
     await this.prisma.$transaction(async (tx) => {
       await tx.user.update({ where: { id: userId }, data: { twoFactorEnabled: input.enabled } });
-      if (!input.enabled) await tx.trustedDevice.deleteMany({ where: { userId } });
+      if (!input.enabled) {
+        await tx.trustedDevice.deleteMany({ where: { userId } });
+        await this.twoFactor.cancelOpen({ kind: 'user', id: userId }, tx); // SEC-37
+      }
     });
     const key = input.enabled ? 't_2fa_enabled' : 't_2fa_disabled';
     return {
@@ -181,8 +185,13 @@ export class AccountService {
         kind: 'user',
         id: user.id,
       });
-    } catch (e) {
-      if (e instanceof ApiException && e.code.startsWith('TWO_FACTOR_CODE')) {
+    } catch (err) {
+      // Unknown, used, other-purpose or other-user challenge: these operations declare no 404 (3.17c).
+      const e =
+        err instanceof ApiException && err.code === 'NOT_FOUND'
+          ? new ApiException(422, 'TWO_FACTOR_CODE_EXPIRED', 't_2fa_code_expired')
+          : err;
+      if (e instanceof ApiException && /^TWO_FACTOR_(CODE_|TOO_MANY)/.test(e.code)) {
         await this.throttle.inSessionFailed(user.id, attempt);
       } else {
         await this.throttle.releaseInSession(user.id);
