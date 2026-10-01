@@ -71,6 +71,19 @@ describe('error body { code, message, details } (CONVENTIONS §7)', () => {
     expect(res.body.code).toBe('VALIDATION_FAILED');
     expect(Array.isArray(res.body.details.fields)).toBe(true);
   });
+
+  it('non-JSON body -> 400 with field `body`, code unsupported_content_type (QA P3 BUG-12a)', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .set('X-MyTask-Client', 'ios')
+      .set('Content-Type', 'text/plain')
+      .send('email=a@b.ge');
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe('VALIDATION_FAILED');
+    expect(res.body.details.fields).toEqual([
+      expect.objectContaining({ field: 'body', code: 'unsupported_content_type' }),
+    ]);
+  });
 });
 
 describe('client IP safety (ADR-013 §16)', () => {

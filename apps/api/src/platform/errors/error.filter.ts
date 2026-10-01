@@ -96,13 +96,15 @@ export class ErrorFilter implements ExceptionFilter {
       code = STATUS_CODES[exception.status] ?? 'INTERNAL_ERROR';
       if (status === 400) {
         const fields = (exception.errors ?? []).map((e) => {
-          const field =
-            e.path.replace(/^\/(body|query|params|headers)\/?/, '').replace(/\//g, '.') || e.path;
-          // Non-JSON bodies: `unsupported_content_type` (openapi.yaml "Global rules", CSRF).
-          const fieldCode =
-            exception.status === 415
-              ? 'unsupported_content_type'
-              : (e.errorCode ?? 'invalid').replace('.openapi.validation', '');
+          // Non-JSON bodies: `unsupported_content_type` on the whole `body` (openapi.yaml "Global rules",
+          // CSRF); the validator's path is then the request URL, not a field (QA P3 BUG-12a).
+          const unsupported = exception.status === 415;
+          const field = unsupported
+            ? 'body'
+            : e.path.replace(/^\/(body|query|params|headers)\/?/, '').replace(/\//g, '.') || e.path;
+          const fieldCode = unsupported
+            ? 'unsupported_content_type'
+            : (e.errorCode ?? 'invalid').replace('.openapi.validation', '');
           const { messageKey: key, params } = fieldMessage(field, fieldCode, e.message);
           return {
             field,
