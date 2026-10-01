@@ -2,6 +2,7 @@
 // Staff identities are separate from users: user credentials never open the admin.
 import { Inject, Injectable } from '@nestjs/common';
 import type { components } from '@mytask/types';
+import { ipBucket } from '../../platform/client-ip/client-ip.resolver';
 import { ENV, type Env } from '../../platform/config/env';
 import { PrismaService } from '../../platform/db/prisma.service';
 import { ApiException } from '../../platform/errors/api-exception';
@@ -71,6 +72,14 @@ export class StaffAuthService {
         ],
       });
     }
+    // SEC-57: the attempt counts before the password is checked, so a parallel burst cannot outrun the ban.
+    const ipKey = ipBucket(ctx.ip);
+    const threshold = await this.settings.get('S-064');
+    const attempt = await this.reserveAttempt(ipKey);
+    if (attempt > threshold) {
+      await this.ban(ipKey, ctx.ip);
+      throw new ApiException(403, 'STAFF_IP_BANNED', 't_ip_banned');
+    }
     const login = input.login.trim();
     const staff = await this.prisma.staff.findFirst({
       where: { OR: [{ email: login }, { username: login }] },
@@ -81,13 +90,13 @@ export class StaffAuthService {
       staff?.passwordAlgo ?? null,
     );
     if (!staff || !check.ok || staff.status !== 'active') {
-      await this.failedLogin(ctx.ip);
+      if (attempt >= threshold) await this.ban(ipKey, ctx.ip);
       throw LOGIN_FAILED();
     }
-    await this.prisma.bannedIp.updateMany({
-      where: { ip: ctx.ip, bannedAt: null },
-      data: { failedAttempts: 0 },
-    });
+    // A correct password only gives its own attempt back; earlier failures are cleared once a session is issued.
+    await this.prisma.$executeRaw`
+      UPDATE banned_ips SET failed_attempts = GREATEST(failed_attempts - 1, 0), updated_at = now()
+      WHERE ip = ${ipKey}::inet`;
     if (check.upgradedHash) {
       await this.prisma.staff.update({
         where: { id: staff.id },
@@ -274,6 +283,11 @@ export class StaffAuthService {
     deviceId: string,
     ctx: RequestContext,
   ): Promise<StaffSessionResult> {
+    // Legacy cleared the IP counter on a successful login (no admin 2FA there): here only a completed login
+    // (session issued, after 2FA when it applies) clears it (SEC-57).
+    await this.prisma.$executeRaw`
+      UPDATE banned_ips SET failed_attempts = 0, updated_at = now()
+      WHERE ip = ${ipBucket(ctx.ip)}::inet AND banned_at IS NULL`;
     const tokens = await this.sessions.create({
       staffId,
       client: 'admin',
@@ -305,28 +319,40 @@ export class StaffAuthService {
     };
   }
 
+  /** A manual ban of an address and an automatic ban of its IPv6 /64 both apply (SEC-57). */
   private async assertNotBanned(ip: string): Promise<void> {
-    const ban = await this.prisma.bannedIp.findUnique({ where: { ip } });
-    if (ban?.bannedAt) throw new ApiException(403, 'STAFF_IP_BANNED', 't_ip_banned');
+    const rows = await this.prisma.$queryRaw<unknown[]>`
+      SELECT 1 FROM banned_ips WHERE banned_at IS NOT NULL AND ${ip}::inet <<= ip LIMIT 1`;
+    if (rows.length > 0) throw new ApiException(403, 'STAFF_IP_BANNED', 't_ip_banned');
+  }
+
+  /** Counts one staff login attempt for the IP (or IPv6 /64) atomically; returns the new count. */
+  private async reserveAttempt(ipKey: string): Promise<number> {
+    const [row] = await this.prisma.$queryRaw<{ failed_attempts: number }[]>`
+      INSERT INTO banned_ips (ip, failed_attempts, updated_at) VALUES (${ipKey}::inet, 1, now())
+      ON CONFLICT (ip) DO UPDATE
+        SET failed_attempts = banned_ips.failed_attempts + 1, updated_at = now()
+      RETURNING failed_attempts`;
+    return row!.failed_attempts;
   }
 
   /** Spec 01 AC-51 (legacy BannedIp): S-064 failed staff logins from one IP ban it from the staff login. */
   private async failedLogin(ip: string): Promise<void> {
-    const threshold = await this.settings.get('S-064');
-    const row = await this.prisma.bannedIp.upsert({
-      where: { ip },
-      create: { ip, failedAttempts: 1 },
-      update: { failedAttempts: { increment: 1 } },
+    const ipKey = ipBucket(ip);
+    const attempt = await this.reserveAttempt(ipKey);
+    if (attempt >= (await this.settings.get('S-064'))) await this.ban(ipKey, ip);
+  }
+
+  private async ban(ipKey: string, ip: string): Promise<void> {
+    const banned = await this.prisma.bannedIp.updateMany({
+      where: { ip: ipKey, bannedAt: null },
+      data: { bannedAt: new Date(), source: 'auto_threshold' },
     });
-    if (!row.bannedAt && row.failedAttempts >= threshold) {
-      await this.prisma.bannedIp.update({
-        where: { ip },
-        data: { bannedAt: new Date(), source: 'auto_threshold' },
-      });
+    if (banned.count > 0) {
       await this.audit.write({
         action: 'security.ip_ban.auto',
         targetType: 'ip',
-        targetId: ip,
+        targetId: ipKey,
         ip,
       });
     }

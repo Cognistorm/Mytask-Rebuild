@@ -3,7 +3,8 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { RedisService } from '../src/platform/redis/redis.module';
-import { ipBucket, LIMITS } from '../src/platform/rate-limit/rate-limit.middleware';
+import { ipBucket } from '../src/platform/client-ip/client-ip.resolver';
+import { LIMITS } from '../src/platform/rate-limit/rate-limit.middleware';
 import { createTestApp } from './app';
 
 let app: NestExpressApplication;
@@ -37,6 +38,20 @@ describe('global rate limit (SEC-35)', () => {
       .set('X-MyTask-Client', 'ios')
       .send({ email: 'y@example.com' });
     expect(ok.status).toBe(202);
+  });
+
+  it('staff writes get the 120/min write budget, staff reads keep 1,200 (SEC-50, SEC-57)', async () => {
+    const redis = app.get(RedisService).client;
+    const minute = Math.floor(Date.now() / 60_000);
+    for (const m of [minute, minute + 1])
+      await redis.set(`rl:staff_write:127.0.0.1:${m}`, String(LIMITS.staff_write));
+    const over = await request(app.getHttpServer())
+      .post('/api/v1/admin/auth/login')
+      .set({ 'X-MyTask-Client': 'admin', Origin: 'http://localhost:3200' })
+      .send({ login: 'nobody', password: 'x' });
+    expect(over.status).toBe(429);
+    expect((await request(app.getHttpServer()).get('/api/v1/admin/me')).status).toBe(401);
+    await redis.flushall();
   });
 
   it('keys IPv6 clients by /64', () => {

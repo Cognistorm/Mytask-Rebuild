@@ -3,6 +3,7 @@ import { hash, Algorithm } from '@node-rs/argon2';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import request from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { ENV, type Env } from '../src/platform/config/env';
 import { PrismaService } from '../src/platform/db/prisma.service';
 import { RedisService } from '../src/platform/redis/redis.module';
 import { SettingsService } from '../src/platform/settings/settings.service';
@@ -146,6 +147,67 @@ describe('staff login (spec 01 AC-29, AC-51; spec 16 AC-2)', () => {
     expect(
       await prisma.auditLog.count({ where: { action: 'security.ip_ban.auto' } }),
     ).toBeGreaterThan(0);
+  });
+});
+
+describe('staff login IP ban hardening (SEC-57)', () => {
+  const attempt = (login: string, password: string, ip?: string) => {
+    const req = request(app.getHttpServer()).post('/api/v1/admin/auth/login').set(ADMIN);
+    if (ip)
+      req.set({
+        'x-mytask-visitor-ip': ip,
+        'x-mytask-service-auth': app.get<Env>(ENV).INTERNAL_SERVICE_TOKEN,
+      });
+    return req.send({ login, password });
+  };
+
+  it('a parallel burst checks at most S-064 passwords, then the IP is banned (probe P1)', async () => {
+    const staff = await makeStaff();
+    const res = await Promise.all(
+      Array.from({ length: 30 }, () => attempt(staff.username, 'wrong')),
+    );
+    const checked = res.filter((r) => r.body.code === 'STAFF_LOGIN_FAILED').length;
+    expect(checked).toBeLessThanOrEqual(3);
+    expect(res.filter((r) => r.status === 403).length).toBe(30 - checked);
+    const row = await prisma.bannedIp.findUnique({ where: { ip: '127.0.0.1' } });
+    expect(row?.bannedAt).not.toBeNull();
+  });
+
+  it('a correct password without completed 2FA does not clear earlier failures (probe P2)', async () => {
+    const victim = await makeStaff();
+    const other = await makeStaff();
+    for (let i = 0; i < 2; i++)
+      expect((await attempt(victim.username, 'wrong')).body.code).toBe('STAFF_LOGIN_FAILED');
+    expect((await attempt(other.username, PASSWORD)).status).toBe(202); // S-060 ON: code step
+    expect((await attempt(victim.username, 'wrong')).body.code).toBe('STAFF_LOGIN_FAILED');
+    expect((await attempt(other.username, PASSWORD)).body.code).toBe('STAFF_IP_BANNED');
+  });
+
+  it('a completed login (after 2FA) clears the IP counter', async () => {
+    const staff = await makeStaff();
+    for (let i = 0; i < 2; i++) await attempt(staff.username, 'wrong');
+    await login(staff);
+    expect((await prisma.bannedIp.findUnique({ where: { ip: '127.0.0.1' } }))?.failedAttempts).toBe(
+      0,
+    );
+    for (let i = 0; i < 2; i++)
+      expect((await attempt(staff.username, 'wrong')).body.code).toBe('STAFF_LOGIN_FAILED');
+  });
+
+  it('IPv6 clients are counted and banned by /64; a manual single-address ban still applies', async () => {
+    const staff = await makeStaff();
+    for (const host of ['a', 'b', 'c'])
+      await attempt(staff.username, 'wrong', `2001:db8:1:2::${host}`);
+    expect((await attempt(staff.username, PASSWORD, '2001:db8:1:2::d')).body.code).toBe(
+      'STAFF_IP_BANNED',
+    );
+    expect((await attempt(staff.username, PASSWORD, '2001:db8:1:3::1')).status).toBe(202);
+    await prisma.bannedIp.create({
+      data: { ip: '198.51.100.7', bannedAt: new Date(), source: 'manual' },
+    });
+    expect((await attempt(staff.username, PASSWORD, '198.51.100.7')).body.code).toBe(
+      'STAFF_IP_BANNED',
+    );
   });
 });
 

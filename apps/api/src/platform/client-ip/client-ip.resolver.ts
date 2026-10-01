@@ -19,6 +19,21 @@ export function normalizeIp(value: string | undefined | null): string | undefine
   return isIP(v) ? v : undefined;
 }
 
+/** IPv6 clients are keyed by their /64 (one household or phone gets many addresses, SEC-42).
+ * Used by the global limiter and the staff login IP ban (SEC-57). */
+export function ipBucket(ip: string): string {
+  if (!ip.includes(':')) return ip;
+  const parts = ip.split(':');
+  const full: string[] = [];
+  for (const p of parts) {
+    if (p === '' && full.length < 8) {
+      const missing = 8 - parts.filter((x) => x !== '').length;
+      for (let i = 0; i < missing; i++) full.push('0');
+    } else if (p !== '') full.push(p);
+  }
+  return `${full.slice(0, 4).join(':')}::/64`;
+}
+
 export interface ClientInfo {
   ip: string;
   userAgent: string | undefined;

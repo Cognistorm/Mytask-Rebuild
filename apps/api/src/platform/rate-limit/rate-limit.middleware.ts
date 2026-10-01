@@ -1,29 +1,15 @@
 // Global defaults (CONVENTIONS §14, SEC-35): per client IP and minute, 600 reads / 120 writes; staff routes
-// 1,200. Over the limit -> 429 RATE_LIMITED with Retry-After. Health and provider webhooks are exempt.
+// 1,200 reads and 120 writes (SEC-50, SEC-57). Over the limit -> 429 RATE_LIMITED with Retry-After. Health and provider webhooks are exempt.
 // Operation-specific limits (login, codes, emails, …) are separate and stricter.
 import { Injectable, Logger, type NestMiddleware } from '@nestjs/common';
 import type { NextFunction, Request, Response } from 'express';
-import { ClientIpResolver } from '../client-ip/client-ip.resolver';
+import { ClientIpResolver, ipBucket } from '../client-ip/client-ip.resolver';
 import { ApiException } from '../errors/api-exception';
 import { RedisService } from '../redis/redis.module';
 
-export const LIMITS = { read: 600, write: 120, staff: 1200 } as const;
+export const LIMITS = { read: 600, write: 120, staff: 1200, staff_write: 120 } as const;
 const EXEMPT = [/^\/api\/v1\/health\b/, /^\/api\/v1\/webhooks\//];
 const READ = new Set(['GET', 'HEAD', 'OPTIONS']);
-
-/** IPv6 clients are keyed by their /64 (one household or phone gets many addresses, SEC-42). */
-export function ipBucket(ip: string): string {
-  if (!ip.includes(':')) return ip;
-  const parts = ip.split(':');
-  const full: string[] = [];
-  for (const p of parts) {
-    if (p === '' && full.length < 8) {
-      const missing = 8 - parts.filter((x) => x !== '').length;
-      for (let i = 0; i < missing; i++) full.push('0');
-    } else if (p !== '') full.push(p);
-  }
-  return `${full.slice(0, 4).join(':')}::/64`;
-}
 
 @Injectable()
 export class RateLimitMiddleware implements NestMiddleware {
@@ -36,9 +22,12 @@ export class RateLimitMiddleware implements NestMiddleware {
 
   async use(req: Request, _res: Response, next: NextFunction): Promise<void> {
     if (EXEMPT.some((re) => re.test(req.originalUrl))) return next();
+    const read = READ.has(req.method);
     const kind = req.originalUrl.startsWith('/api/v1/admin/')
-      ? 'staff'
-      : READ.has(req.method)
+      ? read
+        ? 'staff'
+        : 'staff_write'
+      : read
         ? 'read'
         : 'write';
     const limit = LIMITS[kind];
