@@ -13,6 +13,18 @@ const config: NextConfig = {
   // src/proxy.ts removes trailing slashes together with the /ka prefix in one 301 (url-map §1).
   skipTrailingSlashRedirect: true,
   transpilePackages: ['@mytask/api-client', '@mytask/i18n', '@mytask/tokens', '@mytask/types'],
+  // `/app-return/*` URLs can carry one-time codes (social login, url-map §7): no Referer from the very first
+  // request (the <meta> tag comes too late for early asset requests), and never indexed.
+  async headers() {
+    const headers = [
+      { key: 'Referrer-Policy', value: 'no-referrer' },
+      { key: 'X-Robots-Tag', value: 'noindex, nofollow' },
+    ];
+    return [
+      { source: '/app-return/:path*', headers },
+      { source: '/en/app-return/:path*', headers },
+    ];
+  },
   async rewrites() {
     return process.env.NODE_ENV === 'development'
       ? [{ source: '/api/v1/:path*', destination: `${devApiOrigin}/api/v1/:path*` }]

@@ -186,6 +186,8 @@
   "t_app_name_has_approved_ur_unblock_request": "{{app_name}} has approved your unblock request for {{amount}}.",
   "t_app_name_has_declined_ur_refund_request": "{{app_name}} has declined your refund request",
   "t_app_name_has_declined_ur_unblock_request": "{{app_name}} has declined your unblock request for {{amount}}.",
+  "t_app_return_social_notice": "This sign-in was started in the MyTask app. Open the app to finish it. If you don't have the app, sign in on the website instead.",
+  "t_app_return_social_title": "Continue in the MyTask app",
   "t_app_update_required": "A new version of MyTask is available. Please update the app to continue.",
   "t_appeal_details": "Appeal details",
   "t_appeal_the_closure": "Appeal the closure",

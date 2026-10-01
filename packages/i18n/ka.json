@@ -186,6 +186,8 @@
   "t_app_name_has_approved_ur_unblock_request": "ადმინმა-მ დაამტკიცა თქვენი განბლოკვის მოთხოვნა {{amount}}-ის ოდენობით.",
   "t_app_name_has_declined_ur_refund_request": "{{app_name}} -მა უარყო თანხის დაბრუნების მოთხოვნა",
   "t_app_name_has_declined_ur_unblock_request": "ადმინმა-მ უარყო თქვენი განბლოკვის მოთხოვნა {{amount}}-ის ოდენობით.",
+  "t_app_return_social_notice": "ეს შესვლა MyTask-ის აპლიკაციაში დაიწყო. დასასრულებლად გახსენით აპლიკაცია. თუ აპლიკაცია არ გაქვთ, შედით ვებსაიტიდან.",
+  "t_app_return_social_title": "გააგრძელეთ MyTask-ის აპლიკაციაში",
   "t_app_update_required": "ხელმისაწვდომია MyTask-ის ახალი ვერსია. გასაგრძელებლად, გთხოვთ, განაახლოთ აპლიკაცია.",
   "t_appeal_details": "საჩივრის დეტალები",
   "t_appeal_the_closure": "შეზღუდვის გასაჩივრება",
