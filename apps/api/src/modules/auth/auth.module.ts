@@ -40,6 +40,7 @@ import { TwoFactorService } from './two-factor.service';
     ThrottleService,
     TwoFactorService,
     ReferralService,
+    SocialKeysService,
   ],
 })
 export class AuthModule {}

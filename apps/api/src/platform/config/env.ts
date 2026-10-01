@@ -59,6 +59,8 @@ export const envSchema = z
       .string()
       .refine((v) => Buffer.from(v, 'base64').length === 32, 'must be base64 of 32 random bytes')
       .optional(),
+    /** reCAPTCHA v3 site key (public, not a secret); sent to clients by getPublicConfig while S-061 is ON. */
+    RECAPTCHA_SITE_KEY: z.string().optional(),
     /** reCAPTCHA v3 server secret; only read while S-061 is ON (spec 01 AC-18). */
     RECAPTCHA_SECRET_KEY: z.string().optional(),
     /** API tests only (ADR-002 §2); refused in production below. */

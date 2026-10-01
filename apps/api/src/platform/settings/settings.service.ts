@@ -28,6 +28,28 @@ export class SettingsService {
     return value;
   }
 
+  /** Several rows in one query (getPublicConfig reads ~80); same cache as `get`. */
+  async getMany<Id extends SettingId>(ids: readonly Id[]): Promise<{ [K in Id]: SettingValue<K> }> {
+    const now = Date.now();
+    const out = {} as Record<string, unknown>;
+    const missing: Id[] = [];
+    for (const id of ids) {
+      const hit = this.cache.get(id);
+      if (hit && now - hit.at < CACHE_MS) out[id] = hit.value;
+      else missing.push(id);
+    }
+    if (missing.length) {
+      const rows = await this.prisma.setting.findMany({ where: { registerId: { in: missing } } });
+      const stored = new Map(rows.map((r) => [r.registerId, r.value]));
+      for (const id of missing) {
+        const value = stored.has(id) ? stored.get(id) : settingsRegistry[id].default;
+        out[id] = value;
+        this.cache.set(id, { value, at: now });
+      }
+    }
+    return out as { [K in Id]: SettingValue<K> };
+  }
+
   /** Tests and the future admin write path. */
   invalidate(): void {
     this.cache.clear();

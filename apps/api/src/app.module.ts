@@ -11,6 +11,7 @@ import { ConfigModule } from './platform/config/config.module';
 import { DbModule } from './platform/db/db.module';
 import { HealthController } from './platform/health/health.controller';
 import { LoggingModule } from './platform/logging/logging.module';
+import { PublicConfigModule } from './platform/public-config/public-config.module';
 import { OutboxModule } from './platform/outbox/outbox.module';
 import { RedisModule } from './platform/redis/redis.module';
 import { SettingsModule } from './platform/settings/settings.module';
@@ -30,6 +31,7 @@ import { SettingsModule } from './platform/settings/settings.module';
     AuthModule,
     StaffModule,
     RestrictionsModule,
+    PublicConfigModule,
   ],
   controllers: [HealthController],
 })
