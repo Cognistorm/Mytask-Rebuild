@@ -51,4 +51,28 @@ describe('loadEnv (ADR-013 §8 boot validation)', () => {
       loadEnv({ ...base, TRUSTED_PROXY_IPS: '172.30.0.10, 172.30.0.11' }).TRUSTED_PROXY_IPS,
     ).toEqual(['172.30.0.10', '172.30.0.11']);
   });
+
+  describe('production refusals (SEC-36, SEC-45)', () => {
+    const prod = {
+      ...base,
+      NODE_ENV: 'production',
+      APP_URL: 'https://mytask.ge',
+      ADMIN_URL: 'https://admin.mytask.ge',
+      SMTP_URL: 'smtp://mail.example:587',
+      SETTINGS_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString('base64'),
+    };
+
+    it('accepts a complete production environment', () => {
+      expect(loadEnv({ ...prod }).NODE_ENV).toBe('production');
+    });
+
+    it.each([
+      ['SMTP_URL', { SMTP_URL: undefined }],
+      ['SETTINGS_ENCRYPTION_KEY', { SETTINGS_ENCRYPTION_KEY: undefined }],
+      ['MAIL_TRANSPORT', { MAIL_TRANSPORT: 'log' }],
+      ['REDIS_URL', { REDIS_URL: 'memory://local' }],
+    ])('refuses to start without a safe %s', (name, change) => {
+      expect(() => loadEnv({ ...prod, ...change })).toThrow(new RegExp(name));
+    });
+  });
 });

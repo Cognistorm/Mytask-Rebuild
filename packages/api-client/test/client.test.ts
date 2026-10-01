@@ -60,4 +60,30 @@ describe('createApiClient', () => {
     await untyped.POST(path, { body: {}, headers: { 'Idempotency-Key': 'k-1' } });
     expect(requests.at(-1)!.headers.get('Idempotency-Key')).toBe('k-1');
   });
+
+  it('signs out only when the refresh answers 401/403, never on 429 or 5xx (SEC-44)', async () => {
+    for (const [refreshStatus, signedOut] of [
+      [503, false],
+      [429, false],
+      [401, true],
+      [403, true],
+    ] as const) {
+      let outs = 0;
+      const fetch = async (input: Request | string) => {
+        const url = typeof input === 'string' ? input : input.url;
+        const status = url.endsWith('/auth/refresh') ? refreshStatus : 401;
+        return new Response(JSON.stringify({ code: 'X', message: 'x' }), {
+          status,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      };
+      const api = createApiClient({
+        baseUrl: 'http://api.test/api/v1',
+        fetch: fetch as unknown as typeof globalThis.fetch,
+        refresh: { onSignedOut: () => (outs += 1) },
+      });
+      await api.GET('/me');
+      expect(outs > 0, String(refreshStatus)).toBe(signedOut);
+    }
+  });
 });

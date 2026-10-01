@@ -17,6 +17,8 @@ Date: 2026-09-28 | Status: accepted (Owner 2026-09-30)
 
 > **Revised 2026-10-01 (ROADMAP 3.17m, SEC-41 / I-23).** §2: the "remember me" choice is stored on the session (`sessions.remember_me`) and on the login code (`two_factor_challenges.remember_me`); refreshes and the 2FA step reuse it, so a web login without "remember me" keeps a browser-session refresh cookie until it ends. Social logins stay "remember me" (I-23). No contract change.
 
+> **Revised 2026-10-01 (ROADMAP 3.17f, SEC-44).** §1: a refresh token reused within **20 seconds** of its rotation, or a refresh that loses the compare-and-set to a parallel one, is a race (two tabs, a mobile retry): answered 401 without ending the session. Older reuse still revokes the whole family. Clients sign the user out only when the refresh answers 401/403, never on 429 or 5xx (`packages/api-client`).
+
 ## Context
 - Web and mobile must use the same API and the same login rules. Legacy uses Laravel session cookies (`config/auth.php:38-50`), which do not suit a mobile app.
 - Vision "must not break": existing users log in with their current passwords. Legacy stores bcrypt hashes, 10 rounds (`config/hashing.php:18,32`, BR-005), PHP prefix `$2y$`. Staff accounts (`admins`) also use bcrypt.

@@ -277,6 +277,24 @@ describe('sessions (AC-42, AC-45, ADR-002 §1)', () => {
     expect(r1.status).toBe(200);
     const rt2 = r1.body.refreshToken;
     expect(rt2).not.toBe(rt1);
+    // SEC-44: within 20 s the reuse is treated as a parallel-tab race (401, session kept).
+    const race = await request(app.getHttpServer())
+      .post('/api/v1/auth/refresh')
+      .set(IOS)
+      .send({ refreshToken: rt1 });
+    expect(race.status).toBe(401);
+    expect(
+      (
+        await request(app.getHttpServer())
+          .get('/api/v1/me')
+          .set('Authorization', `Bearer ${r1.body.accessToken}`)
+      ).status,
+    ).toBe(200);
+    // Later reuse of the old token is theft: the family ends.
+    await prisma.refreshToken.updateMany({
+      where: { usedAt: { not: null } },
+      data: { usedAt: new Date(Date.now() - 60_000) },
+    });
     const reuse = await request(app.getHttpServer())
       .post('/api/v1/auth/refresh')
       .set(IOS)

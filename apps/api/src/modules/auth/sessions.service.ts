@@ -26,6 +26,9 @@ export type RefreshOutcome =
   | { kind: 'invalid' }
   | { kind: 'banned' };
 
+/** SEC-44: reuse of a just-rotated refresh token within this many seconds is a race, not theft. */
+const REFRESH_REUSE_GRACE_SECONDS = 20;
+
 const refreshExpiry = () => new Date(Date.now() + USER_REFRESH_DAYS * 86_400_000);
 
 @Injectable()
@@ -103,6 +106,11 @@ export class SessionsService {
     const { session } = found;
 
     if (found.usedAt) {
+      // SEC-44: two tabs (or a mobile retry after a lost answer) refreshing with the same token within a few
+      // seconds is a benign race: refuse the loser without ending the session the winner just rotated.
+      if (Date.now() - found.usedAt.getTime() < REFRESH_REUSE_GRACE_SECONDS * 1000) {
+        return { kind: 'invalid' };
+      }
       // Theft detection: an old refresh token came back. End the whole family.
       await this.revokeWhere({ familyId: session.familyId, revokedAt: null }, 'reuse_detected');
       return { kind: 'invalid' };
@@ -149,10 +157,8 @@ export class SessionsService {
       });
       return true;
     });
-    if (!rotated) {
-      await this.revokeWhere({ familyId: session.familyId, revokedAt: null }, 'reuse_detected');
-      return { kind: 'invalid' };
-    }
+    // Lost the compare-and-set to a parallel refresh with the same token: a race, not theft (SEC-44).
+    if (!rotated) return { kind: 'invalid' };
     const access = await this.tokens.signAccess({
       sub: principalId,
       aud: audience,

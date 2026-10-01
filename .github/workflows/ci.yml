@@ -167,6 +167,11 @@ jobs:
           docker compose exec -T worker wget -qO- http://127.0.0.1:3002/ready | grep -q '"status":"ready"'
           echo "--- migrations created the data-model extensions"
           docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "select extname from pg_extension order by 1"' | paste -sd ' ' | grep -q 'btree_gist citext pg_trgm plpgsql vector'
+          echo "--- spoofed forwarding / visitor headers cannot move the login lock (ADR-013 §19, SEC-45)"
+          for i in 1 2 3 4 5; do
+            curl -s -o /dev/null -X POST http://localhost:8080/api/v1/auth/login               -H 'Content-Type: application/json' -H 'X-MyTask-Client: ios'               -H "X-Forwarded-For: 198.51.100.$i" -H "X-MyTask-Client-IP: 198.51.100.$i"               -H "X-MyTask-Visitor-IP: 198.51.100.$i" -H "X-Real-IP: 198.51.100.$i"               -d '{"email":"ci-lock-probe@example.com","password":"Wrong1234"}'
+          done
+          curl -s -X POST http://localhost:8080/api/v1/auth/login             -H 'Content-Type: application/json' -H 'X-MyTask-Client: ios'             -H 'X-Forwarded-For: 203.0.113.99' -H 'X-MyTask-Client-IP: 203.0.113.99'             -d '{"email":"ci-lock-probe@example.com","password":"Wrong1234"}' | grep -q 'AUTH_LOGIN_LOCKED'
           echo "--- object storage buckets"
           docker compose logs s3-init | grep -q kyc
           echo "--- bog-mock and mailpit"

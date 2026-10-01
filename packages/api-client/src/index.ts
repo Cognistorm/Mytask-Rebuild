@@ -131,7 +131,8 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
             body: JSON.stringify(refreshToken ? { refreshToken } : {}),
           });
           if (!res.ok) {
-            refreshCfg.onSignedOut?.();
+            // SEC-44: only the server's "no valid session" ends the client session; 429 / 5xx keep it.
+            if (res.status === 401 || res.status === 403) refreshCfg.onSignedOut?.();
             return false;
           }
           await refreshCfg.onSession?.((await res.json()) as components['schemas']['AuthSession']);
