@@ -772,3 +772,10 @@ Recommendation: (a).
 When: before slice 01 is marked done (security condition). Nothing else waits on it.
 **Answer (Owner, 2026-10-01): option (a), at most 20 per hour for now — and make it a setting in the admin panel:** (1) a switch to turn the "new registration waiting for approval" admin email on or off; (2) a whole-number field (default 20) for the hourly cap, editable whenever the switch is on. Recorded as register rows **S-131** (switch, default ON) and **S-132** (hourly cap, default 20) in spec 00 §4.15; built in ROADMAP 3.17l.
 
+## Slice 01 close-out (orchestrator, ROADMAP 3.17i, 2026-10-01) — open
+
+### Q-160
+**Bot check in the mobile app?** On the website, registration and login can require Google reCAPTCHA (switch S-061, OFF at launch as on the live site). The app has no such check today: it is protected only by the login lock, the slow mode, the limit of 10 registrations per IP per hour and the general limits (QA 3.15 F-01). Options: (a) keep it so (throttles only) and decide again if fake accounts from the app appear; (b) add Firebase App Check (Google's check that a request comes from the genuine app; free; needs a Firebase project and the App Store / Play Store app ids) before launch; (c) add reCAPTCHA Enterprise for mobile (paid above a free quota).
+Recommendation: (a) for launch, with (b) on the Phase 6 checklist if the S-061 switch is ever turned ON.
+When: before S-061 is turned ON in production. Nothing in Phase 3 waits on it.
+

@@ -15,7 +15,7 @@ test('login (en): subtitle, back to homepage, legacy link list, page title', asy
     ['Resend verification email', '/en/auth/request'],
     ['Privacy policy', '/en/page/privacy-policy'],
     ['Terms of service', '/en/page/terms-of-service'],
-  ]) {
+  ] as const) {
     await expect(list.getByRole('link', { name })).toHaveAttribute('href', path);
   }
 });

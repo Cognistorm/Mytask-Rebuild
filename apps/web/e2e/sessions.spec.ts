@@ -74,6 +74,7 @@ async function fakeApi(
   } = {},
 ) {
   const calls = { lists: 0, revoke: [] as unknown[], challenges: [] as unknown[] };
+  let revoked = false;
   const lists = opts.lists ?? [[CURRENT, OTHER_WEB, PHONE], [CURRENT]];
   await page.route('**/api/v1/me', (route) =>
     opts.me === null
@@ -84,7 +85,8 @@ async function fakeApi(
     calls.lists += 1;
     if (calls.lists <= (opts.listFails ?? 0))
       return json(route, 500, { code: 'INTERNAL', message: 'Server error' });
-    const data = lists[Math.min(calls.lists - (opts.listFails ?? 0), lists.length) - 1];
+    // Answer by state, not by call count (QA 3.15 F-02): React StrictMode on `pnpm dev` loads the list twice.
+    const data = revoked ? lists[lists.length - 1] : lists[0];
     return json(route, 200, { data, nextCursor: null });
   });
   await page.route('**/api/v1/me/two-factor/challenges', (route) => {
@@ -93,7 +95,9 @@ async function fakeApi(
   });
   await page.route('**/api/v1/me/sessions/revoke-others', async (route) => {
     calls.revoke.push(route.request().postDataJSON());
-    await (opts.revoke ? opts.revoke(route) : json(route, 200, { revokedCount: 2 }));
+    if (opts.revoke) return opts.revoke(route);
+    revoked = true;
+    await json(route, 200, { revokedCount: 2 });
   });
   return calls;
 }

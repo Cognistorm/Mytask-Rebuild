@@ -63,7 +63,7 @@ Let people create an account, log in and out on web and mobile, and recover or c
 - AC-15 Given a deleted (soft-deleted) account, When login is submitted, Then it behaves like wrong credentials (AC-11). (LEGACY)
 - AC-16 Given S-062 = 5 attempts per 15 minutes and S-063 = 15 minutes, When the same account is tried from the same IP with a wrong password 5 times within 15 minutes, Then the 6th attempt is refused even with the right password, with `t_too_many_login_attempts` showing the remaining minutes. After the lock ends, login works. A successful login resets the counter. The rule applies equally to web, mobile and direct API calls. (NEW, P-8, fixes R-043)
 - AC-17 Given the admin changes S-062 or S-063, When the next login attempt happens, Then the new values apply with no deployment. (00 AC-8)
-- AC-18 Given S-061 `auth.recaptcha.enabled` is ON, When register or login is submitted without a valid token (the score must be above 0.5), Then it is refused with `t_validator_recaptcha`. Given S-061 is OFF, Then no captcha is shown or checked. (LEGACY `Recaptcha.php:21-38`)
+- AC-18 Given S-061 `auth.recaptcha.enabled` is ON, When register or login is submitted without a valid token (the score must be above 0.5), Then it is refused with `t_validator_recaptcha`. Given S-061 is OFF, Then no captcha is shown or checked. Web only for now; the app: R-A10 (Q-160). (LEGACY `Recaptcha.php:21-38`)
 - AC-19 Given a restricted user (`is_restricted`), When they log in, Then login succeeds but the web app sends every page to the Restrictions centre (`/restricted`), the mobile app shows only the Restrictions screen, and the API answers every other call with the error `ACCOUNT_RESTRICTED`. The exceptions are: own account summary, restrictions and appeals, and logout. (LEGACY BR-008, `Restricted.php:27-31`; applies to both roles, R-1.4)
 
 ### Email two-factor authentication (NEW, Q-043, Q-063, Q-072, P-4, P-7)
@@ -128,7 +128,7 @@ Fixed technical values chosen in ADR-002 and shown to the Owner at the Phase 2 g
 ### R-A2 Password rule — ACCEPTED P-14
 - 8–60 characters, with at least one uppercase Latin letter and one digit, for **register, reset and change**. Legacy used this rule only at registration (`RegisterValidator.php:24`); reset and change allowed 6+ characters (`UpdatePasswordValidator.php:26`, `EditValidator.php:26-30`).
 - Existing passwords that do not meet the rule keep working. The rule applies only when a password is set.
-- The legacy key `t_password_validation_message` exists in the code but has no value in either language file. It is added as a NEW text.
+- The legacy key `t_password_validation_message` has a value in both legacy language files (`lang/en/messages.php`, `lang/ka/messages.php`); it is reused unchanged (corrected 2026-10-01, QA 3.15 F-04).
 
 ### R-A3 Legacy password migration
 - Legacy hashes are bcrypt, cost 10 (`config/hashing.php`). The new platform accepts them on login and upgrades them (ADR-002). Accounts without a password (social only) stay without one. (BR-005; vision)
@@ -166,7 +166,7 @@ Fixed technical values chosen in ADR-002 and shown to the Owner at the Phase 2 g
 
 ### R-A10 reCAPTCHA — LEGACY
 - S-061 (prod → OFF; recommended ON, R-043). v3 score threshold 0.5. Covered here: register and login. Contact form and blog comments: spec 17. Staff login: always subject to S-061 (legacy `Admin/Auth/LoginValidator`).
-- Mobile: the app uses Google's mobile reCAPTCHA SDK with the same server check. The exact mechanism is decided in ADR-002 (not a business rule).
+- Mobile (aligned with ADR-002 §6, 2026-10-01, QA 3.15 F-01): the app has **no reCAPTCHA check yet**; AC-18 applies to the web (and the staff login). The app is protected by the throttles of ADR-002 §6 (S-062 lock, slow mode, `register` 10 per IP per hour, global limits). Whether the app gets a bot check (Firebase App Check or reCAPTCHA Enterprise) is Owner question **Q-160**; until then a mobile request without a token is not refused while S-061 is ON.
 
 ---
 
@@ -263,7 +263,7 @@ Legacy keys reused (values unchanged):
 | `t_ur_current_pass_does_not_match` | Your current password does not match | პაროლი არასწორია |
 | `t_ur_account_password_updated` | Your password has been successfully updated | პაროლი წარმატებით შეიცვალა |
 | `t_socialite_error_email_exists` | Oops! The email address you are trying to login with, already exists in our records | ეს ელ-ფოსტის მისამართი უკვე არსებობს ჩვენს ჩანაწერებში |
-| `t_google_login` | Google login | (missing in legacy ka; NEW ka) Google-ით შესვლა |
+| `t_google_login` | Google login | Google-ით ავტორიზაცია (legacy ka; corrected 2026-10-01, QA 3.15 F-04) |
 | `t_browser_sessions` | Browser sessions | გამოყენებული მოწყობილობები |
 | `t_logout_other_browser_sessions` | Logout other browser sessions | ბრაუზერის სხვა სესიებიდან გამოსვლა |
 | `t_this_device` | This device | მოცემულ მომენტში სარგებლობთ ამ კონკრეტული მოწყობილობით |
@@ -284,7 +284,7 @@ Legacy keys reused (values unchanged):
 NEW keys (English first, Georgian alongside, Q-058):
 | Key | en | ka |
 |---|---|---|
-| `t_password_validation_message` (legacy key, no value) | Password must contain at least one uppercase letter and one number. | პაროლი უნდა შეიცავდეს მინიმუმ ერთ დიდ ლათინურ ასოს და ერთ ციფრს. |
+| `t_password_validation_message` (legacy value) | Password must contain at least one uppercase letter and one number. | პაროლი უნდა შეიცავდეს მინიმუმ ერთ დიდ ასოსა და ერთ ციფრს. |
 | `t_account_pending_verification` | Your account is not activated yet. Please confirm your email address. | თქვენი ანგარიში ჯერ არ არის გააქტიურებული. გთხოვთ, დაადასტუროთ ელ-ფოსტის მისამართი. |
 | `t_account_pending_admin_review` | Your account is under review. We will notify you when it is activated. | თქვენი ანგარიში განხილვის პროცესშია. გააქტიურებისას შეგატყობინებთ. |
 | `t_account_suspended` | Your account has been suspended. Please contact support. | თქვენი ანგარიში შეჩერებულია. გთხოვთ, დაუკავშირდეთ მხარდაჭერის სამსახურს. |
