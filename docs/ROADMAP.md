@@ -52,10 +52,10 @@ Remaining:
 - [x] 3.7b Web: fallback page `/app-return/auth/{provider}` (url-map §7: "open the MyTask app" notice, never processes the code, `noindex`) + E2E. (The `.well-known` App Link files need the store identifiers → Phase 6.)
 - [x] 3.8 Web: change password (Account → Password) + E2E.
 - [x] 3.9 Web: sessions page `/account/sessions` (list, log out other sessions) + E2E.
-- [ ] 3.10 Mobile: forgot password + set new password (deep link).
+- [x] 3.10 Mobile: forgot password + set new password (deep link).
 - [ ] 3.11 Mobile: resend verification + verify-email deep link.
 - [ ] 3.12 Mobile: Account → Security (change password, 2FA switch, sessions).
-- [ ] 3.13 Architect: record data-model gaps `staff.full_name` and the staff re-auth code purpose.
+- [ ] 3.13 Architect: record data-model gaps `staff.full_name` and the staff re-auth code purpose; add `/auth/password/update` and `/auth/verify` (with and without `/en`) to the App Link claims of url-map §7.2 (spec 01 screens table; app side done in 3.10/3.11).
 - [ ] 3.14 Architect: P3-9 study on isolating S-110 custom code (note or ADR).
 - [ ] 3.15 QA parity report for all of slice 01 → `docs/06-qa/reports/`.
 - [ ] 3.16 Security review of slice 01 B-1…B-2c, incl. SEC-09 → `docs/06-qa/security/`.

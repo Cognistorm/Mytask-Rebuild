@@ -11,8 +11,9 @@ if ((!process.env.EXPO_PUBLIC_API_URL || !process.env.APP_URL) && existsSync(roo
 // must be exactly what the API allows, so the app uses the same APP_URL as the API.
 const appUrl = process.env.APP_URL || 'https://mytask.ge';
 const appHost = new URL(appUrl).host;
-// App Links / Universal Links for `/app-return/*` (url-map §7.2) only over https. The verification files
-// (`.well-known/apple-app-site-association`, `assetlinks.json`) need the store identifiers: Phase 6.
+// App Links / Universal Links for `/app-return/*` (url-map §7.2) and the password-reset link, only over
+// https. The verification files (`.well-known/apple-app-site-association`, `assetlinks.json`) need the store
+// identifiers: Phase 6.
 const appLinks = appUrl.startsWith('https://');
 
 // Store identifiers (ios.bundleIdentifier, android.package) are set in Phase 6 with the Owner: they cannot
@@ -35,7 +36,10 @@ const config: ExpoConfig = {
           {
             action: 'VIEW',
             autoVerify: true,
-            data: [{ scheme: 'https', host: appHost, pathPrefix: '/app-return/' }],
+            // `/auth/password/update`: the reset email's link opens the app (spec 01 screens table).
+            data: ['/app-return/', '/auth/password/update', '/en/auth/password/update'].map(
+              (pathPrefix) => ({ scheme: 'https', host: appHost, pathPrefix }),
+            ),
             category: ['BROWSABLE', 'DEFAULT'],
           },
         ],

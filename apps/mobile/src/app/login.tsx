@@ -1,6 +1,6 @@
 // Spec 01 login on mobile (AC-10…AC-16) with the email-code step (AC-22…AC-27) and social login
-// (AC-37…AC-41). Mobile stays signed in.
-import { router } from 'expo-router';
+// (AC-37…AC-41) and the link to forgot password (AC-32). Mobile stays signed in.
+import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Button, Input, LinkButton, Notice, Screen } from '../components/form';
 import { SocialButtons } from '../components/social';
@@ -19,6 +19,8 @@ interface ApiError {
 }
 
 export default function Login() {
+  // Back from setting a new password (AC-33).
+  const { reset } = useLocalSearchParams<{ reset?: string }>();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [challenge, setChallenge] = useState<TwoFactorChallenge>();
@@ -48,6 +50,7 @@ export default function Login() {
 
   return (
     <Screen title={t('t_welcome_back')}>
+      {reset ? <Notice kind="success" text={t('t_password_has_been_updated')} /> : null}
       {general ? <Notice kind="error" text={general} /> : null}
       <Input
         label={t('t_email_address')}
@@ -64,6 +67,10 @@ export default function Login() {
         secure
         textContentType="password"
         error={field('password')}
+      />
+      <LinkButton
+        label={t('t_forgot_password')}
+        onPress={() => router.push('/auth/password/reset')}
       />
       <Button label={t('t_login')} onPress={onLogin} busy={busy} />
       <SocialButtons
