@@ -83,6 +83,7 @@ Your phone and computer must be on the **same Wi-Fi**.
    ```
 4. A QR code appears. iPhone: scan it with the Camera app. Android: scan it inside Expo Go.
 5. The app shows **"API მუშაობს"** when it can reach the API. If it says "API მიუწვდომელია", check the address in step 2 and allow Node.js through the Windows firewall when Windows asks.
+6. Social-login buttons (Google, Facebook…) appear in the app only for providers switched ON with keys in the admin settings. In Expo Go they cannot finish the sign-in: the provider returns to `{APP_URL}/app-return/auth/{provider}`, which only a store/development build with verified App Links (https, Phase 6) can catch. Try social login on the website locally; on the phone it is tested with the first development build.
 
 ## 4b. Quick look without Docker (`pnpm preview`)
 

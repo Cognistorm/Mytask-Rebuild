@@ -4,7 +4,16 @@ import type { ExpoConfig } from 'expo/config';
 
 // The monorepo keeps ONE .env at the root (docs/SETUP-LOCAL.md); Expo only reads apps/mobile/.env by itself.
 const rootEnv = resolve(__dirname, '../../.env');
-if (!process.env.EXPO_PUBLIC_API_URL && existsSync(rootEnv)) process.loadEnvFile(rootEnv);
+if ((!process.env.EXPO_PUBLIC_API_URL || !process.env.APP_URL) && existsSync(rootEnv))
+  process.loadEnvFile(rootEnv);
+
+// The web app's public URL. Social login returns to `{APP_URL}/app-return/auth/{provider}` (ADR-002 §7), which
+// must be exactly what the API allows, so the app uses the same APP_URL as the API.
+const appUrl = process.env.APP_URL || 'https://mytask.ge';
+const appHost = new URL(appUrl).host;
+// App Links / Universal Links for `/app-return/*` (url-map §7.2) only over https. The verification files
+// (`.well-known/apple-app-site-association`, `assetlinks.json`) need the store identifiers: Phase 6.
+const appLinks = appUrl.startsWith('https://');
 
 // Store identifiers (ios.bundleIdentifier, android.package) are set in Phase 6 with the Owner: they cannot
 // be changed after the first store release.
@@ -17,11 +26,25 @@ const config: ExpoConfig = {
   orientation: 'portrait',
   userInterfaceStyle: 'automatic',
   platforms: ['ios', 'android'],
-  plugins: ['expo-router', 'expo-font'],
+  plugins: ['expo-router', 'expo-font', 'expo-web-browser'],
   experiments: { typedRoutes: true },
+  ios: appLinks ? { associatedDomains: [`applinks:${appHost}`] } : undefined,
+  android: appLinks
+    ? {
+        intentFilters: [
+          {
+            action: 'VIEW',
+            autoVerify: true,
+            data: [{ scheme: 'https', host: appHost, pathPrefix: '/app-return/' }],
+            category: ['BROWSABLE', 'DEFAULT'],
+          },
+        ],
+      }
+    : undefined,
   extra: {
     // Where the app finds the API. Locally: http://<computer LAN IP>:3000/api/v1 (docs/SETUP-LOCAL.md).
     apiUrl: process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000/api/v1',
+    appUrl,
   },
 };
 
