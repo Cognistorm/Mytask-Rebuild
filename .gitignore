@@ -25,3 +25,10 @@ apps/api/src/generated/prisma/
 # Isolated copies used by review agents
 .claude/worktrees/
 apps/api/.pglite/
+
+# Re-written by `next dev` when an AI agent runs it (no opt-out); the root CLAUDE.md stays the single
+# committed rules file (QA P3 BUG-13).
+apps/web/AGENTS.md
+apps/web/CLAUDE.md
+apps/admin/AGENTS.md
+apps/admin/CLAUDE.md
