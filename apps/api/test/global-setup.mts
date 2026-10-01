@@ -1,6 +1,7 @@
 // Without RUN_INTEGRATION (i.e. locally without Docker), tests run against PGlite (Postgres 17 in
 // WebAssembly with the data-model extensions) and an in-process Redis. CI sets RUN_INTEGRATION=1 and uses
-// real PostgreSQL + Redis service containers.
+// real PostgreSQL + Redis service containers. Locally, RUN_INTEGRATION=1 uses the `<db>_test` database
+// that infra/postgres/init creates, never the development data (QA P3 BUG-12d).
 import { exec, execSync } from 'node:child_process';
 import { promisify } from 'node:util';
 import { createServer } from 'node:net';
@@ -10,6 +11,7 @@ import { citext } from '@electric-sql/pglite/contrib/citext';
 import { pg_trgm } from '@electric-sql/pglite/contrib/pg_trgm';
 import { vector } from '@electric-sql/pglite-pgvector';
 import { PGLiteSocketServer } from '@electric-sql/pglite-socket';
+import { integrationDatabaseUrl } from './integration-db.js';
 
 async function freePort(): Promise<number> {
   return new Promise((resolve) => {
@@ -23,7 +25,12 @@ async function freePort(): Promise<number> {
 
 export default async function setup() {
   if (process.env.RUN_INTEGRATION) {
-    execSync('npx prisma migrate deploy', { stdio: 'inherit' });
+    const url = integrationDatabaseUrl();
+    process.env.DATABASE_URL = url;
+    execSync('npx prisma migrate deploy', {
+      stdio: 'inherit',
+      env: { ...process.env, DATABASE_URL: url },
+    });
     return undefined;
   }
   const db = await PGlite.create({ extensions: { btree_gist, citext, pg_trgm, vector } });
