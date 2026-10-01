@@ -624,6 +624,7 @@
   "t_custom_code_fixed_vendor_confirm": "I confirm this host serves fixed vendor code (for example an analytics pixel) and is not a tag manager or any service whose code can be changed outside MyTask.",
   "t_custom_code_fixed_vendor_hint": "Code from these hosts runs on pages where users are logged in and can act as them. Add only fixed-code vendors, with a pinned version where possible.",
   "t_custom_code_fixed_vendor_required": "Confirm that each new host serves fixed vendor code. Tag managers are not allowed.",
+  "t_custom_code_host_denied": "Tag manager containers are not allowed in custom code: {{matches}}",
   "t_custom_code_host_not_allowed": "These hosts are not in the allowed list: {{hosts}}",
   "t_custom_google_fonts_html": "Custom Google fonts links",
   "t_custom_hero_section_code": "Custom hero section code",

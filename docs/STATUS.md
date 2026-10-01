@@ -1,5 +1,5 @@
-# Status — updated 2026-09-30
-Phase: 3 — Foundation (platform core) **IN PROGRESS** | Phase 3 gate: not ready | Phase 2 gate: APPROVED by Owner 2026-09-30 | Phase 1 gate: APPROVED by Owner 2026-09-28
+# Status — updated 2026-10-02
+Phase: 4 — Features **NEXT** | Phase 3 gate: APPROVED by Owner 2026-10-02 | Phase 2 gate: APPROVED by Owner 2026-09-30 | Phase 1 gate: APPROVED by Owner 2026-09-28
 
 ## Done
 - Kit copied; legacy code in /legacy/APP (confirmed = legacy `main`, production logic); vision filled
@@ -58,9 +58,11 @@ Phase: 3 — Foundation (platform core) **IN PROGRESS** | Phase 3 gate: not read
 
 ## Micro-task workflow (Owner rule 2026-09-30)
 The plan lives in **docs/ROADMAP.md** (checkbox per micro-task). One micro-task at a time; when it is done and tests pass, tick it there and add one line below.
-**Next micro-task: 3.18 (Owner)** open the PR `feat/auth` → `main` (branch pushed; link in ROADMAP 3.18), CI green, merge; then **3.19 Phase 3 gate (Owner)**. **Owner decisions:** DEV-M1 (no "back to homepage" in the app until slice 02; QA recommends approve), Q-160 (mobile bot check; before S-061 ON).
+**Next micro-task: 4.0.2** (web): split `apps/web/src/app/[locale]` into public and private root layouts (ADR-019 §2) + E2E. Branch `feat/adr-019-followups`. **Owner decisions still open:** DEV-M1 (no "back to homepage" in the app until slice 02; QA recommends approve), Q-160 (mobile bot check; before S-061 ON).
 
 ### Micro-task log
+- 2026-10-02 3.18 + 3.19 done: PR #1 `feat/auth` merged into `main`, CI 10/10 green; Phase 3 gate approved by Owner. **Phase 3 closed.**
+- 2026-10-02 4.0.1 done (architect + analyst, branch `feat/adr-019-followups`): contract **1.3.0** — new `D6ErrorCode` `CUSTOM_CODE_HOST_DENIED` (422, `details.matches`, `t_custom_code_host_denied`) on `adminUpdateSetting` and `adminRestoreSettingVersion` (restore re-checks old S-110/S-127 values; `x-covers` + `16 AC-74`), coverage/16.md AC-73/AC-74 rows; spec 16 AC-73 full page load at the public/private boundary, AC-74 built-in tag-manager deny list, Texts row; NEW key `t_custom_code_host_denied` en + ka. verify:final 0/0 (715/715), `pnpm gen`, i18n check, typecheck/lint 9/9, API 167/167. Deny list code itself = slice 17 (4.15.14). Handoff docs/handoffs/2026-10-02-solution-architect-to-backend-web-4-0-1-custom-code-deny-list.md.
 - 2026-09-30 ROADMAP.md created: Phase 3 remaining 3.1–3.19, Phase 4 slices 4.1–4.16 (+ gate 4.17), Phase 5 5.1–5.19, Phase 6 6.1–6.18.
 - 2026-09-30 3.1 done: security re-check of platform core at HEAD → docs/06-qa/security/03-platform-core-recheck-2026-09-30.md, **PASS with conditions** (0 Critical/High; Medium SEC-49 per-IP-only limiter, due before first server-side data slice; Low SEC-50…56). Before slice 01 done: SEC-39, rest of SEC-35, SEC-50, SEC-51, SEC-45 tests (added to 3.17). Question for product-analyst: 120 writes/IP/min behind carrier NAT + per-IP register limit. API tests 73/73 green.
 - 2026-10-01 Q-157 answered by Owner: 120 writes/IP/min kept (carrier NAT OK); registration limit 10/hour/IP → built in 3.17.
@@ -100,7 +102,7 @@ The plan lives in **docs/ROADMAP.md** (checkbox per micro-task). One micro-task 
 - 2026-10-01 3.17o done: BUG-05 privacy + terms added to the register link list (web `PolicyLinks`, app `LinkList`, spec 01 note); BUG-06 web register checkbox keeps its size and body weight (`auth.css`). E2E asserts both; web E2E 35 passed / 3 skipped, web + mobile typecheck/lint OK. **3.17 complete.**
 
 ## Next up
-- **Phase 3**: review P3-1…P3-7 → slice 01 auth (P3-8) → Phase 3 gate: login works on web AND the app (docs/03-architecture/phase-3-plan.md)
+- **Phase 4**: 4.0.1 → 4.0.2, then the slices in ROADMAP order (Phase 3 closed 2026-10-02)
 - Architect items: none open in Phase 3 (P3-9 → ADR-019 accepted 2026-10-01 (Q-158 (a)), follow-ups ROADMAP 4.0.1/4.0.2; data-model gaps recorded in 3.13)
 - Security conditions carried into Phase 3: backend implements the ADR-013 §19 client-IP tests before slice 01's review; SEC-31/SEC-32 notes in their slices; social-login binding reviewed before any provider is switched ON
 - Contract rule from now on: every change to openapi.yaml / data model needs an ADR + handoff (CLAUDE.md rule 2)

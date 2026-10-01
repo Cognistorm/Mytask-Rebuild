@@ -31,7 +31,7 @@ Status keys: `[ ]` open · `[x]` done · `[!]` blocked (reason on the line).
 
 ---
 
-## Phase 3 — Foundation + slice 01 (branch `feat/auth`)
+## Phase 3 — Foundation + slice 01 (branch `feat/auth`) ✅ closed 2026-10-02 (PR #1 merged into `main`, CI 10/10 green; gate approved by Owner)
 
 Done so far:
 - [x] 3.0.1 P3-1…P3-7 platform core: monorepo, generated types/client, i18n import, app skeletons, local stack, CI, SETUP-LOCAL.
@@ -77,8 +77,8 @@ Remaining:
   - [x] 3.17k Security re-check → review 05 `docs/06-qa/security/05-slice-01-recheck-2026-10-01.md`: **PASS** (merge allowed; slice 01 done from security; 5 Info I-25…I-29).
   - [x] 3.17l EV-02 admin email switch + hourly cap (SEC-35, Owner Q-159 (a)): register rows S-131 (switch, ON) and S-132 (cap, default 20), editable in Admin → Settings → Notifications (cap field disabled while the switch is OFF).
   - [x] 3.17o Web + app QA BUG-05 (privacy + terms in the register link list) and BUG-06 (web register checkbox layout); E2E assertions added.
-- [ ] 3.18 Open PR `feat/auth` → `main`, CI green (Owner merges). 2026-10-01: branch pushed (`15ea8eb9`, all 3.17 work); the GitHub CLI is not installed and the repo is private, so the Owner opens the PR at https://github.com/Cognistorm/Mytask-Rebuild/compare/main...feat/auth and checks CI (incl. the new SEC-45 Caddy probe in the `docker` job).
-- [ ] 3.19 **Phase 3 gate (Owner):** register / log in / log out on web and app; approve.
+- [x] 3.18 Open PR `feat/auth` → `main`, CI green (Owner merges). 2026-10-01: branch pushed (`15ea8eb9`, all 3.17 work); the GitHub CLI is not installed and the repo is private, so the Owner opens the PR at https://github.com/Cognistorm/Mytask-Rebuild/compare/main...feat/auth and checks CI (incl. the new SEC-45 Caddy probe in the `docker` job). 2026-10-02: PR #1 merged, CI 10/10 green (oasdiff step skips when `main` has no contract yet, `a137a4bb`).
+- [x] 3.19 **Phase 3 gate (Owner):** register / log in / log out on web and app; approve. 2026-10-02: approved by Owner.
 
 ---
 
@@ -93,7 +93,7 @@ Remaining:
 - Owner click-through.
 
 ### 4.0 Before slice 1 — ADR-019 follow-ups (Owner Q-158 (a), 2026-10-01)
-- [ ] 4.0.1 Architect + analyst: contract `422 CUSTOM_CODE_HOST_DENIED` on `adminUpdateSetting` / `adminRestoreSettingVersion` (additive) + i18n `t_custom_code_host_denied` (en + ka); spec 16 AC-73 (full page load at the public/private boundary) and AC-74 (built-in deny list).
+- [x] 4.0.1 Architect + analyst: contract `422 CUSTOM_CODE_HOST_DENIED` on `adminUpdateSetting` / `adminRestoreSettingVersion` (additive) + i18n `t_custom_code_host_denied` (en + ka); spec 16 AC-73 (full page load at the public/private boundary) and AC-74 (built-in deny list). Done 2026-10-02: contract 1.3.0, branch `feat/adr-019-followups`.
 - [ ] 4.0.2 Web: split `apps/web/src/app/[locale]` into public and private root layouts (ADR-019 §2) + E2E (custom-code marker gone after navigating to `/auth/login` and `/account`; private CSP has no S-127 host).
 
 ### 4.1 Slice 1 — spec 02 Profiles and dashboards (branch `feat/profiles`)
