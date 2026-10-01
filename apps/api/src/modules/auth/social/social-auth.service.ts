@@ -150,6 +150,10 @@ export class SocialAuthService {
     if (!raw) throw failed();
     const stored = JSON.parse(raw) as StoredState;
     if (stored.provider !== provider) throw failed();
+    // SEC-58: the callback must come from the same kind of client (browser vs app) that started the flow, and
+    // the session is recorded and delivered for the stored client kind, never for the callback's header.
+    if (isCookieClient(stored.client) !== isCookieClient(ctx.client)) throw failed();
+    ctx = { ...ctx, client: stored.client };
 
     // SEC-09 binding, by the client kind stored with `state`; empty stored values never match (SEC-32(a)).
     let verifier: string;

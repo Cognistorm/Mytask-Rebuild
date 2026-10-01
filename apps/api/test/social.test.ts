@@ -192,6 +192,17 @@ describe('complete (SEC-09, SEC-32(a), AC-37…AC-41)', () => {
       .set(IOS)
       .send({ code: 'c', state: web.state, codeVerifier: verifier });
     expect(cross.status).toBe(422);
+
+    // Probe P3 (SEC-58): a web-started flow finished WITH the browser's nonce cookie and Origin but an app
+    // header must not hand out body tokens or record an app session.
+    const webAgain = await startWeb();
+    const p3 = await request(app.getHttpServer())
+      .post('/api/v1/auth/social/google/callback')
+      .set({ ...WEB, 'X-MyTask-Client': 'ios', Cookie: webAgain.cookie })
+      .send({ code: 'c', state: webAgain.state });
+    expect(p3.status).toBe(422);
+    expect(p3.body.code).toBe('AUTH_SOCIAL_FAILED');
+    expect(p3.body.refreshToken).toBeUndefined();
   });
 
   it('unverified email is treated as missing; an existing email is refused (AC-39, AC-41)', async () => {

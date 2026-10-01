@@ -543,7 +543,7 @@ AdminAuthLoginRequest:
     recaptchaToken:
       type: [string, 'null']
       maxLength: 4096
-      description: Required when S-061 is ON (staff login is always subject to S-061, spec 01 R-A10).
+      description: Required when S-061 is ON (staff login is always subject to S-061, spec 01 R-A10). Minted with the action `staff_login` on the admin host (SEC-47).
 
 AdminAuthTwoFactorChallenge:
   type: object

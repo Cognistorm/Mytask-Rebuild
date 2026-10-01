@@ -10,7 +10,7 @@ import { OutboxService } from '../../platform/outbox/outbox.service';
 import { SettingsService } from '../../platform/settings/settings.service';
 import { toMe } from './me.mapper';
 import { PasswordService } from './password.service';
-import { RecaptchaService } from './recaptcha.service';
+import { RecaptchaService, type RecaptchaAction } from './recaptcha.service';
 import { ReferralService } from './referral.service';
 import { isCookieClient, type RequestContext } from './request-context';
 import { SessionsService, type IssuedTokens } from './sessions.service';
@@ -75,7 +75,7 @@ export class AuthService {
         retryAfterSeconds: wait,
       });
     }
-    await this.requireRecaptcha(input.recaptchaToken, ctx);
+    await this.requireRecaptcha(input.recaptchaToken, ctx, 'register');
     const [verificationRequired, method, linkMinutes, adminEmailOn, adminEmailCap] =
       await Promise.all([
         this.settings.get('S-052'),
@@ -229,7 +229,7 @@ export class AuthService {
     );
     const recaptchaOn = ctx.client === 'web' && (await this.recaptcha.enabled());
     const recaptchaPassed =
-      recaptchaOn && (await this.recaptcha.verify(input.recaptchaToken, ctx.ip));
+      recaptchaOn && (await this.recaptcha.verify(input.recaptchaToken, ctx.ip, 'login'));
     if (recaptchaOn && !recaptchaPassed) {
       throw fieldError(ctx, 'recaptchaToken', 'recaptcha', 't_validator_recaptcha');
     }
@@ -520,9 +520,13 @@ export class AuthService {
 
   // ------------------------------------------------------------------ helpers
 
-  private async requireRecaptcha(token: string | null | undefined, ctx: RequestContext) {
+  private async requireRecaptcha(
+    token: string | null | undefined,
+    ctx: RequestContext,
+    action: RecaptchaAction,
+  ) {
     if (ctx.client !== 'web' || !(await this.recaptcha.enabled())) return;
-    if (!(await this.recaptcha.verify(token, ctx.ip))) {
+    if (!(await this.recaptcha.verify(token, ctx.ip, action))) {
       throw fieldError(ctx, 'recaptchaToken', 'recaptcha', 't_validator_recaptcha');
     }
   }

@@ -59,7 +59,7 @@ export class StaffAuthService {
     // Staff login is always subject to S-061 (spec 01 R-A10).
     if (
       (await this.recaptcha.enabled()) &&
-      !(await this.recaptcha.verify(input.recaptchaToken, ctx.ip))
+      !(await this.recaptcha.verify(input.recaptchaToken, ctx.ip, 'staff_login'))
     ) {
       throw new ApiException(400, 'VALIDATION_FAILED', 't_validator_recaptcha', {
         fields: [

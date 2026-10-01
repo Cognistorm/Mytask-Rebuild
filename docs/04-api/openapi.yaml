@@ -3,7 +3,7 @@
 openapi: 3.1.0
 info:
   title: MyTask.ge API
-  version: 1.2.3
+  version: 1.2.4
   summary: One API for the MyTask.ge website, mobile apps (iOS, Android) and admin panel.
   description: |
     **Status: approved by the Owner 2026-09-30 as the contract** (Phase 2 gate, version 1.0.0, including
@@ -15,7 +15,7 @@ info:
     (ADR-002 §7, Q-156); **1.2.1** (descriptions only) staff-login IP bans: canonical spelling and
     automatic IPv6 bans per /64 prefix (ADR-002 §6, SEC-57, SEC-60); **1.2.2** (descriptions only) `register`
     limit 10 per IP per hour (Q-157, SEC-35); **1.2.3** (descriptions only) register rows S-131/S-132, the EV-02
-    switch and hourly cap (Q-159).
+    switch and hourly cap (Q-159); **1.2.4** (descriptions only) reCAPTCHA action and host per form (SEC-47).
 
     **The contract is the law** (CLAUDE.md). Web (`apps/web`), mobile (`apps/mobile`) and admin
     (`apps/admin`) use only this API through the generated `packages/types` + `packages/api-client`
@@ -22678,7 +22678,7 @@ components:
             - string
             - 'null'
           maxLength: 4096
-          description: Required when S-061 is ON (staff login is always subject to S-061, spec 01 R-A10).
+          description: Required when S-061 is ON (staff login is always subject to S-061, spec 01 R-A10). Minted with the action `staff_login` on the admin host (SEC-47).
     AdminAuthPasswordResetRequest:
       type: object
       required:
@@ -26604,7 +26604,7 @@ components:
         - string
         - 'null'
       maxLength: 4096
-      description: reCAPTCHA v3 token (web) or the mobile SDK token (R-A10). Required while S-061 is ON, otherwise ignored; a missing or low-score (≤ 0.5) token gives `VALIDATION_FAILED` on field `recaptchaToken`, messageKey `t_validator_recaptcha` (spec 01 AC-18).
+      description: reCAPTCHA v3 token (web) or the mobile SDK token (R-A10). Required while S-061 is ON, otherwise ignored; a missing or low-score (≤ 0.5) token, or one minted for another action or host, gives `VALIDATION_FAILED` on field `recaptchaToken`, messageKey `t_validator_recaptcha` (spec 01 AC-18). Web passes the action `login` (login form) or `register` (registration form) to `grecaptcha.execute`; the token's hostname must be the site host (SEC-47).
     AuthSession:
       type: object
       description: |

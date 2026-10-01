@@ -375,7 +375,7 @@ AuthNotice:
 AuthRecaptchaToken:
   type: [string, 'null']
   maxLength: 4096
-  description: reCAPTCHA v3 token (web) or the mobile SDK token (R-A10). Required while S-061 is ON, otherwise ignored; a missing or low-score (≤ 0.5) token gives `VALIDATION_FAILED` on field `recaptchaToken`, messageKey `t_validator_recaptcha` (spec 01 AC-18).
+  description: reCAPTCHA v3 token (web) or the mobile SDK token (R-A10). Required while S-061 is ON, otherwise ignored; a missing or low-score (≤ 0.5) token, or one minted for another action or host, gives `VALIDATION_FAILED` on field `recaptchaToken`, messageKey `t_validator_recaptcha` (spec 01 AC-18). Web passes the action `login` (login form) or `register` (registration form) to `grecaptcha.execute`; the token's hostname must be the site host (SEC-47).
 
 AuthDeviceToken:
   type: [string, 'null']
