@@ -44,7 +44,7 @@ pnpm infra:up
 ```
 The first time this downloads about 1–2 GB. It starts: PostgreSQL (database), Redis (cache), file storage, Mailpit (catches every email), and a fake Bank of Georgia (no real payments).
 
-Check that everything is up: `docker compose ps` — every service should say `running` or `healthy` (`s3-init` says `exited (0)`, which is correct: it only creates the storage folders).
+Check that everything is up: `docker compose ps -a` — every service should say `running` or `healthy` (`s3-init` says `exited (0)`, which is correct: it only creates the storage folders. Without `-a` it is not listed at all). If `s3-init` says `exited (1)`, run `docker compose logs s3-init` and `pnpm infra:up` again.
 
 **Step B — prepare the database** (first time, and after each update that changes the database):
 ```
@@ -122,8 +122,9 @@ The same checks run automatically on GitHub for every pull request (`.github/wor
 | Symptom | Fix |
 |---|---|
 | `docker: command not found` / "cannot connect to the Docker daemon" | Start Docker Desktop and wait for "Engine running" |
+| Windows: `npm.ps1` / `pnpm.ps1 cannot be loaded because running scripts is disabled` | Run once in PowerShell: `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`, answer `Y`, then open a new PowerShell window |
 | `pnpm setup:env` says `.env already exists` | Fine — you already have one. To regenerate, delete `.env` first (then run `docker compose down -v`, because the database password changes) |
-| `port is already allocated` | Another program uses that port (5432, 6379, 3000, 3100, 3200, 8025, 8080). Close it, or restart the computer |
+| `port is already allocated` | Another program uses that port. Ours: 1025, 3000, 3001, 3002, 3100, 3200, 4100, 5432, 6379, 8025, 8080, 8333 (and 3310 with `--profile scan`). Close it, or restart the computer |
 | Website shows "API მიუწვდომელია" | Is `pnpm dev` running? Does http://localhost:3000/api/v1/health work? |
 | `pnpm db:deploy` fails | Is `pnpm infra:up` done and `docker compose ps` showing postgres `healthy`? |
 

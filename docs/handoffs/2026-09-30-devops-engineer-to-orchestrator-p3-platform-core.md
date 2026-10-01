@@ -29,7 +29,7 @@ Done in one session without sub-agents (Owner instruction). No business rule, ta
 - `apps/api/*`, `apps/web/*`, `apps/admin/*`, `apps/mobile/*`, `tools/bog-mock/*`
 - `infra/caddy/Caddyfile`, `infra/docker/next.Dockerfile`, `infra/postgres/init/01-test-database.sh`
 - `.github/workflows/ci.yml`
-- Docs: `docs/03-architecture/phase-3-plan.md`, `docs/03-architecture/adr/017-local-object-storage-after-minio.md` (**proposed**), `docs/01-discovery/open-questions.md` (+Q-152), `docs/SETUP-LOCAL.md`, this handoff, `docs/STATUS.md`
+- Docs: `docs/03-architecture/phase-3-plan.md`, `docs/03-architecture/adr/017-local-object-storage-after-minio.md` (**proposed** at handoff time; accepted since, commit `ae17e141`), `docs/01-discovery/open-questions.md` (+Q-152), `docs/SETUP-LOCAL.md`, this handoff, `docs/STATUS.md`
 
 ## What the next agent must do
 1. **Owner**: install Docker Desktop, follow `docs/SETUP-LOCAL.md`; push `feat/platform-core` and open a PR so CI runs (first real Docker run); answer **Q-152** (ADR-017).
@@ -39,7 +39,7 @@ Done in one session without sub-agents (Owner instruction). No business rule, ta
 5. **solution-architect**: (a) ADR-017 (accept/amend with the Owner's Q-152 answer; then fix "MinIO" wording in ADR-009 §1, ADR-015 §1, architecture §3/§6); (b) **contract gap**: responses carry `X-Min-App-Version` and old apps get `426 APP_VERSION_UNSUPPORTED`, but no request header tells the API the app's version — define one (e.g. `X-MyTask-App-Version`) with an ADR; (c) P3-9 study of S-110 isolation (Q-146).
 
 ## Open questions / risks
-- Q-152 (Owner): local object storage after MinIO (ADR-017 proposed).
+- Q-152 (Owner): local object storage after MinIO (ADR-017 proposed). *Update 2026-10-01: answered, ADR-017 accepted (`ae17e141`); `feat/platform-core` was pushed and CI ran (QA P3 BUG-14).*
 - Risk: first Docker run happens in CI; expect small fixes (SeaweedFS flags, healthchecks).
 - Risk: SeaweedFS presigned-POST support must be proven in the files slice (ADR-017 §3; fallback RustFS).
 - `next start` warns that standalone output prefers `node .next/standalone/server.js` — harmless locally; containers use the standalone server.
