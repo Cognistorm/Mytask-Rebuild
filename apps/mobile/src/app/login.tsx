@@ -1,5 +1,6 @@
 // Spec 01 login on mobile (AC-10…AC-16) with the email-code step (AC-22…AC-27) and social login
-// (AC-37…AC-41) and the link to forgot password (AC-32). Mobile stays signed in.
+// (AC-37…AC-41), the link to forgot password (AC-32) and "resend verification email" for pending accounts
+// (AC-13). Mobile stays signed in.
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Button, Input, LinkButton, Notice, Screen } from '../components/form';
@@ -14,13 +15,14 @@ const t = createT(locale);
 const api = mobileApi(locale);
 
 interface ApiError {
+  code?: string;
   message: string;
-  details?: { fields?: { field: string; message: string }[] };
+  details?: { fields?: { field: string; message: string }[]; verificationMethod?: string };
 }
 
 export default function Login() {
-  // Back from setting a new password (AC-33).
-  const { reset } = useLocalSearchParams<{ reset?: string }>();
+  // Back from setting a new password (AC-33) or from a verification link (AC-7).
+  const { reset, verified } = useLocalSearchParams<{ reset?: string; verified?: string }>();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [challenge, setChallenge] = useState<TwoFactorChallenge>();
@@ -50,8 +52,17 @@ export default function Login() {
 
   return (
     <Screen title={t('t_welcome_back')}>
+      {verified ? (
+        <Notice kind="success" text={t('t_ur_account_has_been_successfully_verified_email')} />
+      ) : null}
       {reset ? <Notice kind="success" text={t('t_password_has_been_updated')} /> : null}
       {general ? <Notice kind="error" text={general} /> : null}
+      {error?.code === 'ACCOUNT_PENDING' && error.details?.verificationMethod === 'email' ? (
+        <LinkButton
+          label={t('t_resend_verification_email')}
+          onPress={() => router.push({ pathname: '/auth/request', params: { email } })}
+        />
+      ) : null}
       <Input
         label={t('t_email_address')}
         value={email}
