@@ -58,7 +58,7 @@ Phase: 3 — Foundation (platform core) **IN PROGRESS** | Phase 3 gate: not read
 
 ## Micro-task workflow (Owner rule 2026-09-30)
 The plan lives in **docs/ROADMAP.md** (checkbox per micro-task). One micro-task at a time; when it is done and tests pass, tick it there and add one line below.
-**Next micro-task: 3.18** (open PR `feat/auth` → `main`, CI green; Owner merges). **Owner: DEV-M1** (no "back to homepage" in the app until slice 02, QA recommends approve), **Q-160** (mobile bot check; before S-061 ON).
+**Next micro-task: 3.18 (Owner)** open the PR `feat/auth` → `main` (branch pushed; link in ROADMAP 3.18), CI green, merge; then **3.19 Phase 3 gate (Owner)**. **Owner decisions:** DEV-M1 (no "back to homepage" in the app until slice 02; QA recommends approve), Q-160 (mobile bot check; before S-061 ON).
 
 ### Micro-task log
 - 2026-09-30 ROADMAP.md created: Phase 3 remaining 3.1–3.19, Phase 4 slices 4.1–4.16 (+ gate 4.17), Phase 5 5.1–5.19, Phase 6 6.1–6.18.

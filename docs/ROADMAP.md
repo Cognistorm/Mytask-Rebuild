@@ -77,7 +77,7 @@ Remaining:
   - [x] 3.17k Security re-check → review 05 `docs/06-qa/security/05-slice-01-recheck-2026-10-01.md`: **PASS** (merge allowed; slice 01 done from security; 5 Info I-25…I-29).
   - [x] 3.17l EV-02 admin email switch + hourly cap (SEC-35, Owner Q-159 (a)): register rows S-131 (switch, ON) and S-132 (cap, default 20), editable in Admin → Settings → Notifications (cap field disabled while the switch is OFF).
   - [x] 3.17o Web + app QA BUG-05 (privacy + terms in the register link list) and BUG-06 (web register checkbox layout); E2E assertions added.
-- [ ] 3.18 Open PR `feat/auth` → `main`, CI green (Owner merges).
+- [ ] 3.18 Open PR `feat/auth` → `main`, CI green (Owner merges). 2026-10-01: branch pushed (`15ea8eb9`, all 3.17 work); the GitHub CLI is not installed and the repo is private, so the Owner opens the PR at https://github.com/Cognistorm/Mytask-Rebuild/compare/main...feat/auth and checks CI (incl. the new SEC-45 Caddy probe in the `docker` job).
 - [ ] 3.19 **Phase 3 gate (Owner):** register / log in / log out on web and app; approve.
 
 ---
