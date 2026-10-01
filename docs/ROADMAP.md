@@ -50,7 +50,7 @@ Remaining:
 - [x] 3.6 Web: social buttons on login/register (from `PublicConfig.socialProviders`) + callback page `/auth/{provider}/callback` + E2E with a fake provider.
 - [x] 3.7a Mobile: social login with `expo-auth-session` (app-held PKCE, App Link redirect `{APP_URL}/app-return/auth/{provider}`, intent filter / associated domain, social buttons on login + register, 2FA step shared).
 - [x] 3.7b Web: fallback page `/app-return/auth/{provider}` (url-map §7: "open the MyTask app" notice, never processes the code, `noindex`) + E2E. (The `.well-known` App Link files need the store identifiers → Phase 6.)
-- [ ] 3.8 Web: change password (Account → Password) + E2E.
+- [x] 3.8 Web: change password (Account → Password) + E2E.
 - [ ] 3.9 Web: sessions page `/account/sessions` (list, log out other sessions) + E2E.
 - [ ] 3.10 Mobile: forgot password + set new password (deep link).
 - [ ] 3.11 Mobile: resend verification + verify-email deep link.

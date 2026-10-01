@@ -1,6 +1,7 @@
 'use client';
 // Signed-in placeholder for slice 01: who am I, the 2FA switch (AC-20, AC-21) and logout (AC-42).
 // The real dashboards arrive with slice 02.
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import type { components } from '@mytask/types';
@@ -81,6 +82,7 @@ export default function AccountPage() {
         <dt>{t('t_referral_code')}</dt>
         <dd>{me.referralCode}</dd>
       </dl>
+      <Link href={href(locale, '/account/password')}>{t('t_change_password')}</Link>
       {me.twoFactorAvailable && (
         <form onSubmit={toggle2fa} noValidate>
           <h2 className="mt-text-h3">{t('t_two_factor_auth')}</h2>
