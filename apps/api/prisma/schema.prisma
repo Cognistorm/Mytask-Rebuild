@@ -94,6 +94,7 @@ enum TwofaPurpose {
   email_change
   payout_details
   revoke_sessions
+  staff_reauth
 
   @@map("twofa_purpose")
 }

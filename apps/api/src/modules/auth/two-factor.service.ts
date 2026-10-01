@@ -26,7 +26,8 @@ export interface CodeOwner {
 export interface ChallengeView {
   challengeId: string;
   channel: 'email';
-  purpose: TwofaPurpose;
+  /** The user-side purposes of the contract; staff views never return it (`staff_reauth` is staff only). */
+  purpose: Exclude<TwofaPurpose, 'staff_reauth'>;
   emailMasked: string;
   codeLength: 6;
   expiresAt: string;
@@ -343,7 +344,7 @@ export class TwoFactorService {
     return {
       challengeId: c.id,
       channel: 'email',
-      purpose: c.purpose,
+      purpose: c.purpose as ChallengeView['purpose'],
       emailMasked: masked,
       codeLength: 6,
       expiresAt: c.expiresAt.toISOString(),

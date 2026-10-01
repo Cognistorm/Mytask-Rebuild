@@ -64,9 +64,9 @@ Remaining:
 - [ ] 3.17 Fix findings from 3.15/3.16 and the web 2FA switch for accounts without a password (emailed code, as mobile 3.12), the staff emailed re-auth code (`twofa_purpose` `staff_reauth`: Prisma enum + migration, `adminRequestReauthCode`, `adminReauthenticate` `method: email_code`; data-model §3.A, recorded in 3.13), plus the QA 3.15 findings (`docs/06-qa/reports/01-auth-2026-10-01.md` §9 + §3: BUG-01 major — login/register legacy link list, subtitle, back-to-home on web + app; BUG-02 register field order; BUG-03 subtitles, back-to-sign-in, page titles; BUG-04 terms text (analyst decides); F-01 mobile reCAPTCHA doc gap; F-02 routed sessions E2E by state; F-04 spec text; F-05 admin aria-label; then QA re-check §10), plus the before-slice-01-done items of review 03 (SEC-39, rest of SEC-35 incl. register limit 10/hour/IP per Q-157, SEC-50, SEC-51, SEC-45 tests), plus security review 04 (`docs/06-qa/security/04-slice-01b-2026-10-01.md` §6): **before merge** SEC-57 points 1–3 + 5 (staff login IP ban: atomic reservation, reset only after full login, IPv6 /64 key, staff write budget; burst + reset tests; point 4 per-account staff counter needs an architect ADR-002 §6 note first); **before slice 01 done** SEC-58 (social callback client kind from `state`), SEC-59 (audit names = contract `x-audit`, write `staff.logout`), SEC-60 (canonical IP bans), and the review 02 items still open: SEC-37 (incl. staff), SEC-41 (+ I-23), SEC-42 per-operation keys, SEC-44, SEC-47 (incl. staff login), SEC-48 replaceState on web reset/verify (split 2026-10-01):
   - [x] 3.17a Backend SEC-57 points 1–3 + 5 (**before merge**): staff login IP counter reserved atomically before the password check, reset only once a session is issued (after 2FA), ban keyed by `ipBucket` (/64) with the helper moved next to the client-IP resolver, staff writes limited to 120/IP-minute; burst + reset tests (probes P1, P2 as permanent tests).
   - [x] 3.17b Backend SEC-60 canonical IP bans + SEC-59 contract audit names (`setting.update`, `ip_ban.create/delete`, `staff.reauth`, write `staff.logout`) with a table test; architect note for SEC-57 point 4 in ADR-002 §6.
-  - [ ] 3.17c Backend staff emailed re-auth code: `twofa_purpose` `staff_reauth` (Prisma enum + migration), `adminRequestReauthCode`, `adminReauthenticate` `method: email_code`, tests.
+  - [x] 3.17c Backend staff emailed re-auth code: `twofa_purpose` `staff_reauth` (Prisma enum + migration), `adminRequestReauthCode`, `adminReauthenticate` `method: email_code`, tests.
   - [ ] 3.17d Backend SEC-35 rest (register 10/hour/IP per Q-157 + EV-02 cap), SEC-42 per-operation keys (S-062, R-A9 by `ipBucket`), SEC-50 limiter placement, SEC-51 path case, SEC-39 body-parser errors.
-  - [ ] 3.17e Backend SEC-37 (resend never revives old/exhausted challenges; password change/reset invalidates open login challenges, users + staff), SEC-41 + I-23 (`remember_me` carried on the session), SEC-47 (reCAPTCHA action + hostname, incl. staff login), SEC-58 (social delivery by stored client kind, P3 test).
+  - [ ] 3.17e Backend SEC-37 (resend never revives old/exhausted challenges; password change/reset invalidates open login challenges, users + staff), SEC-41 + I-23 (`remember_me` carried on the session), SEC-47 (reCAPTCHA action + hostname, incl. staff login), SEC-58 (social delivery by stored client kind, P3 test); user re-auth codes (`updateMyTwoFactor`, `revokeMyOtherSessions`): an unknown/used/other-purpose challenge must answer 422 `TWO_FACTOR_CODE_EXPIRED` (today 404, not in the contract → 500), and the exhausting wrong code (`TWO_FACTOR_TOO_MANY_ATTEMPTS`) must count towards SEC-04 (found in 3.17c; staff side fixed there).
   - [ ] 3.17f SEC-45 tests (env tests SMTP_URL / SETTINGS_ENCRYPTION_KEY / memory:// / log; P4) + SEC-44 (server lost-race rule, client signs out only on 401).
   - [ ] 3.17g Web: 2FA switch for accounts without a password (emailed code, as mobile 3.12) + SEC-48 replaceState on `auth/password/update` and `auth/verify` + F-05 admin aria-label.
   - [ ] 3.17h Web + app: BUG-01 (legacy link list, subtitle, back-to-home on login/register), BUG-02 register field order, BUG-03 (subtitles, back-to-sign-in, page titles).
@@ -423,7 +423,7 @@ Remaining:
 
 ### 4.15 Slice 15 — spec 16 Admin panel, remaining modules (branch `feat/admin-panel`)
 - [ ] 4.15.1 Spec check: list the admin ops not yet built by earlier slices.
-- [ ] 4.15.2 API admin auth remaining: password reset/set, validate token, re-auth code, email change.
+- [ ] 4.15.2 API admin auth remaining: password reset/set, validate token, email change (re-auth code done in 3.17c); staff per-account slow mode (ADR-002 §6, SEC-57 point 4).
 - [ ] 4.15.3 API staff: `adminListStaff`, `adminCreateStaff`, `adminGetStaff`, disable/enable, end sessions, resend invitation.
 - [ ] 4.15.4 API roles: `adminListPermissions`, `adminListRoles`, `adminCreateRole`, `adminGetRole`, `adminUpdateRole`, `adminDeleteRole`.
 - [ ] 4.15.5 API audit: `adminListAuditEntries`, `adminGetAuditEntry`, `adminExportAuditLog`.
@@ -436,7 +436,7 @@ Remaining:
 - [ ] 4.15.12 API: maintenance (3 ops) + settings history/restore.
 - [ ] 4.15.13 API: countries (`listCountries` + 3 admin ops) + legacy holds release/write-off + ledger views.
 - [ ] 4.15.14 API: `getWebCustomCode` + S-110/S-127 rules, incl. the ADR-019 tag-manager deny list (§3) and path-scoped CSP vendor table (§4).
-- [ ] 4.15.15 Admin: login/2FA/set password + home.
+- [ ] 4.15.15 Admin: login/2FA/set password + home; step-up dialog offers "email me a code" while S-060 is ON (`adminRequestReauthCode`, 3.17c).
 - [ ] 4.15.16 Admin: staff + roles.
 - [ ] 4.15.17 Admin: audit log.
 - [ ] 4.15.18 Admin: users list.

@@ -340,6 +340,123 @@ describe('admin settings: the 2FA switch S-056 (spec 16 AC-51…AC-56, AC-7)', (
   });
 });
 
+describe('staff emailed re-authentication code (spec 16 AC-7, data-model §3.A staff_reauth)', () => {
+  // Login codes and re-authentication codes share the send limits (60 s cooldown, 5 per 15 min).
+  const clearSends = async (id: string) =>
+    app
+      .get(RedisService)
+      .client.del(`auth:code:cooldown:staff:${id}`, `auth:code:sends:staff:${id}`);
+  const reauthCode = (token: string) =>
+    request(app.getHttpServer())
+      .post('/api/v1/admin/auth/reauth/code')
+      .set(ADMIN)
+      .set('Authorization', `Bearer ${token}`);
+  const reauth = (token: string, body: object) =>
+    request(app.getHttpServer())
+      .post('/api/v1/admin/auth/reauth')
+      .set(ADMIN)
+      .set('Authorization', `Bearer ${token}`)
+      .send(body);
+
+  it('S-060 ON: code by email, 60 s cooldown, the code opens the step-up window once', async () => {
+    const staff = await makeStaff();
+    const token = await login(staff);
+    await clearSends(staff.id);
+    const sent = await reauthCode(token);
+    expect(sent.status).toBe(202);
+    expect(sent.body).toMatchObject({ channel: 'email', challengeId: expect.any(String) });
+    const wait = await reauthCode(token);
+    expect(wait.status).toBe(429);
+    expect(wait.body.code).toBe('STAFF_TWO_FACTOR_RESEND_WAIT');
+    const body = {
+      method: 'email_code',
+      challengeId: sent.body.challengeId,
+      code: await staffCode(staff.email),
+    };
+    const ok = await reauth(token, body);
+    expect(ok.status).toBe(200);
+    expect(ok.body.reauthenticatedUntil).toEqual(expect.any(String));
+    const replay = await reauth(token, body); // single use
+    expect(replay.status).toBe(422);
+    expect(replay.body.code).toBe('STAFF_TWO_FACTOR_CODE_EXPIRED');
+    for (const action of ['staff.reauth_code.request', 'staff.reauth'])
+      expect(await prisma.auditLog.count({ where: { action, actorStaffId: staff.id } })).toBe(1);
+  });
+
+  it('only a staff_reauth code of the same staff member is accepted', async () => {
+    const staff = await makeStaff();
+    const token = await login(staff);
+    // A login code (purpose login) is refused.
+    await clearSends(staff.id);
+    const loginStart = await request(app.getHttpServer())
+      .post('/api/v1/admin/auth/login')
+      .set(ADMIN)
+      .send({ login: staff.username, password: PASSWORD });
+    expect(loginStart.status).toBe(202);
+    const wrongPurpose = await reauth(token, {
+      method: 'email_code',
+      challengeId: loginStart.body.challengeId,
+      code: await staffCode(staff.email),
+    });
+    expect(wrongPurpose.body.code).toBe('STAFF_TWO_FACTOR_CODE_EXPIRED');
+    // Another staff member's re-authentication code is refused.
+    const other = await makeStaff();
+    const otherToken = await login(other);
+    await clearSends(other.id);
+    const otherCode = await reauthCode(otherToken);
+    expect(
+      (
+        await reauth(token, {
+          method: 'email_code',
+          challengeId: otherCode.body.challengeId,
+          code: await staffCode(other.email),
+        })
+      ).status,
+    ).toBe(422);
+  });
+
+  it('wrong codes share the SEC-04 counter: after S-062 even the right password is refused', async () => {
+    const staff = await makeStaff();
+    const token = await login(staff);
+    for (let i = 0; i < 5; i++) {
+      await clearSends(staff.id);
+      const sent = await reauthCode(token);
+      const wrong = await reauth(token, {
+        method: 'email_code',
+        challengeId: sent.body.challengeId,
+        code: '000000' === (await staffCode(staff.email)) ? '111111' : '000000',
+      });
+      expect(wrong.body.code).toBe('STAFF_TWO_FACTOR_CODE_INVALID');
+    }
+    const locked = await reauth(token, { method: 'password', password: PASSWORD });
+    expect(locked.status).toBe(429);
+    expect(locked.body.code).toBe('RATE_LIMITED');
+  });
+
+  it('S-060 OFF: no code is sent and email_code is refused (422)', async () => {
+    const staff = await makeStaff();
+    const token = await login(staff);
+    await prisma.setting.create({
+      data: {
+        key: 'auth.two_factor.staff_required',
+        registerId: 'S-060',
+        value: false,
+        currentVersion: 1,
+      },
+    });
+    app.get(SettingsService).invalidate();
+    const sent = await reauthCode(token);
+    expect(sent.status).toBe(422);
+    expect(sent.body.code).toBe('BUSINESS_RULE_VIOLATION');
+    const code = await reauth(token, {
+      method: 'email_code',
+      challengeId: '00000000-0000-4000-8000-000000000000',
+      code: '123456',
+    });
+    expect(code.status).toBe(422);
+  });
+});
+
 describe('part B-2a: IP bans, own password, activate, ban', () => {
   const registerUser = (extra: object = {}) =>
     request(app.getHttpServer())

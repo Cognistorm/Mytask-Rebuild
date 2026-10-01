@@ -201,19 +201,7 @@ export class StaffAuthService {
     input: S['AdminAuthReauthRequest'],
     ctx: RequestContext,
   ): Promise<S['AdminAuthReauthResult']> {
-    if (input.method !== 'password') {
-      // Emailed re-authentication codes (adminRequestReauthCode) arrive with a data-model purpose for them.
-      throw new ApiException(400, 'VALIDATION_FAILED', 't_toast_something_went_wrong', {
-        fields: [
-          {
-            field: 'method',
-            code: 'unsupported',
-            message: 'password',
-            messageKey: 't_validator_required',
-          },
-        ],
-      });
-    }
+    if (input.method === 'email_code') await this.assertStaffTwoFactorOn();
     const principal = `staff:${staffId}`;
     const refuse = async () => {
       const lock = Math.max(1, await this.throttle.inSessionLockSeconds(principal));
@@ -225,19 +213,41 @@ export class StaffAuthService {
     if ((await this.throttle.inSessionLockSeconds(principal)) > 0) throw await refuse();
     const attempt = await this.throttle.reserveInSession(principal);
     if (attempt === null) throw await refuse();
-    const staff = await this.prisma.staff.findUniqueOrThrow({ where: { id: staffId } });
-    const check = await this.passwords.verify(
-      input.password,
-      staff.passwordHash,
-      staff.passwordAlgo,
-    );
-    if (!check.ok) {
-      await this.throttle.inSessionFailed(principal, attempt);
-      throw new ApiException(
-        422,
-        'STAFF_CURRENT_PASSWORD_WRONG',
-        't_ur_current_pass_does_not_match',
+    if (input.method === 'email_code') {
+      // A code of the staff_reauth purpose of THIS staff member only (data-model §3.A).
+      try {
+        await this.twoFactor.verify(input.challengeId, input.code, 'staff_reauth', {
+          kind: 'staff',
+          id: staffId,
+        });
+      } catch (err) {
+        // Unknown, used, other-purpose or other-staff challenge: the contract has no 404 here.
+        const e =
+          err instanceof ApiException && err.code === 'NOT_FOUND'
+            ? new ApiException(422, 'STAFF_TWO_FACTOR_CODE_EXPIRED', 't_2fa_code_expired')
+            : err;
+        if (e instanceof ApiException && /^STAFF_TWO_FACTOR_(CODE_|TOO_MANY)/.test(e.code)) {
+          await this.throttle.inSessionFailed(principal, attempt);
+        } else {
+          await this.throttle.releaseInSession(principal);
+        }
+        throw e;
+      }
+    } else {
+      const staff = await this.prisma.staff.findUniqueOrThrow({ where: { id: staffId } });
+      const check = await this.passwords.verify(
+        input.password,
+        staff.passwordHash,
+        staff.passwordAlgo,
       );
+      if (!check.ok) {
+        await this.throttle.inSessionFailed(principal, attempt);
+        throw new ApiException(
+          422,
+          'STAFF_CURRENT_PASSWORD_WRONG',
+          't_ur_current_pass_does_not_match',
+        );
+      }
     }
     await this.throttle.releaseInSession(principal);
     await this.redis.client.set(`auth:stepup:${sessionId}`, '1', 'EX', STEP_UP_SECONDS);
@@ -250,6 +260,43 @@ export class StaffAuthService {
       userAgent: ctx.userAgent,
     });
     return { reauthenticatedUntil: new Date(Date.now() + STEP_UP_SECONDS * 1000).toISOString() };
+  }
+
+  /** Emails a step-up code (EV-06) when staff 2FA (S-060) is ON; 60 s cooldown, 5 per 15 min (spec 01 R-A6). */
+  async requestReauthCode(
+    staffId: string,
+    ctx: RequestContext,
+  ): Promise<S['AdminAuthTwoFactorChallenge']> {
+    await this.assertStaffTwoFactorOn();
+    const staff = await this.prisma.staff.findUniqueOrThrow({ where: { id: staffId } });
+    const c = await this.twoFactor.createChallenge(
+      {
+        kind: 'staff',
+        id: staff.id,
+        email: staff.email,
+        username: staff.username,
+        locale: staff.locale,
+      },
+      'staff_reauth',
+      null,
+      ctx.ip,
+      ctx.t,
+    );
+    await this.audit.write({
+      actorStaffId: staffId,
+      action: 'staff.reauth_code.request',
+      targetType: 'staff',
+      targetId: staffId,
+      ip: ctx.ip,
+      userAgent: ctx.userAgent,
+    });
+    return {
+      challengeId: c.challengeId,
+      channel: 'email',
+      maskedEmail: c.emailMasked,
+      expiresAt: c.expiresAt,
+      resendAvailableAt: c.resendAvailableAt,
+    };
   }
 
   async me(staffId: string, sessionId?: string): Promise<S['AdminMe']> {
@@ -325,6 +372,11 @@ export class StaffAuthService {
       refreshToken: body ? tokens.refreshToken : null,
       sessionExpiresAt: tokens.refreshTokenExpiresAt.toISOString(),
     };
+  }
+
+  private async assertStaffTwoFactorOn(): Promise<void> {
+    if (!(await this.settings.get('S-060')))
+      throw new ApiException(422, 'BUSINESS_RULE_VIOLATION', 't_2fa_disabled');
   }
 
   /** A manual ban of an address and an automatic ban of its IPv6 /64 both apply (SEC-57). */

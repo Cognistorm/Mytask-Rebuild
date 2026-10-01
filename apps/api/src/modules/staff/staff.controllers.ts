@@ -148,6 +148,13 @@ export class StaffAuthController extends WithContext {
   }
 
   @StaffRoute()
+  @Post('reauth/code')
+  @HttpCode(202)
+  reauthCode(@CurrentStaff() staff: StaffAuthState, @Req() req: Req_) {
+    return this.auth.requestReauthCode(staff.staffId, this.ctx(req));
+  }
+
+  @StaffRoute()
   @Post('reauth')
   @HttpCode(200)
   reauth(
