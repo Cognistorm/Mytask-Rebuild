@@ -48,6 +48,11 @@ jobs:
       - name: No breaking changes against the base branch (oasdiff, ADR-014 §6)
         if: github.event_name == 'pull_request'
         run: |
+          # The first PR that adds the contract has no base version to diff against.
+          if ! git cat-file -e "origin/${{ github.base_ref }}:docs/04-api/openapi.yaml" 2>/dev/null; then
+            echo "::notice::No openapi.yaml on ${{ github.base_ref }} yet; breaking-change check skipped (first contract)."
+            exit 0
+          fi
           git show "origin/${{ github.base_ref }}:docs/04-api/openapi.yaml" > /tmp/base-openapi.yaml
           docker run --rm -v /tmp:/base -v "$PWD/docs/04-api:/head" tufin/oasdiff:v1.32.1 \
             breaking /base/base-openapi.yaml /head/openapi.yaml --fail-on ERR
