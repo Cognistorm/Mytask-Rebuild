@@ -208,6 +208,49 @@
   margin: 0 0 var(--mt-space-2);
 }
 
+/* Browser sessions (legacy resources/views/livewire/main/account/sessions/sessions.blade.php). */
+.session-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--mt-space-4);
+}
+
+.session-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--mt-space-3);
+}
+
+.session-icon {
+  flex: none;
+  width: var(--mt-size-icon-lg);
+  height: var(--mt-size-icon-lg);
+  fill: var(--mt-text-secondary);
+}
+
+.session-details {
+  display: grid;
+  gap: var(--mt-space-0-5);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.session-details p {
+  margin: 0;
+}
+
+.session-name {
+  font-weight: var(--mt-font-weight-medium);
+}
+
+.session-current {
+  color: var(--mt-text-success);
+  font-size: var(--mt-font-size-sm);
+  font-weight: var(--mt-font-weight-semibold);
+}
+
 /* Restrictions removal center (legacy resources/views/livewire/restricted/index.blade.php). */
 .restriction-list {
   list-style: none;

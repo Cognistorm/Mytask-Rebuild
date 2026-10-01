@@ -83,6 +83,7 @@ export default function AccountPage() {
         <dd>{me.referralCode}</dd>
       </dl>
       <Link href={href(locale, '/account/password')}>{t('t_change_password')}</Link>
+      <Link href={href(locale, '/account/sessions')}>{t('t_browser_sessions')}</Link>
       {me.twoFactorAvailable && (
         <form onSubmit={toggle2fa} noValidate>
           <h2 className="mt-text-h3">{t('t_two_factor_auth')}</h2>
