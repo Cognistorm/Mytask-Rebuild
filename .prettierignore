@@ -1,0 +1,21 @@
+legacy/
+docs/
+node_modules/
+dist/
+.next/
+.expo/
+.turbo/
+coverage/
+pnpm-lock.yaml
+packages/tokens/
+packages/assets/
+packages/types/src/generated/
+packages/api-client/src/generated/
+packages/i18n/*.json
+apps/api/src/generated/
+# Project rules and agent definitions are edited by hand, not reformatted.
+CLAUDE.md
+START-HERE.md
+.claude/
+# Generated
+packages/i18n/IMPORT-REPORT.md

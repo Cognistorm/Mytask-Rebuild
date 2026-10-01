@@ -1,0 +1,2645 @@
+# D3 — paths for specs 05 (payments and wallet), 09 (subscriptions, points, referrals, promo codes),
+# 14 (withdrawals) and the spec 16 admin screens delegated to D3 (CONVENTIONS §4.3).
+# Written by the P2-B4 D3 group run (2026-09-29). Conventions: docs/04-api/CONVENTIONS.md.
+# Reserved operations written here: createCheckoutQuote, createPayment, getPayment, handleBogWebhook (§5.1).
+# One checkout for every purpose (§5.4): gig orders (D4 cart / order), contract payments (D5), custom
+# offers (D4), wallet top-ups and Premium all go through createCheckoutQuote + createPayment.
+
+# ═════════════════════════ Checkout and payments ═════════════════════════
+/checkout/quote:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  post:
+    operationId: createCheckoutQuote
+    summary: Compute the server-side checkout breakdown for any purpose
+    description: |
+      Builds the quote for one `CheckoutTarget` (CONVENTIONS §5.4). Clients only display these numbers
+      (spec 05 AC-5). Nothing is stored except the quote hash returned as `quoteId`.
+      Per purpose:
+      - `gig_order` / `source = cart`: re-validates every cart line (gig active and listable, owner
+        available and not restricted, buyer is not the owner, upgrades exist; spec 06 AC-6). Failing lines
+        are removed from the cart and reported in `notices`; prices and delivery times are re-read from
+        current gig data, never from the cart. `source = order`: an order still awaiting payment, at its
+        stored prices (spec 06 AC-11); if a gig is no longer orderable → `422 ORDER_ITEMS_NO_LONGER_AVAILABLE`.
+      - `contract_payment`: proposal amount P + client commission Fb if S-014 is ON (spec 11 AC-26); only
+        the project owner (client) — others get `404` (spec 11 AC-27).
+      - `custom_offer`: offer price P + buyer fee Fb if S-017 is ON (spec 12 AC-13); only the offer's
+        buyer; a withdrawn, declined, rejected or expired offer (also past `expiresAt` before the sweeper
+        ran) → `422 OFFER_NO_LONGER_AVAILABLE` (D4 code, spec 12 AC-17, AC-18).
+      - `topup`: amount A with the card fee and the credited amount (spec 05 AC-21); A outside
+        S-023…S-024 → `422 TOPUP_AMOUNT_OUT_OF_RANGE` (AC-22, limits apply to A, P-39).
+      - `subscription`: Premium list price S-008/S-009, promo discount, **no** surcharge (spec 05 AC-7,
+        Q-070), `pointsOption` for monthly (spec 09 AC-3, AC-8, AC-9), auto-renew notice data
+        (`subscription`), zero-total flag (spec 09 AC-30). Running Premium → `422 SUBSCRIPTION_ALREADY_ACTIVE`
+        (spec 09 AC-6).
+      Methods (spec 05 R-P1, AC-1…AC-4): Card (S-019), Wallet (S-020; never for top-up or Premium),
+      Bank transfer (S-021; gig orders and top-ups only). Methods switched OFF are returned with
+      `isAvailable = false` and `unavailableReason.code = feature_disabled`; wallet with Available below
+      the total (including a negative migrated balance) with `insufficient_funds` (AC-19, AC-30). The card
+      surcharge S-012 applies to the surcharge base (prices + buyer fees), half up (AC-6, R-P5); fees come
+      from the Commission & Fee module with their rule versions (AC-37, AC-38). Promo codes only on
+      promo-eligible services (today Premium): elsewhere `422 PROMO_NOT_APPLICABLE` (AC-40); on Premium the
+      code is checked (spec 09 AC-28) and the discount computed (AC-29; percent half up, fixed = min(fixed, price)).
+      Mobile (`X-MyTask-Client: ios|android`) with S-126 OFF: the card method of a `subscription` quote is
+      returned unavailable (`mobile_card_purchase_disabled`, spec 09 AC-7).
+      Errors: 400 VALIDATION_FAILED; 404 NOT_FOUND (target not visible to the caller); 409
+      CHECKOUT_TARGET_NOT_PAYABLE; 422 CHECKOUT_CART_EMPTY, ORDER_ITEMS_NO_LONGER_AVAILABLE, OFFER_NO_LONGER_AVAILABLE,
+      TOPUP_AMOUNT_OUT_OF_RANGE, SUBSCRIPTION_ALREADY_ACTIVE, PROMO_INVALID, PROMO_WRONG_PLAN,
+      PROMO_ALREADY_USED, PROMO_FULLY_REDEEMED, PROMO_NOT_APPLICABLE; 403 FEATURE_DISABLED (S-022 OFF for
+      top-ups).
+    tags: [Checkout]
+    parameters:
+      - $ref: '../components/parameters.yaml#/XMyTaskClient'
+    x-permission:
+      audience: user
+      ownership: 'per target: own cart / buyer of the order; client (project owner) of the contract payment; buyer of the custom offer; self for top-up and Premium. Others get 404'
+      notes: 'Restricted users are refused (403 ACCOUNT_RESTRICTED). Top-up needs S-022 ON (403 FEATURE_DISABLED).'
+    x-covers: ['05 AC-1', '05 AC-2', '05 AC-3', '05 AC-4', '05 AC-5', '05 AC-6', '05 AC-7', '05 AC-8', '05 AC-19', '05 AC-21', '05 AC-22', '05 AC-37', '05 AC-38', '05 AC-40', '09 AC-3', '09 AC-6', '09 AC-9', '09 AC-28', '09 AC-29', '09 AC-32', '09 AC-37', '06 AC-6', '06 AC-11', '11 AC-26', '11 AC-27', '12 AC-13', '12 AC-17', '12 AC-18']
+    x-settings: [S-008, S-009, S-012, S-013, S-014, S-015, S-017, S-018, S-019, S-020, S-021, S-022, S-023, S-024, S-042, S-043, S-045, S-047, S-048, S-049, S-050, S-126]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d3.yaml#/CheckoutQuoteRequest'}
+    responses:
+      '200':
+        description: The quote.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d3.yaml#/CheckoutQuote'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+/payments:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  post:
+    operationId: createPayment
+    summary: Pay for a checkout target (card, wallet or bank transfer)
+    description: |
+      One payment per press of "Pay" (`Idempotency-Key`; a second press with the same key returns the same
+      payment, spec 05 AC-9). The server recomputes the quote for `target` + `method`; if the total differs
+      from `quoteId` → `409 QUOTE_CHANGED` with the new quote in `details.quote`, nothing started (AC-8). A
+      payment already started keeps its fees. The payment row stores purpose, payer, lines, fees with
+      rule versions, surcharge, discount, total and the billing snapshot (data-model §3.J).
+
+      **By method**
+      - `bog_card`: creates the BOG order for exactly `total` in GEL with real data only (our payment id as
+        external order id, basket lines with real names, locale, callback URL, return URLs
+        `/payments/{id}/result` or the app bounce URL chosen from `X-MyTask-Client`; no dummy values,
+        credentials from `.env`; spec 05 AC-16, url-map §7). Returns `201` with `status = pending` and
+        `nextAction.type = redirect`. The item is **not** paid yet: no escrow, no ledger entry (R-P6); it
+        becomes paid only through the verified path of `handleBogWebhook` / job `bog-reconcile` (AC-10, AC-13).
+      - `wallet`: in one database transaction, locks the buyer's Available balance, posts MM-05-02
+        (`payment:{paymentId}:wallet`), marks the item paid and funds the freelancer's HOLD; returns `201`
+        with `status = paid`, `nextAction.type = completed` (AC-18). Available below the total (incl. a
+        migrated negative balance) → `422 INSUFFICIENT_FUNDS` messageKey `t_insufficient_funds_in_your_account`;
+        concurrent payments cannot take the balance below 0 (AC-19, AC-20, AC-30). No split payments.
+      - `bank_transfer` (S-021 ON; gig orders and top-ups only): creates the order as awaiting bank transfer
+        (or a pending top-up), no surcharge, no money moves; `nextAction.type = bank_transfer` with the S-125
+        instructions and the reference; EV-24 to S-100 for orders (spec 05 AC-24, AC-26).
+
+      **Effects per purpose when paid** (same service for wallet, verified card and confirmed bank transfer)
+      - `gig_order`: `source = cart` creates one order with one item per gig and the full snapshot (title,
+        freelancer, base price, upgrades, delivery time, revisions allowed, fees and versions, P) and empties
+        the cart (spec 06 AC-7); card payments create it as awaiting payment, invisible to the freelancer
+        (spec 06 AC-9). `source = order` pays again at the stored prices (spec 06 AC-11). Paid → items
+        "Waiting for order details", HOLD +P′ per item, "orders in queue" +1, EV-33/EV-34 (+ EV-35 for card)
+        (spec 06 AC-8, AC-10).
+      - `contract_payment`: contract → in progress, HOLD +P′, expected delivery date = payment time + days,
+        EV-72 (spec 11 AC-28, AC-29). A contract already paid or canceled → wallet `409
+        CHECKOUT_TARGET_NOT_PAYABLE` (`t_order_status_changed`); a late card payment is credited to the
+        wallet as unapplied (spec 11 AC-30).
+      - `custom_offer`: offer → in progress, HOLD +P′, EV-86 (spec 12 AC-14, AC-15); after expiry / withdrawal
+        a verified card payment becomes unapplied (spec 12 AC-19).
+      - `topup`: A credited to Available, S to surcharge revenue, EV-23 (spec 05 AC-23).
+      - `subscription`: Premium starts now for 1 month / 1 year, the card is saved as renewal card from the
+        verified payment details, price and version stored, EV-50 (spec 09 AC-4). Promo: one redemption is
+        reserved at start (cap and per-user limit never exceeded), final on verification, released on
+        failure/expiry (spec 09 AC-31); first period only (AC-32). **Zero total** (100% promo): `method` must
+        be `bog_card`; Premium activates at once without BOG, no card saved, no auto-renew (MM-09-03), `201`
+        with `status = paid` (spec 09 AC-30). Mobile clients (`X-MyTask-Client: ios|android`) while S-126 is
+        OFF → `403 FEATURE_DISABLED` `details.settingId = S-126` (spec 09 AC-7, ADR-016 §3). Running Premium
+        → `422 SUBSCRIPTION_ALREADY_ACTIVE` (spec 09 AC-6).
+
+      A method switched OFF → `403 FEATURE_DISABLED` with its `settingId` (S-019/S-020/S-021; S-022 for
+      top-ups; spec 05 AC-4); payments already started finish normally (EC-5).
+      Errors: 400 VALIDATION_FAILED, IDEMPOTENCY_KEY_REQUIRED; 403 FEATURE_DISABLED, ACCOUNT_RESTRICTED; 404
+      NOT_FOUND; 409 QUOTE_CHANGED, CHECKOUT_TARGET_NOT_PAYABLE, IDEMPOTENCY_IN_PROGRESS; 422
+      INSUFFICIENT_FUNDS, CHECKOUT_METHOD_NOT_AVAILABLE, CHECKOUT_CART_EMPTY, ORDER_ITEMS_NO_LONGER_AVAILABLE,
+      OFFER_NO_LONGER_AVAILABLE (D4 codes for the two item cases),
+      TOPUP_AMOUNT_OUT_OF_RANGE, SUBSCRIPTION_ALREADY_ACTIVE, PROMO_*, IDEMPOTENCY_KEY_REUSED; 503
+      SERVICE_UNAVAILABLE when BOG cannot create the order (nothing charged).
+    tags: [Payments]
+    parameters:
+      - $ref: '../components/parameters.yaml#/IdempotencyKey'
+      - $ref: '../components/parameters.yaml#/XMyTaskClient'
+    x-money: true
+    x-permission:
+      audience: user
+      ownership: 'same as createCheckoutQuote: own cart / buyer of the order; project owner of the contract payment; buyer of the custom offer; self for top-up and Premium. Others get 404'
+      notes: 'Method toggles S-019/S-020/S-021 and S-022 (top-up) are checked per request (403 FEATURE_DISABLED); S-126 for mobile Premium by card.'
+    x-covers: ['05 AC-1', '05 AC-2', '05 AC-3', '05 AC-4', '05 AC-6', '05 AC-8', '05 AC-9', '05 AC-14', '05 AC-16', '05 AC-18', '05 AC-19', '05 AC-20', '05 AC-21', '05 AC-22', '05 AC-24', '05 AC-26', '05 AC-30', '05 AC-38', '05 AC-40', '09 AC-4', '09 AC-6', '09 AC-7', '09 AC-28', '09 AC-30', '09 AC-31', '09 AC-32', '06 AC-7', '06 AC-8', '06 AC-9', '06 AC-10', '06 AC-11', '11 AC-27', '11 AC-28', '11 AC-29', '11 AC-30', '12 AC-14', '12 AC-15', '12 AC-17', '12 AC-18', '00 AC-13', '06 AC-6', '12 AC-1']
+    x-settings: [S-008, S-009, S-012, S-019, S-020, S-021, S-022, S-023, S-024, S-042, S-047, S-048, S-049, S-050, S-100, S-125, S-126]
+    x-notifications: [EV-24, EV-33, EV-34, EV-50, EV-72, EV-86]
+    x-emits: [payment.status_changed, wallet.balance_changed, subscription.changed, contract.status_changed]
+    x-jobs: [bog-reconcile]
+    x-rate-limit: 20 requests / 10 min per user
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d3.yaml#/PaymentCreateRequest'}
+    responses:
+      '201':
+        description: Payment created (card pending with a redirect, wallet paid, bank transfer pending with instructions, or zero-total Premium paid). A replay returns the same body with `Idempotent-Replayed`.
+        headers:
+          Idempotent-Replayed: {$ref: '../components/headers.yaml#/IdempotentReplayed'}
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d3.yaml#/Payment'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+      '429': {$ref: '../components/responses.yaml#/TooManyRequests'}
+  get:
+    operationId: listPayments
+    summary: List the caller's own payments (newest first)
+    description: |
+      The caller's payments as payer, newest first. Used by My subscription for past Premium payments
+      (`?purpose=subscription&purpose=subscription_renewal`, spec 09 AC-18) and by receipts lists.
+    tags: [Payments]
+    parameters:
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/Limit'
+      - name: purpose
+        in: query
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: array
+          items: {$ref: '../components/schemas.yaml#/PaymentPurpose'}
+      - name: status
+        in: query
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: array
+          items: {$ref: '../components/schemas.yaml#/PaymentStatus'}
+    x-permission:
+      audience: restricted-user
+      ownership: self (payer)
+    x-covers: ['09 AC-18']
+    responses:
+      '200':
+        description: Page of payments.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d3.yaml#/PaymentPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+
+/payments/{paymentId}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: paymentId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: getPayment
+    summary: Get a payment (result page polling and receipt)
+    description: |
+      Read-only. The web result page `/payments/{id}/result` and the app screen behind
+      `mytask://payments/{id}/result` poll this operation (every few seconds up to 60 s, then
+      `t_payment_still_processing`); opening, refreshing or forging those URLs never changes state (spec 05
+      AC-11, AC-12, url-map §7, ADR-004 §3). `status` goes pending → paid | paid_unapplied | failed |
+      expired (| rejected for bank transfers); `target` links to the order, contract, offer, wallet or
+      subscription; "Try again" is a new `createPayment` for the same target. Also the receipt of a card
+      payment: breakdown, card brand and mask, BOG order reference, billing snapshot (spec 05 AC-33). A
+      payment confirmed later by the callback or the background check shows its new status when reopened
+      (spec 09 AC-5).
+      Errors: 404 NOT_FOUND (not the payer).
+    tags: [Payments]
+    x-permission:
+      audience: restricted-user
+      ownership: payer only; others get 404
+    x-covers: ['05 AC-11', '05 AC-12', '05 AC-13', '05 AC-15', '05 AC-33', '09 AC-5', '09 AC-18', '06 AC-9', '11 AC-29', '12 AC-19']
+    responses:
+      '200':
+        description: The payment.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d3.yaml#/Payment'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/webhooks/bog:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  post:
+    operationId: handleBogWebhook
+    summary: BOG payment callback (trigger for a verified status check)
+    description: |
+      BOG's callback (URL `https://mytask.ge/api/v1/webhooks/bog`, ADR-004 §3, CONVENTIONS §10).
+      1. Order of the steps (ADR-004 §3, SEC-10, SEC-31): (a) bodies over 64 KB are refused before parsing
+         and not stored; a body that is not JSON → 400, not stored; (b) the BOG order id is read and **our**
+         payment is looked up by it **before any BOG call and before anything is stored**; (c) the raw body
+         and headers are stored in `payment_events` (`event_kind = callback`) within the caps below; (d) the
+         handler answers **200 with an empty body** quickly and processes asynchronously (job
+         `bog-callback`).
+         **Storage caps.** Unknown order ids never call BOG and are never queued: they are kept in a capped
+         log (at most 100 stored events with `result = unknown_order` per hour, then only a counter and one
+         alert per hour to S-100) and still answered 200 (no retry storm). For a **known** payment (any
+         status, including final ones), a callback whose body is identical (SHA-256) to one already stored
+         for that payment is not stored again: that row's `repeatCount` and `lastReceivedAt` are updated;
+         at most 20 distinct callback events are stored per payment per hour, above that only the
+         `repeatCount` of the payment's latest stored callback grows (SEC-31). Payments that are no longer
+         `created`/`pending` are stored for staff this way (`result = duplicate` / `ignored`), never queued,
+         and BOG is not called. Pending payments enqueue **one** verification job per payment (job id
+         `bog-verify:{paymentId}`, shared with the 5-minute reconciliation and staff "Check status"), however
+         many callbacks arrive.
+      2. `Callback-Signature` is checked by the adapter hook `verifyCallback` only if the lead developer
+         confirms that our merchant receives signed callbacks (Q-087 table in ADR-004); otherwise the callback
+         is only a trigger.
+      3. Processing **always** calls BOG payment details (`getPaymentDetails`) and applies the payment only if
+         BOG reports it successful for the same order, amount and currency (spec 05 AC-10). Then one database
+         transaction: payment compare-and-set `pending → paid`, journal `bog:{bogOrderId}:paid`
+         (`payment:{id}:settle`), business effect of `createPayment` (item paid + HOLD funded, wallet
+         credited, Premium activated/renewed, promo redemption final). If the item can no longer take the
+         payment (order deleted, offer expired/withdrawn, contract already paid, Premium already running) the
+         full amount goes to the buyer's Available as unapplied (`paid_unapplied`, MM-05-06, EV-29; spec 05
+         AC-15, spec 09 EC-1, spec 11 AC-30, spec 12 AC-19). An amount mismatch is never applied; it stays for
+         staff (`amount_mismatch`, alert to S-100; spec 05 EC-3). Failed/expired payments release the promo
+         reservation and post nothing.
+      4. Replays (BOG retries, the 5-minute reconciliation, staff "Check status") are no-ops: one journal per
+         BOG payment (spec 05 AC-14).
+      5. Not rate-limited per user; maintenance mode does not block it (spec 16 AC-70). Per client IP
+         (ADR-013 §14–§19): BOG's confirmed callback ranges are exempt, other sources 60 requests/min
+         (600/min for all sources while BOG's ranges are unconfirmed, Q-087) → `429`, nothing stored.
+    tags: [Webhooks]
+    security: []
+    parameters:
+      - name: Callback-Signature
+        in: header
+        required: false
+        description: Optional signature header, verified by the `verifyCallback` hook only if BOG signs our callbacks (Q-087). The exact header name is confirmed by the lead developer.
+        schema:
+          type: string
+          maxLength: 2048
+    x-permission:
+      audience: webhook
+      notes: 'verified by provider callback + server-side status check (getPaymentDetails); signature hook optional (ADR-004 §3)'
+    x-covers: ['05 AC-10', '05 AC-14', '05 AC-15', '05 AC-23', '09 AC-4', '09 AC-5', '09 AC-31', '06 AC-9', '06 AC-10', '11 AC-29', '11 AC-30', '12 AC-15', '12 AC-19', '00 AC-13']
+    x-notifications: [EV-23, EV-29, EV-33, EV-34, EV-35, EV-50, EV-51, EV-72, EV-86]
+    x-jobs: [bog-callback, bog-reconcile]
+    x-rate-limit: 'per IP for sources outside BOG''s confirmed callback ranges: 60/min (600/min for all sources until the ranges are confirmed); body ≤ 64 KB (ADR-004 §3, SEC-10)'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d3.yaml#/BogWebhookPayload'}
+    responses:
+      '200':
+        description: Received and stored (empty body), including unknown order ids (capped log) and duplicates.
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '429': {$ref: '../components/responses.yaml#/TooManyRequests'}
+
+# ═════════════════════════ Wallet ═════════════════════════
+/wallet:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: getWallet
+    summary: Get the caller's balances (Earnings tiles)
+    description: |
+      Available, HOLD/Pending, Withdrawn, Net income and Used for purchases, all from the ledger (spec 05
+      AC-27, R-P7, P-44; data-model §5.4). Buyers never see pending or escrow amounts of their own (AC-29).
+      A migrated negative Available is returned as is (`isNegative`, AC-30).
+    tags: [Wallet]
+    x-permission:
+      audience: restricted-user
+      ownership: self
+    x-covers: ['05 AC-27', '05 AC-29', '05 AC-30']
+    responses:
+      '200':
+        description: Balances.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d3.yaml#/WalletBalances'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+
+/wallet/holds:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: listWalletHolds
+    summary: List the caller's items with money on HOLD
+    description: |
+      Every open escrow where the caller is the freelancer (gig order items, contract payments, custom
+      offers, a migrated legacy hold), with amount, item status, delivery date and, when S-025 is ON, the
+      auto-release date or the pause reason; `holdTotal` equals the HOLD figure (spec 05 AC-28). Oldest
+      funded first.
+    tags: [Wallet]
+    parameters:
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/Limit'
+    x-permission:
+      audience: restricted-user
+      ownership: self (freelancer of the escrows)
+    x-covers: ['05 AC-28']
+    x-settings: [S-025]
+    responses:
+      '200':
+        description: Page of HOLD items plus the total.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d3.yaml#/HoldItemPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+
+/wallet/transactions:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: listWalletTransactions
+    summary: List the caller's transactions (every money movement)
+    description: |
+      Every ledger movement that touched the caller's Available or HOLD balance, plus the informational
+      lines of their own card payments and paid withdrawals, newest first, **40 per page** (cursor; spec 05
+      AC-31). Types `t_txn_type_*`, linked item, signed amount, affected balance. Filters by type and date
+      range (AC-32); empty → `t_no_transactions_yet`. Balance corrections show the public note only (P-41,
+      AC-41). Withdrawal requested / paid / rejected lines (spec 14 AC-19). Migrated legacy deposits,
+      withdrawals and orders appear read-only with their original dates and amounts, plus the opening-balance
+      line (AC-34, ADR-003 §11). Card-payment lines link to the receipt (`getPayment`, AC-33).
+    tags: [Wallet]
+    parameters:
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - name: limit
+        in: query
+        required: false
+        description: Page size (default 40, spec 05 AC-31).
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 40
+      - name: type
+        in: query
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: array
+          items: {$ref: '../schemas/d3.yaml#/TransactionType'}
+      - $ref: '../components/parameters.yaml#/CreatedFrom'
+      - $ref: '../components/parameters.yaml#/CreatedTo'
+    x-permission:
+      audience: restricted-user
+      ownership: self
+    x-covers: ['05 AC-31', '05 AC-32', '05 AC-34', '05 AC-41', '14 AC-19', '05 AC-23']
+    responses:
+      '200':
+        description: Page of transactions.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d3.yaml#/TransactionPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+
+# ═════════════════════════ Saved cards and billing profile ═════════════════════════
+/saved-cards:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: listSavedCards
+    summary: List the caller's saved cards
+    description: Brand, masked number, expiry, default and renewal marks (spec 05 AC-35). Empty → `t_no_saved_cards`.
+    tags: [Saved Cards]
+    x-permission:
+      audience: restricted-user
+      ownership: self
+    x-covers: ['05 AC-35']
+    responses:
+      '200':
+        description: The saved cards.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d3.yaml#/SavedCardList'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+
+/saved-cards/{savedCardId}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: savedCardId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  delete:
+    operationId: deleteSavedCard
+    summary: Delete a saved card (also at BOG)
+    description: |
+      Removes the card here and at BOG (adapter `deleteSavedCard`; if BOG has no such call the card is only
+      deleted locally and never charged again, ADR-004). If it is the Premium renewal card, the client first
+      shows `t_delete_card_renewal_warning` (`SavedCard.isRenewalCard`, `renewalEndsAt`); after deletion the
+      subscription does not renew and ends at its end date (spec 05 AC-35, P-45; spec 09 EC-4). A renewal
+      charge already running finishes (spec 05 EC-7).
+      Errors: 404 NOT_FOUND.
+    tags: [Saved Cards]
+    x-permission:
+      audience: user
+      ownership: card owner only; others get 404
+    x-covers: ['05 AC-35']
+    x-emits: [subscription.changed]
+    responses:
+      '204': {$ref: '../components/responses.yaml#/NoContent'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/billing-profile:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: getBillingProfile
+    summary: Get the caller's billing information
+    tags: [Saved Cards]
+    x-permission:
+      audience: restricted-user
+      ownership: self
+    x-covers: ['05 AC-36']
+    responses:
+      '200':
+        description: Billing information (all fields null when never saved).
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d3.yaml#/BillingProfile'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+  put:
+    operationId: putBillingProfile
+    summary: Save the caller's billing information
+    description: |
+      Stores first name, last name, company, country, address and VAT number; later payments copy them onto
+      the receipt (billing snapshot); sends `BillingInfoUpdated` (EV-28) (spec 05 AC-36). Limits follow legacy
+      (`EditValidator.php:26-40`).
+      Errors: 400 VALIDATION_FAILED.
+    tags: [Saved Cards]
+    x-permission:
+      audience: user
+      ownership: self
+    x-covers: ['05 AC-36']
+    x-notifications: [EV-28]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d3.yaml#/BillingProfilePutRequest'}
+    responses:
+      '200':
+        description: Saved (`t_billing_info_updated_success`).
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d3.yaml#/BillingProfile'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+
+# ═════════════════════════ Plans and subscriptions ═════════════════════════
+/plans:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: listPlans
+    summary: Plans page data (Standard and Premium, monthly and yearly)
+    description: |
+      Standard and Premium with prices S-008/S-009, yearly monthly-equivalent and saving %, feature lists
+      (editable content, R-2.6), each plan's withdrawal fee from S-010/S-011 (not hard-coded), the monthly
+      points price S-045 (spec 09 AC-1) and the caller's button state (`viewer`: guest, no Premium, active
+      until; spec 09 AC-2). Public; a signed-in caller also gets `viewer` details and the points balance.
+    tags: [Subscriptions]
+    security: [{}, {userBearer: []}, {userCookie: []}]
+    x-permission:
+      audience: optional-user
+      ownership: none
+    x-covers: ['09 AC-1', '09 AC-2', '09 AC-37']
+    x-settings: [S-008, S-009, S-010, S-011, S-045]
+    responses:
+      '200':
+        description: Plans and viewer state.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d3.yaml#/PlanList'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+
+/subscriptions/current:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: getCurrentSubscription
+    summary: My subscription (status, dates, next charge, renewal card, actions)
+    description: |
+      Plan and period, state (active / canceled — active until / none), start and end, next charge date and
+      amount at the current price when it will renew, renewal card (masked), source, and the Cancel / Resume
+      / Subscribe flags (spec 09 AC-18). Premium stops when `endsAt` passes, whatever the source (AC-19,
+      R-S1). Past Premium payments: `listPayments?purpose=subscription&purpose=subscription_renewal`.
+    tags: [Subscriptions]
+    x-permission:
+      audience: restricted-user
+      ownership: self
+    x-covers: ['09 AC-2', '09 AC-5', '09 AC-18', '09 AC-19', '09 AC-26']
+    x-settings: [S-008, S-009, S-042, S-045]
+    responses:
+      '200':
+        description: Current subscription state.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d3.yaml#/SubscriptionStatus'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+
+/subscriptions/points-purchase:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  post:
+    operationId: purchaseSubscriptionWithPoints
+    summary: Buy one month of Premium with points
+    description: |
+      Monthly Premium only. The server takes S-045 points (default 100) — any number sent by the client is
+      ignored (R-006) — in one transaction with the subscription (PM-09-02, `points_purchase:{subscriptionId}`);
+      Premium runs for 1 calendar month, no card saved, no auto-renew; EV-50 sent **once** (spec 09 AC-8).
+      Fewer points than S-045 → `422 INSUFFICIENT_FUNDS` messageKey `t_insufficient_points`,
+      `details.pointsNeeded` (AC-9). Running Premium → `422 SUBSCRIPTION_ALREADY_ACTIVE` (AC-6). Wallet
+      money never buys Premium and points buy nothing else (spec 05 AC-3, R-P1). Also available in the app
+      while S-126 is OFF (spec 09 AC-7).
+      Errors: 400 VALIDATION_FAILED (yearly or other plan); 409 IDEMPOTENCY_IN_PROGRESS, STATE_CONFLICT; 422
+      INSUFFICIENT_FUNDS, SUBSCRIPTION_ALREADY_ACTIVE, IDEMPOTENCY_KEY_REUSED.
+    tags: [Subscriptions]
+    parameters:
+      - $ref: '../components/parameters.yaml#/IdempotencyKey'
+    x-money: true
+    x-permission:
+      audience: user
+      ownership: self
+    x-covers: ['05 AC-3', '09 AC-6', '09 AC-7', '09 AC-8', '09 AC-9', '09 AC-21']
+    x-settings: [S-045]
+    x-notifications: [EV-50]
+    x-emits: [subscription.changed, points.balance_changed]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d3.yaml#/SubscriptionPointsPurchaseRequest'}
+    responses:
+      '201':
+        description: Premium activated (`t_subscription_purchased_successfully`).
+        headers:
+          Idempotent-Replayed: {$ref: '../components/headers.yaml#/IdempotentReplayed'}
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d3.yaml#/Subscription'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+/subscriptions/{subscriptionId}/cancel:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: subscriptionId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: cancelSubscription
+    summary: Cancel auto-renewal (Premium stays until the end date)
+    description: |
+      Switches auto-renewal off; Premium stays until `endsAt`; state "Canceled — active until :date";
+      `SubscriptionCancelled` (EV-54) (spec 09 AC-16). No refund. After the reminder, no charge happens
+      (EC-3).
+      Errors: 404 NOT_FOUND; 409 STATE_CONFLICT (already canceled, ended, or not a card subscription).
+    tags: [Subscriptions]
+    x-permission:
+      audience: user
+      ownership: subscription owner only; others get 404
+    x-covers: ['09 AC-16']
+    x-notifications: [EV-54]
+    x-emits: [subscription.changed]
+    responses:
+      '200':
+        description: The subscription (`t_subscription_canceled_successfully`).
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d3.yaml#/Subscription'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+/subscriptions/{subscriptionId}/resume:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: subscriptionId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: resumeSubscription
+    summary: Resume auto-renewal of a canceled, still running subscription
+    description: |
+      Allowed while the subscription has not ended and the saved card still exists; renewal (and its
+      reminder) then happen as normal (spec 09 AC-17, P-58).
+      Errors: 404 NOT_FOUND; 409 STATE_CONFLICT (not canceled by the user, or ended); 422
+      BUSINESS_RULE_VIOLATION (no saved renewal card).
+    tags: [Subscriptions]
+    x-permission:
+      audience: user
+      ownership: subscription owner only; others get 404
+    x-covers: ['09 AC-17']
+    x-emits: [subscription.changed]
+    responses:
+      '200':
+        description: The subscription (`t_auto_renewal_resumed`).
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d3.yaml#/Subscription'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+# ═════════════════════════ Points and referrals ═════════════════════════
+/points:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: getPointsSummary
+    summary: Get the caller's points balance
+    tags: [Points]
+    x-permission:
+      audience: restricted-user
+      ownership: self
+    x-covers: ['09 AC-20']
+    x-settings: [S-045, S-046]
+    responses:
+      '200':
+        description: Points balance and the points values of the settings.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d3.yaml#/PointsSummary'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+
+/points/history:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: listPointsHistory
+    summary: List the caller's points history (newest first)
+    description: |
+      Every points-ledger journal of the caller: date, event (`t_points_event_*`), points ±, balance after
+      (spec 09 AC-20). The balance never goes below 0; event types are extensible (AC-21, Q-017). Staff
+      grants/deductions show the public note (spec 05 AC-43). Empty → `t_no_points_yet`.
+    tags: [Points]
+    parameters:
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/Limit'
+    x-permission:
+      audience: restricted-user
+      ownership: self
+    x-covers: ['09 AC-20', '09 AC-21', '05 AC-43']
+    responses:
+      '200':
+        description: Page of points history.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d3.yaml#/PointsHistoryEntryPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+
+/referrals/summary:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: getReferralSummary
+    summary: The caller's referral code, invitation link and statistics
+    description: Referral code, invitation link (`?ref=CODE`), S-046 points per referral, and statistics (total, with paid Premium, with bonus Premium, points earned) (spec 09 AC-22).
+    tags: [Referrals]
+    x-permission:
+      audience: restricted-user
+      ownership: self
+    x-covers: ['09 AC-22']
+    x-settings: [S-046]
+    responses:
+      '200':
+        description: Referral summary.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d3.yaml#/ReferralSummary'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+
+/referrals:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: listReferrals
+    summary: List the caller's referrals (10 per page, newest first)
+    description: Username, date, status Pending / Verified, Premium yes/no; 10 per page (spec 09 AC-22). Empty → `t_no_referrals_yet`. A referral becomes Verified when the referred account becomes active by any path (AC-23; posted by D1's activation through the referral service).
+    tags: [Referrals]
+    parameters:
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - name: limit
+        in: query
+        required: false
+        description: Page size (default 10, spec 09 AC-22).
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 10
+    x-permission:
+      audience: restricted-user
+      ownership: self (referrer)
+    x-covers: ['09 AC-22']
+    responses:
+      '200':
+        description: Page of referrals.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d3.yaml#/ReferralPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+
+# ═════════════════════════ Payout details and withdrawals ═════════════════════════
+/payout-methods/bank-account:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: getPayoutDetails
+    summary: Get the caller's payout details
+    description: Holder name and IBAN, or the migrated free text shown read-only as "Previous details" and still usable for manual payouts (spec 14 AC-1, AC-2, P-62).
+    tags: [Withdrawals]
+    x-permission:
+      audience: restricted-user
+      ownership: self
+    x-covers: ['14 AC-1', '14 AC-2']
+    responses:
+      '200':
+        description: Payout details (all null when none).
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d3.yaml#/PayoutDetails'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+  put:
+    operationId: putPayoutDetails
+    summary: Save payout details (holder name + Georgian IBAN, password confirmed)
+    description: |
+      Holder name 3–100 characters; IBAN must be a valid Georgian IBAN (`GE`, 22 characters, check digits,
+      spaces ignored) → otherwise `400 VALIDATION_FAILED` field `iban` messageKey `t_iban_invalid` (spec 14
+      AC-1). Needs the current password → wrong password `400 VALIDATION_FAILED` field `currentPassword`
+      messageKey `t_ur_current_pass_does_not_match` (AC-3, P-63; same as D1 `updateMe`). Accounts without a
+      password send `challengeId` + `code` of a `payout_details` challenge (D1 `createMyTwoFactorChallenge`,
+      code sent to the current address; SEC-05, ADR-002 §5, Owner 2026-09-30 Q-144); wrong code → `422
+      TWO_FACTOR_CODE_INVALID`, expired → `TWO_FACTOR_CODE_EXPIRED` (code errors as in
+      `verifyTwoFactorLogin`); nothing is saved. Saving replaces the migrated text; pending requests keep
+      their copied details (EC-4) and from now on show the approver flag (AC-23, EC-10). Sends
+      `PayoutDetailsChanged` + in-app notice (EV-114).
+      **Security pause (spec 14 AC-21, R-W9, S-129; Owner 2026-09-30 Q-144).** Every successful save —
+      including the first structured save (Q-151 default; migrated free text is not a change, EC-9) — sets
+      `payoutDetailsChangedAt`; `createWithdrawal` refuses new requests until that time + S-129 hours.
+      Throttle (SEC-04, ADR-002 §6, spec 01 AC-55): wrong current passwords and codes count per account;
+      after S-062 within 15 minutes every password/code check of the account answers `429 RATE_LIMITED`
+      (`t_too_many_login_attempts`) for S-063 minutes. Wrong codes also count towards the per-account code
+      cap (`429 TWO_FACTOR_LOCKED`, spec 01 AC-54).
+      Errors: 400 VALIDATION_FAILED (incl. wrong current password); 422 TWO_FACTOR_CODE_*; 429 RATE_LIMITED,
+      TWO_FACTOR_LOCKED.
+    tags: [Withdrawals]
+    x-permission:
+      audience: user
+      ownership: self
+    x-covers: ['14 AC-1', '14 AC-3', '14 AC-21', '01 AC-55']
+    x-settings: [S-057, S-058, S-062, S-063, S-129]
+    x-notifications: [EV-114]
+    x-rate-limit: 'S-062 wrong current passwords or codes per account in 15 minutes → every password/code check of the account refused for S-063 minutes (429 RATE_LIMITED, ADR-002 §6, SEC-04); global write limit'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d3.yaml#/PayoutDetailsPutRequest'}
+    responses:
+      '200':
+        description: Saved.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d3.yaml#/PayoutDetails'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+      '429': {$ref: '../components/responses.yaml#/TooManyRequests'}
+
+/withdrawals/quote:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  post:
+    operationId: createWithdrawalQuote
+    summary: Withdraw form data and live fee preview
+    description: |
+      Returns Available, minimum S-031, period rule S-032, the caller's plan now and its fee rule (S-010 /
+      S-011), the payout details that will be used, and for `amount` the fee F (half up) and "You will
+      receive" A − F (spec 14 AC-5, AC-8). `eligibility` gives the first failing rule in the order of AC-6
+      (no payout details → `PAYOUT_DETAILS_REQUIRED` / `t_add_payout_details_first`, AC-4; nothing available
+      → `t_nothing_to_withdraw`, AC-11). Stores nothing. Called while the user types.
+      During a security pause (spec 14 AC-21, AC-22; S-129, Q-144) `securityPauseUntil` is set and
+      `eligibility` is `WITHDRAWAL_SECURITY_PAUSE` / `t_cant_withdraw_reason_security_pause` with
+      `nextAllowedAt` = `securityPauseUntil`; the fee preview still works. The client shows the notice with
+      the end time and disables "Request withdrawal"; after that time a reload shows the normal form.
+      Errors: 400 VALIDATION_FAILED.
+    tags: [Withdrawals]
+    x-permission:
+      audience: user
+      ownership: self
+    x-covers: ['14 AC-4', '14 AC-5', '14 AC-6', '14 AC-8', '14 AC-11', '14 AC-22', '05 AC-37', '00 AC-16']
+    x-settings: [S-010, S-011, S-031, S-032, S-129]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d3.yaml#/WithdrawalQuoteRequest'}
+    responses:
+      '200':
+        description: Form data and preview.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d3.yaml#/WithdrawalQuote'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+/withdrawals:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  post:
+    operationId: createWithdrawal
+    summary: Request a withdrawal of amount A
+    description: |
+      Rules in this order, each with its message (spec 14 AC-6): amount valid (integer tetri > 0, else `400
+      VALIDATION_FAILED` `t_validator_regex`); payout details present (`422 PAYOUT_DETAILS_REQUIRED`, AC-4);
+      A ≤ Available (`422 INSUFFICIENT_FUNDS` `t_withdrawal_money_not_enough`; a zero or negative migrated
+      balance refuses any amount, AC-11); no other pending/processing request (`409
+      WITHDRAWAL_PENDING_EXISTS`); **no security pause** — now < latest of the account's `emailChangedAt`,
+      `passwordChangedAt`, `payoutDetailsChangedAt` + S-129 hours, read at request time (`422
+      WITHDRAWAL_SECURITY_PAUSE`, `details.pausedUntil`, messageKey `t_cant_withdraw_reason_security_pause`
+      with `:datetime` in Georgian time; spec 14 AC-21, R-W9, EC-11, EC-12; Owner 2026-09-30 Q-144; S-129 = 0
+      → no pause; changes before the migration do not exist, EC-9); period S-032 since the creation of the
+      latest **paid** request (`422 WITHDRAWAL_PERIOD_NOT_ELAPSED`; rejected requests do not count, EC-3); A ≥ S-031 (`422
+      WITHDRAWAL_BELOW_MINIMUM`); A − F > 0 (`422 WITHDRAWAL_PAYOUT_TOO_LOW`).
+      Then in one transaction (AC-7): status `pending`; F from the fee rule of the caller's plan **now**
+      (percent half up or fixed) with its version, plan and payout details copied onto the request; journal
+      MM-14-01 (`withdrawal:{id}:request`): A leaves Available, Withdrawn +A. EV-110 to S-100, EV-111 to the
+      user (`t_ur_withdrawal_request_under_review`). Later plan or fee changes never touch the request (AC-9,
+      EC-1). Two parallel requests: one wins, the other gets `WITHDRAWAL_PENDING_EXISTS` or
+      `INSUFFICIENT_FUNDS`; the balance never goes below 0 (AC-10, spec 05 EC-4). KYC is not required
+      (AC-12). With S-033 = `bog_payout` (future) the request is sent to the payout provider and becomes
+      `processing` (AC-17).
+      Errors: 400 VALIDATION_FAILED, IDEMPOTENCY_KEY_REQUIRED; 409 WITHDRAWAL_PENDING_EXISTS,
+      IDEMPOTENCY_IN_PROGRESS; 422 PAYOUT_DETAILS_REQUIRED, INSUFFICIENT_FUNDS, WITHDRAWAL_SECURITY_PAUSE,
+      WITHDRAWAL_PERIOD_NOT_ELAPSED, WITHDRAWAL_BELOW_MINIMUM, WITHDRAWAL_PAYOUT_TOO_LOW, IDEMPOTENCY_KEY_REUSED.
+    tags: [Withdrawals]
+    parameters:
+      - $ref: '../components/parameters.yaml#/IdempotencyKey'
+    x-money: true
+    x-permission:
+      audience: user
+      ownership: self
+      notes: 'Restricted users are refused (403 ACCOUNT_RESTRICTED). No KYC requirement (Q-048). Refused during the security pause (S-129, 422 WITHDRAWAL_SECURITY_PAUSE).'
+    x-covers: ['14 AC-4', '14 AC-6', '14 AC-7', '14 AC-8', '14 AC-10', '14 AC-11', '14 AC-12', '14 AC-17', '14 AC-21', '05 AC-30', '05 AC-37', '00 AC-16']
+    x-settings: [S-010, S-011, S-031, S-032, S-033, S-100, S-129]
+    x-notifications: [EV-110, EV-111]
+    x-emits: [wallet.balance_changed]
+    x-jobs: [payout-sync]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d3.yaml#/WithdrawalCreateRequest'}
+    responses:
+      '201':
+        description: Request created.
+        headers:
+          Idempotent-Replayed: {$ref: '../components/headers.yaml#/IdempotentReplayed'}
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d3.yaml#/Withdrawal'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+  get:
+    operationId: listWithdrawals
+    summary: List the caller's withdrawals (newest first)
+    description: Date, amount requested, fee, payout, status (Pending, Processing, Paid, Rejected), rejection reason, paid date and reference (spec 14 AC-18). Empty → `t_no_withdrawals_yet`.
+    tags: [Withdrawals]
+    parameters:
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/Limit'
+      - name: status
+        in: query
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: array
+          items: {$ref: '../schemas/d3.yaml#/WithdrawalStatus'}
+    x-permission:
+      audience: restricted-user
+      ownership: self
+    x-covers: ['14 AC-18']
+    responses:
+      '200':
+        description: Page of withdrawals.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d3.yaml#/WithdrawalPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+
+/withdrawals/{withdrawalId}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: withdrawalId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: getWithdrawal
+    summary: Get one of the caller's withdrawals
+    description: The stored fee, payout, plan and fee-rule version never change after creation (spec 14 AC-9; spec 05 AC-39).
+    tags: [Withdrawals]
+    x-permission:
+      audience: restricted-user
+      ownership: owner only; others get 404
+    x-covers: ['14 AC-9', '14 AC-18']
+    responses:
+      '200':
+        description: The withdrawal.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d3.yaml#/Withdrawal'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+# ═════════════════════════ Admin: payments (spec 16 AC-36, AC-37) ═════════════════════════
+/admin/payments:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: adminListPayments
+    summary: Staff list of all payments
+    description: |
+      Every card, wallet and bank-transfer payment (id, BOG order id, user, purpose, amount, surcharge,
+      status, created and verified time), newest first, 50 per page (spec 16 AC-36). Filters: status
+      (`paid_unapplied` = the "Unapplied" filter of AC-37, spec 05 AC-15), purpose, method, `reviewed`,
+      `userId` (user page tab, AC-31), `q` (payment id or BOG order id), dates. `totalCount` is returned.
+    tags: [Admin Payments]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    parameters:
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/AdminLimit'
+      - $ref: '../components/parameters.yaml#/UserIdFilter'
+      - $ref: '../components/parameters.yaml#/CreatedFrom'
+      - $ref: '../components/parameters.yaml#/CreatedTo'
+      - name: status
+        in: query
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: array
+          items: {$ref: '../components/schemas.yaml#/PaymentStatus'}
+      - name: purpose
+        in: query
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: array
+          items: {$ref: '../components/schemas.yaml#/PaymentPurpose'}
+      - name: method
+        in: query
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: array
+          items: {$ref: '../components/schemas.yaml#/PaymentMethod'}
+      - name: reviewed
+        in: query
+        required: false
+        schema: {type: boolean}
+      - name: q
+        in: query
+        required: false
+        schema: {type: string, maxLength: 100}
+    x-permission:
+      audience: staff
+      permission: payments.read
+      ownership: none
+    x-covers: ['05 AC-15', '16 AC-31', '16 AC-36', '16 AC-37']
+    responses:
+      '200':
+        description: Page of payments.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d3.yaml#/AdminPaymentPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+/admin/payments/{paymentId}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: paymentId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: adminGetPayment
+    summary: Staff payment detail with event log and ledger journal
+    description: Breakdown, callbacks and status checks (`payment_events`), and the ledger journal (spec 16 AC-36).
+    tags: [Admin Payments]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission:
+      audience: staff
+      permission: payments.read
+      ownership: none
+    x-covers: ['16 AC-36']
+    responses:
+      '200':
+        description: The payment.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d3.yaml#/AdminPayment'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/admin/payments/{paymentId}/check-status:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: paymentId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: adminCheckPaymentStatus
+    summary: '"Check status at BOG" (runs the verified path)'
+    description: |
+      Calls BOG payment details for a card payment and applies exactly the verified path of
+      `handleBogWebhook` / job `bog-reconcile` (spec 05 AC-13, spec 16 AC-36, P-119). Idempotent: a payment
+      already settled posts nothing again (AC-14). Never trusts the browser. Stored as a `staff_check` event
+      and audited.
+      Errors: 404 NOT_FOUND; 409 IDEMPOTENCY_IN_PROGRESS; 422 BUSINESS_RULE_VIOLATION (not a card payment).
+    tags: [Admin Payments]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    parameters:
+      - $ref: '../components/parameters.yaml#/IdempotencyKey'
+    x-money: true
+    x-permission:
+      audience: staff
+      permission: payments.read
+      ownership: none
+    x-audit: payment.check_status
+    x-covers: ['05 AC-13', '05 AC-14', '16 AC-36']
+    x-emits: [payment.status_changed]
+    responses:
+      '200':
+        description: The payment after the check.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d3.yaml#/AdminPayment'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+/admin/payments/{paymentId}/mark-reviewed:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: paymentId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: adminMarkPaymentReviewed
+    summary: Mark an unapplied (or mismatched) payment as reviewed
+    description: |
+      Sets the staff "reviewed" mark on a `paid_unapplied` payment (spec 16 AC-37) or a payment whose BOG
+      amount did not match (spec 05 EC-3). No money moves. Audited.
+      Errors: 404 NOT_FOUND; 409 STATE_CONFLICT (already reviewed); 422 BUSINESS_RULE_VIOLATION (payment not
+      unapplied or mismatched).
+    tags: [Admin Payments]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission:
+      audience: staff
+      permission: payments.read
+      ownership: none
+    x-audit: payment.mark_reviewed
+    x-covers: ['16 AC-37']
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d3.yaml#/PaymentReviewRequest'}
+    responses:
+      '200':
+        description: The payment.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d3.yaml#/AdminPayment'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+# ═════════════════════════ Admin: bank transfers (spec 05 AC-24…AC-26; spec 16 AC-43) ═════════════════════════
+/admin/bank-transfers:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: adminListBankTransfers
+    summary: Staff list of bank-transfer payments (orders and top-ups)
+    description: |
+      Bank-transfer payments, pending first, oldest first, with filters status and purpose (`gig_order`,
+      `topup`) (spec 16 AC-43). Still usable when S-021 is OFF while transfers are pending (spec 05 EC-8);
+      the admin hides the menu otherwise. `totalCount` = pending count for the queue counter.
+    tags: [Admin Payments]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    parameters:
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/AdminLimit'
+      - $ref: '../components/parameters.yaml#/UserIdFilter'
+      - name: status
+        in: query
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: array
+          items: {$ref: '../components/schemas.yaml#/PaymentStatus'}
+      - name: purpose
+        in: query
+        required: false
+        schema:
+          type: string
+          enum: [gig_order, topup]
+    x-permission:
+      audience: staff
+      permission: payments.offline.approve
+      ownership: none
+    x-covers: ['16 AC-43']
+    responses:
+      '200':
+        description: Page of bank-transfer payments.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d3.yaml#/AdminPaymentPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+/admin/bank-transfers/{paymentId}/confirm:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: paymentId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: adminConfirmBankTransfer
+    summary: Confirm that a bank transfer arrived
+    description: |
+      Order: paid exactly like a card payment (MM-05-04 `bank:{paymentId}:confirmed`; HOLD funded, spec 06
+      notifications EV-33/EV-34), buyer gets EV-25 `t_ur_payment_has_been_received_offline` (spec 05 AC-25).
+      Top-up: A credited to Available (MM-05-05), EV-23 (AC-26). Compare-and-set `pending → paid`; if the
+      order can no longer take it (e.g. deleted), the amount is credited to Available as unapplied. Works
+      while S-021 is OFF (EC-8). Audited.
+      Errors: 404 NOT_FOUND; 409 STATE_CONFLICT (already decided), IDEMPOTENCY_IN_PROGRESS; 422
+      IDEMPOTENCY_KEY_REUSED, BUSINESS_RULE_VIOLATION (not a bank transfer).
+    tags: [Admin Payments]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    parameters:
+      - $ref: '../components/parameters.yaml#/IdempotencyKey'
+    x-money: true
+    x-permission:
+      audience: staff
+      permission: payments.offline.approve
+      ownership: none
+    x-audit: bank_transfer.confirm
+    x-covers: ['05 AC-25', '05 AC-26', '16 AC-43']
+    x-notifications: [EV-23, EV-25, EV-33, EV-34]
+    x-emits: [payment.status_changed, wallet.balance_changed]
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d3.yaml#/BankTransferConfirmRequest'}
+    responses:
+      '200':
+        description: The payment, now paid.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d3.yaml#/AdminPayment'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+/admin/bank-transfers/{paymentId}/reject:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: paymentId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: adminRejectBankTransfer
+    summary: Reject a bank transfer (reason required)
+    description: |
+      Order: canceled, nothing moves, buyer gets EV-26 `t_bank_transfer_rejected` with the reason (spec 05
+      AC-25, P-42). Top-up: rejected, user gets EV-27 `DepositRejected` with the reason (AC-26). Payment
+      `pending → rejected` (compare-and-set). Posts no journal. Audited.
+      Errors: 400 VALIDATION_FAILED; 404 NOT_FOUND; 409 STATE_CONFLICT, IDEMPOTENCY_IN_PROGRESS; 422
+      IDEMPOTENCY_KEY_REUSED.
+    tags: [Admin Payments]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    parameters:
+      - $ref: '../components/parameters.yaml#/IdempotencyKey'
+    x-money: true
+    x-permission:
+      audience: staff
+      permission: payments.offline.approve
+      ownership: none
+    x-audit: bank_transfer.reject
+    x-covers: ['05 AC-25', '05 AC-26', '16 AC-43']
+    x-notifications: [EV-26, EV-27]
+    x-emits: [payment.status_changed]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../components/schemas.yaml#/StaffReasonRequest'}
+    responses:
+      '200':
+        description: The payment, now rejected.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d3.yaml#/AdminPayment'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+# ═════════════════════════ Admin: ledger viewer, balances, adjustments (spec 16 AC-31, AC-32, AC-45) ═════════════════════════
+/admin/ledger/journals:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: adminListLedgerJournals
+    summary: Ledger viewer — look up journals (read-only)
+    description: |
+      Journals with their debit/credit lines, newest first, looked up by user (`userId`: any entry on one of
+      the user's accounts or escrows), item (`paymentId`, `escrowId`, `withdrawalId`, `adjustmentId`,
+      `subscriptionId`), reference (`idempotencyRef` exact or prefix) or type (spec 16 AC-45). Nothing can
+      be edited. Also the "ledger lines" of the user page (AC-31).
+    tags: [Admin Ledger]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    parameters:
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/AdminLimit'
+      - $ref: '../components/parameters.yaml#/UserIdFilter'
+      - $ref: '../components/parameters.yaml#/CreatedFrom'
+      - $ref: '../components/parameters.yaml#/CreatedTo'
+      - {name: paymentId, in: query, required: false, schema: {type: string, format: uuid}}
+      - {name: escrowId, in: query, required: false, schema: {type: string, format: uuid}}
+      - {name: withdrawalId, in: query, required: false, schema: {type: string, format: uuid}}
+      - {name: adjustmentId, in: query, required: false, schema: {type: string, format: uuid}}
+      - {name: subscriptionId, in: query, required: false, schema: {type: string, format: uuid}}
+      - {name: accountId, in: query, required: false, schema: {type: string, format: uuid}}
+      - {name: idempotencyRef, in: query, required: false, description: 'Exact reference or prefix ending with `*` (e.g. `bog:123*`).', schema: {type: string, maxLength: 200}}
+      - name: type
+        in: query
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: array
+          items: {$ref: '../schemas/d3.yaml#/LedgerJournalType'}
+    x-permission:
+      audience: staff
+      permission: payments.read
+      ownership: none
+    x-covers: ['16 AC-31', '16 AC-45']
+    responses:
+      '200':
+        description: Page of journals.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d3.yaml#/AdminLedgerJournalPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+/admin/ledger/journals/{journalId}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: journalId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: adminGetLedgerJournal
+    summary: Ledger viewer — one journal with its lines
+    tags: [Admin Ledger]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission:
+      audience: staff
+      permission: payments.read
+      ownership: none
+    x-covers: ['16 AC-45']
+    responses:
+      '200':
+        description: The journal.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d3.yaml#/AdminLedgerJournal'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/admin/ledger/accounts:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: adminListLedgerAccounts
+    summary: Ledger viewer — account balances
+    description: Ledger accounts with their cached balances (platform accounts, a user's accounts with `userId`, escrow holds), read-only (spec 16 AC-45).
+    tags: [Admin Ledger]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    parameters:
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/AdminLimit'
+      - $ref: '../components/parameters.yaml#/UserIdFilter'
+      - name: type
+        in: query
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: array
+          items: {$ref: '../schemas/d3.yaml#/LedgerAccountType'}
+      - {name: code, in: query, required: false, description: Exact account code or prefix ending with `*`., schema: {type: string, maxLength: 200}}
+    x-permission:
+      audience: staff
+      permission: payments.read
+      ownership: none
+    x-covers: ['16 AC-45']
+    responses:
+      '200':
+        description: Page of accounts.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d3.yaml#/AdminLedgerAccountPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+/admin/ledger/user-balances/{userId}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: userId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: adminGetLedgerUserBalances
+    summary: A user's balances and points (admin user page tab)
+    description: Available, HOLD/Pending, Withdrawn, Net income, Used for purchases, points and the legacy-hold residual of one user (spec 16 AC-31 "Balances and transactions").
+    tags: [Admin Ledger]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission:
+      audience: staff
+      permission: payments.read
+      ownership: none
+    x-covers: ['16 AC-31']
+    responses:
+      '200':
+        description: The user's balances.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d3.yaml#/AdminLedgerUserBalances'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/admin/ledger/adjustments:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  post:
+    operationId: adminCreateLedgerAdjustment
+    summary: Post a balance adjustment (credit or debit of Available)
+    description: |
+      One journal between the user's Available and `platform:adjustments` (MM-05-07 / MM-05-08,
+      `adjustment:{adjustmentId}`); audit with who, when, amount, reason and IP; the user sees a "Balance
+      correction" line with the public note and gets EV-30 `t_balance_adjusted` (spec 05 AC-41, P-12, P-41).
+      A debit larger than Available → `422 INSUFFICIENT_FUNDS` messageKey `t_adjustment_would_go_negative`
+      (AC-42). Double click → one journal (`Idempotency-Key`, EC-9). HOLD cannot be adjusted (R-P11).
+      Re-authentication within 15 minutes (spec 16 AC-7).
+      Errors: 400 VALIDATION_FAILED; 403 REAUTH_REQUIRED, FORBIDDEN; 404 NOT_FOUND (user); 409
+      IDEMPOTENCY_IN_PROGRESS; 422 INSUFFICIENT_FUNDS, IDEMPOTENCY_KEY_REUSED.
+    tags: [Admin Ledger]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    parameters:
+      - $ref: '../components/parameters.yaml#/IdempotencyKey'
+    x-money: true
+    x-permission:
+      audience: staff
+      permission: ledger.adjust
+      stepUp: true
+      ownership: none
+    x-audit: ledger.adjustment
+    x-covers: ['05 AC-41', '05 AC-42', '16 AC-32']
+    x-notifications: [EV-30]
+    x-emits: [wallet.balance_changed]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d3.yaml#/AdjustmentCreateRequest'}
+    responses:
+      '201':
+        description: Adjustment posted.
+        headers:
+          Idempotent-Replayed: {$ref: '../components/headers.yaml#/IdempotentReplayed'}
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d3.yaml#/AdminAdjustment'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+  get:
+    operationId: adminListLedgerAdjustments
+    summary: List balance adjustments (newest first)
+    tags: [Admin Ledger]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    parameters:
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/AdminLimit'
+      - $ref: '../components/parameters.yaml#/UserIdFilter'
+      - $ref: '../components/parameters.yaml#/CreatedFrom'
+      - $ref: '../components/parameters.yaml#/CreatedTo'
+    x-permission:
+      audience: staff
+      permission: payments.read
+      ownership: none
+    x-covers: ['16 AC-32']
+    responses:
+      '200':
+        description: Page of adjustments.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d3.yaml#/AdminAdjustmentPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+# ═════════════════════════ Admin: legacy-hold residuals (spec 16 AC-44, Q-096) ═════════════════════════
+/admin/legacy-holds:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: adminListLegacyHolds
+    summary: List migrated legacy-hold residuals
+    description: Each migrated residual (user, amount, legacy source, status), open first (spec 16 AC-44; data-model §12.3). `totalCount` = open residuals (admin home counter, AC-17).
+    tags: [Admin Ledger]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    parameters:
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/AdminLimit'
+      - $ref: '../components/parameters.yaml#/UserIdFilter'
+      - name: status
+        in: query
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: array
+          items: {$ref: '../schemas/d3.yaml#/LegacyHoldStatus'}
+    x-permission:
+      audience: staff
+      permission: ledger.adjust
+      ownership: none
+    x-covers: ['16 AC-44']
+    responses:
+      '200':
+        description: Page of legacy holds.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d3.yaml#/AdminLegacyHoldPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+/admin/legacy-holds/{legacyHoldId}/release:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: legacyHoldId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: adminReleaseLegacyHold
+    summary: Release a legacy-hold residual to the user's Available balance
+    description: |
+      One journal from the user's `legacy_hold` escrow to their Available balance for the whole residual,
+      reference `legacy_hold:{userId}:settle` (one settlement per user, spec 16 "Money movements"), reason
+      required, audited (spec 16 AC-44, Q-096). Step-up re-authentication within 15 minutes in the same staff
+      session (spec 16 AC-7, Owner 2026-09-30 Q-119). Only a **positive** residual can be released: a
+      negative residual is refused with `422 LEDGER_LEGACY_HOLD_WRITE_OFF_ONLY` (messageKey
+      `t_admin_negative_residual_write_off_only`) and nothing changes; it can only be written off
+      (`adminWriteOffLegacyHold`; Owner 2026-09-30 Q-120, spec 16 EC-12). The admin UI does not offer
+      "Released to Available" for negative residuals (cosmetic; the API decides).
+      Errors: 400 VALIDATION_FAILED; 403 REAUTH_REQUIRED; 404 NOT_FOUND; 409 STATE_CONFLICT (already
+      settled), IDEMPOTENCY_IN_PROGRESS; 422 LEDGER_LEGACY_HOLD_WRITE_OFF_ONLY, IDEMPOTENCY_KEY_REUSED.
+    tags: [Admin Ledger]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    parameters:
+      - $ref: '../components/parameters.yaml#/IdempotencyKey'
+    x-money: true
+    x-permission:
+      audience: staff
+      permission: ledger.adjust
+      stepUp: true
+      ownership: none
+    x-audit: legacy_hold.release
+    x-covers: ['16 AC-44']
+    x-emits: [wallet.balance_changed]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../components/schemas.yaml#/StaffReasonRequest'}
+    responses:
+      '200':
+        description: The settled legacy hold.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d3.yaml#/AdminLegacyHold'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+/admin/legacy-holds/{legacyHoldId}/write-off:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: legacyHoldId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: adminWriteOffLegacyHold
+    summary: Write off a legacy-hold residual (to the platform adjustments account)
+    description: |
+      One journal from the user's `legacy_hold` escrow to `platform:adjustments`, reference
+      `legacy_hold:{userId}:settle`, reason required, audited (spec 16 AC-44, Q-096). Step-up
+      re-authentication within 15 minutes in the same staff session (spec 16 AC-7, Owner 2026-09-30 Q-119).
+      Works for positive and negative residuals; for a **negative** residual it is the only settlement
+      (Q-120): the journal moves the amount between `platform:adjustments` and the user's `legacy_hold`
+      escrow only, and the user's Available balance never changes (spec 16 EC-12).
+      Errors: 400 VALIDATION_FAILED; 403 REAUTH_REQUIRED; 404 NOT_FOUND; 409 STATE_CONFLICT,
+      IDEMPOTENCY_IN_PROGRESS; 422 IDEMPOTENCY_KEY_REUSED.
+    tags: [Admin Ledger]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    parameters:
+      - $ref: '../components/parameters.yaml#/IdempotencyKey'
+    x-money: true
+    x-permission:
+      audience: staff
+      permission: ledger.adjust
+      stepUp: true
+      ownership: none
+    x-audit: legacy_hold.write_off
+    x-covers: ['16 AC-44']
+    x-emits: [wallet.balance_changed]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../components/schemas.yaml#/StaffReasonRequest'}
+    responses:
+      '200':
+        description: The settled legacy hold.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d3.yaml#/AdminLegacyHold'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+# ═════════════════════════ Admin: reconciliation (spec 05 AC-44…AC-47, P-135 ACCEPTED Q-111; spec 16 AC-44) ═════════════════════════
+/admin/reconciliation/runs:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: adminListReconciliationRuns
+    summary: List nightly reconciliation runs (newest run day first)
+    description: |
+      One row per run day: run day, start and end, status (`t_admin_recon_status_*`), checks, differences and
+      unreviewed differences; filters status and run-day range; empty → `t_admin_recon_no_runs` (spec 05
+      AC-47). Runs are created only by the worker job `ledger-reconcile` at S-128 (default 03:00 Georgian
+      time) for the previous Georgian day, at most one completed run per day, missed days caught up oldest
+      first (AC-44, EC-11, EC-12). There is no operation to start a run (ADR-008 §7).
+    tags: [Admin Ledger]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    parameters:
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/AdminLimit'
+      - name: status
+        in: query
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: array
+          items: {$ref: '../schemas/d3.yaml#/ReconciliationRunStatus'}
+      - {name: runDayFrom, in: query, required: false, description: Inclusive., schema: {type: string, format: date}}
+      - {name: runDayTo, in: query, required: false, description: Inclusive., schema: {type: string, format: date}}
+    x-permission:
+      audience: staff
+      permission: payments.read
+      ownership: none
+    x-covers: ['05 AC-44', '05 AC-46', '05 AC-47', '16 AC-44']
+    x-settings: [S-128]
+    x-jobs: [ledger-reconcile]
+    responses:
+      '200':
+        description: Page of runs.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d3.yaml#/AdminReconciliationRunPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+/admin/reconciliation/runs/{runId}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: runId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: adminGetReconciliationRun
+    summary: Get one reconciliation run with its per-check results
+    description: Run status, per-check result C-1…C-9 (`not_available` for C-9 without a BOG settlement report), error summary of failed runs, and when EV-32 / EV-125 was sent (once per run day) (spec 05 AC-45…AC-47). Differences are listed by `adminListReconciliationDifferences`.
+    tags: [Admin Ledger]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission:
+      audience: staff
+      permission: payments.read
+      ownership: none
+    x-covers: ['05 AC-45', '05 AC-46', '05 AC-47', '16 AC-44']
+    x-notifications: [EV-32, EV-125]
+    x-jobs: [ledger-reconcile]
+    responses:
+      '200':
+        description: The run.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d3.yaml#/AdminReconciliationRun'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/admin/reconciliation/runs/{runId}/differences:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: runId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: adminListReconciliationDifferences
+    summary: List the differences of a run
+    description: Each difference with check (`t_admin_recon_check_*`), subject and link target, expected, actual and gap in tetri (no tolerance), and its review mark (spec 05 AC-45, AC-47). Filters by check and reviewed state.
+    tags: [Admin Ledger]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    parameters:
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/AdminLimit'
+      - name: check
+        in: query
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: array
+          items: {$ref: '../schemas/d3.yaml#/ReconciliationCheckCode'}
+      - {name: reviewed, in: query, required: false, schema: {type: boolean}}
+    x-permission:
+      audience: staff
+      permission: payments.read
+      ownership: none
+    x-covers: ['05 AC-45', '05 AC-47', '16 AC-44']
+    responses:
+      '200':
+        description: Page of differences.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d3.yaml#/AdminReconciliationDifferencePage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/admin/reconciliation/differences/{differenceId}/mark-reviewed:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: differenceId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: adminMarkReconciliationDifferenceReviewed
+    summary: Mark a reconciliation difference as reviewed (note required)
+    description: |
+      Sets the review mark with the required note; audited; moves no money and does not remove the
+      difference — the next run reports it again while the cause remains (spec 05 AC-47, EC-13; same pattern
+      as spec 16 AC-37, permission `payments.read` per spec 16 AC-44).
+      Errors: 400 VALIDATION_FAILED; 404 NOT_FOUND; 409 STATE_CONFLICT (already reviewed).
+    tags: [Admin Ledger]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission:
+      audience: staff
+      permission: payments.read
+      ownership: none
+    x-audit: reconciliation.difference_review
+    x-covers: ['05 AC-47', '16 AC-44']
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d3.yaml#/ReconciliationDifferenceReviewRequest'}
+    responses:
+      '200':
+        description: The difference with its review.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d3.yaml#/AdminReconciliationDifference'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+# ═════════════════════════ Admin: withdrawals (spec 14 AC-13…AC-17; spec 16 AC-42) ═════════════════════════
+/admin/withdrawals:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: adminListWithdrawals
+    summary: Staff withdrawals list (pending first, oldest first)
+    description: |
+      Pending (and processing) requests first, oldest first, then the rest newest first; user, amount, fee,
+      payout, plan at request, payout details snapshot, date and status; filters status, dates, `userId`
+      (spec 14 AC-13, spec 16 AC-31, AC-42). Banned users' requests stay listed (EC-7). `totalCount` =
+      pending count (admin home counter). Every row carries the approver flag `detailsChangedRecently` with
+      `recentChangeKinds` and the latest change dates (spec 14 AC-23, spec 16 AC-42; Q-144).
+      Permission `withdrawals.approve` (Owner 2026-09-30 Q-113, closes SEC-08): the rows contain IBANs and
+      holder names, so staff with only `payments.read` (e.g. Customer Support) get `403 FORBIDDEN` and no
+      data; they see withdrawal amounts only as ledger lines (`adminListLedgerJournals`, spec 16 EC-14).
+    tags: [Admin Withdrawals]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    parameters:
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/AdminLimit'
+      - $ref: '../components/parameters.yaml#/UserIdFilter'
+      - $ref: '../components/parameters.yaml#/CreatedFrom'
+      - $ref: '../components/parameters.yaml#/CreatedTo'
+      - name: status
+        in: query
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: array
+          items: {$ref: '../schemas/d3.yaml#/WithdrawalStatus'}
+    x-permission:
+      audience: staff
+      permission: withdrawals.approve
+      ownership: none
+      notes: 'withdrawals.approve, not payments.read (Owner 2026-09-30 Q-113; spec 14 AC-13, spec 16 AC-42): the list shows IBANs and holder names.'
+    x-covers: ['14 AC-13', '14 AC-23', '16 AC-31', '16 AC-42']
+    x-settings: [S-129]
+    responses:
+      '200':
+        description: Page of withdrawals.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d3.yaml#/AdminWithdrawalPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+/admin/withdrawals/{withdrawalId}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: withdrawalId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: adminGetWithdrawal
+    summary: Staff withdrawal detail
+    description: The request with both the copied and the current payout details (EC-4) and the user's Available balance; the user's recent transactions come from `adminListLedgerJournals?userId=` (spec 14 AC-13). Shows the approver flag and the date of the latest email, password and payout-details change, or `t_admin_security_change_none` when a date is null (spec 14 AC-23, EC-10, EC-12; Q-144). Permission `withdrawals.approve` (Owner 2026-09-30 Q-113); staff without it get `403 FORBIDDEN` and no IBAN or holder name.
+    tags: [Admin Withdrawals]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission:
+      audience: staff
+      permission: withdrawals.approve
+      ownership: none
+      notes: 'withdrawals.approve, not payments.read (Owner 2026-09-30 Q-113): the detail shows IBANs and holder names.'
+    x-covers: ['14 AC-13', '14 AC-23', '16 AC-42']
+    x-settings: [S-129]
+    responses:
+      '200':
+        description: The withdrawal.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d3.yaml#/AdminWithdrawal'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/admin/withdrawals/{withdrawalId}/mark-paid:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: withdrawalId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: adminMarkWithdrawalPaid
+    summary: Mark a withdrawal as paid (after the manual bank transfer)
+    description: |
+      Compare-and-set `pending → paid` (the first of two staff wins; the second gets `409 STATE_CONFLICT`
+      messageKey `t_withdrawal_already_processed`, spec 14 AC-16) with journal MM-14-02
+      (`withdrawal:{id}:paid`, `withdrawal:{id}:outcome`), optional bank reference and payout date, audit,
+      then EV-112 (`PaymentApproved` + `t_withdrawal_amount_paid`) after the commit (AC-14). Re-authentication
+      within 15 minutes (spec 16 AC-7).
+      Errors: 400 VALIDATION_FAILED; 403 REAUTH_REQUIRED; 404 NOT_FOUND; 409 STATE_CONFLICT,
+      IDEMPOTENCY_IN_PROGRESS; 422 IDEMPOTENCY_KEY_REUSED.
+    tags: [Admin Withdrawals]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    parameters:
+      - $ref: '../components/parameters.yaml#/IdempotencyKey'
+    x-money: true
+    x-permission:
+      audience: staff
+      permission: withdrawals.approve
+      stepUp: true
+      ownership: none
+    x-audit: withdrawal.mark_paid
+    x-covers: ['14 AC-14', '14 AC-16', '16 AC-42']
+    x-notifications: [EV-112]
+    x-emits: [withdrawal.status_changed]
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d3.yaml#/WithdrawalMarkPaidRequest'}
+    responses:
+      '200':
+        description: The withdrawal, now paid.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d3.yaml#/AdminWithdrawal'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+/admin/withdrawals/{withdrawalId}/reject:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: withdrawalId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: adminRejectWithdrawal
+    summary: Reject a withdrawal (reason required; money returns to Available)
+    description: |
+      Compare-and-set `pending|processing → rejected` with journal MM-14-03 (`withdrawal:{id}:reject`,
+      `withdrawal:{id}:outcome`): the full amount A (including the fee) returns to Available and Withdrawn
+      decreases by A; reason required (≤ 500), shown to the user; audit; EV-113 (`PaymentRejected` +
+      `t_withdrawal_amount_rejected` with the reason) (spec 14 AC-15, P-64). Second staff action → `409
+      STATE_CONFLICT` `t_withdrawal_already_processed` (AC-16). With a payout provider (future), staff can
+      still reject before it is sent (AC-17). Re-authentication within 15 minutes (spec 16 AC-7).
+      Errors: 400 VALIDATION_FAILED; 403 REAUTH_REQUIRED; 404 NOT_FOUND; 409 STATE_CONFLICT,
+      IDEMPOTENCY_IN_PROGRESS; 422 IDEMPOTENCY_KEY_REUSED.
+    tags: [Admin Withdrawals]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    parameters:
+      - $ref: '../components/parameters.yaml#/IdempotencyKey'
+    x-money: true
+    x-permission:
+      audience: staff
+      permission: withdrawals.approve
+      stepUp: true
+      ownership: none
+    x-audit: withdrawal.reject
+    x-covers: ['14 AC-15', '14 AC-16', '14 AC-17', '16 AC-42']
+    x-notifications: [EV-113]
+    x-emits: [withdrawal.status_changed, wallet.balance_changed]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d3.yaml#/WithdrawalRejectRequest'}
+    responses:
+      '200':
+        description: The withdrawal, now rejected.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d3.yaml#/AdminWithdrawal'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+# ═════════════════════════ Admin: plans (spec 16 AC-57) ═════════════════════════
+/admin/plans:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: adminListPlans
+    summary: Plans as edited by staff (texts ka/en, prices, limits)
+    description: Both plans with texts in ka and en, the current prices S-008/S-009 and limits S-001…S-007 (with register ids, changed through D6 `adminUpdateSetting`, versioned), and S-043 for the price-change warning (spec 16 AC-57; spec 09 AC-37, EC-5).
+    tags: [Admin Subscriptions]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission:
+      audience: staff
+      permission: settings.read
+      ownership: none
+    x-covers: ['09 AC-37', '16 AC-57']
+    x-settings: [S-001, S-002, S-003, S-004, S-005, S-006, S-007, S-008, S-009, S-043]
+    responses:
+      '200':
+        description: The plans.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d3.yaml#/AdminPlanList'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+/admin/plans/{planCode}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: planCode
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/PlanCode'}
+  patch:
+    operationId: adminUpdatePlan
+    summary: Edit a plan's texts (names, descriptions, included and excluded features)
+    description: |
+      Plan texts in ka/en (R-2.6). Prices S-008/S-009 and limits S-001…S-007 are settings and are changed
+      with D6 `adminUpdateSetting` (versioned, audited; CONVENTIONS §5.7). Audited.
+      Errors: 400 VALIDATION_FAILED (incl. `georgian_letters_not_allowed` on `*.en`); 404 NOT_FOUND.
+    tags: [Admin Subscriptions]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission:
+      audience: staff
+      permission: settings.plans.write
+      ownership: none
+    x-audit: plan.update
+    x-covers: ['16 AC-57']
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d3.yaml#/PlanUpdateRequest'}
+    responses:
+      '200':
+        description: The plan.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d3.yaml#/AdminPlan'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+# ═════════════════════════ Admin: subscriptions (spec 09 AC-34…AC-36; spec 16 AC-59) ═════════════════════════
+/admin/subscriptions:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: adminListSubscriptions
+    summary: Staff subscriptions list with filters
+    description: Filters user, period, source (card, points, gift, referral benefit, promo), state (active, canceled-running, ended) and dates; newest first (spec 09 AC-34; spec 16 AC-59, AC-31).
+    tags: [Admin Subscriptions]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    parameters:
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/AdminLimit'
+      - $ref: '../components/parameters.yaml#/UserIdFilter'
+      - $ref: '../components/parameters.yaml#/CreatedFrom'
+      - $ref: '../components/parameters.yaml#/CreatedTo'
+      - name: plan
+        in: query
+        required: false
+        schema: {$ref: '../components/schemas.yaml#/PlanCode'}
+      - name: period
+        in: query
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: array
+          items: {$ref: '../schemas/d3.yaml#/SubscriptionPeriod'}
+      - name: source
+        in: query
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: array
+          items: {$ref: '../schemas/d3.yaml#/SubscriptionSource'}
+      - name: state
+        in: query
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: array
+          items: {$ref: '../schemas/d3.yaml#/SubscriptionState'}
+    x-permission:
+      audience: staff
+      permission: payments.read
+      ownership: none
+    x-covers: ['09 AC-34', '16 AC-31', '16 AC-59']
+    responses:
+      '200':
+        description: Page of subscriptions.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d3.yaml#/AdminSubscriptionPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+  post:
+    operationId: adminGiftSubscription
+    summary: Gift Premium to a user (monthly, yearly or custom end date)
+    description: |
+      For a user without running Premium: a subscription starts now with source `gift`, no payment, no
+      renewal, reason required, audited; EV-50 (spec 09 AC-35, P-60). Running Premium → `422
+      SUBSCRIPTION_ALREADY_ACTIVE`. `custom` needs `endsAt` in the future.
+      Errors: 400 VALIDATION_FAILED; 404 NOT_FOUND (user); 422 SUBSCRIPTION_ALREADY_ACTIVE.
+    tags: [Admin Subscriptions]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission:
+      audience: staff
+      permission: subscriptions.manage
+      ownership: none
+    x-audit: subscription.gift
+    x-covers: ['09 AC-35', '16 AC-32', '16 AC-59']
+    x-notifications: [EV-50]
+    x-emits: [subscription.changed]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d3.yaml#/SubscriptionGiftRequest'}
+    responses:
+      '201':
+        description: Premium gifted.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d3.yaml#/AdminSubscription'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+/admin/subscriptions/{subscriptionId}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: subscriptionId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: adminGetSubscription
+    summary: Staff subscription detail with its periods
+    tags: [Admin Subscriptions]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission:
+      audience: staff
+      permission: payments.read
+      ownership: none
+    x-covers: ['09 AC-34', '16 AC-59']
+    responses:
+      '200':
+        description: The subscription.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d3.yaml#/AdminSubscription'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/admin/subscriptions/{subscriptionId}/cancel:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: subscriptionId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: adminCancelSubscription
+    summary: Cancel a running subscription immediately (reason required)
+    description: |
+      Ends it now (`cancel_kind = staff_immediate`, perks stop within 60 s), no refund, audited, EV-54 with
+      the immediate end date (spec 09 AC-36, P-60).
+      Errors: 400 VALIDATION_FAILED; 404 NOT_FOUND; 409 STATE_CONFLICT (already ended).
+    tags: [Admin Subscriptions]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission:
+      audience: staff
+      permission: subscriptions.manage
+      ownership: none
+    x-audit: subscription.cancel
+    x-covers: ['09 AC-36', '16 AC-32', '16 AC-59']
+    x-notifications: [EV-54]
+    x-emits: [subscription.changed]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../components/schemas.yaml#/StaffReasonRequest'}
+    responses:
+      '200':
+        description: The subscription, ended.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d3.yaml#/AdminSubscription'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+# ═════════════════════════ Admin: points (spec 05 AC-43; spec 16 AC-31, AC-32) ═════════════════════════
+/admin/points/adjustments:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  post:
+    operationId: adminCreatePointsAdjustment
+    summary: Add or deduct points for a user
+    description: |
+      Points-ledger journal `admin_grant` / `admin_deduct` (PM-05-01 / PM-05-02,
+      `points_adjustment:{id}`), whole number > 0, required internal reason, optional public note; audited;
+      visible in the user's points history; EV-31 `t_points_adjusted` (spec 05 AC-43, P-41). A deduction
+      larger than the user's points → `422 INSUFFICIENT_FUNDS` messageKey `t_insufficient_points`.
+      Re-authentication within 15 minutes (spec 16 AC-7).
+      Errors: 400 VALIDATION_FAILED; 403 REAUTH_REQUIRED; 404 NOT_FOUND (user); 409 IDEMPOTENCY_IN_PROGRESS;
+      422 INSUFFICIENT_FUNDS, IDEMPOTENCY_KEY_REUSED.
+    tags: [Admin Ledger]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    parameters:
+      - $ref: '../components/parameters.yaml#/IdempotencyKey'
+    x-money: true
+    x-permission:
+      audience: staff
+      permission: points.adjust
+      stepUp: true
+      ownership: none
+    x-audit: points.adjustment
+    x-covers: ['05 AC-43', '09 AC-21', '16 AC-32']
+    x-notifications: [EV-31]
+    x-emits: [points.balance_changed]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d3.yaml#/PointsAdjustmentCreateRequest'}
+    responses:
+      '201':
+        description: Adjustment posted; the resulting history entry.
+        headers:
+          Idempotent-Replayed: {$ref: '../components/headers.yaml#/IdempotentReplayed'}
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d3.yaml#/AdminPointsHistoryEntry'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+/admin/points/history:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: adminListPointsHistory
+    summary: A user's points history (staff view with internal reasons)
+    tags: [Admin Ledger]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    parameters:
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/AdminLimit'
+      - name: userId
+        in: query
+        required: true
+        description: The user whose points history is shown (spec 16 AC-31).
+        schema: {type: string, format: uuid}
+    x-permission:
+      audience: staff
+      permission: payments.read
+      ownership: none
+    x-covers: ['16 AC-31']
+    responses:
+      '200':
+        description: Page of points history.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d3.yaml#/AdminPointsHistoryEntryPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+/admin/referrals:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: adminListReferrals
+    summary: Referrals (by referrer or referred user)
+    description: 'Referrals with status, credited points journal and benefit subscription; `userId` matches the referrer or the referred user (spec 16 AC-31 "Subscriptions and referrals").'
+    tags: [Admin Subscriptions]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    parameters:
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/AdminLimit'
+      - $ref: '../components/parameters.yaml#/UserIdFilter'
+      - $ref: '../components/parameters.yaml#/CreatedFrom'
+      - $ref: '../components/parameters.yaml#/CreatedTo'
+      - name: status
+        in: query
+        required: false
+        schema:
+          type: string
+          enum: [pending, verified, cancelled]
+    x-permission:
+      audience: staff
+      permission: users.read
+      ownership: none
+    x-covers: ['16 AC-31']
+    responses:
+      '200':
+        description: Page of referrals.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d3.yaml#/AdminReferralPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+# ═════════════════════════ Admin: promo codes (spec 09 AC-27…AC-33; spec 16 AC-58) ═════════════════════════
+/admin/promo-codes:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: adminListPromoCodes
+    summary: List promo codes
+    tags: [Admin Subscriptions]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    parameters:
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/AdminLimit'
+      - {name: q, in: query, required: false, description: Code or name (partial)., schema: {type: string, maxLength: 100}}
+      - {name: isActive, in: query, required: false, schema: {type: boolean}}
+    x-permission:
+      audience: staff
+      permission: promo_codes.write
+      ownership: none
+    x-covers: ['09 AC-33', '16 AC-58']
+    responses:
+      '200':
+        description: Page of promo codes with used / cap counts.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d3.yaml#/AdminPromoCodePage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+  post:
+    operationId: adminCreatePromoCode
+    summary: Create a promo code (Premium only)
+    description: |
+      Code (unique, case-insensitive, 4–20 of A–Z 0–9 "-"), internal name, discount S-047 (percent 1–100 or
+      fixed GEL > 0), applies to S-048 (Premium monthly and/or yearly), uses per user S-049 (default 1),
+      total cap S-050 (required), active, optional valid-from / valid-until (spec 09 AC-27, P-59, P-10).
+      **Conditional step-up (spec 16 AC-7, EC-13; Owner 2026-09-30 Q-145).** A code that makes a covered
+      service free — percent discount = 100 (`discountRate` 10000), or a fixed `discountAmount` ≥ the current
+      Premium price (S-008 / S-009) of any period in `appliesTo` — is created only if the staff member
+      re-authenticated within 15 minutes in the same session; otherwise `403 REAUTH_REQUIRED` and nothing is
+      created. Other codes need no re-authentication.
+      Errors: 400 VALIDATION_FAILED; 403 REAUTH_REQUIRED; 409 DUPLICATE (code taken).
+    tags: [Admin Subscriptions]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission:
+      audience: staff
+      permission: promo_codes.write
+      ownership: none
+      notes: 'Conditional step-up: 403 REAUTH_REQUIRED without re-authentication in the last 15 minutes (same session) when the code makes a covered service free (percent 100, or fixed ≥ current S-008/S-009 price); spec 16 AC-7, Q-145.'
+    x-settings: [S-008, S-009, S-047, S-048, S-049, S-050]
+    x-audit: promo_code.create
+    x-covers: ['09 AC-27', '16 AC-58']
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d3.yaml#/PromoCodeCreateRequest'}
+    responses:
+      '201':
+        description: Created.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d3.yaml#/AdminPromoCode'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+/admin/promo-codes/{promoCodeId}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: promoCodeId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: adminGetPromoCode
+    summary: Get a promo code with used / cap counts
+    tags: [Admin Subscriptions]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission:
+      audience: staff
+      permission: promo_codes.write
+      ownership: none
+    x-covers: ['09 AC-33', '16 AC-58']
+    responses:
+      '200':
+        description: The code.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d3.yaml#/AdminPromoCode'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+  patch:
+    operationId: adminUpdatePromoCode
+    summary: Edit a promo code
+    description: |
+      Before the first redemption every field may change. After it only `isActive`, `validUntil` and
+      `maxTotalRedemptions` (not below redemptions so far) → other fields `422 BUSINESS_RULE_VIOLATION` with
+      `details.fields` (spec 09 AC-27, P-59). Changes under the row lock used by redemptions (AC-31, EC-6).
+      An edit (before the first redemption) that turns the code into one that makes a covered service free
+      (percent 100, or fixed ≥ the current S-008/S-009 price) needs the same re-authentication as creating
+      such a code (spec 16 AC-7, Q-145; otherwise `403 REAUTH_REQUIRED`), so the create rule cannot be
+      bypassed by editing.
+      Errors: 400 VALIDATION_FAILED; 403 REAUTH_REQUIRED; 404 NOT_FOUND; 422 BUSINESS_RULE_VIOLATION.
+    tags: [Admin Subscriptions]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission:
+      audience: staff
+      permission: promo_codes.write
+      ownership: none
+      notes: 'Conditional step-up as adminCreatePromoCode when the edit makes the code free (spec 16 AC-7, Q-145).'
+    x-audit: promo_code.update
+    x-covers: ['09 AC-27', '16 AC-58']
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d3.yaml#/PromoCodeUpdateRequest'}
+    responses:
+      '200':
+        description: The code.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d3.yaml#/AdminPromoCode'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+  delete:
+    operationId: adminDeletePromoCode
+    summary: Delete an unused promo code
+    description: 'Only before its first redemption (reservations included); afterwards `409 STATE_CONFLICT` — deactivate it instead (`isActive = false`) so redemptions stay visible (spec 09 AC-33; contract default, slice item Q-133). Audited.'
+    tags: [Admin Subscriptions]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission:
+      audience: staff
+      permission: promo_codes.write
+      ownership: none
+    x-audit: promo_code.delete
+    x-covers: ['16 AC-58']
+    responses:
+      '204': {$ref: '../components/responses.yaml#/NoContent'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+/admin/promo-codes/{promoCodeId}/redemptions:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: promoCodeId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: adminListPromoCodeRedemptions
+    summary: List a promo code's redemptions
+    description: User, date, period, discount given, redemption and payment status (spec 09 AC-33).
+    tags: [Admin Subscriptions]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    parameters:
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/AdminLimit'
+      - name: status
+        in: query
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: array
+          items: {$ref: '../schemas/d3.yaml#/PromoRedemptionStatus'}
+    x-permission:
+      audience: staff
+      permission: promo_codes.write
+      ownership: none
+    x-covers: ['09 AC-33', '16 AC-58']
+    responses:
+      '200':
+        description: Page of redemptions.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d3.yaml#/AdminPromoRedemptionPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+# ═════════════════════════ Admin: referral-code benefits (spec 09 AC-26; spec 16 AC-58) ═════════════════════════
+/admin/referral-benefits:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: adminListReferralBenefits
+    summary: List referral-code benefits
+    tags: [Admin Subscriptions]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    parameters:
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/AdminLimit'
+      - {name: isActive, in: query, required: false, schema: {type: boolean}}
+    x-permission:
+      audience: staff
+      permission: promo_codes.write
+      ownership: none
+    x-covers: ['16 AC-58']
+    responses:
+      '200':
+        description: Page of benefits.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d3.yaml#/AdminReferralBenefitPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+  post:
+    operationId: adminCreateReferralBenefit
+    summary: Create a referral-code benefit (Premium months for users who register with the code)
+    description: |
+      S-051: code (a referral code), name, active, Premium months. A new user who registered with that code
+      receives Premium for that many months as a gift when their account becomes active (spec 09 AC-26).
+      Errors: 400 VALIDATION_FAILED; 409 DUPLICATE (code already has a benefit).
+    tags: [Admin Subscriptions]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission:
+      audience: staff
+      permission: promo_codes.write
+      ownership: none
+    x-audit: referral_benefit.create
+    x-covers: ['09 AC-26', '16 AC-58']
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d3.yaml#/ReferralBenefitCreateRequest'}
+    responses:
+      '201':
+        description: Created.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d3.yaml#/AdminReferralBenefit'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+/admin/referral-benefits/{referralBenefitId}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: referralBenefitId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  patch:
+    operationId: adminUpdateReferralBenefit
+    summary: Edit a referral-code benefit
+    description: 'Name, Premium months, active. Gifts already granted are not changed. Errors: 400 VALIDATION_FAILED; 404 NOT_FOUND.'
+    tags: [Admin Subscriptions]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission:
+      audience: staff
+      permission: promo_codes.write
+      ownership: none
+    x-audit: referral_benefit.update
+    x-covers: ['09 AC-26', '16 AC-58']
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d3.yaml#/ReferralBenefitUpdateRequest'}
+    responses:
+      '200':
+        description: The benefit.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d3.yaml#/AdminReferralBenefit'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+  delete:
+    operationId: adminDeleteReferralBenefit
+    summary: Delete a referral-code benefit
+    description: 'Removes the benefit for future activations; gifts already granted stay (legacy Filament CRUD, spec 09 Screens). Audited. Errors: 404 NOT_FOUND.'
+    tags: [Admin Subscriptions]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission:
+      audience: staff
+      permission: promo_codes.write
+      ownership: none
+    x-audit: referral_benefit.delete
+    x-covers: ['16 AC-58']
+    responses:
+      '204': {$ref: '../components/responses.yaml#/NoContent'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}

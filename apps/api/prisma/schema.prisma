@@ -1,0 +1,519 @@
+// MyTask.ge database schema. Design source: docs/03-architecture/data-model.md (the architect owns it).
+// Models are added slice by slice (Phase 4); never invent a table or column that data-model.md lacks.
+// Extensions (data-model.md §1): pg_trgm, btree_gist, citext, vector — created by migration 00000000000000_extensions.
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------- enums (data-model.md §3.A, §4.8)
+
+enum UserStatus {
+  pending
+  active
+  verified
+  banned
+
+  @@map("user_status")
+}
+
+enum PasswordAlgo {
+  bcrypt_legacy
+  argon2id
+
+  @@map("password_algo")
+}
+
+enum Locale {
+  ka
+  en
+
+  @@map("locale")
+}
+
+enum ThemePref {
+  light
+  dark
+  system
+
+  @@map("theme_pref")
+}
+
+enum Dashboard {
+  buying
+  selling
+
+  @@map("dashboard")
+}
+
+enum AuthTokenPurpose {
+  email_verification
+  password_reset
+  email_change
+
+  @@map("auth_token_purpose")
+}
+
+enum PrincipalType {
+  user
+  staff
+
+  @@map("principal_type")
+}
+
+enum ClientKind {
+  web
+  admin
+  ios
+  android
+
+  @@map("client_kind")
+}
+
+enum SessionRevokeReason {
+  logout
+  password_change
+  ban
+  user_revoked
+  reuse_detected
+  staff_revoked
+  twofa_disabled
+
+  @@map("session_revoke_reason")
+}
+
+enum TwofaPurpose {
+  login
+  toggle_two_factor
+  email_change
+  payout_details
+  revoke_sessions
+  staff_reauth
+
+  @@map("twofa_purpose")
+}
+
+enum ReferralStatus {
+  pending
+  verified
+  cancelled
+
+  @@map("referral_status")
+}
+
+// ---------------------------------------------------------------- 3.A Identity and access
+
+/// One account, both roles (Q-013). CHECKs on username/referral_code are in the migration SQL.
+model User {
+  id                String        @id @default(uuid(7)) @db.Uuid
+  legacyId          BigInt?       @unique @map("legacy_id")
+  username          String        @unique @db.Citext
+  email             String        @unique @db.Citext
+  emailVerifiedAt   DateTime?     @map("email_verified_at") @db.Timestamptz(6)
+  passwordHash      String?       @map("password_hash")
+  passwordAlgo      PasswordAlgo? @map("password_algo")
+  passwordChangedAt DateTime?     @map("password_changed_at") @db.Timestamptz(6)
+  emailChangedAt    DateTime?     @map("email_changed_at") @db.Timestamptz(6)
+  status            UserStatus    @default(pending)
+  isRestricted      Boolean       @default(false) @map("is_restricted")
+  twoFactorEnabled  Boolean       @default(false) @map("two_factor_enabled")
+  locale            Locale        @default(ka)
+  theme             ThemePref?
+  lastDashboard     Dashboard     @default(buying) @map("last_dashboard")
+  referralCode      String        @unique @map("referral_code") @db.Char(8)
+  lastActivityAt    DateTime?     @map("last_activity_at") @db.Timestamptz(6)
+  bannedAt          DateTime?     @map("banned_at") @db.Timestamptz(6)
+  createdAt         DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt         DateTime?     @map("deleted_at") @db.Timestamptz(6)
+
+  profile             UserProfile?
+  authTokens          AuthToken[]
+  sessions            Session[]
+  trustedDevices      TrustedDevice[]
+  twoFactorChallenges TwoFactorChallenge[]
+  referralsMade       Referral[]           @relation("referrer")
+  referredBy          Referral?            @relation("referred")
+  socialAccounts      SocialAccount[]
+
+  @@map("users")
+}
+
+/// Public profile data (spec 02). Only `fullname` is used by slice 01; the rest arrives with slice 02.
+model UserProfile {
+  userId    String   @id @map("user_id") @db.Uuid
+  fullname  String   @db.VarChar(60)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@map("user_profiles")
+}
+
+/// One-time links (verification, reset, email change). Only the SHA-256 of the token is stored.
+model AuthToken {
+  id         String           @id @default(uuid(7)) @db.Uuid
+  userId     String           @map("user_id") @db.Uuid
+  purpose    AuthTokenPurpose
+  tokenHash  Bytes            @unique @map("token_hash")
+  newEmail   String?          @map("new_email") @db.Citext
+  expiresAt  DateTime         @map("expires_at") @db.Timestamptz(6)
+  consumedAt DateTime?        @map("consumed_at") @db.Timestamptz(6)
+  createdIp  String?          @map("created_ip") @db.Inet
+  createdAt  DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  user       User             @relation(fields: [userId], references: [id])
+
+  @@index([userId, purpose])
+  @@map("auth_tokens")
+}
+
+/// One row per login on one device (ADR-002 §1). staff_id gets its FK when the staff table arrives (slice 01 part B).
+model Session {
+  id            String               @id @default(uuid(7)) @db.Uuid
+  principalType PrincipalType        @map("principal_type")
+  userId        String?              @map("user_id") @db.Uuid
+  staffId       String?              @map("staff_id") @db.Uuid
+  familyId      String               @map("family_id") @db.Uuid
+  client        ClientKind
+  deviceIdHash  Bytes                @map("device_id_hash")
+  userAgent     String?              @map("user_agent")
+  deviceLabel   String?              @map("device_label")
+  ip            String?              @db.Inet
+  createdAt     DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  lastUsedAt    DateTime             @default(now()) @map("last_used_at") @db.Timestamptz(6)
+  expiresAt     DateTime             @map("expires_at") @db.Timestamptz(6)
+  revokedAt     DateTime?            @map("revoked_at") @db.Timestamptz(6)
+  revokeReason  SessionRevokeReason? @map("revoke_reason")
+  /// SEC-41: the login's "remember me"; OFF = browser-session refresh cookie on every refresh.
+  rememberMe    Boolean              @default(true) @map("remember_me")
+  user          User?                @relation(fields: [userId], references: [id])
+  refreshTokens RefreshToken[]
+
+  @@map("sessions")
+}
+
+model RefreshToken {
+  id           String    @id @default(uuid(7)) @db.Uuid
+  sessionId    String    @map("session_id") @db.Uuid
+  tokenHash    Bytes     @unique @map("token_hash")
+  issuedAt     DateTime  @default(now()) @map("issued_at") @db.Timestamptz(6)
+  usedAt       DateTime? @map("used_at") @db.Timestamptz(6)
+  replacedById String?   @map("replaced_by_id") @db.Uuid
+  session      Session   @relation(fields: [sessionId], references: [id])
+
+  @@map("refresh_tokens")
+}
+
+/// 2FA trust per device (S-059, S-124). Unique (principal, owner, device) is an expression index in SQL.
+model TrustedDevice {
+  id             String            @id @default(uuid(7)) @db.Uuid
+  principalType  PrincipalType     @map("principal_type")
+  userId         String?           @map("user_id") @db.Uuid
+  staffId        String?           @map("staff_id") @db.Uuid
+  deviceIdHash   Bytes             @map("device_id_hash")
+  firstTrustedAt DateTime          @default(now()) @map("first_trusted_at") @db.Timestamptz(6)
+  trustedUntil   DateTime          @map("trusted_until") @db.Timestamptz(6)
+  lastSeenAt     DateTime          @default(now()) @map("last_seen_at") @db.Timestamptz(6)
+  userAgent      String?           @map("user_agent")
+  user           User?             @relation(fields: [userId], references: [id])
+  ips            TrustedDeviceIp[]
+
+  @@map("trusted_devices")
+}
+
+model TrustedDeviceIp {
+  trustedDeviceId String        @map("trusted_device_id") @db.Uuid
+  ip              String        @db.Inet
+  trustedUntil    DateTime      @map("trusted_until") @db.Timestamptz(6)
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  trustedDevice   TrustedDevice @relation(fields: [trustedDeviceId], references: [id], onDelete: Cascade)
+
+  @@id([trustedDeviceId, ip])
+  @@map("trusted_device_ips")
+}
+
+model TwoFactorChallenge {
+  id            String        @id @default(uuid(7)) @db.Uuid
+  principalType PrincipalType @map("principal_type")
+  userId        String?       @map("user_id") @db.Uuid
+  staffId       String?       @map("staff_id") @db.Uuid
+  purpose       TwofaPurpose
+  codeHash      Bytes         @map("code_hash")
+  deviceIdHash  Bytes?        @map("device_id_hash")
+  ip            String?       @db.Inet
+  attempts      Int           @default(0) @db.SmallInt
+  maxAttempts   Int           @map("max_attempts") @db.SmallInt
+  expiresAt     DateTime      @map("expires_at") @db.Timestamptz(6)
+  consumedAt    DateTime?     @map("consumed_at") @db.Timestamptz(6)
+  invalidatedAt DateTime?     @map("invalidated_at") @db.Timestamptz(6)
+  /// SEC-41: the "remember me" of the login that asked for this code (purpose login).
+  rememberMe    Boolean       @default(true) @map("remember_me")
+  createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  user          User?         @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt])
+  @@map("two_factor_challenges")
+}
+
+// ---------------------------------------------------------------- 3.K Settings (read side; admin editing is slice 16)
+
+model Setting {
+  key              String   @id
+  registerId       String   @unique @map("register_id") @db.VarChar(6)
+  value            Json
+  currentVersion   Int      @map("current_version")
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedByStaffId String?  @map("updated_by_staff_id") @db.Uuid
+
+  @@map("settings")
+}
+
+// ---------------------------------------------------------------- 3.L Referrals (pending referral stored at register; credit = slice 09)
+
+model Referral {
+  id                    String         @id @default(uuid(7)) @db.Uuid
+  legacyId              BigInt?        @map("legacy_id")
+  referrerUserId        String         @map("referrer_user_id") @db.Uuid
+  referredUserId        String         @unique @map("referred_user_id") @db.Uuid
+  codeUsed              String         @map("code_used") @db.Char(8)
+  status                ReferralStatus @default(pending)
+  verifiedAt            DateTime?      @map("verified_at") @db.Timestamptz(6)
+  pointsJournalId       BigInt?        @map("points_journal_id")
+  benefitSubscriptionId String?        @map("benefit_subscription_id") @db.Uuid
+  createdAt             DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  referrer              User           @relation("referrer", fields: [referrerUserId], references: [id])
+  referred              User           @relation("referred", fields: [referredUserId], references: [id])
+
+  @@map("referrals")
+}
+
+// ---------------------------------------------------------------- 3.O Outbox (notifications leave only after commit)
+
+model OutboxEvent {
+  id            BigInt    @id @default(autoincrement())
+  eventType     String    @map("event_type")
+  aggregateType String    @map("aggregate_type")
+  aggregateId   String    @map("aggregate_id")
+  payload       Json
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  dispatchedAt  DateTime? @map("dispatched_at") @db.Timestamptz(6)
+  attempts      Int       @default(0)
+
+  @@map("outbox_events")
+}
+
+// ---------------------------------------------------------------- 3.P Staff, RBAC, audit (slice 01 part B)
+
+enum StaffStatus {
+  active
+  disabled
+
+  @@map("staff_status")
+}
+
+enum BanSource {
+  auto_threshold
+  manual
+
+  @@map("ban_source")
+}
+
+enum ActorType {
+  staff
+  user
+  system
+
+  @@map("actor_type")
+}
+
+/// Staff accounts are separate from user accounts (spec 16 AC-2).
+model Staff {
+  id               String        @id @default(uuid(7)) @db.Uuid
+  legacyId         BigInt?       @unique @map("legacy_id")
+  username         String        @unique @db.Citext
+  fullName         String        @map("full_name") @db.VarChar(100)
+  email            String        @unique @db.Citext
+  passwordHash     String?       @map("password_hash")
+  passwordAlgo     PasswordAlgo? @map("password_algo")
+  status           StaffStatus   @default(active)
+  locale           Locale        @default(ka)
+  lastLoginAt      DateTime?     @map("last_login_at") @db.Timestamptz(6)
+  createdByStaffId String?       @map("created_by_staff_id") @db.Uuid
+  createdAt        DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+  roles            StaffRole[]
+
+  @@map("staff")
+}
+
+model Role {
+  id          String           @id @default(uuid(7)) @db.Uuid
+  code        String           @unique
+  name        String
+  description String?
+  isSystem    Boolean          @default(false) @map("is_system")
+  createdAt   DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  permissions RolePermission[]
+  staff       StaffRole[]
+
+  @@map("roles")
+}
+
+/// Mirror of the code permission catalogue (synced by the seed/deploy).
+model Permission {
+  code        String           @id
+  area        String
+  description String?
+  roles       RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId         String     @map("role_id") @db.Uuid
+  permissionCode String     @map("permission_code")
+  role           Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission     Permission @relation(fields: [permissionCode], references: [code])
+
+  @@id([roleId, permissionCode])
+  @@map("role_permissions")
+}
+
+model StaffRole {
+  staffId          String   @map("staff_id") @db.Uuid
+  roleId           String   @map("role_id") @db.Uuid
+  grantedByStaffId String?  @map("granted_by_staff_id") @db.Uuid
+  grantedAt        DateTime @default(now()) @map("granted_at") @db.Timestamptz(6)
+  staff            Staff    @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  role             Role     @relation(fields: [roleId], references: [id])
+
+  @@id([staffId, roleId])
+  @@map("staff_roles")
+}
+
+/// Append-only (data-model §3.P). Secrets are redacted before they get here.
+model AuditLog {
+  id             BigInt    @id @default(autoincrement())
+  occurredAt     DateTime  @default(now()) @map("occurred_at") @db.Timestamptz(6)
+  actorType      ActorType @map("actor_type")
+  actorStaffId   String?   @map("actor_staff_id") @db.Uuid
+  actorUserId    String?   @map("actor_user_id") @db.Uuid
+  permissionCode String?   @map("permission_code")
+  action         String
+  targetType     String?   @map("target_type")
+  targetId       String?   @map("target_id")
+  before         Json?
+  after          Json?
+  reason         String?
+  ip             String?   @db.Inet
+  userAgent      String?   @map("user_agent")
+  requestId      String?   @map("request_id")
+
+  @@index([targetType, targetId, occurredAt])
+  @@index([actorStaffId, occurredAt])
+  @@index([action, occurredAt])
+  @@map("audit_log")
+}
+
+/// Staff-login IP ban (S-064, spec 01 AC-51/52).
+model BannedIp {
+  ip               String    @id @db.Inet
+  failedAttempts   Int       @default(0) @map("failed_attempts")
+  bannedAt         DateTime? @map("banned_at") @db.Timestamptz(6)
+  source           BanSource @default(auto_threshold)
+  note             String?
+  createdByStaffId String?   @map("created_by_staff_id") @db.Uuid
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("banned_ips")
+}
+
+/// Every settings change (data-model §3.K).
+model SettingVersion {
+  id               String   @id @default(uuid(7)) @db.Uuid
+  key              String
+  version          Int
+  value            Json
+  effectiveFrom    DateTime @default(now()) @map("effective_from") @db.Timestamptz(6)
+  changedByStaffId String?  @map("changed_by_staff_id") @db.Uuid
+  reason           String?
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([key, version])
+  @@index([key, effectiveFrom(sort: Desc)])
+  @@map("setting_versions")
+}
+
+// ---------------------------------------------------------------- 3.A Restrictions and appeals (spec 01 AC-46…AC-50, R-A8)
+
+enum RestrictionStatus {
+  pending
+  submitted
+  approved
+  rejected
+
+  @@map("restriction_status")
+}
+
+model UserRestriction {
+  id                String             @id @default(uuid(7)) @db.Uuid
+  legacyId          BigInt?            @map("legacy_id")
+  userId            String             @map("user_id") @db.Uuid
+  message           String
+  filesRequired     Boolean            @map("files_required")
+  status            RestrictionStatus  @default(pending)
+  /// Reason of a rejected appeal, shown to the user (contract AdminRestriction.decisionReason; not in data-model §3.A).
+  decisionReason    String?            @map("decision_reason")
+  createdByStaffId  String?            @map("created_by_staff_id") @db.Uuid
+  createdAt         DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  resolvedByStaffId String?            @map("resolved_by_staff_id") @db.Uuid
+  resolvedAt        DateTime?          @map("resolved_at") @db.Timestamptz(6)
+  deletedAt         DateTime?          @map("deleted_at") @db.Timestamptz(6)
+  appeal            RestrictionAppeal?
+
+  @@map("user_restrictions")
+}
+
+model RestrictionAppeal {
+  id            String          @id @default(uuid(7)) @db.Uuid
+  restrictionId String          @unique @map("restriction_id") @db.Uuid
+  message       String          @db.VarChar(1500)
+  createdAt     DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  restriction   UserRestriction @relation(fields: [restrictionId], references: [id])
+
+  @@map("restriction_appeals")
+}
+
+/// Social login links (data-model §3.A `social_accounts`, ADR-002 §7). Legacy `users.provider_name/provider_id`
+/// migrate here. Facebook and X only log in through an existing link (Q-156).
+enum SocialProvider {
+  google
+  facebook
+  github
+  linkedin
+  twitter
+
+  @@map("social_provider")
+}
+
+model SocialAccount {
+  id             String         @id @default(uuid(7)) @db.Uuid
+  userId         String         @map("user_id") @db.Uuid
+  provider       SocialProvider
+  providerUserId String         @map("provider_user_id")
+  email          String         @db.Citext
+  avatarUrl      String?        @map("avatar_url")
+  createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  user           User           @relation(fields: [userId], references: [id])
+
+  @@unique([provider, providerUserId])
+  @@index([userId])
+  @@map("social_accounts")
+}

@@ -9,3 +9,26 @@ build/
 *.log
 legacy/db/*.sql
 !legacy/db/schema.sql
+# Tokens dist is committed on purpose (packages/tokens/README.md).
+!packages/tokens/dist/
+.turbo/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+playwright-report/
+test-results/
+apps/mobile/ios/
+apps/mobile/android/
+apps/api/src/generated/prisma/
+.pnpm-store/
+
+# Isolated copies used by review agents
+.claude/worktrees/
+apps/api/.pglite/
+
+# Re-written by `next dev` when an AI agent runs it (no opt-out); the root CLAUDE.md stays the single
+# committed rules file (QA P3 BUG-13).
+apps/web/AGENTS.md
+apps/web/CLAUDE.md
+apps/admin/AGENTS.md
+apps/admin/CLAUDE.md

@@ -1,0 +1,36 @@
+{
+  "name": "@mytask/web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MyTask.ge public website + user dashboards (Next.js App Router). No business logic: API only via @mytask/api-client.",
+  "type": "module",
+  "scripts": {
+    "assets": "node ../../packages/assets/copy-web-assets.mjs public",
+    "dev": "pnpm assets && next dev --port 3100",
+    "build": "pnpm assets && next build",
+    "start": "next start --port 3100",
+    "typecheck": "next typegen && tsc --noEmit",
+    "lint": "eslint .",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@mytask/api-client": "workspace:*",
+    "@mytask/i18n": "workspace:*",
+    "@mytask/tokens": "workspace:*",
+    "@mytask/types": "workspace:*",
+    "i18next": "26.4.2",
+    "next": "16.3.7",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "server-only": "0.0.1"
+  },
+  "devDependencies": {
+    "@mytask/config": "workspace:*",
+    "@playwright/test": "1.63.0",
+    "@types/node": "24.19.0",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.7",
+    "eslint": "10.11.0",
+    "typescript": "5.9.3"
+  }
+}

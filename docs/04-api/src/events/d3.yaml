@@ -1,0 +1,37 @@
+# D3 — realtime (Socket.IO) events for specs 05, 09, 14 (realtime.md §4; first segments: payment, wallet,
+# subscription, points, withdrawal). Payloads are in ../schemas/d3.yaml. Clients must also work without
+# the socket (poll getPayment on the result page, re-read getWallet / getCurrentSubscription on resume).
+events:
+  - name: payment.status_changed
+    room: 'user:{payerUserId}'
+    payload: PaymentStatusChangedEvent
+    emittedBy: [createPayment, adminConfirmBankTransfer, adminRejectBankTransfer, adminCheckPaymentStatus, 'job:bog-callback', 'job:bog-reconcile']
+    covers: ['05 AC-12']
+    description: A payment of the user reached a new status (paid, paid_unapplied, failed, expired, rejected). The result page may stop polling and re-read getPayment.
+
+  - name: wallet.balance_changed
+    room: 'user:{userId}'
+    payload: WalletBalanceChangedEvent
+    emittedBy: [createPayment, createWithdrawal, adminRejectWithdrawal, adminConfirmBankTransfer, adminCreateLedgerAdjustment, adminReleaseLegacyHold, adminWriteOffLegacyHold, cancelOrderItem, completeEscrow, cancelCustomOffer, acceptRefundRequest, adminReleaseEscrow, adminRefundEscrow, adminResolveDispute, adminApproveUnblockRequest, 'job:bog-callback', 'job:bog-reconcile', 'job:escrow-auto-release']
+    covers: ['05 AC-27']
+    description: The user's Available or HOLD balance changed (payments, withdrawals, adjustments, and the D4 escrow release/refund operations that post through the same ledger service). Clients re-read getWallet.
+
+  - name: subscription.changed
+    room: 'user:{userId}'
+    payload: SubscriptionChangedEvent
+    emittedBy: [cancelSubscription, resumeSubscription, purchaseSubscriptionWithPoints, createPayment, deleteSavedCard, adminGiftSubscription, adminCancelSubscription, 'job:bog-callback', 'job:subscription-renewal']
+    covers: ['09 AC-4', '09 AC-5']
+    description: Premium was activated, renewed, canceled, resumed or ended. Clients re-read getCurrentSubscription.
+
+  - name: points.balance_changed
+    room: 'user:{userId}'
+    payload: PointsBalanceChangedEvent
+    emittedBy: [purchaseSubscriptionWithPoints, adminCreatePointsAdjustment, 'job:referral-credit']
+    description: The user's points balance changed. `job:referral-credit` = the referral credit posted with D1's account activation (spec 09 AC-23), pushed by the outbox relay after commit.
+
+  - name: withdrawal.status_changed
+    room: 'user:{userId}'
+    payload: WithdrawalStatusChangedEvent
+    emittedBy: [adminMarkWithdrawalPaid, adminRejectWithdrawal, 'job:payout-sync']
+    covers: ['14 AC-18']
+    description: A withdrawal of the user became processing, paid or rejected.

@@ -1,0 +1,229 @@
+# MyTask.ge local stack (architecture §6, ADR-015 §1). Everything stays on this computer.
+#
+#   pnpm setup:env                       # once: writes a local-only .env with random secrets
+#   docker compose up -d                 # infrastructure for `pnpm dev`
+#   docker compose --profile apps up -d --build   # + api, worker, web, admin behind Caddy (:8080)
+#   docker compose --profile scan up -d  # + ClamAV (needs ~1.5 GB RAM; files slice)
+#
+# Infra ports are bound to 127.0.0.1 only, so nothing is reachable from the network except what you
+# open on purpose. Staging/production use internal-only data networks (Phase 6).
+name: mytask
+
+x-app-env: &app-env
+  env_file: .env
+  environment: &app-env-vars
+    NODE_ENV: production
+    DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    REDIS_URL: redis://redis:6379
+    S3_ENDPOINT: http://s3:8333
+    SMTP_URL: smtp://mailpit:1025
+    BOG_API_BASE_URL: http://bog-mock:4100
+    CLAMAV_HOST: clamav
+    APP_URL: http://localhost:8080
+    ADMIN_URL: http://admin.localhost:8080
+
+services:
+  # ---------------------------------------------------------------- infrastructure (default profile)
+  postgres:
+    # PostgreSQL 17 + pgvector; pg_trgm, btree_gist, citext ship with PostgreSQL (data-model.md §1).
+    image: pgvector/pgvector:0.8.6-pg17-bookworm
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?run pnpm setup:env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?run pnpm setup:env}
+      POSTGRES_DB: ${POSTGRES_DB:?run pnpm setup:env}
+    ports: ['127.0.0.1:5432:5432']
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [data]
+
+  redis:
+    # Security-critical (ADR-015 §6, SEC-32): AOF persistence, never evict keys.
+    image: redis:7.4.11-alpine
+    command: ['redis-server', '--appendonly', 'yes', '--maxmemory-policy', 'noeviction']
+    ports: ['127.0.0.1:6379:6379']
+    volumes: [redisdata:/data]
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [data]
+
+  s3:
+    # S3-compatible object storage for local development. MinIO (ADR-009) no longer publishes a server
+    # image; SeaweedFS replaces it locally (ADR-017, accepted Q-152). Same S3_* variables either way.
+    image: chrislusf/seaweedfs:4.48
+    entrypoint: ['/bin/sh', '-c']
+    command:
+      - |
+        printf '{"identities":[{"name":"local","credentials":[{"accessKey":"%s","secretKey":"%s"}],"actions":["Admin","Read","List","Tagging","Write"]}]}' "$$S3_ACCESS_KEY_ID" "$$S3_SECRET_ACCESS_KEY" > /tmp/s3.json
+        exec weed server -dir=/data -s3 -s3.port=8333 -s3.config=/tmp/s3.json -master.volumeSizeLimitMB=128 -volume.max=0
+    environment:
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:?run pnpm setup:env}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:?run pnpm setup:env}
+    ports: ['127.0.0.1:8333:8333']
+    volumes: [s3data:/data]
+    healthcheck:
+      # Healthy only when the S3 gateway itself answers (any HTTP status; anonymous requests get 403),
+      # not just the master (QA P3 BUG-10).
+      test: ['CMD-SHELL', 'wget -S -T 2 -O /dev/null http://127.0.0.1:8333/ 2>&1 | grep -q "HTTP/"']
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    networks: [data]
+
+  s3-init:
+    # Creates the three buckets of ADR-009 (public-media, private, kyc). Access policies: files slice.
+    image: amazon/aws-cli:2.37.6
+    depends_on:
+      s3: { condition: service_healthy }
+    environment:
+      AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY}
+      AWS_DEFAULT_REGION: ${S3_REGION:-us-east-1}
+      BUCKETS: ${S3_BUCKET_PUBLIC:-public-media} ${S3_BUCKET_PRIVATE:-private} ${S3_BUCKET_KYC:-kyc}
+    entrypoint: ['/bin/sh', '-c']
+    # Retries each bucket (the gateway can still be warming up), then checks that every bucket exists;
+    # any failure exits non-zero, so `pnpm infra:up` cannot finish without buckets (QA P3 BUG-10).
+    command:
+      - |
+        set -e
+        s3() { aws --endpoint-url http://s3:8333 s3api "$$@"; }
+        for b in $$BUCKETS; do
+          n=0
+          until s3 head-bucket --bucket "$$b" 2>/dev/null || s3 create-bucket --bucket "$$b"; do
+            n=$$((n + 1))
+            if [ "$$n" -ge 20 ]; then echo "s3-init: could not create bucket $$b" >&2; exit 1; fi
+            sleep 3
+          done
+        done
+        for b in $$BUCKETS; do s3 head-bucket --bucket "$$b"; done
+        s3 list-buckets --query 'Buckets[].Name' --output text
+    restart: 'no'
+    networks: [data]
+
+  mailpit:
+    # Catches every email locally: SMTP :1025, inbox UI http://localhost:8025 (architecture §6).
+    image: axllent/mailpit:v1.31.3
+    ports: ['127.0.0.1:1025:1025', '127.0.0.1:8025:8025']
+    healthcheck:
+      test: ['CMD', '/mailpit', 'readyz']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [app]
+
+  bog-mock:
+    # Fake BOG payments API (ADR-004); real BOG credentials are never used locally.
+    build: { context: ., dockerfile: tools/bog-mock/Dockerfile }
+    ports: ['127.0.0.1:4100:4100']
+    networks: [app]
+
+  clamav:
+    # Virus scanning of uploads (ADR-009). Optional locally: `--profile scan`.
+    image: clamav/clamav:1.5-debian13-slim
+    profiles: [scan]
+    ports: ['127.0.0.1:3310:3310']
+    networks: [app]
+
+  # ---------------------------------------------------------------- applications (`--profile apps`)
+  migrate:
+    profiles: [apps]
+    build: { context: ., dockerfile: apps/api/Dockerfile, target: migrate }
+    <<: *app-env
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: 'no'
+    networks: [data]
+
+  api:
+    profiles: [apps]
+    build: { context: ., dockerfile: apps/api/Dockerfile, target: runtime }
+    image: mytask-api:local
+    <<: *app-env
+    environment:
+      <<: *app-env-vars
+      # Caddy's fixed edge address: the only peer whose X-MyTask-Client-IP is trusted (ADR-013 §16).
+      TRUSTED_PROXY_IPS: 172.30.0.10
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+    read_only: true
+    tmpfs: [/tmp]
+    networks:
+      edge: {}
+      app: {}
+      data: {}
+
+  worker:
+    profiles: [apps]
+    image: mytask-api:local
+    <<: *app-env
+    command: ['node', 'dist/worker.js']
+    depends_on:
+      api: { condition: service_started }
+    read_only: true
+    tmpfs: [/tmp]
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -q -O /dev/null http://127.0.0.1:3002/ready || exit 1']
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    networks: [app, data]
+
+  web:
+    profiles: [apps]
+    build:
+      context: .
+      dockerfile: infra/docker/next.Dockerfile
+      args: { APP: web, PORT: 3100 }
+    environment:
+      API_INTERNAL_URL: http://api:3000/api/v1
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?run pnpm setup:env}
+    depends_on:
+      api: { condition: service_healthy }
+    networks: [edge, app]
+
+  admin:
+    profiles: [apps]
+    build:
+      context: .
+      dockerfile: infra/docker/next.Dockerfile
+      args: { APP: admin, PORT: 3200 }
+    environment:
+      API_INTERNAL_URL: http://api:3000/api/v1
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?run pnpm setup:env}
+    depends_on:
+      api: { condition: service_healthy }
+    networks: [edge, app]
+
+  caddy:
+    # The only public entry (ADR-013 §1); serves no files from the repository.
+    profiles: [apps]
+    image: caddy:2.11.4-alpine
+    ports: ['127.0.0.1:8080:8080']
+    volumes:
+      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+    depends_on:
+      web: { condition: service_healthy }
+      admin: { condition: service_healthy }
+    networks:
+      edge: { ipv4_address: 172.30.0.10 }
+
+networks:
+  edge:
+    ipam:
+      config: [{ subnet: 172.30.0.0/24 }]
+  app: {}
+  data: {}
+
+volumes:
+  pgdata: {}
+  redisdata: {}
+  s3data: {}

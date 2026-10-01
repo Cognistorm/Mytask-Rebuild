@@ -1,0 +1,271 @@
+# F0 — Foundation paths: file uploads and downloads (ADR-009). Written in P2-B4 part 1.
+# This file is also the REFERENCE EXAMPLE of every convention in CONVENTIONS.md
+# (path-item Accept-Language, x-permission, x-covers, shared responses, cursor-free single resources).
+# Group runs: read it, copy its patterns, do not edit it.
+
+/files:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  post:
+    operationId: createFileUpload
+    summary: Request an upload slot (presigned POST)
+    description: |
+      Step 1 of the upload flow (ADR-009 §3). The API checks that the caller may upload for `purpose`
+      (and `context`, e.g. only the freelancer of an escrow may upload a `delivery`), validates the
+      declared size and type against the purpose's register rows (S-077…S-099, S-037…S-040), creates a
+      `pending` file and returns a presigned POST limited to one `quarantine/` key, the declared content
+      type and a size range (`content-length-range`). **Every purpose and permission check (including the
+      restricted-user rule: only `appeal_file`) runs before the presigned POST is created**; a refused
+      request gets no storage URL or credential (ADR-009 §3, P2-B5 item 12). The client uploads directly to storage, then calls `completeFileUpload`.
+      Unused pending files are deleted by a cleanup job after 24 hours.
+    tags: [Files]
+    x-permission:
+      audience: restricted-user
+      ownership: 'caller becomes the file owner; purpose policy decides (e.g. delivery → freelancer of `context.escrowId`; chat_attachment → participant of `context.conversationId`; kyc_document → self)'
+      notes: 'restricted users are allowed only for purpose appeal_file (spec 01 AC-47, integration run); any other purpose → 403 ACCOUNT_RESTRICTED'
+    x-covers: []
+    x-covers-note: Infrastructure for every upload AC; each group cites this operation in its coverage rows (e.g. 04 gallery, 06 delivery file, 08 attachments).
+    x-settings: [S-037, S-038, S-039, S-040, S-077, S-078, S-079, S-080, S-081, S-082, S-083, S-084, S-085, S-086, S-087, S-088, S-089, S-090, S-091, S-092, S-093, S-094, S-095, S-096, S-097, S-098, S-099]
+    x-rate-limit: 60 requests / 10 min per user
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../components/schemas.yaml#/FileUploadRequest'}
+    responses:
+      '201':
+        description: Upload slot created.
+        content:
+          application/json:
+            schema: {$ref: '../components/schemas.yaml#/FileUploadTicket'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+      '429': {$ref: '../components/responses.yaml#/TooManyRequests'}
+
+/files/{fileId}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: fileId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: getFile
+    summary: Get an own file (status polling)
+    description: Returns the caller's own file, e.g. to poll `scanning` → `ready` / `rejected` after `completeFileUpload`.
+    tags: [Files]
+    x-permission:
+      audience: restricted-user
+      ownership: file owner only; others get 404
+      notes: 'restricted users are allowed only for purpose appeal_file (spec 01 AC-47, integration run); any other purpose → 403 ACCOUNT_RESTRICTED'
+    x-covers: []
+    x-covers-note: Infrastructure (ADR-009 §3).
+    responses:
+      '200':
+        description: The file.
+        content:
+          application/json:
+            schema: {$ref: '../components/schemas.yaml#/File'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+  delete:
+    operationId: deleteFile
+    summary: Delete an own unattached file
+    description: Removes an own file that is not yet attached to anything (e.g. the user removed it in a form before saving). Attached files are removed through the owning resource's operation. Refused with `409 STATE_CONFLICT` when attached.
+    tags: [Files]
+    x-permission:
+      audience: restricted-user
+      ownership: file owner only; others get 404
+      notes: 'restricted users are allowed only for purpose appeal_file (spec 01 AC-47, integration run); any other purpose → 403 ACCOUNT_RESTRICTED'
+    x-covers: []
+    x-covers-note: Infrastructure (ADR-009).
+    responses:
+      '204': {$ref: '../components/responses.yaml#/NoContent'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+/files/{fileId}/complete:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: fileId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: completeFileUpload
+    summary: Confirm the direct upload finished
+    description: |
+      Step 2 of the upload flow. Queues the scan job (magic bytes, size, ClamAV, image re-encoding with
+      EXIF removal, ADR-009 §3.5). Returns the file in status `scanning`; poll `getFile` or wait for the
+      realtime event `file.processed` (realtime.md). Idempotent: calling it again for a file already
+      `scanning`/`ready` returns the current state. The purpose stored on the file is re-checked against
+      the caller's current state (a restricted caller may complete only `appeal_file`, else
+      `403 ACCOUNT_RESTRICTED`; ADR-009 §3, P2-B5 item 12).
+    tags: [Files]
+    x-permission:
+      audience: restricted-user
+      ownership: file owner only; others get 404
+      notes: 'restricted users are allowed only for purpose appeal_file (spec 01 AC-47, integration run); any other purpose → 403 ACCOUNT_RESTRICTED'
+    x-covers: []
+    x-covers-note: Infrastructure (ADR-009 §3).
+    x-emits: [file.processed]
+    responses:
+      '202':
+        description: Scan queued; current file state.
+        content:
+          application/json:
+            schema: {$ref: '../components/schemas.yaml#/File'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+/files/{fileId}/download:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: fileId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: getFileDownload
+    summary: Download a private file (302 or JSON with a short-lived signed URL)
+    description: |
+      Policy check, then a presigned GET valid about 5 minutes with `Content-Disposition: attachment`
+      and the original name (ADR-009 §4). `mode=redirect` (default, web links with cookies) answers
+      `302`; `mode=json` (mobile, which authenticates with a Bearer header and then opens the URL in
+      the system viewer) answers `200 {url, expiresAt}`. Who may download depends on
+      where the file is attached: the owner; the buyer and freelancer of the escrow (deliveries,
+      requirement files, offer attachments); the two participants of a conversation (chat
+      attachments); the uploader only for KYC documents and appeal files. Everyone else gets `404`
+      (never 403, so files cannot be probed). Staff never use this operation: they use the owning
+      group's `/admin/...` download operation, which checks their permission and writes the audit log.
+    tags: [Files]
+    x-permission:
+      audience: user
+      ownership: file owner, or a party of the resource the file is attached to (see description); others get 404
+    x-covers: ['02 AC-39', '06 AC-24', '08 AC-10', '11 AC-35', '12 AC-12', '12 AC-33']
+    parameters:
+      - name: mode
+        in: query
+        required: false
+        schema:
+          type: string
+          enum: [redirect, json]
+          default: redirect
+    responses:
+      '200':
+        description: '`mode=json`: the signed URL.'
+        content:
+          application/json:
+            schema: {$ref: '../components/schemas.yaml#/SignedUrl'}
+      '302': {$ref: '../components/responses.yaml#/FoundRedirect'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+/admin/files:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  post:
+    operationId: adminCreateFileUpload
+    summary: Staff upload slot for public media
+    description: |
+      Same flow as `createFileUpload` for the staff purposes `category_image`, `blog_image` and
+      `home_logo` (other purposes are refused with `422 FILE_PURPOSE_MISMATCH`). The required permission
+      depends on the purpose (see `x-permission.permissionBy`); exactly one permission is checked
+      per call (spec 16 AC-9).
+    tags: [Admin Files]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: catalog.write
+      permissionBy:
+        attribute: purpose (request body)
+        map: {category_image: catalog.write, blog_image: content.write, home_logo: content.write}
+      ownership: none
+    x-covers: []
+    x-covers-note: Infrastructure for spec 16 AC-60 (category image) and AC-63 (blog, home logos).
+    x-audit: file.upload
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../components/schemas.yaml#/FileUploadRequest'}
+    responses:
+      '201':
+        description: Upload slot created.
+        content:
+          application/json:
+            schema: {$ref: '../components/schemas.yaml#/FileUploadTicket'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+/admin/files/{fileId}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: fileId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: adminGetFile
+    summary: Get a staff-uploaded file (status polling)
+    tags: [Admin Files]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: '@self'
+      ownership: files uploaded by the calling staff member only; others get 404
+    x-covers: []
+    x-covers-note: Infrastructure (ADR-009).
+    responses:
+      '200':
+        description: The file.
+        content:
+          application/json:
+            schema: {$ref: '../components/schemas.yaml#/File'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/admin/files/{fileId}/complete:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: fileId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: adminCompleteFileUpload
+    summary: Confirm a staff direct upload finished
+    tags: [Admin Files]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: '@self'
+      ownership: files uploaded by the calling staff member only; others get 404
+    x-covers: []
+    x-covers-note: Infrastructure (ADR-009).
+    x-audit: file.upload.complete
+    responses:
+      '202':
+        description: Scan queued; current file state.
+        content:
+          application/json:
+            schema: {$ref: '../components/schemas.yaml#/File'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}

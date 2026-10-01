@@ -1,0 +1,19 @@
+/* Tokens only (CLAUDE.md definition of done): no raw colours, sizes or fonts here. */
+body {
+  margin: 0;
+  background: var(--mt-bg-canvas);
+  color: var(--mt-text-primary);
+  font-family: var(--mt-font-family-sans);
+}
+
+.ok {
+  color: var(--mt-feedback-success-text);
+}
+
+.down {
+  color: var(--mt-feedback-danger-text);
+}
+
+a {
+  color: var(--mt-text-link);
+}

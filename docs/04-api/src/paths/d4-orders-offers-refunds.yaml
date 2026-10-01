@@ -1,0 +1,2525 @@
+# D4 — paths for specs 06 (cart, gig orders), 12 (custom offers), 13 (refunds, disputes, unblock) and the
+# shared escrow lifecycle /escrows/{escrowId} (deliveries, revision requests, completion) that serves gig
+# order items, project contract payments (D5) and custom offers (data-model §3.I, CONVENTIONS §5.2).
+# Written by the P2-B4 D4 group run (2026-09-29).
+#
+# Not here, by design (CONVENTIONS §5.3, §5.4):
+#   - paying (cart checkout, "Pay" again, accept-and-pay of an offer): D3 `createCheckoutQuote` / `createPayment`
+#     with the shared CheckoutTarget; return pages poll D3 `getPayment`.
+#   - thread messages (delivery, offer, refund threads): D5 conversations (`ConversationRef` on items).
+#   - timers: worker sweepers (ADR-008), never HTTP: `escrow-auto-release`, `refund-auto-reject`, `offer-expiry`.
+# Every money-moving operation (x-money) uses the ledger refs `escrow:{id}:release` / `escrow:{id}:refund`,
+# which are mutually exclusive: each escrow is paid out exactly once (spec 13 R-R5, ADR-003 §5–§6).
+
+# ═════════════════════════ Cart (spec 06 AC-1…AC-6) ═════════════════════════
+/cart:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: getCart
+    summary: Get the caller's cart (re-validated, priced)
+    description: |
+      The account cart shared by web and mobile (P-47). Every read re-checks each line against current
+      data (spec 06 AC-6): gig active and listable, owner available and not restricted, caller not the
+      owner, upgrades exist. Failing lines/upgrades are removed and reported once in `notices`. Prices
+      and delivery times always come from current gig data.
+    tags: [Cart]
+    x-permission:
+      audience: user
+      ownership: self (own cart)
+    x-covers: ['06 AC-1', '06 AC-3', '06 AC-4', '06 AC-6']
+    responses:
+      '200':
+        description: The cart.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d4.yaml#/Cart'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+/cart/items/{gigId}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: gigId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  put:
+    operationId: putCartItem
+    summary: Add a gig to the cart or replace its line
+    description: |
+      Quantity is always 1 (P-46). Adding the same gig again replaces its line with the new upgrade
+      choice (spec 06 AC-1). Refused when the gig is not orderable, the seller is unavailable or
+      restricted, or the caller owns the gig (AC-2, spec 04 AC-29/AC-30).
+      Errors: `422` CART_ITEM_NOT_ORDERABLE, CART_UPGRADE_NOT_FOUND; `404` unknown or hidden gig.
+    tags: [Cart]
+    x-permission:
+      audience: user
+      ownership: self (own cart); the gig must not be the caller's own
+    x-covers: ['06 AC-1', '06 AC-2', '06 AC-4', '04 AC-29', '04 AC-30']
+    x-emits: [cart.updated]
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d4.yaml#/CartItemPutRequest'}
+    responses:
+      '200':
+        description: The updated cart.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d4.yaml#/Cart'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+  delete:
+    operationId: deleteCartItem
+    summary: Remove a gig from the cart
+    tags: [Cart]
+    x-permission:
+      audience: user
+      ownership: self (own cart); a gig that is not in the cart gives 404
+    x-covers: ['06 AC-3']
+    x-emits: [cart.updated]
+    responses:
+      '204': {$ref: '../components/responses.yaml#/NoContent'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/cart/merge:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  post:
+    operationId: mergeCart
+    summary: Merge the device (guest) cart into the account cart after login
+    description: |
+      Called once right after login/registration (spec 06 AC-4, AC-5). For a gig present in both carts
+      the newer line wins (`addedAt`). Lines that are not orderable are dropped and reported in
+      `notices` (AC-6). The client then clears its device cart.
+    tags: [Cart]
+    x-permission:
+      audience: user
+      ownership: self (own cart)
+    x-covers: ['06 AC-4']
+    x-emits: [cart.updated]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d4.yaml#/CartMergeRequest'}
+    responses:
+      '200':
+        description: The merged cart.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d4.yaml#/Cart'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+/cart/preview:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  post:
+    operationId: previewCart
+    summary: Price and validate a guest cart kept on the device
+    description: |
+      Guests keep their cart on the device (P-47); this operation returns it as a priced `Cart` with the
+      same checks as `getCart` (spec 06 AC-3, AC-6), so clients never compute totals. Nothing is
+      stored. A signed-in caller also gets the "own gig" check (AC-2).
+    tags: [Cart]
+    security: [{}, {userBearer: []}, {userCookie: []}]
+    x-permission:
+      audience: optional-user
+      ownership: none (nothing stored)
+    x-covers: ['06 AC-1', '06 AC-2', '06 AC-3', '06 AC-6']
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d4.yaml#/CartPreviewRequest'}
+    responses:
+      '200':
+        description: The priced guest cart (`updatedAt` null).
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d4.yaml#/Cart'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+
+# ═════════════════════════ Gig orders (spec 06) ═════════════════════════
+/orders/items:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: listOrderItems
+    summary: List the caller's order items as buyer or as freelancer
+    description: |
+      `role=buyer`: Buying → Orders (spec 06 AC-42), including items of orders awaiting payment.
+      `role=freelancer`: Selling → Orders (AC-43), paid items only (awaiting-payment orders never
+      appear). Newest first. Each item carries its next actions (`actions`, `escrowActions`).
+    tags: [Orders]
+    x-permission:
+      audience: user
+      ownership: items where the caller is the buyer (role=buyer) or the freelancer (role=freelancer)
+    x-covers: ['06 AC-11', '06 AC-42', '06 AC-43']
+    parameters:
+      - name: role
+        in: query
+        required: true
+        schema: {type: string, enum: [buyer, freelancer]}
+      - name: filter
+        in: query
+        required: false
+        schema: {$ref: '../schemas/d4.yaml#/OrderItemListFilter'}
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/Limit'
+    responses:
+      '200':
+        description: A page of order items.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d4.yaml#/OrderItemPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+/orders/items/lookup:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: lookupOrderItem
+    summary: Find an order item by its public uid (or legacy id)
+    description: |
+      For the pages `/account/orders/{itemUid}` and `/seller/orders/{itemUid}` and for the 301s of the
+      legacy URLs (`?orderId=&itemId=`, `/seller/orders/details/{id}`, url-map §3). Exactly one of `uid`
+      or `legacyItemId`. Same result and access rule as `getOrderItem`.
+    tags: [Orders]
+    x-permission:
+      audience: user
+      ownership: buyer or freelancer of the item (the freelancer only once paid); others get 404
+    x-covers: ['06 AC-44']
+    parameters:
+      - name: uid
+        in: query
+        required: false
+        schema: {type: string, maxLength: 40}
+      - name: legacyItemId
+        in: query
+        required: false
+        schema: {type: integer, format: int64, minimum: 1}
+    responses:
+      '200':
+        description: The order item.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d4.yaml#/OrderItem'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/orders/{orderId}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: orderId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: getOrder
+    summary: Get an order (all its items) as its buyer
+    description: |
+      The order created by D3 `createPayment` from the cart, with the snapshot of every item (spec 06
+      AC-7) and its payment state (AC-8, AC-9, AC-11). Freelancers read their own items with
+      `getOrderItem` (an order may contain items of several freelancers, EC-5).
+    tags: [Orders]
+    x-permission:
+      audience: user
+      ownership: buyer of the order; others get 404
+    x-covers: ['06 AC-7', '06 AC-8', '06 AC-11', '06 AC-44']
+    responses:
+      '200':
+        description: The order.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d4.yaml#/Order'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+  delete:
+    operationId: deleteOrder
+    summary: Delete an order that is still awaiting payment
+    description: |
+      "Delete" of spec 06 AC-11/AC-12: only while the order is awaiting payment; the order becomes
+      `deleted` (kept for audit) and **no money moves** (fixes R-005, R-014). A card payment verified
+      later becomes an unapplied payment in the buyer's wallet (EC-2, spec 05 AC-15, D3).
+      Errors: `409` STATE_CONFLICT (already paid or deleted; messageKey t_order_status_changed).
+    tags: [Orders]
+    x-permission:
+      audience: user
+      ownership: buyer of the order; others get 404
+    x-covers: ['06 AC-11', '06 AC-12']
+    x-emits: [order.item_updated]
+    responses:
+      '204': {$ref: '../components/responses.yaml#/NoContent'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+/orders/{orderId}/items/{orderItemId}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: orderId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+    - name: orderItemId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: getOrderItem
+    summary: Get an order item (buyer or freelancer page)
+    description: |
+      The buyer and freelancer order-item pages (spec 06 screens): snapshot header (price, upgrades,
+      delivery time, revisions allowed and left), status, order details, escrow state (deliveries via
+      `listEscrowDeliveries`), thread reference, refund state, reviews and the caller's actions.
+      Anyone else gets 404 (AC-44).
+    tags: [Orders]
+    x-permission:
+      audience: user
+      ownership: buyer or freelancer of the item (the freelancer only once paid); others get 404
+    x-covers: ['06 AC-7', '06 AC-13', '06 AC-25', '06 AC-27', '06 AC-29', '06 AC-41', '06 AC-44']
+    responses:
+      '200':
+        description: The order item.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d4.yaml#/OrderItem'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/orders/{orderId}/items/{orderItemId}/requirements:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: orderId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+    - name: orderItemId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  put:
+    operationId: putOrderItemRequirements
+    summary: Send or edit the order details (buyer)
+    description: |
+      "Send order details" (spec 06 AC-13, P-48): required formatted text, 1–5,000 characters,
+      sanitised (profile `user_text_links`, CONVENTIONS §19). Editable until the freelancer starts; read-only afterwards (AC-14). Each save notifies
+      the freelancer (AC-15, EV-36).
+      Errors: `409` STATE_CONFLICT (not paid yet: messageKey t_we_are_waiting_for_payment_first; already
+      started: t_u_cant_submit_requirements_for_item).
+    tags: [Orders]
+    x-permission:
+      audience: user
+      ownership: buyer of the item; others get 404
+    x-covers: ['06 AC-13', '06 AC-14', '06 AC-15']
+    x-notifications: [EV-36]
+    x-emits: [order.item_updated]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d4.yaml#/OrderItemRequirementsPutRequest'}
+    responses:
+      '200':
+        description: The updated order item.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d4.yaml#/OrderItem'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+/orders/{orderId}/items/{orderItemId}/start:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: orderId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+    - name: orderItemId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: startOrderItem
+    summary: Start work on a paid item (freelancer)
+    description: |
+      Spec 06 AC-16/AC-17: refused without order details; otherwise status `in_progress`, start time
+      stored, expected delivery = start + delivery days + upgrades' extra days (snapshot); buyer notified
+      (EV-37). The confirmation dialog is client-side.
+      Errors: `422` ORDER_REQUIREMENTS_MISSING; `409` STATE_CONFLICT (not `paid`; messageKey t_order_status_changed).
+    tags: [Orders]
+    x-permission:
+      audience: user
+      ownership: freelancer of the item; others get 404
+    x-covers: ['06 AC-16', '06 AC-17']
+    x-notifications: [EV-37]
+    x-emits: [order.item_updated]
+    responses:
+      '200':
+        description: The started order item.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d4.yaml#/OrderItem'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+/orders/{orderId}/items/{orderItemId}/cancel:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: orderId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+    - name: orderItemId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: cancelOrderItem
+    summary: Cancel a paid item before the start (buyer or freelancer)
+    description: |
+      Spec 06 AC-18/AC-19 (MM-06-05): only a **paid, not started** item. In one transaction: item
+      `canceled`, escrow refunded (`escrow:{id}:refund`): P back to the buyer's Available balance (card
+      fee and buyer-paid fees are not returned), the freelancer's HOLD −P′, gig queue −1, an open refund
+      request closed, the other side notified (EV-38 / EV-39). Awaiting-payment orders have nothing to
+      cancel: use `deleteOrder` (AC-12). In progress, delivered or in revision: refused, the buyer's
+      route is a refund request (AC-20). A concurrent cancel by the other side moves the money once;
+      the loser gets `409` (AC-21).
+      Errors: `409` STATE_CONFLICT (messageKey t_order_status_changed).
+    tags: [Orders]
+    x-permission:
+      audience: user
+      ownership: buyer or freelancer of the item; others get 404
+    x-covers: ['06 AC-12', '06 AC-18', '06 AC-19', '06 AC-20', '06 AC-21']
+    x-money: true
+    x-notifications: [EV-38, EV-39]
+    x-emits: [order.item_updated, escrow.updated, wallet.balance_changed]
+    parameters:
+      - $ref: '../components/parameters.yaml#/IdempotencyKey'
+    responses:
+      '200':
+        description: The canceled order item.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d4.yaml#/OrderItem'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+# ═════════════════════════ Escrows: delivery, revision, completion (specs 06, 11, 12, 13) ═════════════════════════
+/escrows/{escrowId}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: escrowId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: getEscrow
+    summary: Get an escrow (work, timer and actions of a paid item)
+    description: |
+      One escrow per paid gig order item, contract payment or custom offer (data-model §3.I). Shows
+      revisions allowed/used (snapshot), deliveries count, the auto-release deadline (null while
+      paused, with `autoReleasePausedReason`), S-025 state, refund/unblock state and the caller's actions
+      (revision, completion, refund, unblock availability). The policy follows the item type: buyer =
+      order buyer, contract client or offer recipient; freelancer = seller, contract freelancer or offer
+      author.
+    tags: [Escrows]
+    x-permission:
+      audience: user
+      ownership: buyer or freelancer of the escrow; others get 404
+    x-covers: ['06 AC-25', '06 AC-29', '06 AC-32', '06 AC-33', '06 AC-36', '06 AC-45', '11 AC-37', '11 AC-39', '12 AC-26', '12 AC-27', '13 AC-1', '13 AC-2', '13 AC-3', '13 AC-23', '00 AC-18']
+    x-settings: [S-025, S-026, S-028, S-029]
+    responses:
+      '200':
+        description: The escrow.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d4.yaml#/Escrow'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/escrows/{escrowId}/deliveries:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: escrowId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: listEscrowDeliveries
+    summary: List the deliveries of an escrow (history, oldest first)
+    description: Every delivery stays in the history (append-only, spec 06 AC-23, R-O9). Oldest first (numbered 1, 2, 3…).
+    tags: [Escrows]
+    x-permission:
+      audience: user
+      ownership: buyer or freelancer of the escrow; others get 404
+    x-covers: ['06 AC-23', '11 AC-32', '12 AC-33']
+    parameters:
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/Limit'
+    responses:
+      '200':
+        description: A page of deliveries.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d4.yaml#/DeliveryPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+  post:
+    operationId: createEscrowDelivery
+    summary: Deliver work (freelancer)
+    description: |
+      Shared by gig order items (spec 06 AC-22…AC-24), contracts (11 AC-32) and custom offers
+      (12 AC-21). Allowed when the item is in progress or has a revision requested (also while a
+      dispute is open: stored as evidence, no timer, spec 13 AC-13). Stores delivery N+1 (message
+      ≤ 2,500, at most one `ready` `delivery` file uploaded with `createFileUpload` context
+      `{escrowId}`, S-086/S-087), item status `delivered`, `lastDeliveredAt`; unless a refund request
+      or dispute is open, `autoReleaseAt` = now + S-026 hours (a fresh full period on every
+      re-delivery, stored with the hours used; later S-026 changes do not move it, 06 AC-28, AC-38).
+      Notifies the buyer (EV-40 / EV-73 / EV-87) with the automatic completion date while S-025 is ON.
+      Errors: `409` STATE_CONFLICT (already delivered and no revision requested: messageKey
+      t_looks_like_u_already_uploaded_completed_work; completed/refunded/canceled:
+      t_u_cant_send_delivered_work_anymore_status_wrong); `422` FILE_NOT_READY, FILE_PURPOSE_MISMATCH.
+    tags: [Escrows]
+    x-permission:
+      audience: user
+      ownership: freelancer of the escrow; the buyer gets 403, others 404
+    x-covers: ['06 AC-22', '06 AC-23', '06 AC-28', '06 AC-38', '11 AC-32', '12 AC-21', '13 AC-13', '13 AC-14']
+    x-settings: [S-025, S-026, S-086, S-087]
+    x-notifications: [EV-40, EV-73, EV-87]
+    x-emits: [escrow.updated, order.item_updated, offer.updated, contract.status_changed]
+    x-jobs: [escrow-auto-release]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d4.yaml#/DeliveryCreateRequest'}
+    responses:
+      '201':
+        description: The new delivery.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d4.yaml#/Delivery'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+/escrows/{escrowId}/revision-requests:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: escrowId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: listEscrowRevisionRequests
+    summary: List the revision requests of an escrow (oldest first)
+    description: Lets the freelancer page highlight the latest revision message (spec 06 screens, 11 AC-42).
+    tags: [Escrows]
+    x-permission:
+      audience: user
+      ownership: buyer or freelancer of the escrow; others get 404
+    x-covers: ['06 AC-26']
+    parameters:
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/Limit'
+    responses:
+      '200':
+        description: A page of revision requests.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d4.yaml#/RevisionRequestPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+  post:
+    operationId: createEscrowRevisionRequest
+    summary: Request a revision (buyer)
+    description: |
+      Spec 06 AC-25…AC-27 (P-50), 11 AC-33, 12 AC-22: only on a delivered item with revisions used <
+      revisions allowed (snapshot) and no open dispute. In one transaction: status
+      `revision_requested`, revisions used +1, auto-release deadline removed (paused
+      `revision_requested`), expected delivery date unchanged; the message is also shown in the item
+      thread (D5 system event); the freelancer is notified (EV-41 / EV-74 / EV-88). If the sweeper
+      locked the escrow first, the request loses with `409` and the item is completed (EC-7).
+      Errors: `422` REVISION_LIMIT_REACHED, DISPUTE_OPEN; `409` STATE_CONFLICT (messageKey t_order_status_changed).
+    tags: [Escrows]
+    x-permission:
+      audience: user
+      ownership: buyer of the escrow; the freelancer gets 403, others 404
+    x-covers: ['06 AC-26', '06 AC-27', '11 AC-33', '12 AC-22', '13 AC-13', '00 AC-19']
+    x-notifications: [EV-41, EV-74, EV-88]
+    x-emits: [escrow.updated, order.item_updated, offer.updated, message.created, contract.status_changed]
+    x-jobs: [escrow-auto-release]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d4.yaml#/RevisionRequestCreateRequest'}
+    responses:
+      '201':
+        description: The revision request.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d4.yaml#/RevisionRequest'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+/escrows/{escrowId}/complete:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: escrowId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: completeEscrow
+    summary: Complete the item and release the money (buyer)
+    description: |
+      "Complete order" / "Complete project" (spec 06 AC-30…AC-32, 11 AC-36…AC-38, 12 AC-25/AC-26).
+      Only on a delivered item (not in progress, not revision requested) without an open dispute. In
+      one transaction (MM-06-03 / MM-11-03 / MM-12-03, ref `escrow:{id}:release`): item `completed`
+      (`completedBy = buyer`; contract → project completed), the escrow balance H → the freelancer's
+      Available balance, gig queue −1 and sales +1 (gig orders), an open refund request closed
+      (`closedBy = system`, spec 13 AC-14), a pending unblock request closed (13 AC-27); notifications
+      EV-42/43, EV-75, EV-90. The client then opens the review form (D2 `createReview`). The same ref
+      is used by the auto-release sweeper and the staff tools, so a concurrent completion posts once
+      and the loser gets `409` (06 AC-39, 11 AC-38, 12 AC-28, 13 AC-31).
+      Errors: `422` DISPUTE_OPEN; `409` STATE_CONFLICT (messageKey t_order_status_changed).
+    tags: [Escrows]
+    x-permission:
+      audience: user
+      ownership: buyer of the escrow; the freelancer gets 403, others 404
+    x-covers: ['06 AC-30', '06 AC-31', '06 AC-32', '06 AC-39', '11 AC-36', '11 AC-37', '11 AC-38', '12 AC-25', '12 AC-26', '12 AC-28', '13 AC-13', '13 AC-14', '13 AC-27', '13 AC-31', '00 AC-14']
+    x-money: true
+    x-notifications: [EV-42, EV-43, EV-75, EV-90, EV-108]
+    x-emits: [escrow.updated, order.item_updated, offer.updated, refund.updated, unblock.updated, wallet.balance_changed, contract.status_changed]
+    parameters:
+      - $ref: '../components/parameters.yaml#/IdempotencyKey'
+    responses:
+      '200':
+        description: The released escrow.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d4.yaml#/Escrow'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+# ═════════════════════════ Custom offers (spec 12) ═════════════════════════
+/custom-offers:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: listCustomOffers
+    summary: List offers received (buyer) or sent (freelancer)
+    description: |
+      `role=buyer`: Buying → Offers "Received offers" (spec 12 AC-31; offers pending approval are not
+      shown to the buyer). `role=freelancer`: Selling → Offers "Sent offers" with the expiry of sent
+      ones (AC-32). Newest first; filter by status.
+    tags: [Custom Offers]
+    x-permission:
+      audience: user
+      ownership: offers where the caller is the buyer (role=buyer) or the author (role=freelancer)
+    x-covers: ['12 AC-31', '12 AC-32']
+    parameters:
+      - name: role
+        in: query
+        required: true
+        schema: {type: string, enum: [buyer, freelancer]}
+      - name: status
+        in: query
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: array
+          items: {$ref: '../schemas/d4.yaml#/CustomOfferStatus'}
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/Limit'
+    responses:
+      '200':
+        description: A page of offers.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d4.yaml#/CustomOfferPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+  post:
+    operationId: createCustomOffer
+    summary: Send a custom offer (freelancer)
+    description: |
+      Spec 12 AC-6…AC-11 (R-C2, R-C3). The caller is the author/freelancer; the recipient must share a
+      direct conversation with them (`conversationId`) or the offer answers the recipient's open request
+      (`requestId`, which becomes `answered`, AC-5). Refused when the recipient is banned, restricted,
+      deleted, pending or the caller (AC-10), when S-034 is OFF (AC-1) and when S-007 is ON and the
+      freelancer's counted offers reach S-005/S-006 (AC-2, P-9). Snapshot of every field and the fee
+      rule versions; status `sent` with expiry = now + S-036 days (stored, AC-9, AC-20), or
+      `pending_approval` while S-035 is ON (AC-11; notifies S-100, EV-81). The offer card appears in the
+      direct conversation (D5); the buyer is notified (EV-80).
+      Errors: `403` FEATURE_DISABLED (S-034); `422` PLAN_LIMIT_REACHED (messageKey
+      t_plan_offer_limit_reached), OFFER_USER_UNAVAILABLE, BUSINESS_RULE_VIOLATION (no direct
+      conversation and no open request of the recipient; slice item Q-116), FILE_*; `409`
+      STATE_CONFLICT (request no longer open).
+    tags: [Custom Offers]
+    x-permission:
+      audience: user
+      ownership: the caller becomes the author (freelancer); recipient per R-C2
+      toggles: [S-034]
+    x-covers: ['12 AC-1', '12 AC-2', '12 AC-5', '12 AC-6', '12 AC-7', '12 AC-9', '12 AC-10', '12 AC-11', '12 AC-20']
+    x-settings: [S-005, S-006, S-007, S-017, S-018, S-034, S-035, S-036, S-037, S-038, S-039, S-040, S-041]
+    x-notifications: [EV-80, EV-81]
+    x-emits: [offer.updated, offer.request_updated, message.created]
+    x-jobs: [offer-expiry]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d4.yaml#/CustomOfferCreateRequest'}
+    responses:
+      '201':
+        description: The sent (or pending-approval) offer.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d4.yaml#/CustomOffer'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+/custom-offers/preview:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  post:
+    operationId: previewCustomOffer
+    summary: Compute "You receive" and "Buyer pays" for the offer form
+    description: Server-side fee computation for the typed price (spec 12 AC-8, P-6; S-017, S-018). No card fee (added only at card checkout). Nothing is stored.
+    tags: [Custom Offers]
+    x-permission:
+      audience: user
+      ownership: none
+      toggles: [S-034]
+    x-covers: ['12 AC-8']
+    x-settings: [S-017, S-018]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d4.yaml#/CustomOfferPreviewRequest'}
+    responses:
+      '200':
+        description: The amounts.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d4.yaml#/CustomOfferPreview'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+/custom-offers/lookup:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: lookupCustomOffer
+    summary: Find a custom offer by its public uid
+    description: For `/account/offers/{uid}`, `/seller/offers/{uid}` and `/checkout/offer/{uid}` (url-map §3). Same result and access rule as `getCustomOffer`.
+    tags: [Custom Offers]
+    x-permission:
+      audience: user
+      ownership: author or recipient of the offer (the recipient not while pending approval); others get 404
+    x-covers: ['12 AC-33']
+    parameters:
+      - name: uid
+        in: query
+        required: true
+        schema: {type: string, maxLength: 36}
+    responses:
+      '200':
+        description: The offer.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d4.yaml#/CustomOffer'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/custom-offers/{customOfferId}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: customOfferId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: getCustomOffer
+    summary: Get a custom offer (card, offer page)
+    description: |
+      The offer card in chat and the offer page (spec 12 AC-12, AC-33; spec 08 AC-27): full offer,
+      attachments (signed links via `getFileDownload`), expiry, escrow state, thread reference, "Late"
+      (AC-23), reviews (AC-35) and the caller's actions. Readable (read-only actions) also while S-034
+      is OFF. Offers pending approval are invisible to the buyer (AC-11). Others get 404.
+    tags: [Custom Offers]
+    x-permission:
+      audience: user
+      ownership: author or recipient of the offer (the recipient not while pending approval); others get 404
+    x-covers: ['12 AC-12', '12 AC-18', '12 AC-23', '12 AC-24', '12 AC-33', '12 AC-35']
+    responses:
+      '200':
+        description: The offer.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d4.yaml#/CustomOffer'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/custom-offers/{customOfferId}/decline:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: customOfferId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: declineCustomOffer
+    summary: Decline a sent offer (buyer)
+    description: |
+      Spec 12 AC-16: a `sent` offer becomes `declined` with an optional reason (≤ 500); the freelancer
+      is notified (EV-83). No money moves.
+      Errors: `409` STATE_CONFLICT (not `sent`); `422` OFFER_NO_LONGER_AVAILABLE (expired).
+    tags: [Custom Offers]
+    x-permission:
+      audience: user
+      ownership: recipient (buyer) of the offer; the author gets 403, others 404
+    x-covers: ['12 AC-16']
+    x-notifications: [EV-83]
+    x-emits: [offer.updated]
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d4.yaml#/CustomOfferDeclineRequest'}
+    responses:
+      '200':
+        description: The declined offer.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d4.yaml#/CustomOffer'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+/custom-offers/{customOfferId}/withdraw:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: customOfferId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: withdrawCustomOffer
+    summary: Withdraw an unpaid offer (freelancer)
+    description: |
+      Spec 12 AC-17 (P-94): a `sent` (or `pending_approval`) offer becomes `withdrawn`; the buyer is
+      notified (EV-84). Refused while a card payment for it is pending (EC-2). No money moves.
+      Errors: `409` OFFER_PAYMENT_IN_PROGRESS, STATE_CONFLICT (already paid, declined, expired…).
+    tags: [Custom Offers]
+    x-permission:
+      audience: user
+      ownership: author (freelancer) of the offer; the recipient gets 403, others 404
+    x-covers: ['12 AC-17']
+    x-notifications: [EV-84]
+    x-emits: [offer.updated]
+    responses:
+      '200':
+        description: The withdrawn offer.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d4.yaml#/CustomOffer'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+/custom-offers/{customOfferId}/cancel:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: customOfferId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: cancelCustomOffer
+    summary: Cancel a paid offer before the first delivery (freelancer)
+    description: |
+      Spec 12 AC-29/AC-30 (P-94, MM-12-05): only a paid offer **without any delivery** (`in_progress`,
+      no delivery). In one transaction (ref `escrow:{id}:refund`): offer `canceled`, P back to the
+      buyer's Available balance (card fee and buyer fee not returned, Q-011), the freelancer's HOLD −P′,
+      an open refund request closed (`closedBy = system`, spec 13 EC-5), a pending unblock request
+      closed; the buyer is notified (EV-92). The buyer never cancels a paid offer (route: refund request).
+      Errors: `409` STATE_CONFLICT (already delivered, completed, refunded; messageKey t_order_status_changed).
+    tags: [Custom Offers]
+    x-permission:
+      audience: user
+      ownership: author (freelancer) of the offer; the buyer gets 403, others 404
+    x-covers: ['12 AC-29', '12 AC-30']
+    x-money: true
+    x-notifications: [EV-92]
+    x-emits: [offer.updated, escrow.updated, refund.updated, wallet.balance_changed]
+    parameters:
+      - $ref: '../components/parameters.yaml#/IdempotencyKey'
+    responses:
+      '200':
+        description: The canceled offer.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d4.yaml#/CustomOffer'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+# ───────────── Offer requests (spec 12 AC-3…AC-5) ─────────────
+/custom-offer-requests:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: listCustomOfferRequests
+    summary: List offer requests (buyer "My requests", freelancer "Requests")
+    description: '`role=buyer`: Buying → Offers "My requests" (spec 12 AC-31). `role=freelancer`: Selling → Offers "Requests" (AC-32). Newest first.'
+    tags: [Custom Offers]
+    x-permission:
+      audience: user
+      ownership: requests where the caller is the buyer (role=buyer) or the freelancer (role=freelancer)
+    x-covers: ['12 AC-31', '12 AC-32']
+    parameters:
+      - name: role
+        in: query
+        required: true
+        schema: {type: string, enum: [buyer, freelancer]}
+      - name: status
+        in: query
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: array
+          items: {$ref: '../schemas/d4.yaml#/CustomOfferRequestStatus'}
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/Limit'
+    responses:
+      '200':
+        description: A page of requests.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d4.yaml#/CustomOfferRequestPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+  post:
+    operationId: createCustomOfferRequest
+    summary: Request an offer from a freelancer (buyer)
+    description: |
+      Spec 12 AC-3/AC-4 (P-92): description 10–2,500, optional budget idea and wished days. The request
+      card appears in the direct conversation with the freelancer (D5 opens it if needed); the
+      freelancer is notified (EV-78). Refused while S-034 is OFF, when the freelancer is unavailable
+      (with the date), restricted, banned or deleted, or is the caller. No expiry; not counted in plan
+      limits. Anti-abuse limit (SEC-23, CONVENTIONS §14): 20 new requests per user per hour → `429 RATE_LIMITED`.
+      Errors: `403` FEATURE_DISABLED (S-034); `422` OFFER_USER_UNAVAILABLE; `429` RATE_LIMITED.
+    tags: [Custom Offers]
+    x-permission:
+      audience: user
+      ownership: the caller becomes the buyer of the request
+      toggles: [S-034]
+    x-covers: ['12 AC-1', '12 AC-3', '12 AC-4']
+    x-notifications: [EV-78]
+    x-emits: [offer.request_updated, message.created]
+    x-rate-limit: 20 new offer requests per user per hour (SEC-23)
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d4.yaml#/CustomOfferRequestCreateRequest'}
+    responses:
+      '201':
+        description: The open request.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d4.yaml#/CustomOfferRequest'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+      '429': {$ref: '../components/responses.yaml#/TooManyRequests'}
+
+/custom-offer-requests/{customOfferRequestId}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: customOfferRequestId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: getCustomOfferRequest
+    summary: Get an offer request (card; pre-fill of the offer form)
+    description: The request card and the data that pre-fills "Send an offer" (budget idea, wished days; spec 12 AC-5).
+    tags: [Custom Offers]
+    x-permission:
+      audience: user
+      ownership: buyer or freelancer of the request; others get 404
+    x-covers: ['12 AC-5']
+    responses:
+      '200':
+        description: The request.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d4.yaml#/CustomOfferRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/custom-offer-requests/{customOfferRequestId}/decline:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: customOfferRequestId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: declineCustomOfferRequest
+    summary: Decline an offer request (freelancer)
+    description: 'Spec 12 AC-5: an `open` request becomes `declined` with an optional note (≤ 500); the buyer is notified (EV-79). Errors: `409` STATE_CONFLICT (not open).'
+    tags: [Custom Offers]
+    x-permission:
+      audience: user
+      ownership: freelancer of the request; the buyer gets 403, others 404
+    x-covers: ['12 AC-5']
+    x-notifications: [EV-79]
+    x-emits: [offer.request_updated]
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d4.yaml#/CustomOfferRequestDeclineRequest'}
+    responses:
+      '200':
+        description: The declined request.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d4.yaml#/CustomOfferRequest'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+/custom-offer-requests/{customOfferRequestId}/cancel:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: customOfferRequestId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: cancelCustomOfferRequest
+    summary: Cancel an open offer request (buyer)
+    description: 'Spec 12 AC-5: the buyer can cancel a request while it is open. Errors: `409` STATE_CONFLICT (not open).'
+    tags: [Custom Offers]
+    x-permission:
+      audience: user
+      ownership: buyer of the request; the freelancer gets 403, others 404
+    x-covers: ['12 AC-5']
+    x-emits: [offer.request_updated]
+    responses:
+      '200':
+        description: The canceled request.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d4.yaml#/CustomOfferRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+# ═════════════════════════ Refund requests and disputes (spec 13) ═════════════════════════
+/refund-requests:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: listRefundRequests
+    summary: List refund requests (Buying → Refunds, Selling → Refunds)
+    description: All item types in one list, newest first (spec 13 AC-32). `role=buyer` or `role=freelancer`.
+    tags: [Refunds]
+    x-permission:
+      audience: user
+      ownership: requests where the caller is the buyer (role=buyer) or the freelancer (role=freelancer)
+    x-covers: ['13 AC-32']
+    parameters:
+      - name: role
+        in: query
+        required: true
+        schema: {type: string, enum: [buyer, freelancer]}
+      - name: status
+        in: query
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: array
+          items: {$ref: '../schemas/d4.yaml#/RefundRequestStatus'}
+      - name: disputed
+        in: query
+        required: false
+        schema: {type: boolean}
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/Limit'
+    responses:
+      '200':
+        description: A page of refund requests.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d4.yaml#/RefundRequestPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+  post:
+    operationId: createRefundRequest
+    summary: Request a refund on a paid item (buyer)
+    description: |
+      Spec 13 AC-1…AC-5 for gig order items, contract payments and custom offers alike (R-R1, R-R2):
+      the item is paid, unfinished and delivered, or revision requested, or in progress with its
+      expected delivery date passed; one request per item for its whole life (P-99). In one
+      transaction: request `pending` with seller deadline = now + S-030 days (stored, AC-9), escrow
+      `refundOpen` and auto-release paused (`refund_open`, 06 AC-34), a pending unblock request closed
+      (AC-27), the refund thread created (D5); the freelancer is notified (EV-93). Gig items before the
+      start are canceled instead (`cancelOrderItem`).
+      Errors: `409` REFUND_ALREADY_REQUESTED; `422` REFUND_NOT_ELIGIBLE.
+    tags: [Refunds]
+    x-permission:
+      audience: user
+      ownership: buyer of the escrow (`escrowId`); others get 404
+    x-covers: ['06 AC-20', '06 AC-34', '11 AC-34', '12 AC-23', '12 AC-30', '13 AC-1', '13 AC-2', '13 AC-3', '13 AC-4', '13 AC-5', '13 AC-9', '13 AC-27', '00 AC-19']
+    x-settings: [S-030]
+    x-notifications: [EV-93, EV-108]
+    x-emits: [refund.updated, escrow.updated, unblock.updated]
+    x-jobs: [refund-auto-reject, escrow-auto-release]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d4.yaml#/RefundRequestCreateRequest'}
+    responses:
+      '201':
+        description: The pending refund request.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d4.yaml#/RefundRequest'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+/refund-requests/lookup:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: lookupRefundRequest
+    summary: Find a refund request by its public uid (or legacy id)
+    description: For `/account/refunds/{refundUid}`, `/seller/refunds/{refundUid}` and the 301s of the legacy refund URLs (url-map §3). Exactly one of `uid` or `legacyId` (+ `legacySource`).
+    tags: [Refunds]
+    x-permission:
+      audience: user
+      ownership: buyer or freelancer of the request; others get 404
+    x-covers: ['13 AC-33']
+    parameters:
+      - name: uid
+        in: query
+        required: false
+        schema: {type: string, maxLength: 40}
+      - name: legacyId
+        in: query
+        required: false
+        schema: {type: integer, format: int64, minimum: 1}
+      - name: legacySource
+        in: query
+        required: false
+        schema: {type: string, enum: [refunds, project_refunds]}
+    responses:
+      '200':
+        description: The refund request.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d4.yaml#/RefundRequest'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/refund-requests/{refundRequestId}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: refundRequestId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: getRefundRequest
+    summary: Get a refund request (refund page)
+    description: |
+      Item summary, reason, status (clients show the legacy `t_info_*` explanation for the viewer),
+      seller deadline while pending, the caller's actions and the refund thread reference (spec 13
+      AC-33, AC-21). Others get 404.
+    tags: [Refunds]
+    x-permission:
+      audience: user
+      ownership: buyer or freelancer of the request; others get 404
+    x-covers: ['13 AC-8', '13 AC-21', '13 AC-33']
+    responses:
+      '200':
+        description: The refund request.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d4.yaml#/RefundRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/refund-requests/{refundRequestId}/accept:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: refundRequestId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: acceptRefundRequest
+    summary: Accept a pending refund request (freelancer)
+    description: |
+      Spec 13 AC-6 (MM-13-01, ref `escrow:{id}:refund`): in one transaction the item becomes `refunded`
+      (gig queue −1), P returns to the buyer's Available balance (H + reversal of freelancer-paid fees;
+      card fee and buyer fees are not returned), the escrow closes (`refund_accepted_by_seller`), the
+      request becomes `accepted_by_seller`, the thread becomes read-only, a pending unblock request is
+      closed (AC-27); the buyer is notified (EV-94). A race with the sweeper or the buyer closing gives
+      `409` (EC-1, AC-20).
+      Errors: `409` STATE_CONFLICT (messageKey t_order_status_changed).
+    tags: [Refunds]
+    x-permission:
+      audience: user
+      ownership: freelancer of the request; the buyer gets 403, others 404
+    x-covers: ['13 AC-6', '13 AC-27', '13 AC-31', '00 AC-15']
+    x-money: true
+    x-notifications: [EV-94, EV-108]
+    x-emits: [refund.updated, escrow.updated, order.item_updated, offer.updated, unblock.updated, wallet.balance_changed, contract.status_changed]
+    parameters:
+      - $ref: '../components/parameters.yaml#/IdempotencyKey'
+    responses:
+      '200':
+        description: The accepted refund request.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d4.yaml#/RefundRequest'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+/refund-requests/{refundRequestId}/decline:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: refundRequestId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: declineRefundRequest
+    summary: Decline a pending refund request (freelancer)
+    description: |
+      Spec 13 AC-7 (P-100): request `rejected_by_seller`; the optional message (≤ 1,500) is added to the
+      refund thread; the buyer is notified with the "Raise a dispute" link (EV-95). The request ended
+      without money moving: on a delivered item (not in revision) a fresh S-026 period starts now
+      (AC-11, 06 AC-35).
+      Errors: `409` STATE_CONFLICT (not pending).
+    tags: [Refunds]
+    x-permission:
+      audience: user
+      ownership: freelancer of the request; the buyer gets 403, others 404
+    x-covers: ['06 AC-35', '13 AC-7', '13 AC-11']
+    x-settings: [S-026]
+    x-notifications: [EV-95]
+    x-emits: [refund.updated, escrow.updated]
+    x-jobs: [escrow-auto-release]
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d4.yaml#/RefundRequestDeclineRequest'}
+    responses:
+      '200':
+        description: The declined refund request.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d4.yaml#/RefundRequest'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+/refund-requests/{refundRequestId}/close:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: refundRequestId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: closeRefundRequest
+    summary: Close a pending refund request (buyer)
+    description: |
+      Spec 13 AC-10/AC-11: request `closed` (`closedBy = buyer`), `refundOpen` removed; on a delivered
+      item (not in revision) a fresh S-026 period starts now (06 AC-35); the freelancer is notified
+      (EV-97). A race with a staff decision or the seller's answer gives `409` (AC-20).
+      Errors: `409` STATE_CONFLICT (not pending; messageKey t_order_status_changed).
+    tags: [Refunds]
+    x-permission:
+      audience: user
+      ownership: buyer of the request; the freelancer gets 403, others 404
+    x-covers: ['06 AC-35', '13 AC-10', '13 AC-11', '13 AC-20']
+    x-settings: [S-026]
+    x-notifications: [EV-97]
+    x-emits: [refund.updated, escrow.updated]
+    x-jobs: [escrow-auto-release]
+    responses:
+      '200':
+        description: The closed refund request.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d4.yaml#/RefundRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+/disputes:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  post:
+    operationId: createDispute
+    summary: Raise a dispute on a rejected refund request (buyer)
+    description: |
+      Spec 13 AC-12/AC-13 (P-100): only on a request `rejected_by_seller` (manually or automatically)
+      whose item money is still on HOLD, once only. In one transaction: dispute `open`, request flag
+      `disputed`, escrow `disputeOpen`, auto-release deadline removed and never restarted (Q-071c);
+      S-100 staff (EV-98) and the freelancer (EV-99) are notified. A race with the auto-release gives
+      `409` (EC-2).
+      Errors: `409` DUPLICATE (already disputed), STATE_CONFLICT (not rejected, or money already released).
+    tags: [Refunds]
+    x-permission:
+      audience: user
+      ownership: buyer of the refund request; others get 404
+    x-covers: ['06 AC-34', '13 AC-12', '13 AC-13']
+    x-notifications: [EV-98, EV-99]
+    x-emits: [refund.updated, escrow.updated]
+    x-jobs: [escrow-auto-release]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d4.yaml#/DisputeCreateRequest'}
+    responses:
+      '201':
+        description: The open dispute.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d4.yaml#/Dispute'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+# ═════════════════════════ Unblock requests (spec 13 AC-23…AC-28) ═════════════════════════
+/unblock-requests:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: listUnblockRequests
+    summary: List the caller's unblock requests (Selling → Unblock requests)
+    description: The freelancer's requests with status and amount, newest first (spec 13 AC-32).
+    tags: [Unblock Requests]
+    x-permission:
+      audience: user
+      ownership: requests of the caller (freelancer)
+    x-covers: ['13 AC-32']
+    parameters:
+      - name: status
+        in: query
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: array
+          items: {$ref: '../schemas/d4.yaml#/UnblockRequestStatus'}
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/Limit'
+    responses:
+      '200':
+        description: A page of unblock requests.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d4.yaml#/UnblockRequestPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+  post:
+    operationId: createUnblockRequest
+    summary: Ask MyTask to release the funds of a delivered item (freelancer)
+    description: |
+      Spec 13 AC-23/AC-24, spec 06 AC-45 (P-5, P-103): only while S-025 is OFF or S-029 is ON; a
+      delivered item (gig order item, contract payment or custom offer) with no open refund request or
+      dispute, at least S-028 hours since its latest delivery, and no pending request for it. Amount =
+      the escrow balance now (display only). S-100 staff are notified (EV-104).
+      Errors: `403` UNBLOCK_NOT_AVAILABLE; `422` UNBLOCK_TOO_EARLY, UNBLOCK_NO_DELIVERY,
+      BUSINESS_RULE_VIOLATION (refund request or dispute open); `409` UNBLOCK_ALREADY_PENDING.
+    tags: [Unblock Requests]
+    x-permission:
+      audience: user
+      ownership: freelancer of the escrow (`escrowId`); others get 404
+      notes: available only while S-025 is OFF or S-029 is ON (else 403 UNBLOCK_NOT_AVAILABLE)
+    x-covers: ['06 AC-36', '06 AC-45', '13 AC-23', '13 AC-24', '13 AC-28']
+    x-settings: [S-025, S-028, S-029]
+    x-notifications: [EV-104]
+    x-emits: [unblock.updated]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d4.yaml#/UnblockRequestCreateRequest'}
+    responses:
+      '201':
+        description: The pending unblock request.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d4.yaml#/UnblockRequest'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+/unblock-requests/{unblockRequestId}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: unblockRequestId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: getUnblockRequest
+    summary: Get an own unblock request
+    tags: [Unblock Requests]
+    x-permission:
+      audience: user
+      ownership: freelancer who created it; others get 404
+    x-covers: ['13 AC-26']
+    responses:
+      '200':
+        description: The unblock request (with the staff reason when rejected).
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d4.yaml#/UnblockRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+# ═════════════════════════ Admin: orders (spec 16 AC-38, AC-31) ═════════════════════════
+/admin/orders/items:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: adminListOrderItems
+    summary: Staff list of order items
+    description: 'Admin → Orders (spec 16 AC-38): all order items with status filters, newest first. `userId` = buyer or freelancer (user page tab "Orders", AC-31). `q` = item uid or order number.'
+    tags: [Admin Orders]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: orders.read
+      ownership: none
+    x-covers: ['16 AC-31', '16 AC-38']
+    parameters:
+      - name: status
+        in: query
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: array
+          items: {$ref: '../schemas/d4.yaml#/OrderItemStatus'}
+      - $ref: '../components/parameters.yaml#/UserIdFilter'
+      - name: gigId
+        in: query
+        required: false
+        schema: {$ref: '../components/schemas.yaml#/Uuid'}
+      - name: q
+        in: query
+        required: false
+        schema: {type: string, maxLength: 40}
+      - $ref: '../components/parameters.yaml#/CreatedFrom'
+      - $ref: '../components/parameters.yaml#/CreatedTo'
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/AdminLimit'
+    responses:
+      '200':
+        description: A page of order items.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d4.yaml#/AdminOrderItemPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+/admin/orders/{orderId}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: orderId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: adminGetOrder
+    summary: Staff view of an order
+    description: Read-only (spec 16 AC-38). There is no "delete order" (D-06-17, D-16-17); money tools are `adminReleaseEscrow` / `adminRefundEscrow`.
+    tags: [Admin Orders]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: orders.read
+      ownership: none
+    x-covers: ['16 AC-38']
+    responses:
+      '200':
+        description: The order.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d4.yaml#/AdminOrder'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/admin/orders/{orderId}/items/{orderItemId}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: orderId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+    - name: orderItemId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: adminGetOrderItem
+    summary: Staff view of an order item
+    description: 'Read-only detail (spec 16 AC-38): timeline, snapshot, escrow, refund state; deliveries with `adminListEscrowDeliveries`; the thread with D5 `adminGetConversation` (`chat.read`, audited).'
+    tags: [Admin Orders]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: orders.read
+      ownership: none
+    x-covers: ['16 AC-38']
+    responses:
+      '200':
+        description: The order item.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d4.yaml#/AdminOrderItem'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+# ═════════════════════════ Admin: custom offers (spec 12 AC-11, AC-34; spec 16 AC-19, AC-24) ═════════════════════════
+/admin/custom-offers:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: adminListCustomOffers
+    summary: Staff list of custom offers (all statuses)
+    description: 'Admin → Custom offers (spec 12 AC-34, spec 16 AC-24): filters status, freelancer, buyer, date; newest first; works whatever S-035 says. `userId` = author or recipient (user page tab "Custom offers", AC-31).'
+    tags: [Admin Orders]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: orders.read
+      ownership: none
+    x-covers: ['12 AC-34', '16 AC-24', '16 AC-31', '16 AC-38']
+    parameters:
+      - name: status
+        in: query
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: array
+          items: {$ref: '../schemas/d4.yaml#/CustomOfferStatus'}
+      - name: freelancerId
+        in: query
+        required: false
+        schema: {$ref: '../components/schemas.yaml#/Uuid'}
+      - name: buyerId
+        in: query
+        required: false
+        schema: {$ref: '../components/schemas.yaml#/Uuid'}
+      - $ref: '../components/parameters.yaml#/UserIdFilter'
+      - name: q
+        in: query
+        required: false
+        schema: {type: string, maxLength: 40}
+      - $ref: '../components/parameters.yaml#/CreatedFrom'
+      - $ref: '../components/parameters.yaml#/CreatedTo'
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/AdminLimit'
+    responses:
+      '200':
+        description: A page of offers.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d4.yaml#/AdminCustomOfferPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+/admin/custom-offers/approval-queue:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: adminListCustomOfferApprovalQueue
+    summary: Custom-offer approval queue (only used while S-035 is ON)
+    description: |
+      Offers `pending_approval`, oldest first, 50 per page, with `totalCount` for the queue counter
+      (spec 16 AC-19, AC-24, AC-17). Filters: date and owner (`freelancerId`). Offers carry no category.
+      Empty queue: `t_admin_queue_empty` (client).
+    tags: [Admin Orders]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: offers.moderate
+      ownership: none
+    x-covers: ['12 AC-11', '16 AC-19', '16 AC-24']
+    parameters:
+      - name: freelancerId
+        in: query
+        required: false
+        schema: {$ref: '../components/schemas.yaml#/Uuid'}
+      - $ref: '../components/parameters.yaml#/CreatedFrom'
+      - $ref: '../components/parameters.yaml#/CreatedTo'
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/AdminLimit'
+    responses:
+      '200':
+        description: A page of pending offers (with `totalCount`).
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d4.yaml#/AdminCustomOfferPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+/admin/custom-offers/{customOfferId}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: customOfferId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: adminGetCustomOffer
+    summary: Staff view of a custom offer
+    description: Read-only detail with attachments, escrow, refund state and thread reference (spec 12 AC-34, spec 16 AC-24, AC-38).
+    tags: [Admin Orders]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: orders.read
+      ownership: none
+    x-covers: ['12 AC-34', '16 AC-24', '16 AC-38']
+    responses:
+      '200':
+        description: The offer.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d4.yaml#/AdminCustomOffer'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/admin/custom-offers/{customOfferId}/approve:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: customOfferId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: adminApproveCustomOffer
+    summary: Approve a pending offer
+    description: |
+      Spec 12 AC-11: `pending_approval` → `sent`; the expiry starts now (+ S-036 days); the buyer gets
+      the offer notifications (EV-80). First decision wins: a second decision gets `409 STATE_CONFLICT`
+      with messageKey t_item_already_decided (spec 16 AC-19). Audited.
+    tags: [Admin Orders]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: offers.moderate
+      ownership: none
+    x-covers: ['12 AC-11', '16 AC-19', '16 AC-24']
+    x-audit: custom_offer.approve
+    x-settings: [S-036]
+    x-notifications: [EV-80]
+    x-emits: [offer.updated]
+    x-jobs: [offer-expiry]
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema: {$ref: '../components/schemas.yaml#/StaffOptionalNoteRequest'}
+    responses:
+      '200':
+        description: The approved (sent) offer.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d4.yaml#/AdminCustomOffer'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+/admin/custom-offers/{customOfferId}/reject:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: customOfferId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: adminRejectCustomOffer
+    summary: Reject a pending offer (reason shown to the freelancer)
+    description: |
+      Spec 12 AC-11: `pending_approval` → `rejected` with a reason (≤ 1,000, shown to the freelancer);
+      the freelancer is notified (EV-82). First decision wins (`409`, t_item_already_decided). Audited.
+    tags: [Admin Orders]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: offers.moderate
+      ownership: none
+    x-covers: ['12 AC-11', '16 AC-19', '16 AC-24']
+    x-audit: custom_offer.reject
+    x-notifications: [EV-82]
+    x-emits: [offer.updated]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../components/schemas.yaml#/StaffReasonRequest'}
+    responses:
+      '200':
+        description: The rejected offer.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d4.yaml#/AdminCustomOffer'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+/admin/custom-offers/{customOfferId}/files/{fileId}/download:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: customOfferId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+    - name: fileId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: adminDownloadCustomOfferFile
+    summary: Staff download of an offer attachment (signed link, audited)
+    description: Same behaviour as `getFileDownload` (`302`, or `mode=json` → `{url, expiresAt}`) for a file attached to this offer; audited (CONVENTIONS §4.2). Delivery files use `adminDownloadEscrowFile`.
+    tags: [Admin Orders]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: orders.read
+      ownership: the file must be attached to this offer; else 404
+    x-covers: ['12 AC-34']
+    x-audit: custom_offer.file_download
+    parameters:
+      - name: mode
+        in: query
+        required: false
+        schema:
+          type: string
+          enum: [redirect, json]
+          default: redirect
+    responses:
+      '200':
+        description: '`mode=json`: the signed URL.'
+        content:
+          application/json:
+            schema: {$ref: '../components/schemas.yaml#/SignedUrl'}
+      '302': {$ref: '../components/responses.yaml#/FoundRedirect'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+# ═════════════════════════ Admin: escrows and money tools (spec 16 AC-38, AC-39; spec 13 AC-29…AC-31) ═════════════════════════
+/admin/escrows:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: adminListEscrows
+    summary: Staff list of escrows (open HOLDs by default) with the total
+    description: |
+      Admin → Escrows (spec 16 AC-39): every open HOLD (default `status=funded`) with item, freelancer,
+      buyer, amount, status, delivered at, auto-release deadline or the pause reason (revision, refund
+      request, dispute, auto-release OFF). `totalAmount` sums all matching escrows; with the default
+      filter it equals the platform HOLD balance. Newest first.
+      `overdue=true` (safest reading of AC-39, slice item Q-122): funded escrows whose auto-release
+      deadline has passed (e.g. while S-025 is OFF) or whose item is past its expected delivery date
+      without a delivery.
+    tags: [Admin Escrows]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: payments.read
+      ownership: none
+    x-covers: ['16 AC-31', '16 AC-39']
+    parameters:
+      - name: status
+        in: query
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: array
+          items: {$ref: '../components/schemas.yaml#/EscrowStatus'}
+          default: [funded]
+      - name: kind
+        in: query
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: array
+          items: {$ref: '../components/schemas.yaml#/EscrowKind'}
+      - name: pausedReason
+        in: query
+        required: false
+        schema: {$ref: '../components/schemas.yaml#/AutoReleasePauseReason'}
+      - name: overdue
+        in: query
+        required: false
+        schema: {type: boolean}
+      - $ref: '../components/parameters.yaml#/UserIdFilter'
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/AdminLimit'
+    responses:
+      '200':
+        description: A page of escrows with `totalAmount`.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d4.yaml#/AdminEscrowPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+/admin/escrows/{escrowId}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: escrowId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: adminGetEscrow
+    summary: Staff view of an escrow
+    description: Item, parties, timer state, revisions, refund/dispute/unblock state of any escrow (spec 16 AC-38; item detail of orders, contracts and offers).
+    tags: [Admin Escrows]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: orders.read
+      ownership: none
+    x-covers: ['16 AC-38']
+    responses:
+      '200':
+        description: The escrow.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d4.yaml#/AdminEscrow'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/admin/escrows/{escrowId}/deliveries:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: escrowId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: adminListEscrowDeliveries
+    summary: Staff list of an escrow's deliveries (evidence)
+    description: All deliveries, oldest first (spec 16 AC-38; spec 13 AC-15 dispute evidence).
+    tags: [Admin Escrows]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: orders.read
+      ownership: none
+    x-covers: ['13 AC-15', '16 AC-38']
+    parameters:
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/AdminLimit'
+    responses:
+      '200':
+        description: A page of deliveries.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d4.yaml#/DeliveryPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/admin/escrows/{escrowId}/revision-requests:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: escrowId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: adminListEscrowRevisionRequests
+    summary: Staff list of an escrow's revision requests
+    tags: [Admin Escrows]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: orders.read
+      ownership: none
+    x-covers: ['16 AC-38']
+    parameters:
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/AdminLimit'
+    responses:
+      '200':
+        description: A page of revision requests.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d4.yaml#/RevisionRequestPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/admin/escrows/{escrowId}/files/{fileId}/download:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: escrowId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+    - name: fileId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: adminDownloadEscrowFile
+    summary: Staff download of a delivery file (signed link, audited)
+    description: Same behaviour as `getFileDownload` (`302`, or `mode=json` → `{url, expiresAt}`) for a delivery file of this escrow (spec 06 AC-24, 11 AC-35, spec 16 AC-38 "deliveries through signed links"); audited.
+    tags: [Admin Escrows]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: orders.read
+      ownership: the file must be a delivery file of this escrow; else 404
+    x-covers: ['06 AC-24', '11 AC-35', '13 AC-15', '16 AC-38']
+    x-audit: escrow.file_download
+    parameters:
+      - name: mode
+        in: query
+        required: false
+        schema:
+          type: string
+          enum: [redirect, json]
+          default: redirect
+    responses:
+      '200':
+        description: '`mode=json`: the signed URL.'
+        content:
+          application/json:
+            schema: {$ref: '../components/schemas.yaml#/SignedUrl'}
+      '302': {$ref: '../components/responses.yaml#/FoundRedirect'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/admin/escrows/{escrowId}/release:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: escrowId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: adminReleaseEscrow
+    summary: '"Release funds": pay a paid, unfinished item to the freelancer'
+    description: |
+      Spec 13 AC-29 (P-5, MM-13-05), spec 16 AC-38: any funded escrow **without an open dispute**
+      (disputes are decided with `adminResolveDispute`). Same release service and ref
+      (`escrow:{id}:release`) as the buyer's completion: item `completed` (`completedBy = staff`,
+      close reason `admin_release`; gig sales +1, queue −1), escrow balance → the freelancer's Available
+      balance, an open refund request `closed` (`closedBy = staff`), a pending unblock request
+      `approved`; both parties notified with the public note (EV-106). A second attempt changes nothing
+      and gets `409` (AC-31). Step-up re-authentication (spec 16 AC-7). Audited with amounts and reasons.
+      Errors: `409` STATE_CONFLICT (already released/refunded; messageKey t_order_status_changed); `422` DISPUTE_OPEN.
+    tags: [Admin Escrows]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: escrow.release
+      stepUp: true
+      ownership: none
+    x-covers: ['12 AC-28', '12 AC-34', '13 AC-29', '13 AC-31', '16 AC-38', '11 AC-38']
+    x-money: true
+    x-audit: escrow.release
+    x-notifications: [EV-106]
+    x-emits: [escrow.updated, order.item_updated, offer.updated, refund.updated, unblock.updated, wallet.balance_changed, contract.status_changed]
+    parameters:
+      - $ref: '../components/parameters.yaml#/IdempotencyKey'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d4.yaml#/EscrowStaffActionRequest'}
+    responses:
+      '200':
+        description: The released escrow.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d4.yaml#/AdminEscrow'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+/admin/escrows/{escrowId}/refund:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: escrowId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: adminRefundEscrow
+    summary: '"Refund buyer": refund a paid, unfinished item to the buyer''s wallet'
+    description: |
+      Spec 13 AC-30 (MM-13-06), spec 16 AC-38: any funded escrow, with or without a refund request.
+      Same refund service and ref (`escrow:{id}:refund`) as the seller's acceptance: item `refunded`
+      (gig queue −1), P to the buyer's Available balance (card fee and buyer fees not returned), an open
+      request `accepted_by_admin`, a pending unblock request `closed`; both parties notified with the
+      public note (EV-109). A second attempt gets `409` (AC-31). Step-up re-authentication (spec 16
+      AC-7). Audited. With an open dispute it is refused and nothing changes (`422` DISPUTE_OPEN with
+      messageKey `t_admin_refund_blocked_dispute_open`; Owner 2026-09-30 Q-121: kept); staff decide the
+      dispute with `adminResolveDispute` (spec 13 AC-15…AC-22).
+      Errors: `409` STATE_CONFLICT (messageKey t_order_status_changed); `422` DISPUTE_OPEN (messageKey t_admin_refund_blocked_dispute_open).
+    tags: [Admin Escrows]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: escrow.refund
+      stepUp: true
+      ownership: none
+    x-covers: ['12 AC-34', '13 AC-30', '13 AC-31', '16 AC-38', '00 AC-15']
+    x-money: true
+    x-audit: escrow.refund
+    x-notifications: [EV-109, EV-108]
+    x-emits: [escrow.updated, order.item_updated, offer.updated, refund.updated, unblock.updated, wallet.balance_changed, contract.status_changed]
+    parameters:
+      - $ref: '../components/parameters.yaml#/IdempotencyKey'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d4.yaml#/EscrowStaffActionRequest'}
+    responses:
+      '200':
+        description: The refunded escrow.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d4.yaml#/AdminEscrow'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+# ═════════════════════════ Admin: refund requests and disputes (spec 13 AC-15…AC-20; spec 16 AC-40) ═════════════════════════
+/admin/refund-requests:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: adminListRefundRequests
+    summary: Staff list of refund requests (all item types)
+    description: 'Admin → Refunds (spec 16 AC-40): every refund request, newest first; staff with `refunds.thread.write` open the thread through D5. `userId` = buyer or freelancer (AC-31).'
+    tags: [Admin Disputes]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: payments.read
+      ownership: none
+    x-covers: ['16 AC-31', '16 AC-40']
+    parameters:
+      - name: status
+        in: query
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: array
+          items: {$ref: '../schemas/d4.yaml#/RefundRequestStatus'}
+      - name: disputed
+        in: query
+        required: false
+        schema: {type: boolean}
+      - name: itemType
+        in: query
+        required: false
+        schema: {$ref: '../components/schemas.yaml#/WorkItemType'}
+      - $ref: '../components/parameters.yaml#/UserIdFilter'
+      - $ref: '../components/parameters.yaml#/CreatedFrom'
+      - $ref: '../components/parameters.yaml#/CreatedTo'
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/AdminLimit'
+    responses:
+      '200':
+        description: A page of refund requests.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d4.yaml#/AdminRefundRequestPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+/admin/refund-requests/{refundRequestId}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: refundRequestId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: adminGetRefundRequest
+    summary: Staff view of a refund request
+    description: |
+      Read-only view of any refund request (spec 13 AC-19, spec 16 AC-40). Pending or rejected requests
+      without a dispute cannot be decided; staff read and write in their thread through D5
+      (`adminListConversationMessages`, `adminCreateConversationMessage` with `refunds.thread.write`).
+    tags: [Admin Disputes]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: payments.read
+      ownership: none
+    x-covers: ['13 AC-19', '16 AC-40']
+    responses:
+      '200':
+        description: The refund request.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d4.yaml#/AdminRefundRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/admin/disputes:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: adminListDisputes
+    summary: Staff dispute queue (open disputes oldest first)
+    description: |
+      Admin → Disputes (spec 13 AC-15, spec 16 AC-40): default `status=open`, oldest first, with
+      `totalCount` for the queue counter (spec 16 AC-17); each row shows item type, buyer, freelancer,
+      price paid, escrow amount, reason and days open. `userId` = buyer or freelancer (AC-31).
+    tags: [Admin Disputes]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: refunds.resolve
+      ownership: none
+    x-covers: ['13 AC-15', '16 AC-31', '16 AC-40']
+    parameters:
+      - name: status
+        in: query
+        required: false
+        schema:
+          $ref: '../schemas/d4.yaml#/DisputeStatus'
+      - name: itemType
+        in: query
+        required: false
+        schema: {$ref: '../components/schemas.yaml#/WorkItemType'}
+      - $ref: '../components/parameters.yaml#/UserIdFilter'
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/AdminLimit'
+    responses:
+      '200':
+        description: A page of disputes (with `totalCount`).
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d4.yaml#/AdminDisputePage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+/admin/disputes/{disputeId}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: disputeId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: adminGetDispute
+    summary: Staff view of a dispute (evidence and threads)
+    description: |
+      Detail page of spec 13 AC-15: the item with its escrow (deliveries and files via
+      `adminListEscrowDeliveries` / `adminDownloadEscrowFile`), the refund request, and references to
+      the item thread, the refund thread and the parties' direct conversation (read through D5; opening
+      the direct conversation is audit-logged, spec 08 AC-30).
+    tags: [Admin Disputes]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: refunds.resolve
+      ownership: none
+    x-covers: ['13 AC-15', '16 AC-40']
+    responses:
+      '200':
+        description: The dispute.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d4.yaml#/AdminDispute'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/admin/disputes/{disputeId}/resolve:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: disputeId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: adminResolveDispute
+    summary: Decide a dispute (refund the buyer or release to the freelancer)
+    description: |
+      Spec 13 AC-16…AC-18, AC-20 (P-102), final in the product.
+      `refund_to_buyer` (MM-13-02, ref `escrow:{id}:refund`): item `refunded`, P to the buyer's Available
+      balance, request `accepted_by_admin`; EV-102.
+      `release_to_freelancer` (MM-13-03, ref `escrow:{id}:release`): item `completed` (gig sales +1,
+      queue −1), escrow balance to the freelancer, request `rejected_by_admin`; both may review; EV-103.
+      In both: dispute `resolved`, the refund thread becomes read-only, a pending unblock request is
+      closed, the public note goes to both parties; audited with staff, time, decision, amounts and
+      reasons. Step-up re-authentication (spec 16 AC-7). The first decision wins; a concurrent decision
+      or buyer action gets `409` (AC-20, AC-31).
+      Errors: `409` STATE_CONFLICT (messageKey t_order_status_changed).
+    tags: [Admin Disputes]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: refunds.resolve
+      stepUp: true
+      ownership: none
+    x-covers: ['06 AC-35', '13 AC-16', '13 AC-17', '13 AC-18', '13 AC-20', '13 AC-31', '16 AC-40', '00 AC-15']
+    x-money: true
+    x-audit: dispute.resolve
+    x-notifications: [EV-102, EV-103, EV-108]
+    x-emits: [refund.updated, escrow.updated, order.item_updated, offer.updated, unblock.updated, wallet.balance_changed, contract.status_changed]
+    parameters:
+      - $ref: '../components/parameters.yaml#/IdempotencyKey'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d4.yaml#/DisputeResolveRequest'}
+    responses:
+      '200':
+        description: The resolved dispute.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d4.yaml#/AdminDispute'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+# ═════════════════════════ Admin: unblock requests (spec 13 AC-25, AC-26; spec 16 AC-41) ═════════════════════════
+/admin/unblock-requests:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: adminListUnblockRequests
+    summary: Staff unblock-request queue
+    description: |
+      Admin → Unblock requests (spec 16 AC-41): default `status=pending`, oldest first, with
+      `totalCount` (queue counter, AC-17) and `creationOpen` for the banner (S-025 OFF or S-029 ON).
+      `userId` = freelancer or buyer (AC-31).
+    tags: [Admin Disputes]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: escrow.release
+      ownership: none
+    x-covers: ['16 AC-31', '16 AC-41']
+    x-settings: [S-025, S-029]
+    parameters:
+      - name: status
+        in: query
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: array
+          items: {$ref: '../schemas/d4.yaml#/UnblockRequestStatus'}
+      - $ref: '../components/parameters.yaml#/UserIdFilter'
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/AdminLimit'
+    responses:
+      '200':
+        description: A page of unblock requests (with `totalCount`, `creationOpen`).
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d4.yaml#/AdminUnblockRequestPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+/admin/unblock-requests/{unblockRequestId}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: unblockRequestId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: adminGetUnblockRequest
+    summary: Staff view of an unblock request
+    tags: [Admin Disputes]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: escrow.release
+      ownership: none
+    x-covers: ['16 AC-41']
+    responses:
+      '200':
+        description: The unblock request.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d4.yaml#/AdminUnblockRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/admin/unblock-requests/{unblockRequestId}/approve:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: unblockRequestId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: adminApproveUnblockRequest
+    summary: Approve an unblock request (release the escrow)
+    description: |
+      Spec 13 AC-25 (MM-13-04; one action for list and detail, fixes R-012): in one transaction the item
+      is completed exactly like a buyer completion (ref `escrow:{id}:release`, close reason
+      `unblock_approved`; gig sales +1, queue −1), the request `approved`; the freelancer (EV-105) and
+      the buyer (EV-106) are notified; both may review. If the item was already released (e.g. the
+      re-enabled auto-release won, AC-28) the request is closed and `409` returned. Step-up
+      re-authentication (spec 16 AC-7). Audited.
+      Errors: `409` STATE_CONFLICT (messageKey t_order_status_changed).
+    tags: [Admin Disputes]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: escrow.release
+      stepUp: true
+      ownership: none
+    x-covers: ['13 AC-25', '13 AC-28', '13 AC-31', '16 AC-41']
+    x-money: true
+    x-audit: unblock_request.approve
+    x-notifications: [EV-105, EV-106]
+    x-emits: [unblock.updated, escrow.updated, order.item_updated, offer.updated, wallet.balance_changed, contract.status_changed]
+    parameters:
+      - $ref: '../components/parameters.yaml#/IdempotencyKey'
+    responses:
+      '200':
+        description: The approved request.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d4.yaml#/AdminUnblockRequest'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+/admin/unblock-requests/{unblockRequestId}/reject:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: unblockRequestId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: adminRejectUnblockRequest
+    summary: Reject an unblock request (reason shown to the freelancer)
+    description: 'Spec 13 AC-26 (P-103): request `rejected` with a required reason; the freelancer is notified with it (EV-107) and may send a new request later. First decision wins (`409`). Audited.'
+    tags: [Admin Disputes]
+    security:
+      - staffBearer: []
+      - staffCookie: []
+    x-permission:
+      audience: staff
+      permission: escrow.release
+      ownership: none
+    x-covers: ['13 AC-26', '16 AC-41']
+    x-audit: unblock_request.reject
+    x-notifications: [EV-107]
+    x-emits: [unblock.updated]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../components/schemas.yaml#/StaffReasonRequest'}
+    responses:
+      '200':
+        description: The rejected request.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d4.yaml#/AdminUnblockRequest'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}

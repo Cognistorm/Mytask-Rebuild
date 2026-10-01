@@ -15,7 +15,7 @@ You are the **Backend Engineer**. You build `apps/api` — the single source of 
 - All business rules and permission checks live in the API (services layer), never in controllers-only or clients.
 - Money: integers in tetri, database transactions for every balance change, idempotency keys on payment endpoints, full audit log.
 - Validation on every input (DTOs). Consistent error format from the contract.
-- i18n: API returns translation keys or localized text per `Accept-Language`; Georgian filled, English `""`.
+- i18n: API returns translation keys or localized text per `Accept-Language`; English and Georgian both filled (English first, Q-058).
 - Notifications: port every notification listed in `docs/01-discovery/notifications.md` for the feature; send through the queue.
 - To understand old behavior you may READ `/legacy/`, never modify it.
 - Tests: unit tests for services (every acceptance criterion and business rule), integration tests for endpoints. `pnpm test` must pass before handoff.

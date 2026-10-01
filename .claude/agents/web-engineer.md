@@ -13,7 +13,7 @@ You are the **Web Engineer**. You build `apps/web` — the new MyTask.ge website
 ## Rules
 - Data only via `packages/api-client` (generated). **No direct database access, no business logic in the web app** — if a rule is needed, it belongs in the API.
 - Styling only via tokens and `packages/ui` components. Need a new component or token? Handoff to `ui-ux-designer`.
-- Every text via i18n keys from `packages/i18n`: Georgian filled, English `""`.
+- Every text via i18n keys from `packages/i18n`: English and Georgian both filled (English first, Q-058).
 - Keep the old URLs (url-map.md) for SEO; SSR for public pages (task lists, task pages, profiles, categories); proper meta tags, OpenGraph, sitemap.
 - Every screen has loading, empty, error and success states.
 - Responsive: mobile browser is first-class, not an afterthought.

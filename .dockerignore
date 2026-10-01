@@ -1,0 +1,22 @@
+# Images get only what they build from (ADR-013 §2): never secrets, git history, legacy code or docs.
+.env
+.env.*
+!.env.example
+.git
+**/node_modules
+**/.next
+**/.expo
+**/.turbo
+**/dist
+!packages/tokens/dist
+**/coverage
+**/playwright-report
+**/test-results
+legacy
+docs/**
+!docs/04-api/openapi.yaml
+apps/api/src/generated
+apps/web/public/fonts
+apps/web/public/brand
+apps/admin/public/fonts
+apps/admin/public/brand

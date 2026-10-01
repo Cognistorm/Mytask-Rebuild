@@ -1,0 +1,2790 @@
+# D1 — paths for specs 00, 01, 02 (public config, i18n, health, auth, own account, profiles,
+# portfolio, KYC, restrictions/appeals, dashboards) and the staff operations on those resources
+# (spec 16 AC-19, 21, 27, 29–35). Written by the P2-B4 D1 group run (2026-09-29).
+# Conventions: docs/04-api/CONVENTIONS.md. Schemas: ../schemas/d1.yaml (own), ../components/*.yaml (shared).
+
+# ═════════════════════════════════════ Platform ═════════════════════════════════════
+/health:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: getHealth
+    summary: Liveness check
+    description: 'Answers `200 {status: ok}` while the API process runs. No details (architecture §8); readiness (DB, Redis, storage) is on an internal port. Not rate-limited per user, not blocked by maintenance mode.'
+    tags: [Platform]
+    security: []
+    x-permission: {audience: public}
+    x-covers: []
+    x-covers-note: Infrastructure for uptime monitoring (ADR-015); implements no spec AC.
+    responses:
+      '200':
+        description: The API is alive.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/HealthStatus'}
+      '429': {$ref: '../components/responses.yaml#/TooManyRequests'}
+      '503': {$ref: '../components/responses.yaml#/ServiceUnavailable'}
+
+/config/public:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: getPublicConfig
+    summary: Public (non-secret) settings for clients
+    description: |
+      Every register value that web and mobile need to show or hide entry points and to pre-check forms
+      (ADR-005 §9): feature toggles, plan limits, timers shown in texts, upload limits, theme and language
+      defaults, enabled social providers, reCAPTCHA site key, maintenance flag. Clients hide entry points of
+      disabled features (spec 00 AC-11) but the API still refuses them with `403 FEATURE_DISABLED`
+      (`x-permission.toggles` on each owning operation). Changes by staff (D6 `adminUpdateSetting`) are
+      visible here within 60 seconds without a deployment (00 AC-6, AC-8). Conditional GET with
+      `If-None-Match` → `304`. Works during maintenance.
+    tags: [Platform]
+    security: []
+    x-permission: {audience: public}
+    x-covers: ['00 AC-11', '01 AC-37', '12 AC-1']
+    x-settings: [S-001, S-002, S-003, S-004, S-005, S-006, S-007, S-008, S-009, S-019, S-020, S-021, S-022, S-023, S-024, S-025, S-026, S-027, S-028, S-029, S-030, S-031, S-032, S-034, S-035, S-036, S-037, S-038, S-039, S-040, S-041, S-045, S-046, S-056, S-061, S-065, S-066, S-067, S-068, S-069, S-075, S-076, S-077, S-078, S-079, S-080, S-081, S-082, S-083, S-084, S-085, S-086, S-087, S-088, S-089, S-090, S-091, S-092, S-093, S-094, S-095, S-096, S-097, S-098, S-099, S-101, S-103, S-104, S-105, S-106, S-107, S-108, S-109, S-111, S-112, S-113, S-114, S-115, S-116, S-117, S-118, S-119, S-120, S-121, S-123, S-126]
+    responses:
+      '200':
+        description: The public configuration.
+        headers:
+          ETag: {$ref: '../components/headers.yaml#/ETag'}
+          Content-Language: {$ref: '../components/headers.yaml#/ContentLanguage'}
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/PublicConfig'}
+      '304':
+        description: Not modified (`If-None-Match` matched the current `ETag`).
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+
+/config/web-custom-code:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: getWebCustomCode
+    summary: Custom code for public web pages (Next.js server only)
+    description: |
+      The S-110 custom code (head and footer slots, "Disable custom code" switch) and the S-127 allowed
+      hosts, for the Next.js server to render on **public pages only** and to build the public-page CSP
+      (spec 16 AC-73…AC-75). The mobile app, the admin app and non-public pages never call it; it is kept
+      out of `getPublicConfig` so mobile never receives it (integration run, requested by D6). The content
+      is what every visitor's browser receives on public pages anyway, so it is not a secret; the web
+      server caches it with `ETag` (changes visible within 60 seconds). Works during maintenance.
+      Errors: 400 VALIDATION_FAILED.
+    tags: [Platform]
+    security: []
+    x-permission: {audience: public, notes: 'consumer is the Next.js server; clients other than web must not render it (AC-73)'}
+    x-covers: ['16 AC-73']
+    x-settings: [S-110, S-127]
+    responses:
+      '200':
+        description: The custom code (slots null while disabled).
+        headers:
+          ETag: {$ref: '../components/headers.yaml#/ETag'}
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/PublicConfigWebCustomCode'}
+      '304':
+        description: Not modified (`If-None-Match` matched the current `ETag`).
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+
+/i18n/{locale}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: locale
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Locale'}
+  get:
+    operationId: getI18nBundle
+    summary: Runtime UI-string overrides for one language
+    description: |
+      Returns the translation overrides saved in the admin translation editor (D6, spec 16 AC-64) with a
+      version hash (ADR-006 §4). Base strings ship in `packages/i18n/{ka,en}.json`; web merges the overrides
+      at render time and mobile caches them at start. Conditional GET with `If-None-Match` → `304`.
+    tags: [Platform]
+    security: []
+    x-permission: {audience: public}
+    x-covers: []
+    x-covers-note: 'Delivery channel for UI strings (ADR-006 §4). The strings themselves are content (spec 00 AC-25, NOT-API:content); overrides are written by D6.'
+    responses:
+      '200':
+        description: Overrides of that language.
+        headers:
+          ETag: {$ref: '../components/headers.yaml#/ETag'}
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/I18nBundle'}
+      '304':
+        description: Not modified.
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+# ═════════════════════════════════════ Auth ═════════════════════════════════════
+/auth/register:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  post:
+    operationId: register
+    summary: Register with email and password
+    description: |
+      Creates an account that is buyer **and** freelancer at once (spec 00 AC-1, Q-013), with a unique
+      8-character referral code (spec 01 AC-1). Validation errors come per field (`VALIDATION_FAILED`,
+      `details.fields[]` with `t_validator_username`, `t_validator_min`, `t_validator_unique`,
+      `t_password_validation_message`, `t_you_must_agree_to_terms`, `t_referral_code_invalid`,
+      `t_validator_recaptcha`); the email and username are unique including deleted accounts (AC-2).
+      Outcome by register rows (spec 01 AC-3…AC-5):
+      - S-052 OFF → `201 {outcome: logged_in, session}`; the account is `active`; a referral is credited at
+        once (EC-1).
+      - S-052 ON, S-053 = email → `pending`, `VerifyEmail` (EV-01) with a link valid S-054 minutes; no session.
+      - S-052 ON, S-053 = admin → `pending`, `Admin/PendingUser` to every S-100 address (EV-02); no session.
+      A valid `referralCode` stores a pending referral; D3's referral service credits the referrer's points
+      exactly once when the account becomes active (spec 09 AC-23, journal ref
+      `referral:{referredUserId}:signup`), so this operation is not an `x-money` operation (see D1 handoff).
+      All four activation paths (`register`, `verifyEmail`, `completeSocialLogin`, `adminActivateUser`) call
+      the same `ReferralService.creditSignup` inside the activation transaction (ADR-002 §4).
+      reCAPTCHA is checked while S-061 is ON (AC-18). The account `locale` is taken from `Accept-Language`.
+      Web: session cookies are set; mobile: tokens in the body (`AuthSession`).
+    tags: [Auth]
+    security: []
+    x-permission: {audience: public}
+    x-covers: ['00 AC-1', '01 AC-1', '01 AC-2', '01 AC-3', '01 AC-4', '01 AC-5', '01 AC-6', '01 AC-18', '09 AC-23', '09 AC-25']
+    x-settings: [S-052, S-053, S-054, S-061, S-046, S-100]
+    x-notifications: [EV-01, EV-02]
+    x-rate-limit: '10 registrations per IP (IPv6 /64) per hour → 429 RATE_LIMITED with Retry-After (Q-157); global write limit per IP (CONVENTIONS §14); reCAPTCHA S-061'
+    parameters:
+      - $ref: '../components/parameters.yaml#/XMyTaskClient'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d1.yaml#/RegisterRequest'}
+    responses:
+      '201':
+        description: Account created (logged in or pending).
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/RegisterResult'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '429': {$ref: '../components/responses.yaml#/TooManyRequests'}
+
+/auth/login:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  post:
+    operationId: login
+    summary: Log in with email and password
+    description: |
+      One login pipeline for web, mobile and direct API calls (ADR-002 §4, spec 01 AC-10…AC-28).
+      - Legacy bcrypt `$2y$10$` hashes are accepted and re-hashed to Argon2id in the same request (AC-12).
+      - `active` / `verified` → `200 AuthSession`; restricted users also get a session (their calls are then
+        limited, AC-19). If 2FA applies (S-056 ON, user switched it on, device not trusted per S-124/S-059)
+        → `202 TwoFactorChallenge` and a code email (EV-06); no session yet (AC-22, AC-24, AC-28).
+      - Errors: `401 AUTH_INVALID_CREDENTIALS` for a wrong email/password, unknown email or deleted account
+        (same answer, AC-11, AC-15); `403 ACCOUNT_PENDING` with `details.verificationMethod` (AC-13);
+        `403 ACCOUNT_SUSPENDED` (AC-14); `429 AUTH_LOGIN_LOCKED` after S-062 failures per account + IP within
+        15 minutes, for S-063 minutes, even with the right password (AC-16, AC-17); `400 VALIDATION_FAILED`
+        field `recaptchaToken` (AC-18). A successful login resets the counters.
+      - Per-account counter across all IPs (ADR-002 §6, SEC-02, spec 01 AC-53): after 20 failed logins for
+        one account within one hour, from any IPs, the account is in **slow mode** for the rest of that hour:
+        one attempt per 30 seconds (the account's "slot") is evaluated, others get `429 AUTH_LOGIN_THROTTLED`
+        (`details.retryAfterSeconds`, messageKey `t_login_slow_mode` with `seconds` = `retryAfterSeconds`)
+        without checking the password; web requires `recaptchaToken` for that account while S-061 is ON; the
+        owner gets the security email EV-128 `LoginSlowMode` at most once per hour. No hard lock: the right
+        password still works in slow mode.
+      - Slot bypass (ADR-002 §6, SEC-30): an attempt that presents a **trusted device** of this account
+        (web cookie `__Host-mt_did`, mobile `deviceToken`; trusted per S-059) is evaluated without using the
+        slot; on web an attempt with a passed reCAPTCHA (S-061 ON) is also evaluated without using it. Such
+        attempts still count towards the per-account + IP lock (S-062/S-063) and, when wrong, towards the
+        per-account counter. Attempts refused by slow mode (`AUTH_LOGIN_THROTTLED`) or by the per-account + IP
+        lock (`AUTH_LOGIN_LOCKED`) never use the slot. So slow mode only slows unknown devices and cannot
+        lock the real user out.
+      - The client IP is the one resolved per ADR-013 §14–§19. An unknown email still costs one hash
+        verification (no timing difference, SEC-25). Legacy hashes: `$2y$`, `$2a$`, `$2b$` (ADR-002 §3).
+        Password reset by email link (`completePasswordReset`) is outside these counters (SEC-32(b)).
+      Web: `rememberMe` (default true) makes the refresh cookie persistent (AC-10).
+    tags: [Auth]
+    security: []
+    x-permission: {audience: public}
+    x-covers: ['01 AC-10', '01 AC-11', '01 AC-12', '01 AC-13', '01 AC-14', '01 AC-15', '01 AC-16', '01 AC-17', '01 AC-18', '01 AC-22', '01 AC-24', '01 AC-28', '01 AC-53']
+    x-settings: [S-056, S-057, S-059, S-061, S-062, S-063, S-124]
+    x-notifications: [EV-06, EV-128]
+    x-rate-limit: 'S-062 failed attempts per account + IP in 15 minutes → lock S-063 minutes (AUTH_LOGIN_LOCKED); 20 failures per account (any IP) per hour → 1 evaluated attempt per 30 s for that account (AUTH_LOGIN_THROTTLED, no hard lock; trusted-device and passed-reCAPTCHA attempts bypass the slot, refused attempts never use it, SEC-30); global write limit per IP'
+    parameters:
+      - $ref: '../components/parameters.yaml#/XMyTaskClient'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d1.yaml#/LoginRequest'}
+    responses:
+      '200':
+        description: Logged in.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/AuthSession'}
+      '202':
+        description: A 2FA code was emailed; call `verifyTwoFactorLogin`.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/TwoFactorChallenge'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '429': {$ref: '../components/responses.yaml#/TooManyRequests'}
+
+/auth/2fa/verify:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  post:
+    operationId: verifyTwoFactorLogin
+    summary: Complete a login with the emailed 2FA code
+    description: |
+      Checks the 6-digit code of a `login` challenge (password or social login). Correct within S-057 minutes →
+      session, and the device (and IP) become trusted for S-059 days; the login IP appears in the session list
+      (spec 01 AC-23). Errors (`422`): `TWO_FACTOR_CODE_INVALID` (`details.attemptsLeft`),
+      `TWO_FACTOR_CODE_EXPIRED` (AC-26), `TWO_FACTOR_TOO_MANY_ATTEMPTS` after S-058 wrong codes (AC-25); an
+      unknown or already used challenge → `404`. Account status is checked again (a ban in between →
+      `403 ACCOUNT_SUSPENDED`).
+      Cap across challenges (ADR-002 §5, SEC-03): 10 wrong codes for one account within one hour, over any
+      number of challenges and purposes → code checks for that account are refused for S-063 minutes with
+      `429 TWO_FACTOR_LOCKED` (`details.retryAfterSeconds`, messageKey `t_2fa_locked` with `minutes`), even
+      for a correct code; the owner gets the security email EV-129 `TwoFactorLocked` once per lock (spec 01
+      AC-54). The per-code limit S-058 still applies.
+    tags: [Auth]
+    security: []
+    x-permission: {audience: public}
+    x-covers: ['01 AC-22', '01 AC-23', '01 AC-25', '01 AC-26', '01 AC-30', '01 AC-54']
+    x-settings: [S-057, S-058, S-059, S-063, S-124]
+    x-notifications: [EV-129]
+    x-rate-limit: 'S-058 wrong codes per challenge; 10 wrong codes per account per hour across all challenges → code checks blocked S-063 minutes (TWO_FACTOR_LOCKED); global write limit per IP'
+    parameters:
+      - $ref: '../components/parameters.yaml#/XMyTaskClient'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d1.yaml#/TwoFactorVerifyRequest'}
+    responses:
+      '200':
+        description: Logged in.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/AuthSession'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+      '429': {$ref: '../components/responses.yaml#/TooManyRequests'}
+
+/auth/2fa/resend:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  post:
+    operationId: resendTwoFactorCode
+    summary: Send a new 2FA code (login challenge)
+    description: |
+      Sends a new code for the same challenge; the old code stops working (spec 01 AC-27). Fixed limits
+      (R-A6): 60-second cooldown after each send and at most 5 codes per account in 15 minutes, else
+      `429 TWO_FACTOR_RESEND_THROTTLED` with `details.retryAfterSeconds` (`t_2fa_resend_wait`). Codes are
+      email only, never push or SMS (EV-06).
+    tags: [Auth]
+    security: []
+    x-permission: {audience: public}
+    x-covers: ['01 AC-27']
+    x-settings: [S-057]
+    x-notifications: [EV-06]
+    x-rate-limit: '1 per 60 s and 5 per 15 min per account (R-A6)'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d1.yaml#/TwoFactorResendRequest'}
+    responses:
+      '202':
+        description: New code sent.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/TwoFactorChallenge'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '429': {$ref: '../components/responses.yaml#/TooManyRequests'}
+
+/auth/refresh:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  post:
+    operationId: refreshSession
+    summary: Rotate the refresh token and get a new access token
+    description: |
+      Web sends the `__Secure-mt_rt` cookie (path `/api/v1/auth`), mobile sends `refreshToken` in the body. The refresh
+      token is rotated; presenting an already used one revokes the whole session family (theft detection,
+      ADR-002 §1) → `401`. A revoked, expired or ended session → `401 UNAUTHENTICATED` (go to login); a session
+      ended by a ban → `403 ACCOUNT_SUSPENDED` (spec 01 AC-45). Mobile stays signed in until logout (AC-10);
+      user refresh lifetime is 30 days sliding.
+    tags: [Auth]
+    security: []
+    x-permission: {audience: public, notes: 'authenticated by the refresh token itself (cookie or body)'}
+    x-covers: ['01 AC-10']
+    parameters:
+      - $ref: '../components/parameters.yaml#/XMyTaskClient'
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d1.yaml#/SessionRefreshRequest'}
+    responses:
+      '200':
+        description: New tokens.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/AuthSession'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+/auth/logout:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  post:
+    operationId: logout
+    summary: Log out (end the current session)
+    description: |
+      Ends the current session on the server (access token `sid` deny-listed at once, refresh token revoked, web
+      cookies cleared) so the device can no longer call the API with it (spec 01 AC-42). On mobile the push
+      token of this installation is removed as well (spec 15 AC-21, D6 push tokens): the app sends its
+      `installationId` (the same id as `putPushToken`) so one call ends both. Allowed for restricted
+      users (AC-19). Sockets of this session receive `session.revoked`.
+    tags: [Auth]
+    x-permission: {audience: restricted-user, ownership: self (current session)}
+    x-covers: ['01 AC-19', '01 AC-42']
+    x-emits: [session.revoked]
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d1.yaml#/LogoutRequest'}
+    responses:
+      '204': {$ref: '../components/responses.yaml#/NoContent'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+
+/auth/email-verification/confirm:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  post:
+    operationId: verifyEmail
+    summary: Confirm the email address with the verification link
+    description: |
+      For a `pending` account and a valid, unexpired link: status becomes `active`, the email is marked
+      verified, the link is deleted, the pending referral is processed by D3's `ReferralService.creditSignup`
+      (spec 09 AC-23, the same call as the other activation paths, ADR-002 §4), and the answer
+      carries `t_ur_account_has_been_successfully_verified_email`; the client then shows the login screen
+      (spec 01 AC-7). No session is created. Expired → `422 AUTH_LINK_EXPIRED`
+      (`t_verification_email_link_expired`, show the resend form); unknown/used → `422 AUTH_LINK_INVALID`
+      (`t_verification_email_not_exists`) (AC-8). A link of an account that is not `pending` (e.g. banned)
+      changes nothing and gets `AUTH_LINK_INVALID` (contract default; slice item Q-130).
+    tags: [Auth]
+    security: []
+    x-permission: {audience: public}
+    x-covers: ['01 AC-7', '01 AC-8', '09 AC-23', '09 AC-25']
+    x-settings: [S-054]
+    x-notifications: [EV-55]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d1.yaml#/EmailVerificationConfirmRequest'}
+    responses:
+      '200':
+        description: Verified.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/AuthNotice'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+/auth/email-verification/resend:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  post:
+    operationId: resendVerificationEmail
+    summary: Send a new verification link
+    description: |
+      For a pending account: every older verification link of that email stops working and a new
+      `VerifyEmail` (EV-01) is sent; answer `t_a_new_verification_link_has_been_sent_to_ur_email` (spec 01
+      AC-9). Account not pending → `409 AUTH_ALREADY_VERIFIED` (`t_already_verified_user`). Fixed limit R-A9:
+      at most 3 emails per email address and per IP per hour; above it no email is sent but the answer does
+      not change (P-19). Unknown emails get the same success answer (contract default; slice item Q-130).
+      Also used by the "resend verification email" action of AC-13.
+    tags: [Auth]
+    security: []
+    x-permission: {audience: public}
+    x-covers: ['01 AC-9', '01 AC-13']
+    x-settings: [S-054]
+    x-notifications: [EV-01]
+    x-rate-limit: '3 emails per email address and per IP per hour, silent (R-A9, P-19); global write limit per IP → 429'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d1.yaml#/EmailVerificationResendRequest'}
+    responses:
+      '202':
+        description: Accepted (same answer whether or not an email was sent).
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/AuthNotice'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+      '429': {$ref: '../components/responses.yaml#/TooManyRequests'}
+
+/auth/password-reset:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  post:
+    operationId: requestPasswordReset
+    summary: Ask for a password-reset link
+    description: |
+      Always answers `202` with `t_password_reset_link_sent_success` (no account enumeration, spec 01
+      AC-32). A `PasswordReset` email (EV-04) with a link valid S-055 minutes is sent only if an account with
+      that email has a password and status active, verified or pending (EC-2, EC-3); older reset links of that
+      email stop working. More than 3 requests per email or per IP in 1 hour send no further email, same
+      answer (AC-36, R-A9).
+    tags: [Auth]
+    security: []
+    x-permission: {audience: public}
+    x-covers: ['01 AC-32', '01 AC-36']
+    x-settings: [S-055]
+    x-notifications: [EV-04]
+    x-rate-limit: '3 emails per email address and per IP per hour, silent (AC-36); global write limit per IP → 429'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d1.yaml#/PasswordResetRequest'}
+    responses:
+      '202':
+        description: Accepted.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/AuthNotice'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '429': {$ref: '../components/responses.yaml#/TooManyRequests'}
+
+/auth/password-reset/validate:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  post:
+    operationId: validatePasswordResetToken
+    summary: Check a reset link before showing the new-password form
+    description: 'Opening `/auth/password/update?token&email`: `204` = show the form; `422 AUTH_LINK_EXPIRED` (`t_password_reset_link_expired`); `422 AUTH_LINK_INVALID` → the client goes to login (spec 01 AC-34). Changes nothing.'
+    tags: [Auth]
+    security: []
+    x-permission: {audience: public}
+    x-covers: ['01 AC-34']
+    x-settings: [S-055]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d1.yaml#/PasswordResetTokenCheckRequest'}
+    responses:
+      '204': {$ref: '../components/responses.yaml#/NoContent'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+/auth/password-reset/complete:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  post:
+    operationId: completePasswordReset
+    summary: Set a new password with a reset link
+    description: |
+      New password meeting R-A2 and a matching confirmation (spec 01 AC-33): the password changes, the link is
+      deleted, `PasswordChanged` (EV-05) is sent, **every** session of the user ends (web and mobile), all
+      trusted devices are forgotten (AC-31), and the answer is `t_password_has_been_updated` (the client shows
+      login). Expired/unknown link → `422 AUTH_LINK_EXPIRED` / `AUTH_LINK_INVALID`, nothing changes (AC-34).
+      A pending user can reset but still cannot log in until verified (EC-2). The reset sets the account's
+      `passwordChangedAt`, which starts the withdrawal pause of spec 14 AC-21 (S-129, Q-144).
+      This operation is outside the login, code and in-session counters (spec 01 AC-55, ADR-002 §6,
+      SEC-32(b)): it stays available to the real owner during slow mode or a lock, and ends every session.
+    tags: [Auth]
+    security: []
+    x-permission: {audience: public}
+    x-covers: ['01 AC-31', '01 AC-33', '01 AC-34', '14 AC-21']
+    x-notifications: [EV-05]
+    x-emits: [session.revoked]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d1.yaml#/PasswordResetCompleteRequest'}
+    responses:
+      '200':
+        description: Password changed.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/AuthNotice'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+/auth/email-change/confirm:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  post:
+    operationId: confirmEmailChange
+    summary: Confirm a new email address with the link sent to it
+    description: |
+      Opens the link of EV-11 (spec 02 AC-30, P-18): the pending new email becomes the account email and is
+      marked verified; open verification and reset links of the old address stop working (spec 01 EC-5,
+      spec 02 EC-5); answer `t_email_changed_success`. Works with or without a session (the link may be
+      opened on another device). Expired → `422 AUTH_LINK_EXPIRED`; unknown/used → `422 AUTH_LINK_INVALID`;
+      the address was taken meanwhile → `409 DUPLICATE` (`t_validator_unique`).
+      When the new email becomes active the account's `emailChangedAt` is set — also when the change was
+      started by staff (`adminChangeUserEmail`) — which starts the withdrawal pause of spec 14 AC-21 (S-129,
+      Q-144) and is shown to approvers (spec 14 AC-23).
+    tags: [Auth]
+    security: []
+    x-permission: {audience: public}
+    x-covers: ['02 AC-30', '14 AC-21']
+    x-settings: [S-054]
+    x-emits: [account.updated]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d1.yaml#/EmailChangeConfirmRequest'}
+    responses:
+      '200':
+        description: Email changed.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/AuthNotice'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+/auth/social/{provider}/authorize:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: provider
+      in: path
+      required: true
+      schema: {$ref: '../schemas/d1.yaml#/SocialProvider'}
+  post:
+    operationId: startSocialLogin
+    summary: Start a social login (authorization URL with PKCE)
+    description: |
+      OAuth 2.0 authorization code + PKCE (ADR-002 §7). The API stores a single-use `state` (random, hashed,
+      10 minutes) with the provider, client kind, redirect URI and an optional `?ref=` referral code (spec 01
+      AC-38, P-17) and returns the provider URL. A provider that is disabled or has no saved keys →
+      `403 FEATURE_DISABLED` with `details.settingId` (AC-37).
+      **The flow is bound to the client that starts it (SEC-09):**
+      - Web (`X-MyTask-Client: web`): the API keeps the PKCE verifier and sets the binding cookie
+        `__Host-mt_oauth` (HttpOnly, Secure, SameSite=Lax, host-only, 10 minutes) whose nonce is stored with
+        `state`. Web opens the URL in the same tab (callback page `/auth/{provider}/callback`).
+      - Mobile (`ios`/`android`): the app generates the PKCE pair and sends `codeChallenge` (S256, required,
+        else `400 VALIDATION_FAILED`); it keeps the verifier and sends it to `completeSocialLogin`. The app
+        opens the URL in the system browser (`expo-auth-session`); `redirectUri` is the verified https App Link
+        `https://mytask.ge/app-return/auth/{provider}` wherever the provider allows it (url-map §7).
+      Every provider stays OFF (S-065…S-069) until this binding is implemented and reviewed.
+    tags: [Auth]
+    security: []
+    x-permission: {audience: public, toggles: [S-065, S-066, S-067, S-068, S-069], notes: 'the toggle of the requested provider only'}
+    x-covers: ['01 AC-37', '01 AC-38']
+    x-settings: [S-065, S-066, S-067, S-068, S-069]
+    parameters:
+      - $ref: '../components/parameters.yaml#/XMyTaskClient'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d1.yaml#/SocialAuthorizeRequest'}
+    responses:
+      '200':
+        description: Open `authorizationUrl`.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/SocialAuthorization'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+/auth/social/{provider}/callback:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: provider
+      in: path
+      required: true
+      schema: {$ref: '../schemas/d1.yaml#/SocialProvider'}
+  post:
+    operationId: completeSocialLogin
+    summary: Finish a social login (exchange the code)
+    description: |
+      The client forwards `code` and `state` from the provider's redirect. `code` + `state` alone never log
+      anyone in (SEC-09): web must also present the `__Host-mt_oauth` cookie set by `startSocialLogin` for that
+      `state`; mobile must send `codeVerifier`, whose S256 hash must equal the stored `codeChallenge`.
+      Missing or wrong binding → `422 AUTH_SOCIAL_FAILED`. Which binding is checked is decided by the **client
+      kind stored with `state`** at `startSocialLogin`, never by the callback's `X-MyTask-Client` header; a
+      `state` without a stored nonce (web) or challenge (mobile) never passes — no "null equals null" match
+      (SEC-32(a), ADR-002 §7). The `state` is deleted at the first use (success or not) and the binding
+      cookie is cleared. The API exchanges the code (with the verifier) and runs the same
+      login pipeline as `login` (ADR-002 §4).
+      **Trusted emails (Owner 2026-09-30, Q-156 (a), ADR-002 §7).** Only a provider email that the provider
+      marks verified may create or match an account, and only for `google` and `linkedin` (OpenID Connect
+      `email_verified = true`) and `github` (an address with `verified: true` from `/user/emails`; the
+      primary verified address is used). `facebook` and `twitter` (X) emails are **never trusted**: these two
+      providers never create an account and never match or link one by email; they log in only to an account
+      that already has a link for that provider (provider + provider user id; in practice links migrated from
+      legacy `users.provider_name` / `provider_id`). An untrusted email is treated as missing (`422
+      AUTH_SOCIAL_EMAIL_MISSING`). There is no operation to add a login-provider link from account settings.
+      - Account found by provider + provider user id → status checks: pending → `403 ACCOUNT_PENDING`, banned
+        → `403 ACCOUNT_SUSPENDED`, deleted → `401 AUTH_INVALID_CREDENTIALS` (spec 01 AC-40, fixes R-020).
+      - No link found, provider `google` / `linkedin` / `github`, first login with an unregistered trusted
+        email → account created `active`, email verified, both roles,
+        provider avatar, username from nickname/name (lower-case Latin, `_`, 4-character suffix if taken),
+        referral code; a `?ref=` code carried in `state` is applied as in AC-6 (AC-38); `isNewAccount = true`.
+      - No link found, trusted email already used by an account with a password or another provider → `409
+        AUTH_SOCIAL_EMAIL_EXISTS` (AC-39).
+      - No link found and no trusted email — the provider sent no email, one it does not mark verified, or the
+        provider is `facebook` / `twitter` (whatever email it sent, even one that matches an account) → `422
+        AUTH_SOCIAL_EMAIL_MISSING` (`t_social_email_missing`, AC-41); no account is created or linked.
+      - 2FA ON and device not trusted → `202 TwoFactorChallenge` (AC-30).
+      - Provider disabled or without keys → `403 FEATURE_DISABLED` (AC-37); bad/expired `state` or a refused
+        code exchange → `422 AUTH_SOCIAL_FAILED`.
+      Referral points for a new active account are posted by D3 exactly once (spec 09 AC-23), through the
+      same `ReferralService.creditSignup` as every activation path (ADR-002 §4).
+    tags: [Auth]
+    security: []
+    x-permission: {audience: public, toggles: [S-065, S-066, S-067, S-068, S-069], notes: 'the toggle of the requested provider only'}
+    x-covers: ['00 AC-1', '01 AC-30', '01 AC-37', '01 AC-38', '01 AC-39', '01 AC-40', '01 AC-41', '09 AC-23', '09 AC-25']
+    x-settings: [S-056, S-059, S-065, S-066, S-067, S-068, S-069, S-124]
+    x-notifications: [EV-06, EV-55]
+    parameters:
+      - $ref: '../components/parameters.yaml#/XMyTaskClient'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d1.yaml#/SocialCallbackRequest'}
+    responses:
+      '200':
+        description: Logged in (existing or new account).
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/AuthSession'}
+      '202':
+        description: A 2FA code was emailed; call `verifyTwoFactorLogin`.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/TwoFactorChallenge'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+# ═════════════════════════════════════ Own account (/me) ═════════════════════════════════════
+/me:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: getMe
+    summary: Get the signed-in user's account
+    description: |
+      The own account summary: roles are implicit (every user is buyer and freelancer, spec 00 AC-1), plan,
+      last chosen dashboard (spec 02 AC-3), 2FA switch state and availability (S-056, spec 01 AC-20),
+      restriction flag. Allowed for restricted users (spec 01 AC-19): when `isRestricted` is true, web sends
+      every page to `/restricted` and mobile shows only the Restrictions screen; every API call of the user
+      answers `403 ACCOUNT_RESTRICTED` except the operations whose audience is `restricted-user` (own account,
+      restrictions and appeals incl. `appeal_file` uploads, notifications, read-only views of the own wallet,
+      payments, payout details, saved cards, withdrawals, points, referrals, subscription and billing profile,
+      push-token removal, `logout`) and `refreshSession` (ADR-002 §4).
+    tags: [Account]
+    x-permission: {audience: restricted-user, ownership: self}
+    x-covers: ['00 AC-1', '01 AC-19', '01 AC-20', '02 AC-3']
+    x-settings: [S-056]
+    responses:
+      '200':
+        description: The account.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/Me'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+  patch:
+    operationId: updateMe
+    summary: Update account settings (username, email, name, country, city)
+    description: |
+      Spec 02 AC-29…AC-31. Username rules as registration (spec 01 AC-1/AC-2); full name ≤ 60; country from the
+      active list; city ≤ 60. `currentPassword` is required for accounts with a password; wrong →
+      `VALIDATION_FAILED` field `currentPassword` (`t_ur_current_pass_does_not_match`). Taken username/email →
+      `VALIDATION_FAILED` field code `unique` (`t_validator_unique`). A new email is **not** applied: a
+      confirmation link valid S-054 minutes goes to the new address (EV-11) and a notice to the old one
+      (EV-12); `pendingEmail` is set and the client shows `t_email_change_pending` (AC-30, P-18). A new
+      username moves the profile to `/profile/{new}`; the old URL returns 404 (AC-31, EC-4).
+      Accounts without a password (Owner 2026-09-30, Q-144 / SEC-05): a new `email` needs `challengeId` +
+      `code` of an `email_change` challenge (`createMyTwoFactorChallenge`, code sent to the **current**
+      address; ADR-002 §5); missing → `VALIDATION_FAILED` field `code`; wrong code → `422
+      TWO_FACTOR_CODE_INVALID`, expired → `TWO_FACTOR_CODE_EXPIRED` (code errors as in
+      `verifyTwoFactorLogin`); nothing is saved. A save that does not change the email needs no code, and a
+      code sent for it stays unused until it expires (spec 02 EC-12). The pause of spec 14 AC-21 starts only
+      when the new email becomes active (`confirmEmailChange`), not here.
+      Throttle (SEC-04, ADR-002 §6, spec 01 AC-55): wrong current passwords and wrong codes count per
+      account; after S-062 within 15 minutes every password/code check of the account answers `429
+      RATE_LIMITED` (`messageKey t_too_many_login_attempts`, `details.retryAfterSeconds`) for S-063 minutes.
+      Wrong codes also count towards the per-account code cap (`429 TWO_FACTOR_LOCKED`, spec 01 AC-54).
+    tags: [Account]
+    x-permission: {audience: user, ownership: self}
+    x-covers: ['02 AC-29', '02 AC-30', '02 AC-31', '01 AC-55']
+    x-settings: [S-054, S-057, S-058, S-062, S-063]
+    x-notifications: [EV-11, EV-12]
+    x-rate-limit: 'S-062 wrong current passwords or codes per account in 15 minutes → every password/code check of the account refused for S-063 minutes (429 RATE_LIMITED, ADR-002 §6, SEC-04); global write limit'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d1.yaml#/MeUpdateRequest'}
+    responses:
+      '200':
+        description: Saved (`t_ur_account_settings_updated`).
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/Me'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+      '429': {$ref: '../components/responses.yaml#/TooManyRequests'}
+  delete:
+    operationId: deleteMe
+    summary: Delete the own account (soft delete)
+    description: |
+      Refused with `422 BUSINESS_RULE_VIOLATION` when the user has an active order item or project as buyer or
+      freelancer (`t_cannot_delete_account_active_orders_projects`, spec 02 AC-32), when the Available or
+      HOLD/Pending balance is not 0 (`t_cannot_delete_account_balance`, AC-33, P-21) or when a withdrawal is
+      pending or processing (`t_cannot_delete_account_pending_withdrawal`, spec 14 AC-20). Otherwise the
+      account is soft-deleted: every session and push token ends, profile and gigs disappear from public pages,
+      email and username stay reserved (AC-34); reviews stay, shown as "Deleted user" (R-P9).
+    tags: [Account]
+    x-permission: {audience: user, ownership: self}
+    x-covers: ['02 AC-32', '02 AC-33', '02 AC-34', '14 AC-20']
+    x-emits: [session.revoked]
+    responses:
+      '204': {$ref: '../components/responses.yaml#/NoContent'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+/me/preferences:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  patch:
+    operationId: updateMyPreferences
+    summary: Save dashboard choice, theme and language
+    description: |
+      `lastDashboard` is stored on the account, so web and mobile open the same dashboard next time; users who
+      never chose start on `buying` (spec 00 AC-4, spec 02 AC-3, P-22). `theme` (S-105/S-106, Q-059) and
+      `locale` (language of emails and push, ADR-006 §2). No re-login is needed to switch dashboards.
+    tags: [Account]
+    x-permission: {audience: user, ownership: self}
+    x-covers: ['00 AC-4', '02 AC-3']
+    x-settings: [S-105, S-106]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d1.yaml#/MePreferencesUpdateRequest'}
+    responses:
+      '200':
+        description: Saved.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/Me'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+/me/password:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  post:
+    operationId: changeMyPassword
+    summary: Change the password
+    description: |
+      Correct current password + new password meeting R-A2 + matching confirmation (spec 01 AC-35): the
+      password changes, `PasswordChanged` (EV-05) is sent, all **other** sessions end and the current one
+      stays; trusted devices are forgotten (AC-31). Wrong current password → `VALIDATION_FAILED` field
+      `currentPassword` (`t_ur_current_pass_does_not_match`). Social-only account (no password) →
+      `409 STATE_CONFLICT` (the page shows the social notice instead, EC-3). Ended sessions are deny-listed
+      at once (ADR-002 §1). The change sets the account's `passwordChangedAt`, which starts the withdrawal
+      pause of spec 14 AC-21 (S-129, Q-144) and is shown to approvers (`AdminWithdrawal`, spec 14 AC-23).
+      Throttle (SEC-04, ADR-002 §6, spec 01 AC-55): wrong current passwords and wrong codes count per
+      account; after S-062 within 15 minutes every password/code check of the account answers `429
+      RATE_LIMITED` (`messageKey t_too_many_login_attempts`, `details.retryAfterSeconds`) for S-063 minutes.
+    tags: [Account]
+    x-permission: {audience: user, ownership: self}
+    x-covers: ['01 AC-31', '01 AC-35', '01 AC-55', '14 AC-21']
+    x-settings: [S-062, S-063]
+    x-notifications: [EV-05]
+    x-emits: [session.revoked]
+    x-rate-limit: 'S-062 wrong current passwords or codes per account in 15 minutes → every password/code check of the account refused for S-063 minutes (429 RATE_LIMITED, ADR-002 §6, SEC-04); global write limit'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d1.yaml#/PasswordChangeRequest'}
+    responses:
+      '200':
+        description: Changed (`t_ur_account_password_updated`).
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/AuthNotice'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+      '429': {$ref: '../components/responses.yaml#/TooManyRequests'}
+
+/me/two-factor:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  put:
+    operationId: updateMyTwoFactor
+    summary: Switch email 2FA on or off (with re-authentication)
+    description: |
+      Only while S-056 is ON (else `403 FEATURE_DISABLED`, spec 01 AC-20). Re-authentication first
+      (AC-21, P-15): `currentPassword` for accounts with a password (wrong → `VALIDATION_FAILED` field
+      `currentPassword`); social-only accounts send `challengeId` + `code` from `createMyTwoFactorChallenge`
+      (code errors as in `verifyTwoFactorLogin`, purpose `toggle_two_factor`). On success the choice is saved
+      (`t_2fa_enabled` / `t_2fa_disabled`); switching OFF forgets all trusted devices (AC-31).
+      Throttle (SEC-04, ADR-002 §6): wrong current passwords and wrong codes count per account; after S-062
+      within 15 minutes every password/code check of the account answers `429 RATE_LIMITED`
+      (`messageKey t_too_many_login_attempts`, `details.retryAfterSeconds`) for S-063 minutes.
+      Wrong codes also count towards the per-account code cap (`429 TWO_FACTOR_LOCKED`, SEC-03, spec 01
+      AC-54).
+    tags: [Account]
+    x-permission: {audience: user, ownership: self, toggles: [S-056]}
+    x-covers: ['01 AC-20', '01 AC-21', '01 AC-31', '01 AC-55']
+    x-settings: [S-056, S-057, S-058, S-062, S-063]
+    x-rate-limit: 'S-062 wrong current passwords or codes per account in 15 minutes → every password/code check of the account refused for S-063 minutes (429 RATE_LIMITED, ADR-002 §6, SEC-04); global write limit'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d1.yaml#/TwoFactorSettingUpdateRequest'}
+    responses:
+      '200':
+        description: Saved.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/TwoFactorSetting'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+      '429': {$ref: '../components/responses.yaml#/TooManyRequests'}
+
+/me/two-factor/challenges:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  post:
+    operationId: createMyTwoFactorChallenge
+    summary: Email a re-authentication code (accounts without a password)
+    description: |
+      For accounts without a password: emails a 6-digit code (EV-06) to the account's **current** address for
+      one `purpose` (body; default `toggle_two_factor`):
+      - `toggle_two_factor` — confirm the 2FA switch (spec 01 AC-21, P-15); only while S-056 is ON (else
+        `403 FEATURE_DISABLED`).
+      - `email_change`, `payout_details`, `revoke_sessions` — confirm `updateMe` with a new email,
+        `putPayoutDetails` and `revokeMyOtherSessions` (SEC-05, ADR-002 §5; independent of S-056; confirmed
+        by the Owner 2026-09-30, Q-144; spec 01 AC-44, spec 02 AC-29, spec 14 AC-3).
+      Accounts with a password → `409 STATE_CONFLICT` (use the password). Same TTL/attempt rules (S-057,
+      S-058), resend limits (60 s, 5 per 15 min) and per-account code cap (SEC-03) as the login code. A code
+      is accepted only by the operation of its purpose, once.
+    tags: [Account]
+    x-permission: {audience: user, ownership: self, notes: 'S-056 must be ON only for purpose toggle_two_factor (403 FEATURE_DISABLED)'}
+    x-covers: ['01 AC-21', '01 AC-44', '02 AC-29', '14 AC-3']
+    x-settings: [S-056, S-057, S-058]
+    x-notifications: [EV-06]
+    x-rate-limit: '1 per 60 s and 5 per 15 min per account (R-A6)'
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d1.yaml#/TwoFactorChallengeCreateRequest'}
+    responses:
+      '202':
+        description: Code sent.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/TwoFactorChallenge'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+      '429': {$ref: '../components/responses.yaml#/TooManyRequests'}
+
+/me/sessions:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: listMySessions
+    summary: List my active sessions (devices)
+    description: Every active session of the user on web and mobile with device/browser/OS, IP, last activity and the "This device" marker (spec 01 AC-43). Most recently active first.
+    tags: [Account]
+    x-permission: {audience: user, ownership: self}
+    x-covers: ['01 AC-43']
+    parameters:
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/Limit'
+    responses:
+      '200':
+        description: Sessions.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/SessionPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+/me/sessions/revoke-others:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  post:
+    operationId: revokeMyOtherSessions
+    summary: Log out all other sessions
+    description: |
+      "Log out other browser sessions" (spec 01 AC-44): with the correct current password every other session
+      ends (deny-listed at once, ADR-002 §1) and the current one stays. Wrong password → `VALIDATION_FAILED`
+      field `currentPassword` (`t_ur_current_pass_does_not_match`). Accounts without a password send
+      `challengeId` + `code` of a `revoke_sessions` challenge sent to the current address (SEC-05, ADR-002
+      §5, Owner 2026-09-30 Q-144; wrong → `TWO_FACTOR_CODE_INVALID`, expired → `TWO_FACTOR_CODE_EXPIRED`, as
+      in `verifyTwoFactorLogin`); nothing ends on a wrong answer.
+      Throttle (SEC-04, ADR-002 §6, spec 01 AC-55): wrong current passwords and wrong codes count per
+      account; after S-062 within 15 minutes every password/code check of the account answers `429
+      RATE_LIMITED` (`messageKey t_too_many_login_attempts`, `details.retryAfterSeconds`) for S-063 minutes.
+      Wrong codes also count towards the per-account code cap (`429 TWO_FACTOR_LOCKED`, spec 01 AC-54).
+    tags: [Account]
+    x-permission: {audience: user, ownership: self}
+    x-covers: ['01 AC-44', '01 AC-55']
+    x-settings: [S-057, S-058, S-062, S-063]
+    x-emits: [session.revoked]
+    x-rate-limit: 'S-062 wrong current passwords or codes per account in 15 minutes → every password/code check of the account refused for S-063 minutes (429 RATE_LIMITED, ADR-002 §6, SEC-04); global write limit'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d1.yaml#/SessionRevokeOthersRequest'}
+    responses:
+      '200':
+        description: Other sessions ended.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/SessionRevokeResult'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+      '429': {$ref: '../components/responses.yaml#/TooManyRequests'}
+
+/me/dashboard/selling:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: getSellingDashboard
+    summary: Selling dashboard home (KPIs and latest items)
+    description: |
+      Selling Home for every active user (no seller check, R-P1): welcome data, KPI tiles from the ledger and
+      order data (earnings, Available, HOLD/Pending, reach, gigs, awarded projects, completed / pending /
+      in-progress / canceled orders), up to 6 contacts with unread messages, the latest 7 paid orders and,
+      while S-075 is ON, the latest 7 awarded projects (spec 02 AC-6). A new user gets zeros and empty lists
+      (AC-7). Read-model over D3 (ledger), D4 (orders), D5 (awards, conversations) and D2 (gigs, impressions).
+    tags: [Dashboard]
+    x-permission: {audience: user, ownership: self}
+    x-covers: ['02 AC-6', '02 AC-7']
+    x-settings: [S-075]
+    responses:
+      '200':
+        description: Dashboard data.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/DashboardSelling'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+/me/kyc:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: getMyKyc
+    summary: Verification centre state
+    description: The latest KYC verification and whether a new one may be submitted (not while pending or verified, spec 02 AC-38). A declined one shows the staff reason and "Send documents again" (`t_kyc_send_again`, AC-37, EC-8).
+    tags: [KYC]
+    x-permission: {audience: user, ownership: self}
+    x-covers: ['02 AC-37', '02 AC-38']
+    responses:
+      '200':
+        description: State.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/KycOverview'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+/me/restrictions:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: listMyRestrictions
+    summary: Restrictions centre (my restrictions and appeals)
+    description: The user's restrictions with message, status (pending, submitted, approved, rejected), appeal and whether it can still be appealed (spec 01 AC-19, AC-46…AC-49). Newest first. Allowed for restricted users.
+    tags: [Restrictions]
+    x-permission: {audience: restricted-user, ownership: self}
+    x-covers: ['01 AC-19', '01 AC-46']
+    parameters:
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/Limit'
+    responses:
+      '200':
+        description: Restrictions.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/RestrictionPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+
+# ── Profile editing (spec 02 AC-15…AC-23, P-23) ──
+/me/profile:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: getMyProfile
+    summary: Get my profile for editing
+    tags: [Profiles]
+    x-permission: {audience: user, ownership: self}
+    x-covers: ['02 AC-15']
+    x-settings: [S-123]
+    responses:
+      '200':
+        description: Profile form data.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/MeProfile'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+  patch:
+    operationId: updateMyProfile
+    summary: Save headline or About me
+    description: Headline 1–100 characters (spec 02 AC-17, `t_headline_updated_successfully`), About me 1–1,500 (AC-18, `t_profile_description_updated`). Each block saves on its own (AC-15, EC-7).
+    tags: [Profiles]
+    x-permission: {audience: user, ownership: self}
+    x-covers: ['02 AC-15', '02 AC-17', '02 AC-18']
+    x-emits: [account.updated]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d1.yaml#/MeProfileUpdateRequest'}
+    responses:
+      '200':
+        description: Saved.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/MeProfile'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+/me/avatar:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  put:
+    operationId: putMyAvatar
+    summary: Set the avatar
+    description: 'Attaches a `ready` file of purpose `avatar` (JPG, JPEG, PNG, WEBP ≤ 2 MB; SVG refused, P-24; uploaded with `createFileUpload`). Replaces the old avatar (old file deleted); the display variant is 100 px square (spec 02 AC-16). Wrong purpose/owner → `422 FILE_PURPOSE_MISMATCH`; not scanned yet → `422 FILE_NOT_READY`.'
+    tags: [Profiles]
+    x-permission: {audience: user, ownership: self (own file only)}
+    x-covers: ['02 AC-16']
+    x-emits: [account.updated]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d1.yaml#/MeAvatarPutRequest'}
+    responses:
+      '200':
+        description: Saved (`t_avatar_updated_successfully`).
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/Me'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+  delete:
+    operationId: deleteMyAvatar
+    summary: Remove the avatar (initials are shown)
+    tags: [Profiles]
+    x-permission: {audience: user, ownership: self}
+    x-covers: ['02 AC-16']
+    x-emits: [account.updated]
+    responses:
+      '204': {$ref: '../components/responses.yaml#/NoContent'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+/me/skills:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  post:
+    operationId: createMySkill
+    summary: Add a skill
+    description: Name ≤ 30 characters + experience level; the slug for `/hire/{slug}` is made from the name. The same name twice (case-insensitive) → `409 DUPLICATE` (`t_add_skill_already_exists`) (spec 02 AC-19).
+    tags: [Profiles]
+    x-permission: {audience: user, ownership: self}
+    x-covers: ['02 AC-19']
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d1.yaml#/UserSkillCreateRequest'}
+    responses:
+      '201':
+        description: Added (`t_skill_added_to_ur_profile`).
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/UserSkill'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+/me/skills/{skillId}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: skillId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  patch:
+    operationId: updateMySkill
+    summary: Edit a skill
+    tags: [Profiles]
+    x-permission: {audience: user, ownership: self (own skill; others 404)}
+    x-covers: ['02 AC-19']
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d1.yaml#/UserSkillUpdateRequest'}
+    responses:
+      '200':
+        description: Saved.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/UserSkill'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+  delete:
+    operationId: deleteMySkill
+    summary: Delete a skill
+    tags: [Profiles]
+    x-permission: {audience: user, ownership: self (own skill; others 404)}
+    x-covers: ['02 AC-19']
+    responses:
+      '204': {$ref: '../components/responses.yaml#/NoContent'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/me/languages:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  post:
+    operationId: createMyLanguage
+    summary: Add a language
+    description: Name ≤ 100 characters + level (Basic / Conversational / Fluent / Native). Duplicate name → `409 DUPLICATE` (`t_add_language_already_exists`) (spec 02 AC-20).
+    tags: [Profiles]
+    x-permission: {audience: user, ownership: self}
+    x-covers: ['02 AC-20']
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d1.yaml#/UserLanguageCreateRequest'}
+    responses:
+      '201':
+        description: Added (`t_language_added_to_ur_profile`).
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/UserLanguage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+/me/languages/{languageId}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: languageId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  patch:
+    operationId: updateMyLanguage
+    summary: Edit a language
+    tags: [Profiles]
+    x-permission: {audience: user, ownership: self (own language; others 404)}
+    x-covers: ['02 AC-20']
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d1.yaml#/UserLanguageUpdateRequest'}
+    responses:
+      '200':
+        description: Saved.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/UserLanguage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+  delete:
+    operationId: deleteMyLanguage
+    summary: Delete a language
+    tags: [Profiles]
+    x-permission: {audience: user, ownership: self (own language; others 404)}
+    x-covers: ['02 AC-20']
+    responses:
+      '204': {$ref: '../components/responses.yaml#/NoContent'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/me/linked-accounts:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  put:
+    operationId: putMyLinkedAccounts
+    summary: Save linked profile URLs
+    description: Facebook, Twitter/X, Dribbble, Stack Overflow, GitHub, YouTube, Vimeo (each optional, valid URL ≤ 160) (spec 02 AC-21). Only while S-123 is ON, else `403 FEATURE_DISABLED` (P-25).
+    tags: [Profiles]
+    x-permission: {audience: user, ownership: self, toggles: [S-123]}
+    x-covers: ['02 AC-21']
+    x-settings: [S-123]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d1.yaml#/ProfileLinkedAccountsPutRequest'}
+    responses:
+      '200':
+        description: Saved (`t_linked_accounts_has_been_updated`).
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/ProfileLinkedAccounts'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+/me/availability:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  put:
+    operationId: putMyAvailability
+    summary: Set "unavailable until"
+    description: |
+      Any user (Q-013): a future date and a message ≤ 750 (spec 02 AC-22). Not in the future →
+      `VALIDATION_FAILED` (`t_pls_select_availability_date_in_future`). While set, D2/D4 refuse add-to-cart on
+      the user's gigs and D4 refuses offer requests to the user; existing orders continue (R-P5, EC-2). The
+      notice disappears automatically when the date is reached (daily availability-reset job, ADR-008 §5).
+    tags: [Profiles]
+    x-permission: {audience: user, ownership: self}
+    x-covers: ['02 AC-22']
+    x-jobs: [availability-reset]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d1.yaml#/AvailabilityPutRequest'}
+    responses:
+      '200':
+        description: Saved (`t_ur_availability_settings_updated`).
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/AvailabilityNotice'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+  delete:
+    operationId: deleteMyAvailability
+    summary: Remove "unavailable until" early
+    description: The user can receive orders and offer requests again (spec 02 AC-23).
+    tags: [Profiles]
+    x-permission: {audience: user, ownership: self}
+    x-covers: ['02 AC-23']
+    x-jobs: [availability-reset]
+    responses:
+      '204': {$ref: '../components/responses.yaml#/NoContent'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+# ═════════════════════════════════════ Public profiles ═════════════════════════════════════
+/users/{username}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: username
+      in: path
+      required: true
+      schema: {type: string, minLength: 1, maxLength: 60}
+  get:
+    operationId: getUserProfile
+    summary: Public profile
+    description: |
+      `/profile/{username}` (spec 02 AC-8). Only for status active/verified and not deleted; pending, banned,
+      deleted or an old username after a rename → `404` (AC-9, EC-4). A restricted user's profile stays
+      visible (R-P3). Two rating blocks, as freelancer and as client (AC-10, Q-062). Button flags for "Contact
+      me" (chat, D5; guests log in first, AC-11), "Request an offer" (D4, S-034 ON and user available, AC-12),
+      own profile → "Edit profile" (AC-13). Gigs: D2 `GET /gigs?sellerUsername=` (6 per page); portfolio:
+      `listPortfolioItems`.
+    tags: [Profiles]
+    security: [{}, {userBearer: []}, {userCookie: []}]
+    x-permission: {audience: optional-user, ownership: 'none (public data); flags depend on the viewer'}
+    x-covers: ['02 AC-8', '02 AC-9', '02 AC-10', '02 AC-12', '02 AC-13', '17 AC-41']
+    x-settings: [S-034, S-123]
+    responses:
+      '200':
+        description: The profile.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/UserProfile'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/users/{username}/reports:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: username
+      in: path
+      required: true
+      schema: {type: string, minLength: 1, maxLength: 60}
+  post:
+    operationId: createUserReport
+    summary: Report a user profile
+    description: |
+      Reason required, ≤ 1,500 (spec 02 AC-14). A second report by the same person replaces the first
+      (`200`, same report id); the first answers `201`. `Admin/ProfileReported` goes to every S-100 address
+      (EV-13); the report appears in D6's reports queue. Reporting yourself → `403 FORBIDDEN`. Guests get
+      `401` and the client shows `t_u_must_login_to_report_this_profile`. Unknown/hidden profile → `404`.
+      Anti-abuse limit (SEC-23, CONVENTIONS §14): 10 reports per user per hour across the four report
+      operations → `429 RATE_LIMITED`.
+    tags: [Profiles]
+    x-permission: {audience: user, ownership: 'any signed-in user except the profile owner'}
+    x-covers: ['02 AC-14']
+    x-settings: [S-100]
+    x-notifications: [EV-13]
+    x-rate-limit: 10 reports per user per hour, shared by createUserReport, createGigReport, createProjectReport and createProposalReport (SEC-23)
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d1.yaml#/UserReportCreateRequest'}
+    responses:
+      '200':
+        description: Earlier report replaced (`t_profile_has_been_successfully_reported`).
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/UserReport'}
+      '201':
+        description: Reported (`t_profile_has_been_successfully_reported`).
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/UserReport'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '429': {$ref: '../components/responses.yaml#/TooManyRequests'}
+
+# ═════════════════════════════════════ Portfolio ═════════════════════════════════════
+/portfolio-items:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: listPortfolioItems
+    summary: A user's portfolio items
+    description: |
+      `/profile/{username}/portfolio` and the profile preview (spec 02 AC-28): only `active` items of that user,
+      newest first. When the caller is that user, pending items (marked "Pending") and rejected items (marked
+      `t_portfolio_status_rejected` with `rejectionReason`, spec 02 AC-42) are included, for the Selling →
+      Portfolio page (web and mobile). Unknown/hidden profile → `404`.
+    tags: [Portfolio]
+    security: [{}, {userBearer: []}, {userCookie: []}]
+    x-permission: {audience: optional-user, ownership: 'none; the owner also sees own pending/rejected items'}
+    x-covers: ['02 AC-28', '02 AC-42']
+    parameters:
+      - name: username
+        in: query
+        required: true
+        schema: {type: string, minLength: 1, maxLength: 60}
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/Limit'
+    responses:
+      '200':
+        description: Items.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/PortfolioItemPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+  post:
+    operationId: createPortfolioItem
+    summary: Create a portfolio item
+    description: |
+      Title 3–100, description ≥ 10, thumbnail and 1 to S-089 gallery images (purpose `portfolio_image`,
+      JPG/PNG ≤ S-090 MB), optional project and video links (URL ≤ 120) (spec 02 AC-24). Slug = title slug +
+      unique id. S-071 OFF → `pending` and `Admin/PendingPortfolio` to every S-100 address (EV-14); S-071 ON →
+      `active` at once, no admin email (AC-25). Open to every user (R-P1).
+    tags: [Portfolio]
+    x-permission: {audience: user, ownership: 'caller becomes the owner (own files only)'}
+    x-covers: ['02 AC-24', '02 AC-25']
+    x-settings: [S-071, S-089, S-090, S-100]
+    x-notifications: [EV-14]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d1.yaml#/PortfolioItemCreateRequest'}
+    responses:
+      '201':
+        description: Created.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/PortfolioItem'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+/portfolio-items/lookup:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: lookupPortfolioItem
+    summary: Find a portfolio item by public uid or slug
+    description: 'For `/profile/{username}/portfolio/{slug}` (spec 02 AC-28): `slug` (the uid is its suffix) or `uid`; exactly one. Returns the same schema as `getPortfolioItem`; if `slug` differs from the current one the web answers 301 by uid (url-map §4.3). Pending/rejected items → `404` except for the owner.'
+    tags: [Portfolio]
+    security: [{}, {userBearer: []}, {userCookie: []}]
+    x-permission: {audience: optional-user, ownership: 'none for active items; owner only for pending/rejected (others 404)'}
+    x-covers: ['02 AC-28']
+    parameters:
+      - name: uid
+        in: query
+        required: false
+        schema: {type: string, maxLength: 20}
+      - name: slug
+        in: query
+        required: false
+        schema: {type: string, maxLength: 200}
+    responses:
+      '200':
+        description: The item.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/PortfolioItem'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/portfolio-items/{portfolioItemId}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: portfolioItemId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: getPortfolioItem
+    summary: Get a portfolio item
+    description: Thumbnail, gallery, description and links (spec 02 AC-28). Pending/rejected → `404` except for the owner, who also gets `rejectionReason` and `rejectedAt` of a rejected item (spec 02 AC-42).
+    tags: [Portfolio]
+    security: [{}, {userBearer: []}, {userCookie: []}]
+    x-permission: {audience: optional-user, ownership: 'none for active items; owner only for pending/rejected (others 404)'}
+    x-covers: ['02 AC-28', '02 AC-42']
+    responses:
+      '200':
+        description: The item.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/PortfolioItem'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+  patch:
+    operationId: updatePortfolioItem
+    summary: Edit a portfolio item
+    description: New data replaces the old; `imageFileIds` replaces the whole gallery (old files deleted); with S-071 OFF the item goes back to `pending` and EV-14 is sent again (spec 02 AC-25, AC-27). Editing a `rejected` item follows the same rule (`pending`, or `active` at once with S-071 ON) and clears `rejectionReason`/`rejectedAt` for the owner; the old reason stays in the audit log (spec 02 AC-42).
+    tags: [Portfolio]
+    x-permission: {audience: user, ownership: owner of the item; others 404}
+    x-covers: ['02 AC-25', '02 AC-27', '02 AC-42']
+    x-settings: [S-071, S-089, S-090, S-100]
+    x-notifications: [EV-14]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d1.yaml#/PortfolioItemUpdateRequest'}
+    responses:
+      '200':
+        description: Saved.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/PortfolioItem'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+  delete:
+    operationId: deletePortfolioItem
+    summary: Delete a portfolio item (with its files)
+    description: The owner can delete an item at any time; its files are deleted too (spec 02 AC-27, `t_project_deleted_success`).
+    tags: [Portfolio]
+    x-permission: {audience: user, ownership: owner of the item; others 404}
+    x-covers: ['02 AC-27']
+    responses:
+      '204': {$ref: '../components/responses.yaml#/NoContent'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+# ═════════════════════════════════════ KYC ═════════════════════════════════════
+/kyc:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  post:
+    operationId: createKycVerification
+    summary: Submit an ID verification
+    description: |
+      Document type + front (+ back, not for passports) + selfie, all `ready` files of purpose `kyc_document`
+      (JPG/JPEG/PNG ≤ 5 MB) uploaded by the caller (spec 02 AC-36). Creates a `pending` verification and sends
+      `Admin/NewIdVerificationPending` to every S-100 address (EV-16). With S-122 = manual it waits for staff
+      review; the provider sits behind an interface (AC-40). Refused with `409 STATE_CONFLICT` while a
+      verification is pending or verified (AC-38); after a decline the user may submit again without limit
+      (EC-8). KYC is never required for other actions (AC-40).
+    tags: [KYC]
+    x-permission: {audience: user, ownership: self (own files only)}
+    x-covers: ['02 AC-36', '02 AC-38', '02 AC-40']
+    x-settings: [S-100, S-122]
+    x-notifications: [EV-16]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d1.yaml#/KycVerificationCreateRequest'}
+    responses:
+      '201':
+        description: Submitted.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/KycVerification'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+# ═════════════════════════════════════ Restriction appeals ═════════════════════════════════════
+/restriction-appeals:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  post:
+    operationId: createRestrictionAppeal
+    summary: Appeal a restriction
+    description: |
+      Only for an own restriction in status `pending` (else `409 STATE_CONFLICT`; a rejected restriction
+      cannot be appealed again, AC-49). Message required ≤ 1,500; when the restriction has `filesRequired`,
+      1 to S-091 files of purpose `appeal_file`, each ≤ S-092 MB of the types in S-093 (spec 01 AC-47). The
+      appeal is saved, the restriction becomes `submitted`, and `Admin/NewRestrictionAppeal` goes to every S-100
+      address (EV-08). Appeal files are private; only staff download them (R-A8). Allowed for restricted users.
+    tags: [Restrictions]
+    x-permission: {audience: restricted-user, ownership: owner of the restriction; others 404}
+    x-covers: ['01 AC-19', '01 AC-47']
+    x-settings: [S-091, S-092, S-093, S-100]
+    x-notifications: [EV-08]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d1.yaml#/RestrictionAppealCreateRequest'}
+    responses:
+      '201':
+        description: Appeal received (`t_restriction_submitted`).
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/Restriction'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+# ═════════════════════════════════════ Staff: users (spec 16 F) ═════════════════════════════════════
+/admin/users:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: adminListUsers
+    summary: Search users
+    description: |
+      Partial matches on username, email and full name, exact matches on legacy id and user id (`q`); filters
+      status (active, pending, verified, banned, deleted — `deleted` is the "Deleted users" list), restricted,
+      Premium, KYC status, registration date range, country; 50 per page, newest first (spec 16 AC-30).
+      `totalCount` is returned.
+    tags: [Admin Users]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: users.read, ownership: none}
+    x-covers: ['16 AC-30', '16 AC-34']
+    parameters:
+      - name: q
+        in: query
+        required: false
+        schema: {type: string, minLength: 1, maxLength: 254}
+      - name: status
+        in: query
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: array
+          items: {type: string, enum: [pending, active, verified, banned, deleted]}
+      - name: isRestricted
+        in: query
+        required: false
+        schema: {type: boolean}
+      - name: isPremium
+        in: query
+        required: false
+        schema: {type: boolean}
+      - name: kycStatus
+        in: query
+        required: false
+        schema: {$ref: '../schemas/d1.yaml#/KycState'}
+      - name: countryCode
+        in: query
+        required: false
+        schema: {$ref: '../components/schemas.yaml#/CountryCode'}
+      - $ref: '../components/parameters.yaml#/CreatedFrom'
+      - $ref: '../components/parameters.yaml#/CreatedTo'
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/AdminLimit'
+    responses:
+      '200':
+        description: Users.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/AdminUserPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+/admin/users/{userId}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: userId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: adminGetUser
+    summary: User page — overview
+    description: |
+      Overview tab (spec 16 AC-31): profile, status, language, registration, last activity, last login IP
+      country, email-deliverability warning (spec 15 AC-11). Other tabs: `adminListKycVerifications`,
+      `adminListRestrictions`, `adminListUserSessions` (D1) and the owners' admin lists with `?userId=`
+      (balances/transactions/points/subscriptions/referrals D3 with `payments.read`; orders and custom offers
+      D4; gigs and reviews D2; projects, proposals and conversations D5 with `chat.read`; reports and history
+      D6). Deleted users are returned too (with the Restore banner data).
+    tags: [Admin Users]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: users.read, ownership: none}
+    x-covers: ['16 AC-31']
+    responses:
+      '200':
+        description: The user.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/AdminUser'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+  patch:
+    operationId: adminUpdateUser
+    summary: Edit a user's username, name, headline, about or country
+    description: Staff edits of spec 16 AC-32 (`users.edit`), same validation as the user forms. There is no field for a password, a balance, the account type or a level (AC-33). Audited with before/after values.
+    tags: [Admin Users]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: users.edit, ownership: none}
+    x-covers: ['16 AC-32', '16 AC-33']
+    x-audit: user.update
+    x-emits: [account.updated]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d1.yaml#/AdminUserUpdateRequest'}
+    responses:
+      '200':
+        description: Saved.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/AdminUser'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+  delete:
+    operationId: adminDeleteUser
+    summary: Delete a user (soft delete, restorable 30 days)
+    description: |
+      Refused under the same conditions and messages as self-deletion (`422 BUSINESS_RULE_VIOLATION`: active
+      items, non-zero balance, pending withdrawal; spec 02 AC-32, AC-33, spec 14 AC-20). Otherwise soft delete:
+      sessions and push tokens end, profile hidden, listed under "Deleted users", restorable within 30 days; no
+      permanent delete (spec 16 AC-34). High-risk: re-authentication within 15 minutes (AC-7).
+    tags: [Admin Users]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: users.delete, ownership: none, stepUp: true}
+    x-covers: ['16 AC-32', '16 AC-34', '14 AC-20']
+    x-audit: user.delete
+    x-emits: [session.revoked]
+    responses:
+      '204': {$ref: '../components/responses.yaml#/NoContent'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+/admin/users/{userId}/restore:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: userId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: adminRestoreUser
+    summary: Restore a deleted user (within 30 days)
+    description: 'Only within 30 days of the deletion (else `422 BUSINESS_RULE_VIOLATION`); a user that is not deleted → `409 STATE_CONFLICT` (spec 16 AC-34).'
+    tags: [Admin Users]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: users.delete, ownership: none}
+    x-covers: ['16 AC-32', '16 AC-34']
+    x-audit: user.restore
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema: {$ref: '../components/schemas.yaml#/StaffOptionalNoteRequest'}
+    responses:
+      '200':
+        description: Restored.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/AdminUserActionResult'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+/admin/users/{userId}/activate:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - $ref: '../components/parameters.yaml#/IdempotencyKey'
+    - name: userId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: adminActivateUser
+    summary: Activate a pending user
+    description: |
+      `pending` → `active` (spec 01 AC-5, spec 16 AC-32): the user gets `AccountActivated` (EV-03) and can log
+      in. A pending referral is credited now (spec 09 AC-23, P-61: staff activation credits too) — the
+      referrer's points journal (`referral:{referredUserId}:signup`, posted once) makes this an `x-money`
+      operation. The credit goes through the same `ReferralService.creditSignup` as `register`,
+      `verifyEmail` and `completeSocialLogin` (ADR-002 §4). Not pending → `409 STATE_CONFLICT`.
+    tags: [Admin Users]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: users.activate, ownership: none}
+    x-covers: ['01 AC-5', '16 AC-32', '09 AC-23', '09 AC-25']
+    x-money: true
+    x-audit: user.activate
+    x-notifications: [EV-03, EV-55]
+    x-emits: [account.updated]
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema: {$ref: '../components/schemas.yaml#/StaffOptionalNoteRequest'}
+    responses:
+      '200':
+        description: Activated.
+        headers:
+          Idempotent-Replayed: {$ref: '../components/headers.yaml#/IdempotentReplayed'}
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/AdminUserActionResult'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+/admin/users/{userId}/ban:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: userId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: adminBanUser
+    summary: Ban a user
+    description: |
+      Status `banned` with a reason (spec 16 AC-32). All sessions end at once (deny-listed `sid`s) and push
+      tokens are removed; the next API call of the user is refused with `403 ACCOUNT_SUSPENDED`
+      (`t_account_suspended`) (spec 01 AC-45, P-16); login shows the same message (AC-14). Applies to both
+      roles (R-1.4). Already banned → `409 STATE_CONFLICT`.
+    tags: [Admin Users]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: users.ban, ownership: none}
+    x-covers: ['01 AC-45', '16 AC-32']
+    x-audit: user.ban
+    x-emits: [session.revoked]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../components/schemas.yaml#/StaffReasonRequest'}
+    responses:
+      '200':
+        description: Banned.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/AdminUserActionResult'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+/admin/users/{userId}/unban:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: userId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: adminUnbanUser
+    summary: Unban a user
+    description: 'Status back to `active` with a reason (spec 16 AC-32). Not banned → `409 STATE_CONFLICT`.'
+    tags: [Admin Users]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: users.ban, ownership: none}
+    x-covers: ['16 AC-32']
+    x-audit: user.unban
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../components/schemas.yaml#/StaffReasonRequest'}
+    responses:
+      '200':
+        description: Unbanned.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/AdminUserActionResult'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+/admin/users/{userId}/send-password-reset:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: userId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: adminSendUserPasswordReset
+    summary: Send the user a password-reset link
+    description: 'Staff never type passwords (spec 16 AC-33, P-117): this sends the normal `PasswordReset` email (EV-04) with a link valid S-055 minutes, invalidating older links (spec 01 AC-32 rules). Account without a password → `409 STATE_CONFLICT`.'
+    tags: [Admin Users]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: users.edit, ownership: none}
+    x-covers: ['16 AC-32', '16 AC-33']
+    x-audit: user.password_reset_link
+    x-settings: [S-055]
+    x-notifications: [EV-04]
+    responses:
+      '202':
+        description: Link sent.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/AdminUserActionResult'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+/admin/users/{userId}/revoke-sessions:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: userId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: adminRevokeUserSessions
+    summary: End all sessions of a user
+    description: '"Log out of all devices" (`t_admin_end_sessions`, spec 16 AC-32): every session ends and push tokens are removed (spec 15 AC-21).'
+    tags: [Admin Users]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: users.edit, ownership: none}
+    x-covers: ['16 AC-32']
+    x-audit: user.sessions_revoke
+    x-emits: [session.revoked]
+    responses:
+      '200':
+        description: Sessions ended.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/SessionRevokeResult'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/admin/users/{userId}/reset-trusted-devices:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: userId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: adminResetUserTrustedDevices
+    summary: Forget a user's trusted devices (2FA asked again)
+    tags: [Admin Users]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: users.edit, ownership: none}
+    x-covers: ['16 AC-32']
+    x-audit: user.trusted_devices_reset
+    responses:
+      '200':
+        description: Trusted devices forgotten.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/AdminUserActionResult'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/admin/users/{userId}/disable-two-factor:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: userId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: adminDisableUserTwoFactor
+    summary: Switch a user's 2FA off (after an identity check)
+    description: 'Spec 01 EC-8, spec 16 AC-32: when the 2FA email does not arrive, staff can switch the user''s 2FA off after checking identity; reason required; trusted devices are forgotten; audited. Needs re-authentication within 15 minutes in the same staff session (spec 16 AC-7, Owner 2026-09-30 Q-145; else `403 REAUTH_REQUIRED`). The user gets EV-127 `TwoFactorDisabledByStaff` (email + in-app, security category: never capped or suppressed as marketing, no push). 2FA already off → `409 STATE_CONFLICT`. Permission `users.edit` is the contract default until slice item Q-132.'
+    tags: [Admin Users]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: users.edit, ownership: none, stepUp: true}
+    x-covers: ['16 AC-32']
+    x-notifications: [EV-127]
+    x-audit: user.two_factor_disable
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../components/schemas.yaml#/StaffReasonRequest'}
+    responses:
+      '200':
+        description: 2FA switched off.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/AdminUserActionResult'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+/admin/users/{userId}/avatar:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: userId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  delete:
+    operationId: adminDeleteUserAvatar
+    summary: Remove a user's avatar
+    tags: [Admin Users]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: users.edit, ownership: none}
+    x-covers: ['16 AC-32']
+    x-audit: user.avatar_remove
+    x-emits: [account.updated]
+    responses:
+      '204': {$ref: '../components/responses.yaml#/NoContent'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/admin/users/{userId}/email-change:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: userId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: adminChangeUserEmail
+    summary: Start an email change for a user (confirmation flow)
+    description: 'Same flow as spec 02 AC-30 (spec 16 AC-32): the new address becomes active only when the link sent to it is opened (`confirmEmailChange`); the old address gets the notice (EV-11, EV-12). Taken address → `VALIDATION_FAILED` field `newEmail` (`t_validator_unique`). Needs re-authentication within 15 minutes in the same staff session (spec 16 AC-7, Owner 2026-09-30 Q-145; else `403 REAUTH_REQUIRED`). When the new email becomes active, the withdrawal pause of spec 14 AC-21 starts (Q-144); the audit entry records the staff actor.'
+    tags: [Admin Users]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: users.edit, ownership: none, stepUp: true}
+    x-covers: ['16 AC-32']
+    x-audit: user.email_change
+    x-settings: [S-054]
+    x-notifications: [EV-11, EV-12]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d1.yaml#/AdminUserEmailChangeRequest'}
+    responses:
+      '202':
+        description: Confirmation link sent.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/AdminUserActionResult'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/admin/users/{userId}/emails:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: userId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: adminSendUserEmail
+    summary: Send an email to a user
+    description: 'Staff-written subject and text in the branded layout (spec 15 EV-120, spec 16 AC-32). Queued for delivery; the delivery log is D6''s.'
+    tags: [Admin Users]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: users.email, ownership: none}
+    x-covers: ['16 AC-32']
+    x-audit: user.email_send
+    x-notifications: [EV-120]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d1.yaml#/AdminUserEmailSendRequest'}
+    responses:
+      '202': {$ref: '../components/responses.yaml#/NoContent'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/admin/users/{userId}/sessions:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: userId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: adminListUserSessions
+    summary: User page — devices and sessions
+    description: Active sessions of the user (device, IP, country, last activity), for the "Devices and sessions" tab (spec 16 AC-31).
+    tags: [Admin Users]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: users.read, ownership: none}
+    x-covers: ['16 AC-31']
+    parameters:
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/AdminLimit'
+    responses:
+      '200':
+        description: Sessions.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/SessionPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+# ═════════════════════════════════════ Staff: restrictions and appeals ═════════════════════════════════════
+/admin/restrictions:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: adminListRestrictions
+    summary: List restrictions
+    description: All restrictions (filter by user for the user page tab "Restrictions and appeals", spec 16 AC-31), newest first.
+    tags: [Admin Restrictions]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: users.read, ownership: none}
+    x-covers: ['16 AC-31']
+    parameters:
+      - $ref: '../components/parameters.yaml#/UserIdFilter'
+      - name: status
+        in: query
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: array
+          items: {$ref: '../schemas/d1.yaml#/RestrictionStatus'}
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/AdminLimit'
+    responses:
+      '200':
+        description: Restrictions.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/AdminRestrictionPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+  post:
+    operationId: adminCreateRestriction
+    summary: Restrict a user
+    description: |
+      Message + "files required" flag (spec 01 AC-46, spec 16 AC-32): the user becomes restricted at once
+      (both roles, R-1.4; their calls are limited per spec 01 AC-19) and receives the restriction email with the
+      message (EV-07). Scheduled money jobs keep running for the user's items (R-A8, EC-7).
+    tags: [Admin Restrictions]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: users.restrict, ownership: none}
+    x-covers: ['01 AC-46', '16 AC-32']
+    x-audit: restriction.create
+    x-notifications: [EV-07]
+    x-emits: [account.updated]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d1.yaml#/AdminRestrictionCreateRequest'}
+    responses:
+      '201':
+        description: Restriction created.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/AdminRestriction'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+
+/admin/restrictions/{restrictionId}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: restrictionId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  delete:
+    operationId: adminDeleteRestriction
+    summary: Delete a restriction
+    description: The restriction is removed (soft delete); when the user has no other active restriction they are no longer restricted (spec 01 AC-50, spec 16 AC-29).
+    tags: [Admin Restrictions]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: users.restrict, ownership: none}
+    x-covers: ['01 AC-50', '16 AC-29']
+    x-audit: restriction.delete
+    x-emits: [account.updated]
+    responses:
+      '204': {$ref: '../components/responses.yaml#/NoContent'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/admin/restriction-appeals:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: adminListRestrictionAppeals
+    summary: Restriction appeals queue
+    description: |
+      Submitted appeals, oldest first, 50 per page, with the restriction message, the user's answer, the files
+      and the owner summary (spec 16 AC-29, AC-19). Filters: user, submission date range. `totalCount` feeds the
+      queue counter. Empty queue → the client shows `t_admin_queue_empty`.
+    tags: [Admin Restrictions]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: users.restrict, ownership: none}
+    x-covers: ['16 AC-19', '16 AC-29']
+    parameters:
+      - name: status
+        in: query
+        required: false
+        description: Status of the restriction; default `submitted` (the queue).
+        style: form
+        explode: true
+        schema:
+          type: array
+          items: {$ref: '../schemas/d1.yaml#/RestrictionStatus'}
+      - $ref: '../components/parameters.yaml#/UserIdFilter'
+      - $ref: '../components/parameters.yaml#/CreatedFrom'
+      - $ref: '../components/parameters.yaml#/CreatedTo'
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/AdminLimit'
+    responses:
+      '200':
+        description: Appeals.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/AdminRestrictionAppealPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+/admin/restriction-appeals/{appealId}/approve:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: appealId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: adminApproveRestrictionAppeal
+    summary: Approve an appeal
+    description: 'The restriction becomes `approved`; the user is no longer restricted if no other active restriction exists; `AppealAccepted` (EV-09) is sent (spec 01 AC-48). First decision wins: already decided → `409 STATE_CONFLICT` with `t_item_already_decided` (spec 16 AC-19).'
+    tags: [Admin Restrictions]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: users.restrict, ownership: none}
+    x-covers: ['01 AC-48', '16 AC-19', '16 AC-29']
+    x-audit: restriction_appeal.approve
+    x-notifications: [EV-09]
+    x-emits: [account.updated]
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema: {$ref: '../components/schemas.yaml#/StaffOptionalNoteRequest'}
+    responses:
+      '200':
+        description: Approved.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/AdminRestrictionAppeal'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+/admin/restriction-appeals/{appealId}/reject:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: appealId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: adminRejectRestrictionAppeal
+    summary: Reject an appeal
+    description: 'Reason required (≤ 1,000, shown to the user, spec 16 AC-19). The restriction becomes `rejected`, the user stays restricted, `AppealRejected` (EV-10) is sent, and this restriction cannot be appealed again (spec 01 AC-49). Already decided → `409 STATE_CONFLICT` (`t_item_already_decided`).'
+    tags: [Admin Restrictions]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: users.restrict, ownership: none}
+    x-covers: ['01 AC-49', '16 AC-19', '16 AC-29']
+    x-audit: restriction_appeal.reject
+    x-notifications: [EV-10]
+    x-emits: [account.updated]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../components/schemas.yaml#/StaffReasonRequest'}
+    responses:
+      '200':
+        description: Rejected.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/AdminRestrictionAppeal'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+/admin/restriction-appeals/{appealId}/files/{fileId}/download:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: appealId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+    - name: fileId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: adminGetRestrictionAppealFileDownload
+    summary: Download an appeal file (staff, audited)
+    description: 'Staff download of a private appeal file (spec 01 R-A8, spec 16 AC-29): 302 to a short-lived signed URL, or `?mode=json` → `SignedUrl` (same as `getFileDownload`). Every access is audited (spec 16 AC-14).'
+    tags: [Admin Restrictions]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: users.restrict, ownership: 'file attached to this appeal; otherwise 404'}
+    x-covers: ['16 AC-29']
+    x-audit: restriction_appeal.file_view
+    parameters:
+      - name: mode
+        in: query
+        required: false
+        schema:
+          type: string
+          enum: [redirect, json]
+          default: redirect
+    responses:
+      '200':
+        description: '`mode=json`: the signed URL.'
+        content:
+          application/json:
+            schema: {$ref: '../components/schemas.yaml#/SignedUrl'}
+      '302': {$ref: '../components/responses.yaml#/FoundRedirect'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+# ═════════════════════════════════════ Staff: IP bans ═════════════════════════════════════
+/admin/ip-bans:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: adminListIpBans
+    summary: Banned IPs (staff login)
+    description: Each banned IP with its failed-attempt count and date (spec 01 AC-52, spec 16 AC-35, P-20). Newest first. Automatic bans are written by D6's `adminLogin` at S-064 failures (spec 01 AC-51); an automatic ban of an IPv6 client covers its /64 and is listed as that prefix, e.g. `2001:db8:1:2::/64` (ADR-002 §6).
+    tags: [Admin Users]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: security.ip_bans, ownership: none}
+    x-covers: ['01 AC-52', '16 AC-35', '01 AC-51']
+    x-settings: [S-064]
+    parameters:
+      - name: q
+        in: query
+        required: false
+        description: IP prefix search.
+        schema: {type: string, maxLength: 45}
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/AdminLimit'
+    responses:
+      '200':
+        description: Banned IPs.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/IpBanPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+  post:
+    operationId: adminCreateIpBan
+    summary: Ban an IP by hand
+    description: 'Adds a manual ban of the staff login for this IP (spec 01 AC-52). Already banned → `409 DUPLICATE`.'
+    tags: [Admin Users]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: security.ip_bans, ownership: none}
+    x-covers: ['01 AC-52', '16 AC-35']
+    x-audit: ip_ban.create
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../schemas/d1.yaml#/IpBanCreateRequest'}
+    responses:
+      '201':
+        description: Banned.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/IpBan'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+/admin/ip-bans/{ip}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: ip
+      in: path
+      required: true
+      description: The banned IPv4 or IPv6 address, or the IPv6 /64 prefix of an automatic ban, as listed (URL-encoded; any spelling of the same address is accepted).
+      schema: {type: string, maxLength: 45}
+  delete:
+    operationId: adminDeleteIpBan
+    summary: Remove an IP ban
+    description: Removes the ban and resets the failed-attempt counter (spec 01 AC-52, `t_unban_ip`).
+    tags: [Admin Users]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: security.ip_bans, ownership: none}
+    x-covers: ['01 AC-52', '16 AC-35', '01 AC-51']
+    x-audit: ip_ban.delete
+    responses:
+      '204': {$ref: '../components/responses.yaml#/NoContent'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+# ═════════════════════════════════════ Staff: portfolio queue ═════════════════════════════════════
+/admin/portfolio-items:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: adminListPortfolioItems
+    summary: Portfolio queue and list
+    description: |
+      Default `status=pending`: the moderation queue, oldest first, 50 per page, with the owner summary (spec 16
+      AC-19, AC-21); filters date range and owner (`userId`). Other statuses list published or rejected items,
+      newest first. `totalCount` feeds the queue counter. Empty queue → `t_admin_queue_empty`.
+    tags: [Admin Portfolio]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: portfolio.moderate, ownership: none}
+    x-covers: ['16 AC-19', '16 AC-21']
+    parameters:
+      - name: status
+        in: query
+        required: false
+        schema:
+          $ref: '../schemas/d1.yaml#/PortfolioStatus'
+          default: pending
+      - $ref: '../components/parameters.yaml#/UserIdFilter'
+      - $ref: '../components/parameters.yaml#/CreatedFrom'
+      - $ref: '../components/parameters.yaml#/CreatedTo'
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/AdminLimit'
+    responses:
+      '200':
+        description: Items.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/AdminPortfolioItemPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+/admin/portfolio-items/{portfolioItemId}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: portfolioItemId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: adminGetPortfolioItem
+    summary: Portfolio item detail (as the public would see it)
+    tags: [Admin Portfolio]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: portfolio.moderate, ownership: none}
+    x-covers: ['16 AC-19', '16 AC-21']
+    responses:
+      '200':
+        description: The item.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/AdminPortfolioItem'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/admin/portfolio-items/{portfolioItemId}/approve:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: portfolioItemId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: adminApprovePortfolioItem
+    summary: Approve a pending portfolio item
+    description: 'The item becomes public; the owner gets `PortfolioPublished` (email) and `t_ur_portfolio_title_has_been_published` (in-app + push) (EV-15, spec 02 AC-26). First decision wins → `409 STATE_CONFLICT` (`t_item_already_decided`).'
+    tags: [Admin Portfolio]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: portfolio.moderate, ownership: none}
+    x-covers: ['02 AC-26', '16 AC-19', '16 AC-21']
+    x-audit: portfolio.approve
+    x-notifications: [EV-15]
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema: {$ref: '../components/schemas.yaml#/StaffOptionalNoteRequest'}
+    responses:
+      '200':
+        description: Approved.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/AdminPortfolioItem'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+/admin/portfolio-items/{portfolioItemId}/reject:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: portfolioItemId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: adminRejectPortfolioItem
+    summary: Reject a pending portfolio item (reason shown to the owner)
+    description: 'Reason required ≤ 1,000, shown to the owner (spec 16 AC-19, AC-21; spec 02 AC-42; Owner 2026-09-30 Q-117). Only a `pending` item can be rejected. The item becomes `rejected` (not deleted, not public: public reads answer 404 to everyone but the owner) with `rejectionReason` and `rejectedAt`; the owner gets EV-126 `PortfolioRejected` (email + in-app `t_ur_portfolio_title_has_been_rejected` + push), queued through the notification outbox in the same transaction. First decision wins → `409 STATE_CONFLICT` (`t_item_already_decided`).'
+    tags: [Admin Portfolio]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: portfolio.moderate, ownership: none}
+    x-covers: ['16 AC-19', '16 AC-21', '02 AC-26', '02 AC-42']
+    x-notifications: [EV-126]
+    x-audit: portfolio.reject
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../components/schemas.yaml#/StaffReasonRequest'}
+    responses:
+      '200':
+        description: Rejected.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/AdminPortfolioItem'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+/admin/portfolio-items/{portfolioItemId}/remove:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: portfolioItemId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: adminRemovePortfolioItem
+    summary: Remove a portfolio item (pending or published) with a reason
+    description: 'Deletes the item and its files (spec 02 AC-26 "delete instead"; spec 16 AC-21 "remove a published item with reason"). The reason is kept in the audit log.'
+    tags: [Admin Portfolio]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: portfolio.moderate, ownership: none}
+    x-covers: ['02 AC-26', '16 AC-21']
+    x-audit: portfolio.remove
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../components/schemas.yaml#/StaffReasonRequest'}
+    responses:
+      '204': {$ref: '../components/responses.yaml#/NoContent'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+# ═════════════════════════════════════ Staff: KYC queue ═════════════════════════════════════
+/admin/kyc:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+  get:
+    operationId: adminListKycVerifications
+    summary: KYC queue and list
+    description: 'Default `status=pending`: oldest first, 50 per page, owner summary (spec 16 AC-19, AC-27); filters date range, owner (`userId`, also the user page "KYC" tab, AC-31), document type. `totalCount` feeds the counter. The list shows no file URLs.'
+    tags: [Admin KYC]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: kyc.review, ownership: none}
+    x-covers: ['16 AC-19', '16 AC-27', '16 AC-31']
+    parameters:
+      - name: status
+        in: query
+        required: false
+        schema:
+          $ref: '../schemas/d1.yaml#/KycStatus'
+          default: pending
+      - name: documentType
+        in: query
+        required: false
+        schema: {$ref: '../schemas/d1.yaml#/KycDocumentType'}
+      - $ref: '../components/parameters.yaml#/UserIdFilter'
+      - $ref: '../components/parameters.yaml#/CreatedFrom'
+      - $ref: '../components/parameters.yaml#/CreatedTo'
+      - $ref: '../components/parameters.yaml#/Cursor'
+      - $ref: '../components/parameters.yaml#/AdminLimit'
+    responses:
+      '200':
+        description: Verifications.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/AdminKycVerificationPage'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+
+/admin/kyc/{kycId}:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: kycId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: adminGetKycVerification
+    summary: KYC verification detail
+    tags: [Admin KYC]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: kyc.review, ownership: none}
+    x-covers: ['16 AC-27']
+    responses:
+      '200':
+        description: The verification.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/AdminKycVerification'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+
+/admin/kyc/{kycId}/approve:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: kycId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: adminApproveKycVerification
+    summary: Approve a KYC verification
+    description: 'Status `verified`; the "ID verified" badge shows on the profile, gig seller box and freelancer cards (`UserSummary.isIdVerified`); the user gets `VerificationApproved` and `t_ur_account_has_verified` (EV-17) (spec 02 AC-37). First decision wins → `409 STATE_CONFLICT`.'
+    tags: [Admin KYC]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: kyc.review, ownership: none}
+    x-covers: ['02 AC-37', '16 AC-19', '16 AC-27']
+    x-audit: kyc.approve
+    x-notifications: [EV-17]
+    x-emits: [account.updated]
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema: {$ref: '../components/schemas.yaml#/StaffOptionalNoteRequest'}
+    responses:
+      '200':
+        description: Approved.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/AdminKycVerification'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+/admin/kyc/{kycId}/decline:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: kycId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  post:
+    operationId: adminDeclineKycVerification
+    summary: Decline a KYC verification (reason required)
+    description: 'Status `declined` with the reason (spec 16 AC-27); the user gets `VerificationDeclined` and `t_verification_files_declined` (EV-18) and can send documents again (spec 02 AC-37). First decision wins → `409 STATE_CONFLICT`.'
+    tags: [Admin KYC]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: kyc.review, ownership: none}
+    x-covers: ['02 AC-37', '16 AC-19', '16 AC-27']
+    x-audit: kyc.decline
+    x-notifications: [EV-18]
+    x-emits: [account.updated]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '../components/schemas.yaml#/StaffReasonRequest'}
+    responses:
+      '200':
+        description: Declined.
+        content:
+          application/json:
+            schema: {$ref: '../schemas/d1.yaml#/AdminKycVerification'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}
+      '409': {$ref: '../components/responses.yaml#/Conflict'}
+
+/admin/kyc/{kycId}/files/{fileId}/download:
+  parameters:
+    - $ref: '../components/parameters.yaml#/AcceptLanguage'
+    - name: kycId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+    - name: fileId
+      in: path
+      required: true
+      schema: {$ref: '../components/schemas.yaml#/Uuid'}
+  get:
+    operationId: adminGetKycFileDownload
+    summary: Open a KYC image (short-lived signed link, audited)
+    description: 'Staff with `kyc.review` only (spec 02 AC-39, spec 16 AC-27): 302 to a presigned GET valid 1–2 minutes from the private `kyc` bucket (ADR-009 §2), or `?mode=json` → `SignedUrl`. Every view writes the audit log (spec 16 AC-14). A file not attached to this verification → `404`.'
+    tags: [Admin KYC]
+    security: [{staffBearer: []}, {staffCookie: []}]
+    x-permission: {audience: staff, permission: kyc.review, ownership: 'file attached to this verification; otherwise 404'}
+    x-covers: ['02 AC-39', '16 AC-27']
+    x-audit: kyc.file_view
+    parameters:
+      - name: mode
+        in: query
+        required: false
+        schema:
+          type: string
+          enum: [redirect, json]
+          default: redirect
+    responses:
+      '200':
+        description: '`mode=json`: the signed URL.'
+        content:
+          application/json:
+            schema: {$ref: '../components/schemas.yaml#/SignedUrl'}
+      '302': {$ref: '../components/responses.yaml#/FoundRedirect'}
+      '400': {$ref: '../components/responses.yaml#/BadRequest'}
+      '401': {$ref: '../components/responses.yaml#/Unauthorized'}
+      '403': {$ref: '../components/responses.yaml#/Forbidden'}
+      '404': {$ref: '../components/responses.yaml#/NotFound'}

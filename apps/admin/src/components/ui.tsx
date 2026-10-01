@@ -1,0 +1,193 @@
+'use client';
+// Auth form building blocks (docs/05-design/components.md: TextField, PasswordInput, Button, Alert,
+// CodeInput; audit §3.8 centred panel). Labels are visible, errors are announced (aria-live).
+// They move to packages/ui when the second slice needs them.
+import { useId, useRef, useState, type ReactNode } from 'react';
+import './auth.css';
+
+export function AuthCard({
+  title,
+  subtitle,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  children: ReactNode;
+}) {
+  return (
+    <main className="auth-page">
+      <section className="auth-card" aria-labelledby="auth-title">
+        {/* eslint-disable-next-line @next/next/no-img-element -- static brand asset */}
+        <img className="auth-logo" src="/brand/mytask-logo-wordmark-trimmed.png" alt="MyTask.ge" />
+        <h1 id="auth-title" className="mt-text-h2">
+          {title}
+        </h1>
+        {subtitle && <p className="auth-muted">{subtitle}</p>}
+        {children}
+      </section>
+    </main>
+  );
+}
+
+export function Field(props: {
+  label: string;
+  name: string;
+  type?: string;
+  autoComplete?: string;
+  error?: string;
+  value: string;
+  onChange: (v: string) => void;
+  required?: boolean;
+  showLabel?: string;
+  hideLabel?: string;
+}) {
+  const id = useId();
+  const [shown, setShown] = useState(false);
+  const isPassword = props.type === 'password';
+  return (
+    <div className="auth-field">
+      <label htmlFor={id}>{props.label}</label>
+      <div className="auth-input-wrap">
+        <input
+          id={id}
+          name={props.name}
+          type={isPassword && shown ? 'text' : (props.type ?? 'text')}
+          autoComplete={props.autoComplete}
+          required={props.required}
+          value={props.value}
+          aria-invalid={!!props.error}
+          aria-describedby={props.error ? `${id}-err` : undefined}
+          onChange={(e) => props.onChange(e.target.value)}
+        />
+        {isPassword && (
+          <button
+            type="button"
+            className="auth-eye"
+            aria-pressed={shown}
+            aria-label={shown ? props.hideLabel : props.showLabel}
+            onClick={() => setShown((s) => !s)}
+          >
+            {shown ? '◡' : '◉'}
+          </button>
+        )}
+      </div>
+      {props.error && (
+        <p id={`${id}-err`} className="auth-error" role="alert">
+          {props.error}
+        </p>
+      )}
+    </div>
+  );
+}
+
+export function TextArea(props: {
+  label: string;
+  name: string;
+  error?: string;
+  value: string;
+  onChange: (v: string) => void;
+  maxLength?: number;
+  rows?: number;
+}) {
+  const id = useId();
+  return (
+    <div className="auth-field">
+      <label htmlFor={id}>{props.label}</label>
+      <textarea
+        id={id}
+        name={props.name}
+        rows={props.rows ?? 5}
+        maxLength={props.maxLength}
+        value={props.value}
+        aria-invalid={!!props.error}
+        aria-describedby={props.error ? `${id}-err` : undefined}
+        onChange={(e) => props.onChange(e.target.value)}
+      />
+      {props.error && (
+        <p id={`${id}-err`} className="auth-error" role="alert">
+          {props.error}
+        </p>
+      )}
+    </div>
+  );
+}
+
+export function Submit({ busy, children }: { busy: boolean; children: ReactNode }) {
+  return (
+    <button type="submit" className="auth-button" disabled={busy} aria-busy={busy}>
+      {children}
+    </button>
+  );
+}
+
+export function Alert({
+  kind,
+  children,
+}: {
+  kind: 'error' | 'success' | 'info';
+  children: ReactNode;
+}) {
+  return (
+    <div
+      className={`auth-alert auth-alert-${kind}`}
+      role={kind === 'error' ? 'alert' : 'status'}
+      aria-live="polite"
+    >
+      {children}
+    </div>
+  );
+}
+
+/** 6 boxes, paste fills all, auto-advance, numeric keyboard, one-time-code autofill (components.md CodeInput). */
+export function CodeInput({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const refs = useRef<(HTMLInputElement | null)[]>([]);
+  const digits = value.padEnd(6, ' ').slice(0, 6).split('');
+  const set = (i: number, d: string) => {
+    const next = digits
+      .map((c, j) => (j === i ? d : c))
+      .join('')
+      .replace(/ /g, '');
+    onChange(next.slice(0, 6));
+  };
+  return (
+    <fieldset className="auth-code" aria-label={label}>
+      {digits.map((d, i) => (
+        <input
+          key={i}
+          ref={(el) => {
+            refs.current[i] = el;
+          }}
+          inputMode="numeric"
+          autoComplete={i === 0 ? 'one-time-code' : 'off'}
+          aria-label={`${label} ${i + 1}`}
+          maxLength={1}
+          value={d.trim()}
+          onPaste={(e) => {
+            const text = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+            if (text) {
+              e.preventDefault();
+              onChange(text);
+              refs.current[Math.min(text.length, 5)]?.focus();
+            }
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Backspace' && !d.trim() && i > 0) refs.current[i - 1]?.focus();
+          }}
+          onChange={(e) => {
+            const v = e.target.value.replace(/\D/g, '').slice(-1);
+            set(i, v || ' ');
+            if (v && i < 5) refs.current[i + 1]?.focus();
+          }}
+        />
+      ))}
+    </fieldset>
+  );
+}

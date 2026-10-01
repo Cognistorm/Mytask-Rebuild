@@ -1,0 +1,38 @@
+{
+  "name": "mytask-platform",
+  "private": true,
+  "description": "MyTask.ge platform rebuild: one API, web, admin and mobile app (monorepo, ADR-001).",
+  "packageManager": "pnpm@12.8.1",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "setup:env": "node scripts/create-local-env.mjs",
+    "dev": "turbo run dev --filter=@mytask/api --filter=@mytask/web --filter=@mytask/admin",
+    "dev:mobile": "pnpm --filter @mytask/mobile start",
+    "dev:all": "turbo run dev",
+    "gen": "pnpm --filter @mytask/types gen && pnpm --filter @mytask/api-client gen",
+    "gen:check": "pnpm gen && git diff --exit-code -- packages/types/src/generated packages/api-client/src/generated",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "test:e2e": "turbo run test:e2e",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "db:migrate": "pnpm --filter @mytask/api db:migrate",
+    "db:deploy": "pnpm --filter @mytask/api db:deploy",
+    "db:seed": "pnpm --filter @mytask/api db:seed",
+    "contract:verify": "npm --prefix docs/04-api ci && npm --prefix docs/04-api run verify:final",
+    "i18n:import-legacy": "pnpm --filter @mytask/i18n import:legacy",
+    "i18n:check": "pnpm --filter @mytask/i18n check",
+    "infra:up": "docker compose up -d",
+    "infra:down": "docker compose down",
+    "preview": "node scripts/preview.mjs"
+  },
+  "devDependencies": {
+    "prettier": "3.9.9",
+    "turbo": "2.11.5",
+    "typescript": "5.9.3"
+  }
+}

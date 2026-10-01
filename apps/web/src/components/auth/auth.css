@@ -1,0 +1,392 @@
+/* Auth screens: design tokens only (CLAUDE.md). Layout keeps the live centred panel (audit §3.8). */
+.auth-page {
+  min-height: 100dvh;
+  display: grid;
+  place-items: start center;
+  padding: var(--mt-space-8) var(--mt-space-4);
+  background: var(--mt-bg-canvas);
+}
+
+.auth-card {
+  width: 100%;
+  max-width: calc(var(--mt-space-24) * 4.5);
+  background: var(--mt-bg-surface);
+  border: var(--mt-border-width-hairline) solid var(--mt-border-default);
+  border-radius: var(--mt-radius-card);
+  padding: var(--mt-space-8) var(--mt-space-6);
+  display: grid;
+  gap: var(--mt-space-4);
+}
+
+.auth-logo {
+  height: var(--mt-size-layout-logo-height);
+  width: auto;
+}
+
+.auth-muted {
+  color: var(--mt-text-secondary);
+  margin: 0;
+}
+
+.auth-card form {
+  display: grid;
+  gap: var(--mt-space-4);
+}
+
+.auth-field {
+  display: grid;
+  gap: var(--mt-space-1);
+}
+
+.auth-field label {
+  font-weight: var(--mt-font-weight-medium);
+  font-size: var(--mt-font-size-sm);
+}
+
+.auth-input-wrap {
+  position: relative;
+}
+
+.auth-field input,
+.auth-field textarea {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  font-size: var(--mt-font-size-md);
+  padding: var(--mt-space-3);
+  border: var(--mt-border-width-hairline) solid var(--mt-border-strong);
+  border-radius: var(--mt-radius-control);
+  background: var(--mt-bg-surface);
+  color: var(--mt-text-primary);
+}
+
+.auth-field input:focus-visible,
+.auth-field textarea:focus-visible,
+.auth-code input:focus-visible,
+.auth-button:focus-visible,
+.auth-link-button:focus-visible {
+  outline: var(--mt-border-width-strong) solid var(--mt-border-brand);
+  outline-offset: var(--mt-space-0-5);
+}
+
+.auth-field input[aria-invalid='true'],
+.auth-field textarea[aria-invalid='true'] {
+  border-color: var(--mt-border-danger);
+}
+
+.auth-eye {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: var(--mt-space-2);
+  background: none;
+  border: 0;
+  color: var(--mt-text-secondary);
+  cursor: pointer;
+}
+
+.auth-error {
+  color: var(--mt-text-danger);
+  font-size: var(--mt-font-size-sm);
+  margin: 0;
+}
+
+.auth-button {
+  font: inherit;
+  font-weight: var(--mt-font-weight-semibold);
+  padding: var(--mt-space-3);
+  border: 0;
+  border-radius: var(--mt-radius-control);
+  background: var(--mt-action-primary);
+  color: var(--mt-action-on-primary);
+  cursor: pointer;
+}
+
+.auth-button:hover {
+  background: var(--mt-action-primary-hover);
+}
+
+.auth-button[disabled] {
+  background: var(--mt-action-disabled);
+  color: var(--mt-action-on-disabled);
+  cursor: progress;
+}
+
+.auth-link-button {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--mt-text-link);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.auth-link-button[disabled] {
+  color: var(--mt-text-disabled);
+  cursor: default;
+}
+
+.auth-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--mt-space-2);
+  flex-wrap: wrap;
+}
+
+.auth-check {
+  display: flex;
+  gap: var(--mt-space-2);
+  align-items: flex-start;
+}
+
+/* The terms row sits in an .auth-field: keep the checkbox box-sized and the sentence in body weight (QA BUG-06). */
+.auth-field .auth-check {
+  font-weight: var(--mt-font-weight-regular);
+}
+.auth-field .auth-check input[type='checkbox'] {
+  width: auto;
+  flex: none;
+  padding: 0;
+  margin-top: var(--mt-space-1);
+}
+
+.auth-alert {
+  padding: var(--mt-space-3);
+  border-radius: var(--mt-radius-control);
+  border: var(--mt-border-width-hairline) solid;
+}
+
+.auth-alert-error {
+  background: var(--mt-feedback-danger-bg);
+  color: var(--mt-feedback-danger-text);
+  border-color: var(--mt-feedback-danger-border);
+}
+
+.auth-alert-success {
+  background: var(--mt-feedback-success-bg);
+  color: var(--mt-feedback-success-text);
+  border-color: var(--mt-feedback-success-border);
+}
+
+.auth-alert-info {
+  background: var(--mt-feedback-info-bg);
+  color: var(--mt-feedback-info-text);
+  border-color: var(--mt-feedback-info-border);
+}
+
+.auth-code {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: var(--mt-space-2);
+}
+
+.auth-code input {
+  text-align: center;
+  font-size: var(--mt-font-size-2xl);
+  font-variant-numeric: tabular-nums;
+  padding: var(--mt-space-3) 0;
+  border: var(--mt-border-width-hairline) solid var(--mt-border-strong);
+  border-radius: var(--mt-radius-control);
+  min-width: 0;
+}
+
+.auth-footer {
+  text-align: center;
+  color: var(--mt-text-secondary);
+}
+
+.auth-footer a,
+.auth-card a {
+  color: var(--mt-text-link);
+}
+
+.account-list {
+  display: grid;
+  gap: var(--mt-space-2);
+  margin: 0;
+}
+
+.account-list dt {
+  color: var(--mt-text-secondary);
+  font-size: var(--mt-font-size-sm);
+}
+
+.account-list dd {
+  margin: 0 0 var(--mt-space-2);
+}
+
+/* Browser sessions (legacy resources/views/livewire/main/account/sessions/sessions.blade.php). */
+.session-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--mt-space-4);
+}
+
+.session-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--mt-space-3);
+}
+
+.session-icon {
+  flex: none;
+  width: var(--mt-size-icon-lg);
+  height: var(--mt-size-icon-lg);
+  fill: var(--mt-text-secondary);
+}
+
+.session-details {
+  display: grid;
+  gap: var(--mt-space-0-5);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.session-details p {
+  margin: 0;
+}
+
+.session-name {
+  font-weight: var(--mt-font-weight-medium);
+}
+
+.session-current {
+  color: var(--mt-text-success);
+  font-size: var(--mt-font-size-sm);
+  font-weight: var(--mt-font-weight-semibold);
+}
+
+/* Restrictions removal center (legacy resources/views/livewire/restricted/index.blade.php). */
+.restriction-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--mt-space-3);
+}
+
+.restriction-item {
+  border: var(--mt-border-width-hairline) solid var(--mt-border-default);
+  border-radius: var(--mt-radius-control);
+  padding: var(--mt-space-3);
+  display: grid;
+  gap: var(--mt-space-2);
+}
+
+.restriction-status {
+  font-weight: 600;
+  margin: 0;
+}
+
+.restriction-status[data-status='pending'],
+.restriction-status[data-status='submitted'] {
+  color: var(--mt-text-warning);
+}
+
+.restriction-status[data-status='approved'] {
+  color: var(--mt-text-success);
+}
+
+.restriction-status[data-status='rejected'] {
+  color: var(--mt-text-danger);
+}
+
+.restriction-item summary {
+  cursor: pointer;
+  color: var(--mt-text-link);
+}
+
+.restriction-message {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin: var(--mt-space-2) 0 0;
+}
+
+/* "or" divider + social buttons (components.md Divider `labelled`, AuthLayout: secondary, full width, brand mark). */
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: var(--mt-space-3);
+  color: var(--mt-text-muted);
+  font-size: var(--mt-font-size-sm);
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: '';
+  flex: 1;
+  border-top: var(--mt-border-width-hairline) solid var(--mt-border-default);
+}
+
+.auth-social {
+  display: grid;
+  gap: var(--mt-space-2);
+}
+
+.auth-social-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--mt-space-2);
+  min-height: var(--mt-size-touch-target-min);
+  font: inherit;
+  font-weight: var(--mt-font-weight-medium);
+  padding: var(--mt-space-2) var(--mt-space-3);
+  border: 0;
+  border-radius: var(--mt-radius-control);
+  background: var(--mt-action-secondary);
+  color: var(--mt-action-on-secondary);
+  cursor: pointer;
+}
+
+.auth-social-button:hover {
+  background: var(--mt-action-secondary-hover);
+}
+
+.auth-social-button:active {
+  background: var(--mt-action-secondary-pressed);
+}
+
+.auth-social-button:focus-visible {
+  outline: var(--mt-border-width-strong) solid var(--mt-border-brand);
+  outline-offset: var(--mt-space-0-5);
+}
+
+.auth-social-button[disabled] {
+  background: var(--mt-action-disabled);
+  color: var(--mt-action-on-disabled);
+  cursor: progress;
+}
+
+/* Legacy link list under the auth panel (QA BUG-01). */
+.auth-links {
+  margin: var(--mt-space-6) 0 0;
+  padding-inline-start: var(--mt-space-4);
+  font-size: var(--mt-font-size-sm);
+  list-style: disc;
+  color: var(--mt-text-secondary);
+  display: grid;
+  gap: var(--mt-space-2);
+}
+.auth-card .auth-links a {
+  color: inherit;
+}
+.auth-card .auth-links a:hover {
+  text-decoration: underline;
+}
+/* "Back to homepage" is shown on small screens only, as on the live site (`block lg:hidden`). */
+.auth-back-home {
+  display: block;
+  margin-top: var(--mt-space-3);
+}
+@media (min-width: 1024px) {
+  .auth-back-home {
+    display: none;
+  }
+}

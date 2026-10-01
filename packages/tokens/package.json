@@ -1,0 +1,22 @@
+{
+  "name": "@mytask/tokens",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MyTask.ge design tokens: tokens.json -> CSS variables (web/admin) and React Native theme objects (mobile). See docs/05-design/tokens.md.",
+  "type": "module",
+  "files": ["tokens.json", "dist"],
+  "exports": {
+    "./tokens.json": "./tokens.json",
+    "./tokens.css": "./dist/tokens.css",
+    "./fonts.css": "./dist/fonts.css",
+    ".": { "types": "./dist/tokens.d.ts", "default": "./dist/tokens.mjs" },
+    "./web": { "types": "./dist/web.d.ts", "default": "./dist/web.mjs" },
+    "./native": { "types": "./dist/native.d.ts", "default": "./dist/native.mjs" }
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "check": "node contrast.mjs",
+    "contrast:md": "node contrast.mjs --md"
+  },
+  "engines": { "node": ">=18" }
+}

@@ -1,0 +1,72 @@
+# D5 — realtime (Socket.IO) events for specs 08, 10, 11. Format: docs/04-api/realtime.md §4.
+# Payload schemas live in ../schemas/d5.yaml. Events are pushed after commit; clients always re-read via REST.
+events:
+  - name: message.created
+    room: 'conversation:{conversationId}'
+    payload: MessageCreatedEvent
+    emittedBy: [createConversationMessage, adminCreateConversationMessage, createEscrowRevisionRequest, createCustomOffer, createCustomOfferRequest, 'job:thread-system-messages']
+    covers: ['08 AC-6', '08 AC-28', '11 AC-40']
+    description: New message in a conversation or item thread. D4 operations write through the D5 service (revision request message 06 AC-26, offer card 12 AC-9, request card 12 AC-3); other system lines come from job:thread-system-messages. Clients append it or replace the optimistic bubble by clientMessageId.
+  - name: message.updated
+    room: 'conversation:{conversationId}'
+    payload: MessageUpdatedEvent
+    emittedBy: [deleteConversationMessage, adminHideConversationMessage, adminUnhideConversationMessage]
+    covers: ['08 AC-25', '08 AC-31']
+    description: A message was deleted by its sender or hidden/unhidden by staff; replace it in place.
+  - name: conversation.read
+    room: 'conversation:{conversationId}'
+    payload: ConversationReadEvent
+    emittedBy: [markConversationRead]
+    covers: ['08 AC-15']
+    description: Read receipt; the sender's ticks turn to "seen".
+  - name: conversation.updated
+    room: 'user:{userId}'
+    payload: ConversationUpdatedEvent
+    emittedBy: [createConversationMessage, adminCreateConversationMessage, removeConversationFromList]
+    covers: ['08 AC-19', '08 AC-26']
+    description: A conversation of the user changed (new message, removed from list); re-read the Inbox row. No message text in user rooms.
+  - name: conversation.unread_count_changed
+    room: 'user:{userId}'
+    payload: ConversationUnreadCountChangedEvent
+    emittedBy: [createConversationMessage, adminCreateConversationMessage, markConversationRead]
+    covers: ['08 AC-18']
+    description: New value of the Inbox badge (conversations with unseen messages).
+  - name: typing.started
+    room: 'conversation:{conversationId}'
+    payload: TypingEvent
+    emittedBy: ['job:realtime-gateway']
+    covers: ['08 AC-16']
+    description: Relayed by the Socket.IO gateway from the client emit typing.start after the participant check (realtime.md §3). Not a REST operation.
+  - name: typing.stopped
+    room: 'conversation:{conversationId}'
+    payload: TypingEvent
+    emittedBy: ['job:realtime-gateway']
+    covers: ['08 AC-16']
+    description: Relayed from the client emit typing.stop (or sent after a few seconds without typing).
+  - name: presence.changed
+    room: 'conversation:{conversationId}'
+    payload: PresenceChangedEvent
+    emittedBy: ['job:realtime-gateway']
+    covers: ['08 AC-17']
+    description: Online state (activity in the last 10 minutes, BR-012) changed; sent to the rooms of the user's direct conversations. Only the server sets presence.
+  - name: project.status_changed
+    room: 'user:{userId}'
+    payload: ProjectStatusChangedEvent
+    emittedBy: [closeProject, declineAward, cancelContract, adminApproveProject, adminRejectProject, adminHideProject, adminUnhideProject]
+    description: The owner's project changed status (room of the project owner).
+  - name: proposal.status_changed
+    room: 'user:{userId}'
+    payload: ProposalStatusChangedEvent
+    emittedBy: [createProposal, updateProposal, withdrawProposal, createAward, revokeAward, acceptAward, declineAward, cancelContract, adminApproveProposal, adminRejectProposal, 'job:award-expiry']
+    description: A proposal changed status (rooms of its author and of the project owner).
+  - name: award.status_changed
+    room: 'user:{userId}'
+    payload: AwardStatusChangedEvent
+    emittedBy: [createAward, revokeAward, acceptAward, declineAward, closeProject, 'job:award-expiry']
+    covers: ['11 AC-22']
+    description: Award created, moved, revoked, accepted, declined or expired (rooms of the freelancer and the client).
+  - name: contract.status_changed
+    room: 'user:{userId}'
+    payload: ContractStatusChangedEvent
+    emittedBy: [acceptAward, cancelContract, createPayment, createEscrowDelivery, createEscrowRevisionRequest, completeEscrow, acceptRefundRequest, adminReleaseEscrow, adminRefundEscrow, adminResolveDispute, adminApproveUnblockRequest, 'job:bog-callback', 'job:bog-reconcile', 'job:escrow-auto-release']
+    description: 'Contract created or changed status (rooms of client and freelancer): award accepted, hire canceled, paid (D3 wallet payment or verified card payment), delivered / revision requested / completed / refunded (D4 escrow operations and auto-release). Integration run: D3/D4 operations listed instead of service placeholders.'

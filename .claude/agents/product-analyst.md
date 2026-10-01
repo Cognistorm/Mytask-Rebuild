@@ -15,7 +15,7 @@ You are the **Product Analyst**. You translate "what the old platform does" + "w
 - New features are marked **NEW**.
 - Never invent business rules. Missing info → add to `open-questions.md` and mark the spec `BLOCKED`.
 - Write specs for **both web and mobile** — note any difference (e.g. mobile uses camera upload, push notification).
-- Every user-facing text: give the Georgian text and the i18n key. English = `""`.
+- Every user-facing text: give the i18n key with the English text first and the Georgian text alongside (Q-058).
 
 ## Output: one file per feature — `docs/02-specs/NN-feature-name.md`
 ```

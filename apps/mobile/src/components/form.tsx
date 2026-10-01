@@ -1,0 +1,182 @@
+// Mobile form pieces on the shared tokens (components.md TextField, Button, Alert). Texts come from i18n.
+import type { ReactNode } from 'react';
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { lightTheme as theme } from '@mytask/tokens/native';
+
+export function Screen({
+  title,
+  subtitle,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  children: ReactNode;
+}) {
+  return (
+    <SafeAreaView style={s.screen}>
+      <ScrollView contentContainerStyle={s.content} keyboardShouldPersistTaps="handled">
+        <Text style={s.title} accessibilityRole="header">
+          {title}
+        </Text>
+        {subtitle ? <Text style={s.subtitle}>{subtitle}</Text> : null}
+        {children}
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+export function Input(props: {
+  label: string;
+  value: string;
+  onChangeText: (v: string) => void;
+  error?: string;
+  secure?: boolean;
+  multiline?: boolean;
+  maxLength?: number;
+  keyboardType?: 'default' | 'email-address' | 'number-pad';
+  textContentType?:
+    'emailAddress' | 'password' | 'newPassword' | 'username' | 'name' | 'oneTimeCode';
+}) {
+  return (
+    <View style={s.field}>
+      <Text style={s.label}>{props.label}</Text>
+      <TextInput
+        style={[s.input, props.multiline ? s.multiline : null, props.error ? s.inputError : null]}
+        value={props.value}
+        onChangeText={props.onChangeText}
+        secureTextEntry={props.secure}
+        multiline={props.multiline}
+        maxLength={props.maxLength}
+        autoCapitalize={props.multiline ? 'sentences' : 'none'}
+        autoCorrect={!!props.multiline}
+        keyboardType={props.keyboardType ?? 'default'}
+        textContentType={props.textContentType}
+        accessibilityLabel={props.label}
+      />
+      {props.error ? (
+        <Text style={s.error} accessibilityLiveRegion="polite">
+          {props.error}
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
+export function Button({
+  label,
+  onPress,
+  busy,
+  disabled,
+}: {
+  label: string;
+  onPress: () => void;
+  busy?: boolean;
+  disabled?: boolean;
+}) {
+  const off = !!busy || !!disabled;
+  return (
+    <Pressable
+      style={[s.button, off ? s.buttonBusy : null]}
+      onPress={onPress}
+      disabled={off}
+      accessibilityRole="button"
+      accessibilityState={{ busy: !!busy, disabled: off }}
+    >
+      {busy ? (
+        <ActivityIndicator color={theme.colors.action.onPrimary} />
+      ) : (
+        <Text style={[s.buttonText, disabled ? s.buttonTextDisabled : null]}>{label}</Text>
+      )}
+    </Pressable>
+  );
+}
+
+export function LinkButton({ label, onPress }: { label: string; onPress: () => void }) {
+  return (
+    <Pressable onPress={onPress} accessibilityRole="link">
+      <Text style={s.link}>{label}</Text>
+    </Pressable>
+  );
+}
+
+/** The legacy link list under the auth panels (QA BUG-01): bulleted, muted links. */
+export function LinkList({ items }: { items: { label: string; onPress: () => void }[] }) {
+  return (
+    <View style={s.linkList}>
+      {items.map((i) => (
+        <View key={i.label} style={s.linkItem}>
+          <Text style={s.linkBullet}>{'•'}</Text>
+          <Pressable onPress={i.onPress} accessibilityRole="link">
+            <Text style={s.linkListText}>{i.label}</Text>
+          </Pressable>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+export function Notice({ kind, text }: { kind: 'error' | 'info' | 'success'; text: string }) {
+  const f = theme.colors.feedback;
+  const c = {
+    error: { bg: f.dangerBg, border: f.dangerBorder, text: f.dangerText },
+    info: { bg: f.infoBg, border: f.infoBorder, text: f.infoText },
+    success: { bg: f.successBg, border: f.successBorder, text: f.successText },
+  }[kind];
+  return (
+    <View
+      style={[s.notice, { backgroundColor: c.bg, borderColor: c.border }]}
+      accessibilityLiveRegion="polite"
+    >
+      <Text style={{ ...theme.text.body, color: c.text }}>{text}</Text>
+    </View>
+  );
+}
+
+const s = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: theme.colors.bg.canvas },
+  content: { padding: theme.space[4], gap: theme.space[4] },
+  title: { ...theme.text.h2, color: theme.colors.text.primary },
+  field: { gap: theme.space[1] },
+  label: { ...theme.text.label, color: theme.colors.text.primary },
+  input: {
+    ...theme.text.body,
+    color: theme.colors.text.primary,
+    backgroundColor: theme.colors.bg.surface,
+    borderWidth: theme.borderWidth.hairline,
+    borderColor: theme.colors.border.strong,
+    borderRadius: theme.radius.control,
+    padding: theme.space[3],
+  },
+  multiline: { minHeight: theme.space[24], textAlignVertical: 'top' },
+  inputError: { borderColor: theme.colors.border.danger },
+  error: { ...theme.text.bodySm, color: theme.colors.text.danger },
+  button: {
+    backgroundColor: theme.colors.action.primary,
+    borderRadius: theme.radius.control,
+    padding: theme.space[3],
+    alignItems: 'center',
+  },
+  buttonBusy: { backgroundColor: theme.colors.action.disabled },
+  buttonText: { ...theme.text.label, color: theme.colors.action.onPrimary },
+  buttonTextDisabled: { color: theme.colors.action.onDisabled },
+  link: { ...theme.text.body, color: theme.colors.text.link, textDecorationLine: 'underline' },
+  subtitle: { ...theme.text.body, color: theme.colors.text.secondary },
+  linkList: { gap: theme.space[2], marginTop: theme.space[4] },
+  linkItem: { flexDirection: 'row', gap: theme.space[2] },
+  linkBullet: { ...theme.text.bodySm, color: theme.colors.text.secondary },
+  linkListText: { ...theme.text.bodySm, color: theme.colors.text.secondary },
+  notice: {
+    borderWidth: theme.borderWidth.hairline,
+    borderRadius: theme.radius.control,
+    padding: theme.space[3],
+  },
+});

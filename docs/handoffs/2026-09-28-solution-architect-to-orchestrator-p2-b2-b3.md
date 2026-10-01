@@ -1,0 +1,69 @@
+# Handoff: solution-architect → orchestrator — P2-B2 data model, P2-B3 URL map, ADR revisions
+Date: 2026-09-28
+
+## What I did
+- **P2-B2** `docs/03-architecture/data-model.md` (status proposed), following the plan's done criteria:
+  - 120 entities in 18 domains, each with columns, types, keys, indexes and statuses; one core ER overview and six domain ER diagrams (Mermaid); enums and state machines (§4).
+  - Double-entry ledger in integer tetri (§5): buyer debited immediately, one HOLD account per escrow (gig order item, project contract payment, custom offer), user Available, platform accounts for BOG clearing, bank-transfer clearing, payout clearing, withdrawals payable, card surcharge revenue, fee revenue per fee code, subscription revenue, promo discounts, adjustments and the migration opening balance. Unapplied payments (P-40) are credited straight to the buyer's Available and marked `paid_unapplied` (no holding account needed). Withdrawn / Purchases / Net income are derived counters, not spendable accounts.
+  - One posting function; 17 money invariants written out (§6), including a DB-enforced "one outcome per subject" rule (`journals.exclusive_key`: a payment is settled once, an escrow is closed once, a withdrawal has one outcome, a renewal period is charged once).
+  - Every MM-/PM- row of specs 05, 06, 09 and 14 mapped to journal type, entries, idempotency ref, exclusive key and business state change (§7). Specs 08 and 10–13 reached "ready for Owner" while I worked, so I also mapped MM-11-01…04, MM-12-01…05 and MM-13-01…06 (§7.5) and aligned statuses, conversation kinds and the custom-offer escrow with those drafts.
+  - Separate points ledger with an extensible `points_event_types` catalogue (§8).
+  - Versioned settings and fee rules, `applied_fees` rows pointing at the exact fee-rule version, and a snapshot table showing what every transaction stores (§9).
+  - Payments, saved cards, subscriptions (DB exclusion constraint = one running subscription per user), subscription periods with the price version, promo codes with reservations.
+  - One escrow payment per project modelled as a **payment schedule on a contract** (`contracts` + `contract_payments`, exactly one line today), so milestones and hourly work can be added without breaking changes (§11). Custom offers are paid directly from `sent` (spec 12 R-C4), so each offer owns its escrow; they can move onto contracts later if offers ever need milestones.
+  - Timers as deadline columns (§10): fresh 72h after re-delivery (Q-071), fresh 72h for overdue items when auto-release is switched back ON, done in the same transaction as the setting change (Q-084), go-live + 72h for migrated delivered items (P-53b), 48h award acceptance, 2-day refund auto-reject, 3-day offer expiry, renewal reminder and renewal charge.
+  - Mutual reviews with per-gig and per-user × direction aggregates; chat (direct, delivery and refund threads) with audited staff access; staff RBAC and append-only audit log; translation rows with human/machine provenance; analytics events and daily aggregates; outbox for notifications.
+  - Legacy → new mapping outline (§12): every legacy table mapped or listed as dropped; balances migrated as-is including negatives through one opening journal per user with a per-user `legacy_hold` residual so the displayed HOLD equals legacy `balance_pending` exactly (Q-039); `project_milestones` → `contract_payments` (Q-050); Chatify `ch_messages` plus order/project delivery and refund threads migrated, legacy `conversations` dropped (Q-065); bcrypt `$2y$` hashes kept verbatim for users and staff; dropped tables with their Q-IDs (Q-040); a zero-difference reconciliation report required before cutover.
+- **P2-B3** `docs/03-architecture/url-map.md` (status proposed): Georgian unprefixed, English under `/en/`; `?locale=` and `?theme=` → one 301; every legacy public route and every dashboard route mapped (kept, 301, 302, 404 or 410); old gig slugs resolved by the uid suffix (P-33) and project slugs by pid; `/start_selling`, `/post/service`, `/ka/gita`; hreflang/canonical rules including English pages that fall back to Georgian; sitemap index structure (Q-025) and robots.txt; `/dashboard/*` and `/console/*` → `admin.mytask.ge` (Q-088); BOG return URLs for web and the mobile deep-link bounce (`/app-return/payments/{id}` → `mytask://payments/{id}/result`) and the universal-link paths.
+- **ADR revisions** (status still "proposed", each with a "Revised 2026-09-28" note):
+  - ADR-002: 2FA trigger = setting S-124 (`new_device` default, `new_device_or_ip` option) for users and staff; staff 2FA = admin toggle S-060 (P-4 adjusted); `trusted_device_ips` table so S-124 can change at any time.
+  - ADR-004: rewritten per Q-087: the standard legacy BOG flow (endpoints from `config/bog.php`) behind a small `PaymentProvider` with hooks (`verifyCallback` hook for the signature), details check before any state change, 5-minute reconciliation, renewal at the current price, and a table of items the lead developer finalises against the official BOG documentation.
+  - ADR-008: Q-084 (fresh S-026 period for overdue deliveries when S-025 is switched back ON, in the same transaction; the sweeper reads S-025 from the database) and P-53b.
+  - ADR-013: Q-085 (S-110 kept, Super-admin only, public pages only, CSP host allow-list), Q-086 (key rotation at the final production deployment).
+  - ADR-016: rewritten per Q-081: Premium is also sold by BOG card in the apps; app-store billing risk table; S-126 as the fallback switch (hides only the in-app card purchase; the API refuses mobile subscription payments while OFF; points stay).
+- `architecture.md` updated where these ADRs change it (§7.1, §7.4 pointer, §7.6, §7.12, §7.15, ADR index) with a revision note.
+- I did not change any business rule, did not write `openapi.yaml`, did not edit `docs/02-specs` or `open-questions.md`, and did not commit.
+
+## Files created/changed
+- `docs/03-architecture/data-model.md` (new)
+- `docs/03-architecture/url-map.md` (new)
+- `docs/03-architecture/adr/002-auth-sessions-legacy-passwords-2fa.md` (revised)
+- `docs/03-architecture/adr/004-bog-payments.md` (revised, rewritten)
+- `docs/03-architecture/adr/008-background-jobs-and-timers.md` (revised)
+- `docs/03-architecture/adr/013-web-root-isolation-and-secrets.md` (revised)
+- `docs/03-architecture/adr/016-mobile-payments-and-store-rules.md` (revised, rewritten)
+- `docs/03-architecture/architecture.md` (revision note and the sections above)
+- `docs/handoffs/2026-09-28-solution-architect-to-orchestrator-p2-b2-b3.md` (this file)
+- `docs/STATUS.md` (only my Step 4 line and the P2-B2/B3 done line)
+
+## What the next agent must do
+- **Owner:** review `data-model.md` and `url-map.md` (O-4) and the revised ADRs; answer the questions below.
+- **product-analyst (specs 08, 10–13 drafts, and 16/17):** the model now follows your drafts (spec 10 R-P3 project statuses, spec 11 R-H3/R-H5 proposal and contract statuses, spec 12 R-C4 offer statuses and direct payment of a sent offer, spec 13 R-R3 refund statuses with the dispute flag and AC-11 restart rule, spec 08 R-M2 conversation kinds, one attachment per message, no blocking). If the Owner changes those drafts, tell me so I update data-model §3–§4 and §7.5 before P2-B4. Two items for you:
+  1. S-110 needs a companion value for the allowed script hosts (`appearance.custom_code.allowed_hosts`) in the register (spec 16/17), per the revised ADR-013 §7.
+  2. Spec 13 MM-13-02/06 return H + (P − P′) to the buyer (freelancer-commission reversal); spec 11 MM-11-03/04 and spec 12 MM-12-05 are consistent with that. I modelled the reversal line explicitly (§7.5); please keep the same wording in any later spec.
+- **solution-architect (P2-B4 openapi):** endpoints must follow data-model §3–§7: `POST /checkout/quote`, `POST /payments` (Idempotency-Key, `returnClient`), `GET /payments/{id}`, `POST /webhooks/bog`, withdrawal quote, promo validation inside the Premium quote, order-item action flags (`canRequestRevision`, `revisionsLeft`, `autoReleaseAt`, `canComplete`, `canCancel`, `canRequestUnblock`), `contentLocale`, `isFeatured`, `GET /config/public` (incl. S-126), `GET /redirects/resolve` (url-map §10), `FEATURE_DISABLED` for mobile Premium card payments when S-126 is OFF.
+- **devops / backend (Phase 3):** Prisma schema from data-model §3; extensions `pg_trgm`, `btree_gist`, `citext`, `pgvector`; the deferred sum-zero and append-only triggers; a separate DB role without UPDATE/DELETE on journal tables.
+- **migration engineer (Phase 5):** data-model §12 and the reconciliation report; needs a local copy of the production database.
+- **security-reviewer (P2-B5):** focus on data-model §5–§6 (posting rules, exclusive keys), ADR-004 verification path (unsigned callbacks treated only as triggers), ADR-013 §7 (S-110 fence), url-map §6–§7 (410 for private legacy files, `/redirect` interstitial, app-return bounce page).
+
+## Open questions / risks
+Questions for the Owner (not added to `open-questions.md`, which the product-analyst owns in this step; the orchestrator may copy them):
+1. **Number of revisions for migrated data.** Legacy gigs, proposals and in-flight orders/projects have no "number of revisions" (Q-056 made it mandatory for new ones). Recommendation: migrated gigs get 0 and the freelancer is asked to set it on the next edit (a banner in the Selling dashboard); in-flight migrated orders and projects get 0 (the buyer can still complete, refund or dispute). Alternative: leave it empty and hide the line until the freelancer sets it. Which one?
+2. **Residual legacy HOLD.** To keep every user's HOLD exactly equal to legacy `balance_pending` (Q-039), the part that cannot be matched to an open order, milestone or offer (for example negative pending from deleted unpaid orders, R-014, or the client-side pending that the BOG project path added, R-012) goes into a per-user "legacy hold" that never auto-releases. How should staff close these after launch: (a) staff review each one and release it to Available or write it off with a reasoned ledger adjustment (recommended), or (b) move all of them to Available automatically at go-live?
+3. **Migrated staff accounts.** Legacy `admins` had full access and no roles. Which legacy admin accounts should exist in the new panel, and which role should each get? Recommendation: only the accounts you name are migrated active; the Owner's account becomes Super-admin; others are created disabled until you assign a role.
+4. **Payments that were in progress at cutover.** Legacy orders and top-ups with a pending BOG invoice (or pending bank transfer) at the moment of cutover: migrate them as "awaiting payment" / "awaiting bank transfer" so the buyer can pay or delete and staff can confirm transfers (recommended), or drop them?
+5. **Card payments legacy may never have recorded (Q-038, R-016).** Because the legacy card-success path for gig orders was broken, some orders may have been paid at BOG while the invoice still says pending. Before migration, can you export a BOG transaction statement (or give the lead developer read access) so the ETL can match BOG payments to legacy orders and fund them correctly?
+6. **Legacy notifications.** Migrate the whole in-app notification history, or only the last 12 months (recommended, to keep the new tables small)?
+7. **Legacy analytics.** Import only daily aggregates (country, device, browser, OS, referrer) from `tracker_*` and drop the raw visitor data including IPs (recommended, Q-055)?
+8. **Social-login keys.** Re-enter the social login keys in the new Admin Panel (recommended; they are OFF until keys exist, Q-032) instead of copying them from the legacy database?
+9. **SEO choices in url-map §8** (also for spec 17): (a) internal search result pages `/search?q=` are `noindex, follow`; (b) English pages whose content has no English translation point their canonical to the Georgian page and are `noindex` until English exists; (c) `/ka/gita` redirects to `/gita`. Please confirm, especially (c) if `/ka/gita` is printed in marketing material or QR codes.
+10. **Old usernames.** After a username change the old profile URL returns 404 (legacy, spec 02 EC-4). Do you want a username-history redirect (301) instead? Not a blocker.
+
+Technical risks and notes (no business rule was changed):
+- **App-store review (Q-081, ADR-016):** medium-to-high risk that Apple rejects in-app card sales of Premium; S-126 OFF is the prepared fallback. Test both modes before the first submission.
+- **BOG specifics (Q-087):** signature header, sandbox, the saved-card charge with a **changed amount** (needed for P-57 renewals at the current price; the legacy call repeats the parent amount) and card deletion must be confirmed by the lead developer. If BOG cannot charge a different amount, price changes cannot apply to renewals; the Owner must be told before slice 09.
+- **Spec 13 AC-11** (now written) restarts the 72h at the moment the seller rejects (manually or automatically) or the buyer closes the request; a later dispute pauses it again. The model implements exactly that (data-model §10).
+- **No production schema dump (Q-003, Q-049):** the mapping in data-model §12 comes from migrations and models; the ETL must be re-checked against a production copy (e.g. live-only `categories.name` columns, milestone status `delivered`).
+- **Legacy money strings:** unparseable `varchar` balances or prices stop the affected rows and are reported; nothing is guessed. The reconciliation report must show zero differences before cutover.
+- **Chatify attachments** move from public storage to the private bucket, so any old direct links to them stop working (by design).
+- **Leaked keys (Q-086):** rotated only at the final production deployment; until then the old keys remain valid in every legacy copy (accepted by the Owner).

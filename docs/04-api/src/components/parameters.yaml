@@ -1,0 +1,127 @@
+# Shared parameters (foundation). Group runs $ref them; do not edit (CONVENTIONS §2).
+
+AcceptLanguage:
+  name: Accept-Language
+  in: header
+  required: false
+  description: |
+    Response language: `ka` (default) or `en`. Anything else is treated as `ka`. Localizes error
+    `message`s and content fields; content missing in English falls back to Georgian with
+    `contentLocale: ka` (ADR-006 §2, §6). **Every path item declares this parameter** at path-item level.
+  schema:
+    type: string
+    enum: [ka, en]
+    default: ka
+
+IdempotencyKey:
+  name: Idempotency-Key
+  in: header
+  required: true
+  description: |
+    Required on every money operation (CONVENTIONS §9, ADR-003 §6). A client-generated UUID (v4 or v7),
+    one per user intent (e.g. one per press of "Pay"). The API keeps (key, caller, operation, body hash,
+    response) for 24 hours: a repeat with the same body replays the stored response with
+    `Idempotent-Replayed: true`; a repeat with a different body is refused with
+    `422 IDEMPOTENCY_KEY_REUSED`; a repeat while the first is still running gets
+    `409 IDEMPOTENCY_IN_PROGRESS`.
+  schema:
+    type: string
+    minLength: 16
+    maxLength: 100
+    pattern: '^[A-Za-z0-9-]+$'
+
+XMyTaskClient:
+  name: X-MyTask-Client
+  in: header
+  required: false
+  description: |
+    Which client calls. Sent on every request by `packages/api-client`. Required on cookie-authenticated
+    unsafe requests (CSRF defence, ADR-002 §2; missing → `403 CSRF_CHECK_FAILED`). Reference it
+    explicitly only on operations whose **behaviour** depends on it (e.g. `createPayment`, ADR-016 §3).
+  schema:
+    type: string
+    enum: [web, admin, ios, android]
+
+XMyTaskAppVersion:
+  name: X-MyTask-App-Version
+  in: header
+  required: false
+  description: |
+    Store version of the mobile app (`ios`/`android` clients), sent on every request by `packages/api-client`
+    (ADR-018). Compared with S-130 `mobile.min_app_version`: older → `426 APP_VERSION_UNSUPPORTED`. Missing or
+    malformed → served. Web and admin never send it.
+  schema:
+    type: string
+    pattern: '^[0-9]+\.[0-9]+\.[0-9]+$'
+
+Cursor:
+  name: cursor
+  in: query
+  required: false
+  description: Opaque cursor from the previous page's `nextCursor`. Omit for the first page.
+  schema:
+    type: string
+    maxLength: 512
+
+Limit:
+  name: limit
+  in: query
+  required: false
+  description: Page size for user-facing lists. Default 20 unless the operation description states the spec's page size (e.g. 40 transactions, spec 05 AC-31).
+  schema:
+    type: integer
+    minimum: 1
+    maximum: 100
+    default: 20
+
+AdminLimit:
+  name: limit
+  in: query
+  required: false
+  description: Page size for admin lists (spec 16 AC-19, AC-30 use 50).
+  schema:
+    type: integer
+    minimum: 1
+    maximum: 200
+    default: 50
+
+UserIdFilter:
+  name: userId
+  in: query
+  required: false
+  description: Admin lists only. Restricts the list to items where this user takes part (as owner, buyer, freelancer or author, per operation). Feeds the user page tabs (spec 16 AC-31).
+  schema:
+    type: string
+    format: uuid
+
+CreatedFrom:
+  name: createdFrom
+  in: query
+  required: false
+  description: Inclusive lower bound (UTC).
+  schema:
+    type: string
+    format: date-time
+
+CreatedTo:
+  name: createdTo
+  in: query
+  required: false
+  description: Exclusive upper bound (UTC).
+  schema:
+    type: string
+    format: date-time
+
+PageNumber:
+  name: page
+  in: query
+  required: false
+  description: |
+    Web page number (1-based), an alternative to `cursor` for the public lists the website renders with
+    numbered pages in the URL (`?page=N`, url-map §2, ADR-011 §4; CONVENTIONS §8.1). Only on operations
+    that reference this parameter; they also return `totalCount`. Sending both `page` and `cursor` →
+    `400 VALIDATION_FAILED`. Mobile uses `cursor`.
+  schema:
+    type: integer
+    minimum: 1
+    maximum: 1000

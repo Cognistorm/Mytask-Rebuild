@@ -1,0 +1,25 @@
+{
+  "onlyEn": [],
+  "onlyKa": [
+    "t_are_you_sure_delete_payment_method",
+    "t_existing_work_found",
+    "t_file_not_allowed",
+    "t_images_upload_failed",
+    "t_thumbnail_upload_failed",
+    "t_unblock_requests_can_only_be_created_from_delivered_orders"
+  ],
+  "placeholderMismatch": [
+    "t_app_name_has_approved_ur_refund_request",
+    "t_app_name_has_approved_ur_unblock_request",
+    "t_app_name_has_declined_ur_unblock_request",
+    "t_congratulations_employer_awarded_u_their_project_title"
+  ],
+  "nonStandardKeys": [
+    "en",
+    "ka",
+    "my_portfolio",
+    "no_results_found",
+    "t_are_you_sure_delete_payment_method "
+  ],
+  "emptyKa": []
+}

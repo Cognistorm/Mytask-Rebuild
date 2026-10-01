@@ -1,0 +1,50 @@
+# D4 — realtime (Socket.IO) events emitted for specs 06, 12, 13 and the shared escrow lifecycle.
+# Format: docs/04-api/realtime.md §4. Payload schemas are in ../schemas/d4.yaml (names end with "Event").
+# Events carry ids and statuses only; clients re-read the resource through REST.
+events:
+  - name: cart.updated
+    room: 'user:{userId}'
+    payload: CartUpdatedEvent
+    emittedBy: [putCartItem, deleteCartItem, mergeCart]
+    covers: ['06 AC-4']
+    description: The account cart changed (possibly on another device); refresh the header count and re-read with getCart.
+
+  - name: order.item_updated
+    room: 'user:{userId}'
+    payload: OrderItemUpdatedEvent
+    emittedBy: [deleteOrder, putOrderItemRequirements, startOrderItem, cancelOrderItem, createEscrowDelivery, createEscrowRevisionRequest, completeEscrow, acceptRefundRequest, adminReleaseEscrow, adminRefundEscrow, adminResolveDispute, adminApproveUnblockRequest, 'job:escrow-auto-release']
+    description: An order item changed status or order details; sent to the buyer and (once paid) the freelancer.
+
+  - name: escrow.updated
+    room: 'user:{userId}'
+    payload: EscrowUpdatedEvent
+    emittedBy: [cancelOrderItem, createEscrowDelivery, createEscrowRevisionRequest, completeEscrow, cancelCustomOffer, createRefundRequest, acceptRefundRequest, declineRefundRequest, closeRefundRequest, createDispute, adminReleaseEscrow, adminRefundEscrow, adminResolveDispute, adminApproveUnblockRequest, 'job:escrow-auto-release', 'job:refund-auto-reject']
+    covers: ['06 AC-33']
+    description: Delivery, revision, completion, auto-release, refund, or a pause/restart of the auto-release timer on an escrow; sent to its buyer and freelancer.
+
+  - name: offer.updated
+    room: 'user:{userId}'
+    payload: CustomOfferUpdatedEvent
+    emittedBy: [createCustomOffer, declineCustomOffer, withdrawCustomOffer, cancelCustomOffer, createEscrowDelivery, createEscrowRevisionRequest, completeEscrow, acceptRefundRequest, adminApproveCustomOffer, adminRejectCustomOffer, adminReleaseEscrow, adminRefundEscrow, adminResolveDispute, adminApproveUnblockRequest, 'job:offer-expiry', 'job:escrow-auto-release']
+    covers: ['12 AC-18']
+    description: A custom offer changed status (offer card in chat and offer pages refresh). The buyer is not told about offers pending approval.
+
+  - name: offer.request_updated
+    room: 'user:{userId}'
+    payload: CustomOfferRequestUpdatedEvent
+    emittedBy: [createCustomOfferRequest, createCustomOffer, declineCustomOfferRequest, cancelCustomOfferRequest]
+    description: An offer request was created, answered, declined or canceled; sent to both parties.
+
+  - name: refund.updated
+    room: 'user:{userId}'
+    payload: RefundRequestUpdatedEvent
+    emittedBy: [createRefundRequest, acceptRefundRequest, declineRefundRequest, closeRefundRequest, createDispute, completeEscrow, cancelCustomOffer, adminReleaseEscrow, adminRefundEscrow, adminResolveDispute, 'job:refund-auto-reject']
+    covers: ['13 AC-8']
+    description: A refund request changed status or got the dispute flag; sent to its buyer and freelancer.
+
+  - name: unblock.updated
+    room: 'user:{userId}'
+    payload: UnblockRequestUpdatedEvent
+    emittedBy: [createUnblockRequest, completeEscrow, createRefundRequest, acceptRefundRequest, adminReleaseEscrow, adminRefundEscrow, adminResolveDispute, adminApproveUnblockRequest, adminRejectUnblockRequest, 'job:escrow-auto-release']
+    covers: ['13 AC-27']
+    description: The freelancer's unblock request was created, approved, rejected or closed automatically.

@@ -1,0 +1,39 @@
+# Shared response headers (foundation).
+
+XRequestId:
+  description: Request id, also in the logs and shown on client error screens (ADR-015).
+  schema:
+    type: string
+
+RetryAfter:
+  description: Seconds to wait before retrying.
+  schema:
+    type: integer
+    minimum: 0
+
+IdempotentReplayed:
+  description: '`true` when this response is a stored replay of an earlier request with the same `Idempotency-Key`.'
+  schema:
+    type: boolean
+
+ContentLanguage:
+  description: Language of the localized parts of the response (`ka` or `en`).
+  schema:
+    type: string
+    enum: [ka, en]
+
+Location:
+  description: Redirect target.
+  schema:
+    type: string
+    format: uri
+
+ETag:
+  description: Entity tag for conditional GET (`If-None-Match` → 304).
+  schema:
+    type: string
+
+XMinAppVersion:
+  description: Lowest supported mobile app version for the calling platform (S-130, ADR-018). Only on responses to `ios`/`android` clients.
+  schema:
+    type: string
