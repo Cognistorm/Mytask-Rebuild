@@ -10,6 +10,8 @@ const config: NextConfig = {
   outputFileTracingRoot: resolve(import.meta.dirname, '../..'),
   poweredByHeader: false,
   reactStrictMode: true,
+  // src/proxy.ts removes trailing slashes together with the /ka prefix in one 301 (url-map §1).
+  skipTrailingSlashRedirect: true,
   transpilePackages: ['@mytask/api-client', '@mytask/i18n', '@mytask/tokens', '@mytask/types'],
   async rewrites() {
     return process.env.NODE_ENV === 'development'
