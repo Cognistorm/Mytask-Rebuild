@@ -97,7 +97,7 @@ Remaining:
 - [x] 4.0.2 Web: split `apps/web/src/app/[locale]` into public and private root layouts (ADR-019 §2) + E2E (custom-code marker gone after navigating to `/auth/login` and `/account`; private CSP has no S-127 host). Done 2026-10-02: `(public)` / `(private)` root layouts, nonce CSP in the proxy (S-127 hosts on public paths only), `e2e/custom-code.spec.ts` with a stand-in API. **4.0 complete.**
 
 ### 4.1 Slice 1 — spec 02 Profiles and dashboards (branch `feat/profiles`)
-- [ ] 4.1.1 Spec check: spec 02 vs contract ops and screens; list gaps/questions (no code).
+- [x] 4.1.1 Spec check: spec 02 vs contract ops and screens; list gaps/questions (no code). Done 2026-10-02: contract complete (35 API ACs all covered), no contract/data-model change, no new Owner question; task gaps added to 4.1.7–4.1.15 below; neutral values for later-slice data; see `docs/handoffs/2026-10-02-orchestrator-to-backend-web-mobile-4-1-1-spec-02-check.md`.
 - [ ] 4.1.2 `packages/ui`: move shared form pieces (Field, TextArea, Submit, Alert, CodeInput) out of apps/web and apps/admin.
 - [ ] 4.1.3 Files F0 part 1 (ADR-009/017): `files` table, S3 client, `createFileUpload`, `completeFileUpload`, `getFile`, `deleteFile` + tests.
 - [ ] 4.1.4 Files F0 part 2: worker pipeline — magic bytes, ClamAV with limits ≥ 100 MB (Q-154), `sharp` variants, ready/rejected.
@@ -107,17 +107,18 @@ Remaining:
   - `appeal_file` purpose; appeal with `fileIds`;
   - `adminGetRestrictionAppealFileDownload`;
   - web + mobile file picker.
-- [ ] 4.1.7 Data model spec 02: profiles, languages, skills, availability, portfolio, KYC + migration.
-- [ ] 4.1.8 API: `getMyProfile`, `updateMyProfile`, `getUserProfile`, `putMyAvatar`, `deleteMyAvatar`.
+- [ ] 4.1.7 Data model spec 02: profiles, languages, skills, availability, portfolio, KYC + migration; registry rows S-071, S-122; the 35 missing spec 02 i18n keys (en + ka).
+- [ ] 4.1.8a API: `getMyProfile`, `updateMyProfile`, `getUserProfile` (neutral values for later slices, timezone fallback `Asia/Tbilisi`), `putMyAvatar`, `deleteMyAvatar`.
+- [ ] 4.1.8b API: online status (R-P4: `last_activity_at` ≤ 1/min + Redis presence on authenticated requests → `isOnline`) + `createUserReport` (EV-13).
 - [ ] 4.1.9 API: languages + skills CRUD (6 ops), `putMyLinkedAccounts`.
-- [ ] 4.1.10 API: `putMyAvailability`, `deleteMyAvailability`.
-- [ ] 4.1.11 API: `updateMe`, `confirmEmailChange`, `updateMyPreferences`, `deleteMe`.
-- [ ] 4.1.12 API: portfolio `list/create/lookup/get/update/delete` + admin `adminApprovePortfolioItem`, `adminRemovePortfolioItem`.
+- [ ] 4.1.10 API: `putMyAvailability`, `deleteMyAvailability` + daily job `availability-reset` (AC-23).
+- [ ] 4.1.11 API: `updateMe`, `confirmEmailChange`, `updateMyPreferences`, `deleteMe` (pluggable guards: later money slices add theirs) + `createMyTwoFactorChallenge` purpose `email_change` (AC-29, Q-144).
+- [ ] 4.1.12 API: portfolio `list/create/lookup/get/update/delete` + admin `adminListPortfolioItems`, `adminGetPortfolioItem`, `adminApprovePortfolioItem`, `adminRejectPortfolioItem`, `adminRemovePortfolioItem`.
 - [ ] 4.1.13 API KYC:
   - user: `createKycVerification`, `getMyKyc`;
-  - staff: `adminApproveKycVerification`, `adminDeclineKycVerification`, `adminGetKycFileDownload`.
+  - staff: `adminListKycVerifications`, `adminGetKycVerification`, `adminApproveKycVerification`, `adminDeclineKycVerification`, `adminGetKycFileDownload`.
 - [ ] 4.1.14 API: `getSellingDashboard`.
-- [ ] 4.1.15 Spec 02 notifications (email templates via outbox).
+- [ ] 4.1.15 Spec 02 notifications (email templates via outbox): EV-11…EV-18, EV-126; in-app + push of EV-15/17/18/126 come in 4.14.
 - [ ] 4.1.16 Web: dashboard shell + switcher, Selling Home, Buying dashboard.
 - [ ] 4.1.17 Web: public profile + portfolio list/item.
 - [ ] 4.1.18 Web: edit profile + availability modal.
