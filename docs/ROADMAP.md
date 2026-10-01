@@ -75,6 +75,10 @@ Remaining:
 - PR + CI + STATUS;
 - Owner click-through.
 
+### 4.0 Before slice 1 — ADR-019 follow-ups (Owner Q-158 (a), 2026-10-01)
+- [ ] 4.0.1 Architect + analyst: contract `422 CUSTOM_CODE_HOST_DENIED` on `adminUpdateSetting` / `adminRestoreSettingVersion` (additive) + i18n `t_custom_code_host_denied` (en + ka); spec 16 AC-73 (full page load at the public/private boundary) and AC-74 (built-in deny list).
+- [ ] 4.0.2 Web: split `apps/web/src/app/[locale]` into public and private root layouts (ADR-019 §2) + E2E (custom-code marker gone after navigating to `/auth/login` and `/account`; private CSP has no S-127 host).
+
 ### 4.1 Slice 1 — spec 02 Profiles and dashboards (branch `feat/profiles`)
 - [ ] 4.1.1 Spec check: spec 02 vs contract ops and screens; list gaps/questions (no code).
 - [ ] 4.1.2 `packages/ui`: move shared form pieces (Field, TextArea, Submit, Alert, CodeInput) out of apps/web and apps/admin.
@@ -418,7 +422,7 @@ Remaining:
 - [ ] 4.15.11 API system: logs, health, refresh caches.
 - [ ] 4.15.12 API: maintenance (3 ops) + settings history/restore.
 - [ ] 4.15.13 API: countries (`listCountries` + 3 admin ops) + legacy holds release/write-off + ledger views.
-- [ ] 4.15.14 API: `getWebCustomCode` + S-110/S-127 rules.
+- [ ] 4.15.14 API: `getWebCustomCode` + S-110/S-127 rules, incl. the ADR-019 tag-manager deny list (§3) and path-scoped CSP vendor table (§4).
 - [ ] 4.15.15 Admin: login/2FA/set password + home.
 - [ ] 4.15.16 Admin: staff + roles.
 - [ ] 4.15.17 Admin: audit log.
@@ -500,7 +504,7 @@ Remaining:
 - [ ] 6.9 Full migration rehearsal on staging.
 - [ ] 6.10 301 redirects + SEO check on staging.
 - [ ] 6.11 Load test.
-- [ ] 6.12 Final security review + pre-launch checklist.
+- [ ] 6.12 Final security review + pre-launch checklist (incl. ADR-019 §5 Clarity "Strict" masking and §7 re-entering GA4/Clarity with their S-127 hosts).
 - [ ] 6.13 Mobile: EAS production builds.
 - [ ] 6.14 Mobile: store listings + submission for iOS and Android (ADR-016).
 - [ ] 6.15 Cutover plan + rehearsal.

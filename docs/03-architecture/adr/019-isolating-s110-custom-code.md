@@ -1,5 +1,5 @@
 # ADR-019: Isolating S-110 custom code (Phase 3 study P3-9)
-Date: 2026-10-01 | Status: **proposed** (Owner question Q-158) | Amends: ADR-013 §7 (adds rules, removes none) | Closes: phase-3-plan P3-9, ADR-013 §7 "Phase 3 study"
+Date: 2026-10-01 | Status: **accepted** (Owner 2026-10-01, Q-158 (a)) | Amends: ADR-013 §7 (adds rules, removes none) | Closes: phase-3-plan P3-9, ADR-013 §7 "Phase 3 study"
 
 ## Context
 - S-110 lets the Super-admin put custom HTML/JS in the head and footer of public web pages (Q-085). The public-page CSP allows the S-127 hosts (ADR-013 §7). Such a script runs on the **same origin** as the cookie-authenticated API, so it can act as the signed-in visitor (SEC-11). The Owner decided Q-146 (c): only fixed-code vendors for now, confirmed per host (spec 16 AC-74a); study isolation in Phase 3. This ADR is that study.
@@ -25,7 +25,7 @@ Date: 2026-10-01 | Status: **proposed** (Owner question Q-158) | Amends: ADR-013
 
 E is rejected: it is a performance tool, not isolation. B only pays off for pure pixels and breaks both vendors in use today. C and F are good long-term choices but replace the Owner's tools. D is cheap and strong but loses analytics of signed-in users, which is a business choice.
 
-## Decision (proposed; Owner chooses in Q-158)
+## Decision (accepted by the Owner 2026-10-01, Q-158 (a))
 1. **Keep the in-page model of ADR-013 §7 and Q-146 (c) for launch** (option A). Iframe isolation (B) is **not built** now; its design above is kept here for when a pixel-only vendor is wanted. Options C, D and F stay open to the Owner (Q-158).
 2. **Hard boundary between public and private pages (mandatory, web).** `apps/web` gets **two root layouts** in route groups — public (the AC-73 allow-list of routes) and private (auth, account, seller, cart, checkout, payment, inbox, restricted, `app-return`). Next.js loads a new document when navigation crosses root layouts, so a custom script and the relaxed CSP never survive into a private page. Only the public root layout calls `getWebCustomCode` and adds the S-127 hosts to its CSP; the private one always sends the strict CSP. Links between the two are ordinary links; the full reload is the accepted cost. Required E2E test: custom code sets a marker on `window` on a public page; after clicking through to `/auth/login` and to `/account` the marker is gone and the response CSP has no S-127 host.
 3. **Built-in deny list (API, code constant, not a setting).** `adminUpdateSetting` refuses S-110 code and S-127 hosts that load a tag-manager container: at least Google Tag Manager (`googletagmanager.com/gtm.js`, `GTM-` container ids), Adobe Launch (`assets.adobedtm.com`), Tealium (`tags.tiqcdn.com`), Segment (`cdn.segment.com`), and the Google Tag Manager server-side preview hosts. The check matches URLs and container ids in the saved code, not only hostnames, so the Google tag (`/gtag/js?id=G-…`) stays possible. Error: new code `422 CUSTOM_CODE_HOST_DENIED` (`details.matches`, messageKey `t_custom_code_host_denied`, NEW en + ka). The list lives in one file with a source comment per entry and is reviewed in the slice 17 security review.
