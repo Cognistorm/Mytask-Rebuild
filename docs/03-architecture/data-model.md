@@ -1,6 +1,8 @@
 # Data model — MyTask.ge rebuild
 Status: **accepted (Owner 2026-09-30)** | Author: solution-architect (P2-B2) | Date: 2026-09-28
 
+> **Revised 2026-10-01 (Phase 3 task 3.13, gaps from slice 01 B-1).** `staff.full_name varchar(100)` recorded (already required by the contract `AdminMe.fullName`; ETL fills it from legacy `admins.username`, §3.P). `twofa_purpose` gains `staff_reauth` for the emailed staff re-authentication code (`adminRequestReauthCode` → `adminReauthenticate` `method: email_code`, spec 16 AC-7, §3.A). No new tables.
+
 > **Revised 2026-09-30 (Owner Phase 2 gate answers and P2-B5 re-check).** Accepted by the Owner. P-135 accepted: `reconciliation_runs` / `reconciliation_differences` and S-128 are no longer PROPOSED; S-128 is in the `payments` settings area (Q-111, Q-137). Q-144: `users.email_changed_at`, `password_changed_at` (existing, now also used for the pause), `payout_details.changed_at` drive the withdrawal pause S-129 and the approver flag (§3.A, §3.J). Q-117: `portfolio_items.rejected_at`, rejected state accepted (§3.B). Q-120: a negative legacy-hold residual can only be written off (§5.3). Q-146: S-127 value shape with per-host fixed-code confirmation (§3.K). SEC-31: `payment_events.body_sha256`, `repeat_count`, `last_received_at` (§3.J). S-129 added to the register (129 rows). No new tables.
 Inputs: `architecture.md`, ADR-001…016 (as revised 2026-09-28), approved specs `docs/02-specs/00` (register S-001…S-126), 01–07, 09, 14; Owner answers Q-002…Q-094 (authoritative); `docs/01-discovery/data-model.md` (legacy schema, 230 migrations); `routes-and-pages.md`.
 Specs 08, 10, 11, 12 and 13 were written in parallel (status "ready for Owner" when this model was finished). The model was first built from the Owner answers (Q-005, Q-012, Q-015, Q-020, Q-027, Q-034…Q-037, Q-050, Q-056, Q-060, Q-065, Q-067, Q-071) and discovery, then **aligned with those drafts** (statuses, custom-offer escrow, conversation kinds, MM-11/12/13 rows). Parts marked **"to confirm against spec NN"** must be re-checked if the Owner changes those drafts. No business rule is invented here.
@@ -450,7 +452,7 @@ PIX `(user_id) WHERE revoked_at IS NULL`, `(staff_id) WHERE revoked_at IS NULL`.
 **trusted_device_ips** — IPs confirmed on a trusted device, used only when S-124 = `new_device_or_ip`
 `trusted_device_id` FK · `ip inet` · `trusted_until` · `created_at`. PK `(trusted_device_id, ip)`. With S-124 = `new_device` the IP table is written but not checked, so switching the setting needs no data change.
 
-**two_factor_challenges** — `id` PK · `principal_type`, `user_id`, `staff_id` · `purpose twofa_purpose` (`login`, `toggle_two_factor`, `email_change`, `payout_details`, `revoke_sessions`; a code is accepted only by the operation of its purpose, ADR-002 §5) · `code_hash bytea` · `device_id_hash bytea` · `ip inet` · `attempts smallint default 0` · `max_attempts smallint` (snapshot S-058) · `expires_at` (snapshot S-057) · `consumed_at null` · `invalidated_at null` · `created_at`. IX `(user_id, created_at)`. Resend cooldown and the 5-per-15-minutes cap are Redis counters (spec 01 R-A6), as are the per-account caps across challenges (10 wrong codes per hour, SEC-03), the per-account login counters (S-062 per account + IP; slow mode per account, SEC-02) and the in-session password/code counter (SEC-04) (ADR-002 §5–§6). Revoked session ids are in a Redis deny-list with a 15-minute TTL (ADR-002 §1).
+**two_factor_challenges** — `id` PK · `principal_type`, `user_id`, `staff_id` · `purpose twofa_purpose` (`login`, `toggle_two_factor`, `email_change`, `payout_details`, `revoke_sessions`, `staff_reauth`; a code is accepted only by the operation of its purpose, ADR-002 §5; `staff_reauth` = the staff step-up code from `adminRequestReauthCode`, accepted only by `adminReauthenticate` with `method: email_code`, `principal_type = staff`, added 2026-10-01) · `code_hash bytea` · `device_id_hash bytea` · `ip inet` · `attempts smallint default 0` · `max_attempts smallint` (snapshot S-058) · `expires_at` (snapshot S-057) · `consumed_at null` · `invalidated_at null` · `created_at`. IX `(user_id, created_at)`. Resend cooldown and the 5-per-15-minutes cap are Redis counters (spec 01 R-A6), as are the per-account caps across challenges (10 wrong codes per hour, SEC-03), the per-account login counters (S-062 per account + IP; slow mode per account, SEC-02) and the in-session password/code counter (SEC-04) (ADR-002 §5–§6). Revoked session ids are in a Redis deny-list with a 15-minute TTL (ADR-002 §1).
 
 **banned_ips** — staff-login IP ban (S-064, spec 01 AC-51/52)
 `ip inet PK` · `failed_attempts int` · `banned_at timestamptz null` (null = counting, not banned) · `source ban_source` (`auto_threshold`, `manual`) · `note text null` · `created_by_staff_id null` · `created_at`, `updated_at`. User login throttling (S-062/S-063) is in Redis, not here.
@@ -975,7 +977,7 @@ Blocking users is out of scope (spec 08; legacy blocking existed only in the rem
 **outbox_events**: `id bigint identity PK` · `event_type` · `aggregate_type`, `aggregate_id` · `payload jsonb` · `created_at` · `dispatched_at null` · `attempts`. PIX `(id) WHERE dispatched_at IS NULL`.
 
 ### 3.P Staff, RBAC, audit and logs (ADR-010, Q-054, Q-088)
-**staff**: `id` PK · `legacy_id` · `username citext UK` · `email citext UK` · `password_hash` · `password_algo` · `status` (`active`, `disabled`) · `locale` · `last_login_at` · `created_by_staff_id null` · timestamps. Staff 2FA (S-060, trigger S-124) uses the same `trusted_devices` and `two_factor_challenges` tables.
+**staff**: `id` PK · `legacy_id` · `username citext UK` · `full_name varchar(100)` (contract `AdminMe.fullName`, staff create/edit; legacy `admins` has no name column, so the ETL fills it with `username`; added 2026-10-01) · `email citext UK` · `password_hash` · `password_algo` · `status` (`active`, `disabled`) · `locale` · `last_login_at` · `created_by_staff_id null` · timestamps. Staff 2FA (S-060, trigger S-124) uses the same `trusted_devices` and `two_factor_challenges` tables.
 
 **roles**: `id` PK · `code text UK` · `name` · `description` · `is_system boolean` (Super-admin: all permissions, not editable) · timestamps.
 
@@ -1308,7 +1310,7 @@ For the migration engineer (Phase 5, `tools/migrate-legacy`). Source: 230 migrat
 | `users.dark_mode` | `users.theme` (`dark` / null) | |
 | `users.last_activity`, `active_status`, `remember_token` | `last_activity_at`; others dropped | |
 | `users.deleted_at` | `users.deleted_at` | email/username stay reserved |
-| `admins` | `staff` (bcrypt hash verbatim, `bcrypt_legacy`) | roles: Owner question 3 in the handoff |
+| `admins` | `staff` (bcrypt hash verbatim, `bcrypt_legacy`; `full_name` = `username`, legacy has no name) | roles: Owner question 3 in the handoff |
 | `user_skills` (experience beginner/intermediate/pro) | `user_skills` (slug regenerated from the name) | |
 | `user_languages` | `user_languages` | |
 | `user_availability.expected_available_date` + message | `user_profiles.unavailable_until`, `unavailable_message` | past dates dropped |
