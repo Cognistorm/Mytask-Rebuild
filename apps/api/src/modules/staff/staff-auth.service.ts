@@ -181,9 +181,17 @@ export class StaffAuthService {
     };
   }
 
-  async logout(sessionId: string): Promise<void> {
+  async logout(staffId: string, sessionId: string, ctx: RequestContext): Promise<void> {
     await this.sessions.revokeWhere({ id: sessionId }, 'logout');
     await this.redis.client.del(`auth:stepup:${sessionId}`);
+    await this.audit.write({
+      actorStaffId: staffId,
+      action: 'staff.logout',
+      targetType: 'session',
+      targetId: sessionId,
+      ip: ctx.ip,
+      userAgent: ctx.userAgent,
+    });
   }
 
   /** AC-7: re-authentication opens a 15-minute step-up window for THIS session only (ADR-002 §6). */
@@ -235,7 +243,7 @@ export class StaffAuthService {
     await this.redis.client.set(`auth:stepup:${sessionId}`, '1', 'EX', STEP_UP_SECONDS);
     await this.audit.write({
       actorStaffId: staffId,
-      action: 'staff.reauthenticate',
+      action: 'staff.reauth',
       targetType: 'session',
       targetId: sessionId,
       ip: ctx.ip,
@@ -350,7 +358,7 @@ export class StaffAuthService {
     });
     if (banned.count > 0) {
       await this.audit.write({
-        action: 'security.ip_ban.auto',
+        action: 'ip_ban.auto',
         targetType: 'ip',
         targetId: ipKey,
         ip,

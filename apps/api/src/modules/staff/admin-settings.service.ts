@@ -166,7 +166,7 @@ export class AdminSettingsService {
         {
           actorStaffId: caller.staffId,
           permissionCode: meta.writePermission,
-          action: 'settings.update',
+          action: 'setting.update',
           targetType: 'setting',
           targetId: id,
           before: { value: beforeView, version: currentVersion },

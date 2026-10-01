@@ -144,9 +144,7 @@ describe('staff login (spec 01 AC-29, AC-51; spec 16 AC-2)', () => {
       .send({ login: staff.username, password: PASSWORD });
     expect(banned.status).toBe(403);
     expect(banned.body.code).toBe('STAFF_IP_BANNED');
-    expect(
-      await prisma.auditLog.count({ where: { action: 'security.ip_ban.auto' } }),
-    ).toBeGreaterThan(0);
+    expect(await prisma.auditLog.count({ where: { action: 'ip_ban.auto' } })).toBeGreaterThan(0);
   });
 });
 
@@ -267,7 +265,7 @@ describe('admin settings: the 2FA switch S-056 (spec 16 AC-51…AC-56, AC-7)', (
     expect(bad.body.details.fields[0].messageKey).toBe('t_setting_invalid_value');
 
     expect(
-      await prisma.auditLog.count({ where: { action: 'settings.update', targetId: 'S-056' } }),
+      await prisma.auditLog.count({ where: { action: 'setting.update', targetId: 'S-056' } }),
     ).toBe(1);
     expect(await prisma.settingVersion.count({ where: { key: 'auth.two_factor.enabled' } })).toBe(
       1,
@@ -379,6 +377,65 @@ describe('part B-2a: IP bans, own password, activate, ban', () => {
       (await request(app.getHttpServer()).delete('/api/v1/admin/ip-bans/198.51.100.7').set(auth))
         .status,
     ).toBe(404);
+  });
+
+  it('bans are stored in one canonical spelling and match any spelling (SEC-60)', async () => {
+    const staff = await makeStaff();
+    const auth = { Authorization: `Bearer ${await login(staff)}` };
+    const ban = (ip: string) =>
+      request(app.getHttpServer()).post('/api/v1/admin/ip-bans').set(auth).send({ ip });
+    const v6 = await ban('2001:0DB8:0:0::1');
+    expect(v6.body.ip).toBe('2001:db8::1');
+    expect((await ban('2001:db8::1')).status).toBe(409);
+    expect((await ban('::ffff:203.0.113.5')).body.ip).toBe('203.0.113.5');
+    // The mapped spelling bans the plain IPv4 client.
+    const viaSsr = await request(app.getHttpServer())
+      .post('/api/v1/admin/auth/login')
+      .set(ADMIN)
+      .set({
+        'x-mytask-visitor-ip': '203.0.113.5',
+        'x-mytask-service-auth': app.get<Env>(ENV).INTERNAL_SERVICE_TOKEN,
+      })
+      .send({ login: staff.username, password: PASSWORD });
+    expect(viaSsr.body.code).toBe('STAFF_IP_BANNED');
+    expect(
+      (await request(app.getHttpServer()).delete('/api/v1/admin/ip-bans/2001:DB8:0::1').set(auth))
+        .status,
+    ).toBe(204);
+    // An automatic /64 ban is removed by its prefix (URL-encoded slash) in any spelling.
+    await prisma.bannedIp.create({
+      data: { ip: '2001:db8:1:2::/64', bannedAt: new Date(), failedAttempts: 3 },
+    });
+    expect(
+      (
+        await request(app.getHttpServer())
+          .delete(`/api/v1/admin/ip-bans/${encodeURIComponent('2001:DB8:1:2:0::/64')}`)
+          .set(auth)
+      ).status,
+    ).toBe(204);
+    expect(
+      (await request(app.getHttpServer()).delete('/api/v1/admin/ip-bans/not-an-ip').set(auth))
+        .status,
+    ).toBe(404);
+    expect(
+      await prisma.auditLog.count({ where: { action: 'ip_ban.create', actorStaffId: staff.id } }),
+    ).toBe(2);
+    expect(
+      await prisma.auditLog.count({ where: { action: 'ip_ban.delete', actorStaffId: staff.id } }),
+    ).toBe(2);
+  });
+
+  it('logout writes staff.logout (SEC-59)', async () => {
+    const staff = await makeStaff();
+    const token = await login(staff);
+    const out = await request(app.getHttpServer())
+      .post('/api/v1/admin/auth/logout')
+      .set(ADMIN)
+      .set('Authorization', `Bearer ${token}`);
+    expect(out.status).toBe(204);
+    expect(
+      await prisma.auditLog.count({ where: { action: 'staff.logout', actorStaffId: staff.id } }),
+    ).toBe(1);
   });
 
   it('own password change ends the other staff sessions (spec 16 AC-6)', async () => {
@@ -720,7 +777,7 @@ describe('part B-2c: social-login provider rows S-065…S-069 (ADR-005 §8, Q-15
     const stored = await prisma.setting.findUniqueOrThrow({ where: { key: 'auth.social.google' } });
     expect(JSON.stringify(stored.value)).not.toContain('top-secret-value');
     const audit = await prisma.auditLog.findFirstOrThrow({
-      where: { action: 'settings.update', targetId: 'S-065' },
+      where: { action: 'setting.update', targetId: 'S-065' },
       orderBy: { id: 'desc' },
     });
     expect(JSON.stringify([audit.before, audit.after, audit.reason])).not.toContain(

@@ -3,7 +3,7 @@
 openapi: 3.1.0
 info:
   title: MyTask.ge API
-  version: 1.2.0
+  version: 1.2.1
   summary: One API for the MyTask.ge website, mobile apps (iOS, Android) and admin panel.
   description: |
     **Status: approved by the Owner 2026-09-30 as the contract** (Phase 2 gate, version 1.0.0, including
@@ -12,7 +12,8 @@ info:
     Changes since approval (all additive): **1.1.0** mobile version gate (ADR-018, Q-153); **1.2.0**
     social-login settings S-065…S-069 as `structured` values `SettingSocialProviderValue` /
     `SettingSocialProviderUpdate` (ADR-005 §8, Q-155) and the trusted-email rule of `completeSocialLogin`
-    (ADR-002 §7, Q-156).
+    (ADR-002 §7, Q-156); **1.2.1** (descriptions only) staff-login IP bans: canonical spelling and
+    automatic IPv6 bans per /64 prefix (ADR-002 §6, SEC-57, SEC-60).
 
     **The contract is the law** (CLAUDE.md). Web (`apps/web`), mobile (`apps/mobile`) and admin
     (`apps/admin`) use only this API through the generated `packages/types` + `packages/api-client`
@@ -4168,7 +4169,7 @@ paths:
     get:
       operationId: adminListIpBans
       summary: Banned IPs (staff login)
-      description: Each banned IP with its failed-attempt count and date (spec 01 AC-52, spec 16 AC-35, P-20). Newest first. Automatic bans are written by D6's `adminLogin` at S-064 failures (spec 01 AC-51).
+      description: Each banned IP with its failed-attempt count and date (spec 01 AC-52, spec 16 AC-35, P-20). Newest first. Automatic bans are written by D6's `adminLogin` at S-064 failures (spec 01 AC-51); an automatic ban of an IPv6 client covers its /64 and is listed as that prefix, e.g. `2001:db8:1:2::/64` (ADR-002 §6).
       tags:
         - Admin Users
       security:
@@ -4251,7 +4252,7 @@ paths:
       - name: ip
         in: path
         required: true
-        description: The banned IPv4 or IPv6 address (URL-encoded).
+        description: The banned IPv4 or IPv6 address, or the IPv6 /64 prefix of an automatic ban, as listed (URL-encoded; any spelling of the same address is accepted).
         schema:
           type: string
           maxLength: 45
@@ -31880,7 +31881,7 @@ components:
       properties:
         ip:
           type: string
-          description: IPv4 or IPv6 address.
+          description: IPv4 or IPv6 address in canonical form (IPv6 lower case and compressed, IPv4-mapped IPv6 as IPv4), or for an automatic ban of an IPv6 client its /64 prefix, e.g. `2001:db8:1:2::/64` (ADR-002 §6).
         failedAttempts:
           type: integer
           minimum: 0
@@ -31909,7 +31910,7 @@ components:
         ip:
           type: string
           maxLength: 45
-          description: IPv4 or IPv6 address (validated by the API).
+          description: IPv4 or IPv6 address (validated by the API, stored in canonical form).
         note:
           type:
             - string

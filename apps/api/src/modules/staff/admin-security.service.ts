@@ -1,9 +1,9 @@
 // Banned IPs of the staff login (spec 01 AC-51/AC-52, P-20) and the staff member's own password (spec 16 AC-6).
-import { isIP } from 'node:net';
 import { Injectable } from '@nestjs/common';
 import type { components } from '@mytask/types';
 import type { BannedIp } from '../../generated/prisma/client';
 import { AuditService } from '../../platform/audit/audit.service';
+import { normalizeBanKey, normalizeIp } from '../../platform/client-ip/client-ip.resolver';
 import { PrismaService } from '../../platform/db/prisma.service';
 import { ApiException } from '../../platform/errors/api-exception';
 import { PasswordService } from '../auth/password.service';
@@ -33,8 +33,8 @@ export class AdminSecurityService {
   }
 
   async createBan(input: S['IpBanCreateRequest'], staffId: string, ctx: RequestContext) {
-    const ip = input.ip.trim();
-    if (!isIP(ip)) {
+    const ip = normalizeIp(input.ip);
+    if (!ip) {
       throw new ApiException(400, 'VALIDATION_FAILED', 't_toast_something_went_wrong', {
         fields: [
           {
@@ -67,7 +67,7 @@ export class AdminSecurityService {
     await this.audit.write({
       actorStaffId: staffId,
       permissionCode: 'security.ip_bans',
-      action: 'security.ip_ban.create',
+      action: 'ip_ban.create',
       targetType: 'ip',
       targetId: ip,
       reason: input.note ?? null,
@@ -77,7 +77,10 @@ export class AdminSecurityService {
     return (await this.withStaff([row]))[0]!;
   }
 
-  async deleteBan(ip: string, staffId: string, ctx: RequestContext): Promise<void> {
+  async deleteBan(raw: string, staffId: string, ctx: RequestContext): Promise<void> {
+    // Any spelling of the address (or of an automatic IPv6 /64 ban) finds the stored canonical row (SEC-60).
+    const ip = normalizeBanKey(raw);
+    if (!ip) throw new ApiException(404, 'NOT_FOUND', 't_page_not_fount');
     const existing = await this.prisma.bannedIp.findUnique({ where: { ip } });
     if (!existing?.bannedAt) throw new ApiException(404, 'NOT_FOUND', 't_page_not_fount');
     // Removes the ban and resets the failed-attempt counter (AC-52).
@@ -85,7 +88,7 @@ export class AdminSecurityService {
     await this.audit.write({
       actorStaffId: staffId,
       permissionCode: 'security.ip_bans',
-      action: 'security.ip_ban.delete',
+      action: 'ip_ban.delete',
       targetType: 'ip',
       targetId: ip,
       before: { failedAttempts: existing.failedAttempts, source: existing.source },

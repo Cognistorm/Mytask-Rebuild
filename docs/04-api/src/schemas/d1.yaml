@@ -1517,7 +1517,7 @@ IpBan:
   description: A banned IP of the staff login (spec 01 AC-51, AC-52). User logins are not affected.
   required: [ip, failedAttempts, bannedAt, source, note, createdBy, createdAt]
   properties:
-    ip: {type: string, description: IPv4 or IPv6 address.}
+    ip: {type: string, description: 'IPv4 or IPv6 address in canonical form (IPv6 lower case and compressed, IPv4-mapped IPv6 as IPv4), or for an automatic ban of an IPv6 client its /64 prefix, e.g. `2001:db8:1:2::/64` (ADR-002 §6).'}
     failedAttempts: {type: integer, minimum: 0}
     bannedAt: {$ref: '../components/schemas.yaml#/Timestamp'}
     source: {type: string, enum: [auto_threshold, manual]}
@@ -1542,7 +1542,7 @@ IpBanCreateRequest:
     ip:
       type: string
       maxLength: 45
-      description: IPv4 or IPv6 address (validated by the API).
+      description: IPv4 or IPv6 address (validated by the API, stored in canonical form).
     note: {type: [string, 'null'], maxLength: 1000}
 
 # ═════════════════════════ Staff: portfolio, KYC ═════════════════════════

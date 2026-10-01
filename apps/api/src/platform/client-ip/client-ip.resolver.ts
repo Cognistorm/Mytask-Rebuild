@@ -12,15 +12,26 @@ export const HEADER_VISITOR_IP = 'x-mytask-visitor-ip';
 export const HEADER_VISITOR_UA = 'x-mytask-visitor-ua';
 export const HEADER_SERVICE_AUTH = 'x-mytask-service-auth';
 
-/** `::ffff:10.0.0.1` -> `10.0.0.1`; anything that is not an IP -> undefined. */
+/**
+ * The one canonical spelling of an IP (SEC-60): IPv4 as is; IPv6 lower case and compressed (RFC 5952,
+ * `2001:0DB8:0:0::1` -> `2001:db8::1`); an IPv4-mapped IPv6 address -> IPv4 (`::ffff:10.0.0.1` -> `10.0.0.1`);
+ * zone ids are dropped. Anything that is not an IP -> undefined. Used on every write, lookup and request IP.
+ */
 export function normalizeIp(value: string | undefined | null): string | undefined {
   if (!value) return undefined;
-  const v = value.trim().replace(/^::ffff:/i, '');
-  return isIP(v) ? v : undefined;
+  const v = value.trim().replace(/%.*$/, '');
+  const kind = isIP(v);
+  if (kind === 4) return v;
+  if (kind !== 6) return undefined;
+  const host = new URL(`http://[${v}]/`).hostname.slice(1, -1);
+  const mapped = /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(host);
+  if (!mapped) return host;
+  const [hi, lo] = [parseInt(mapped[1]!, 16), parseInt(mapped[2]!, 16)];
+  return [hi >> 8, hi & 255, lo >> 8, lo & 255].join('.');
 }
 
 /** IPv6 clients are keyed by their /64 (one household or phone gets many addresses, SEC-42).
- * Used by the global limiter and the staff login IP ban (SEC-57). */
+ * Used by the global limiter and the staff login IP ban (SEC-57). Canonical form, e.g. `2001:db8:1:2::/64`. */
 export function ipBucket(ip: string): string {
   if (!ip.includes(':')) return ip;
   const parts = ip.split(':');
@@ -31,7 +42,15 @@ export function ipBucket(ip: string): string {
       for (let i = 0; i < missing; i++) full.push('0');
     } else if (p !== '') full.push(p);
   }
-  return `${full.slice(0, 4).join(':')}::/64`;
+  return `${normalizeIp(`${full.slice(0, 4).join(':')}::`)}/64`;
+}
+
+/** A ban key as given by a client: a canonical address, or an IPv6 /64 prefix as `ipBucket` writes it. */
+export function normalizeBanKey(value: string | undefined | null): string | undefined {
+  const m = /^(.+)\/64$/.exec(value?.trim() ?? '');
+  if (!m) return normalizeIp(value);
+  const ip = normalizeIp(m[1]);
+  return ip?.includes(':') ? ipBucket(ip) : undefined;
 }
 
 export interface ClientInfo {

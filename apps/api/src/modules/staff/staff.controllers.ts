@@ -138,8 +138,12 @@ export class StaffAuthController extends WithContext {
   @StaffRoute()
   @Post('logout')
   @HttpCode(204)
-  async logout(@CurrentStaff() staff: StaffAuthState, @Res({ passthrough: true }) res: Response) {
-    await this.auth.logout(staff.sessionId);
+  async logout(
+    @CurrentStaff() staff: StaffAuthState,
+    @Req() req: Req_,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    await this.auth.logout(staff.staffId, staff.sessionId, this.ctx(req));
     clear(res);
   }
 
