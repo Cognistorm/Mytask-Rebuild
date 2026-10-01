@@ -4,7 +4,7 @@
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
-import { AuthLinks, BackHome, TermsSentence } from '../../../../components/auth/links';
+import { AuthLinks, BackHome, PolicyLinks, TermsSentence } from '../../../../components/auth/links';
 import { SocialButtons } from '../../../../components/auth/social';
 import { Alert, AuthCard, Field, Submit } from '../../../../components/auth/ui';
 import {
@@ -145,7 +145,7 @@ function RegisterForm() {
         <Submit busy={busy}>{t('t_create_account')}</Submit>
       </form>
       <SocialButtons referralCode={form.referralCode} />
-      {/* Legacy link list (`register.blade.php`, QA BUG-01); privacy and terms are in the sentence above. */}
+      {/* Legacy link list (`register.blade.php`, QA BUG-01, BUG-05). */}
       <AuthLinks>
         <li>
           {t('t_already_have_account')}{' '}
@@ -154,6 +154,7 @@ function RegisterForm() {
         <li>
           <Link href={href(locale, '/auth/request')}>{t('t_resend_verification_email')}</Link>
         </li>
+        <PolicyLinks locale={locale} t={t} />
       </AuthLinks>
     </AuthCard>
   );

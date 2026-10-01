@@ -164,6 +164,8 @@ export default function Register() {
             onPress: () => router.replace('/login'),
           },
           { label: t('t_resend_verification_email'), onPress: () => router.push('/auth/request') },
+          { label: t('t_privacy_policy'), onPress: () => openWebPage(PRIVACY_URL) },
+          { label: t('t_terms_of_service'), onPress: () => openWebPage(TERMS_URL) },
         ]}
       />
     </Screen>

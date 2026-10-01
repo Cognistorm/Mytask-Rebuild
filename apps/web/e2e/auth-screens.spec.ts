@@ -42,6 +42,15 @@ test('register (ka): email before username, legacy terms sentence with links, li
   await expect(
     page.locator('.auth-links').getByRole('link', { name: 'ავტორიზაცია' }),
   ).toBeVisible();
+  // QA BUG-05: privacy and terms are in the list too; BUG-06: the checkbox keeps its own small size.
+  await expect(
+    page.locator('.auth-links').getByRole('link', { name: 'კონფიდენციალურობის პოლიტიკა' }),
+  ).toHaveAttribute('href', '/page/privacy-policy');
+  await expect(
+    page.locator('.auth-links').getByRole('link', { name: 'მომსახურების წესები და პირობები' }),
+  ).toHaveAttribute('href', '/page/terms-of-service');
+  const box = await page.getByRole('checkbox').boundingBox();
+  expect(box!.width).toBeLessThan(40);
 });
 
 test('forgot password and resend verification: subtitles and "back to sign in"', async ({
