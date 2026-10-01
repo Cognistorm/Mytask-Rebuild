@@ -57,6 +57,8 @@ Category data is admin-managed. In production these images come from the databas
 | File | Source | Date | Notes |
 |---|---|---|---|
 | `icons/verified-badge.svg` | `legacy/APP/public/img/auth/verified-badge.svg` | 2026-09-28 | Shield-check, fill `#2E88FF`, 20×20 viewBox. Used for "account verified" (`components/main/account/sidebar.blade.php`, admin lists). Off-brand blue; the colour will come from tokens |
+| `icons/social/facebook.svg`, `google.svg`, `github.svg`, `linkedin.svg` | Inline SVGs of the legacy social-login buttons, `legacy/APP/resources/views/livewire/main/auth/login.blade.php` (same in `register.blade.php`) | 2026-10-01 | Brand marks for the login/register social buttons (task 3.6, components.md: official marks are the only non-Phosphor icons). Copied path for path; GitHub `#000` → `currentColor` so it stays visible in dark mode; LinkedIn keeps only the tile and the white glyph (the legacy 5 %/7 % shadow layers dropped), viewBox cropped to the tile. Inlined in `apps/web/src/components/auth/social-icons.tsx` |
+| `icons/social/x.svg` | Official X logo (X brand toolkit, https://about.x.com/en/who-we-are/brand-toolkit), monochrome | 2026-10-01 | Replaces the legacy blue Twitter bird (`login.blade.php`, `#1da1f2`), which X no longer uses; `currentColor` (tokens `color.social.x` is black). Inlined in `social-icons.tsx` |
 
 ## Flags (language switcher)
 | File | Source | Date | Notes |

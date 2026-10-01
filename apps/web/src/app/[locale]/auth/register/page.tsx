@@ -1,8 +1,10 @@
 'use client';
-// Spec 01 AC-1…AC-6: register (buyer + freelancer at once), `?ref=CODE` pre-fills the referral code.
+// Spec 01 AC-1…AC-6, AC-37, AC-38: register (buyer + freelancer at once) or a social button; `?ref=CODE`
+// pre-fills the referral code, which the social flow carries too.
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
+import { SocialButtons } from '../../../../components/auth/social';
 import { Alert, AuthCard, Field, Submit } from '../../../../components/auth/ui';
 import {
   href,
@@ -138,6 +140,7 @@ function RegisterForm() {
         </div>
         <Submit busy={busy}>{t('t_signup')}</Submit>
       </form>
+      <SocialButtons referralCode={form.referralCode} />
       <p className="auth-footer">
         {t('t_already_have_account')} <Link href={href(locale, '/auth/login')}>{t('t_login')}</Link>
       </p>

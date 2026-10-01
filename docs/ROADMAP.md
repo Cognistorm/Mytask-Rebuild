@@ -47,7 +47,7 @@ Remaining:
 - [x] 3.3 Fix P3 QA minor findings BUG-09…BUG-14: SETUP-LOCAL notes, `s3-init` check, `/ka/` double redirect, error nits, second agent-rules file, stale docs.
 - [x] 3.4 `getPublicConfig` part 1: registry rows for every `PublicConfig` field, using spec 00 defaults (approved values only).
 - [x] 3.5 `getPublicConfig` part 2: endpoint + contract/response tests.
-- [ ] 3.6 Web: social buttons on login/register (from `PublicConfig.socialProviders`) + callback page `/auth/{provider}/callback` + E2E with a fake provider.
+- [x] 3.6 Web: social buttons on login/register (from `PublicConfig.socialProviders`) + callback page `/auth/{provider}/callback` + E2E with a fake provider.
 - [ ] 3.7 Mobile: social login with `expo-auth-session` (app-held PKCE, App Link redirect).
 - [ ] 3.8 Web: change password (Account → Password) + E2E.
 - [ ] 3.9 Web: sessions page `/account/sessions` (list, log out other sessions) + E2E.

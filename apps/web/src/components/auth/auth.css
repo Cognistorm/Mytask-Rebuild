@@ -253,3 +253,59 @@
   overflow-wrap: anywhere;
   margin: var(--mt-space-2) 0 0;
 }
+
+/* "or" divider + social buttons (components.md Divider `labelled`, AuthLayout: secondary, full width, brand mark). */
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: var(--mt-space-3);
+  color: var(--mt-text-muted);
+  font-size: var(--mt-font-size-sm);
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: '';
+  flex: 1;
+  border-top: var(--mt-border-width-hairline) solid var(--mt-border-default);
+}
+
+.auth-social {
+  display: grid;
+  gap: var(--mt-space-2);
+}
+
+.auth-social-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--mt-space-2);
+  min-height: var(--mt-size-touch-target-min);
+  font: inherit;
+  font-weight: var(--mt-font-weight-medium);
+  padding: var(--mt-space-2) var(--mt-space-3);
+  border: 0;
+  border-radius: var(--mt-radius-control);
+  background: var(--mt-action-secondary);
+  color: var(--mt-action-on-secondary);
+  cursor: pointer;
+}
+
+.auth-social-button:hover {
+  background: var(--mt-action-secondary-hover);
+}
+
+.auth-social-button:active {
+  background: var(--mt-action-secondary-pressed);
+}
+
+.auth-social-button:focus-visible {
+  outline: var(--mt-border-width-strong) solid var(--mt-border-brand);
+  outline-offset: var(--mt-space-0-5);
+}
+
+.auth-social-button[disabled] {
+  background: var(--mt-action-disabled);
+  color: var(--mt-action-on-disabled);
+  cursor: progress;
+}

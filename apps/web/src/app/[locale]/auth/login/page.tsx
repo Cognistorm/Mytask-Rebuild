@@ -1,9 +1,11 @@
 'use client';
-// Spec 01 AC-10…AC-16, AC-22…AC-27, AC-53: login, then the email-code step when 2FA applies.
+// Spec 01 AC-10…AC-16, AC-22…AC-27, AC-37, AC-53: login, social buttons, then the email-code step when 2FA applies.
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useEffect, useState } from 'react';
-import { Alert, AuthCard, CodeInput, Field, Submit } from '../../../../components/auth/ui';
+import { Suspense, useState } from 'react';
+import { SocialButtons } from '../../../../components/auth/social';
+import { TwoFactorStep, type TwoFactorChallenge } from '../../../../components/auth/two-factor';
+import { Alert, AuthCard, Field, Submit } from '../../../../components/auth/ui';
 import {
   href,
   safeNext,
@@ -13,12 +15,6 @@ import {
   useT,
   type ApiErrorBody,
 } from '../../../../lib/client';
-
-interface Challenge {
-  challengeId: string;
-  resendAvailableAt: string;
-  notice: { message: string };
-}
 
 function LoginForm() {
   const locale = useLocale();
@@ -32,15 +28,7 @@ function LoginForm() {
   const [rememberMe, setRememberMe] = useState(true);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<ApiErrorBody>();
-  const [challenge, setChallenge] = useState<Challenge>();
-  const [code, setCode] = useState('');
-  const [info, setInfo] = useState<string>();
-  const [now, setNow] = useState(() => Date.now());
-
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(id);
-  }, []);
+  const [challenge, setChallenge] = useState<TwoFactorChallenge>();
 
   const done = () => router.push(safeNext(search.get('next'), href(locale, '/account')));
   const { fields, general } = splitErrors(err);
@@ -52,59 +40,11 @@ function LoginForm() {
     const res = await api.POST('/auth/login', { body: { email, password, rememberMe } });
     setBusy(false);
     if (res.error) return setErr(res.error as ApiErrorBody);
-    if (res.response.status === 202) {
-      const c = res.data as unknown as Challenge;
-      setChallenge(c);
-      setInfo(c.notice.message);
-      return;
-    }
+    if (res.response.status === 202) return setChallenge(res.data as unknown as TwoFactorChallenge);
     done();
   }
 
-  async function onVerify(e: React.FormEvent) {
-    e.preventDefault();
-    if (!challenge) return;
-    setBusy(true);
-    setErr(undefined);
-    const res = await api.POST('/auth/2fa/verify', {
-      body: { challengeId: challenge.challengeId, code },
-    });
-    setBusy(false);
-    if (res.error) return setErr(res.error as ApiErrorBody);
-    done();
-  }
-
-  async function onResend() {
-    if (!challenge) return;
-    setErr(undefined);
-    const res = await api.POST('/auth/2fa/resend', {
-      body: { challengeId: challenge.challengeId },
-    });
-    if (res.error) return setErr(res.error as ApiErrorBody);
-    const c = res.data as unknown as Challenge;
-    setChallenge(c);
-    setCode('');
-    setInfo(c.notice.message);
-  }
-
-  if (challenge) {
-    const wait = Math.max(0, Math.ceil((Date.parse(challenge.resendAvailableAt) - now) / 1000));
-    return (
-      <AuthCard title={t('t_2fa_enter_code_title')}>
-        {info && <Alert kind="info">{info}</Alert>}
-        {err && <Alert kind="error">{err.message}</Alert>}
-        <form onSubmit={onVerify} noValidate>
-          <CodeInput label={t('t_ui_verification_code')} value={code} onChange={setCode} />
-          <Submit busy={busy || code.length !== 6}>{t('t_continue')}</Submit>
-        </form>
-        <div className="auth-row">
-          <button type="button" className="auth-link-button" disabled={wait > 0} onClick={onResend}>
-            {wait > 0 ? t('t_2fa_resend_wait', { seconds: wait }) : t('t_2fa_resend_code')}
-          </button>
-        </div>
-      </AuthCard>
-    );
-  }
+  if (challenge) return <TwoFactorStep challenge={challenge} onDone={done} />;
 
   return (
     <AuthCard title={t('t_welcome_back')}>
@@ -152,6 +92,11 @@ function LoginForm() {
         </div>
         <Submit busy={busy}>{t('t_login')}</Submit>
       </form>
+      {/* A `?ref=` link that lands here still reaches a new social account (AC-38); a malformed one is ignored. */}
+      <SocialButtons
+        referralCode={/^[A-Za-z0-9]{8}$/.test(search.get('ref') ?? '') ? search.get('ref') : null}
+        next={search.get('next')}
+      />
       <p className="auth-footer">
         <Link href={href(locale, '/auth/register')}>{t('t_create_account')}</Link>
       </p>
