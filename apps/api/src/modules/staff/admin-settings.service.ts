@@ -3,7 +3,7 @@
 // new version row + audit (before/after), EV-124 to every S-100 address for critical rows (AC-55, AC-56).
 import { Inject, Injectable } from '@nestjs/common';
 import type { components } from '@mytask/types';
-import type { Prisma } from '../../generated/prisma/client';
+import { Prisma } from '../../generated/prisma/client';
 import { AuditService } from '../../platform/audit/audit.service';
 import { ENV, type Env } from '../../platform/config/env';
 import { PrismaService } from '../../platform/db/prisma.service';
@@ -111,10 +111,10 @@ export class AdminSettingsService {
     }
     const current = await this.prisma.setting.findUnique({ where: { key } });
     let stored: unknown = input.value;
-    let beforeView: unknown = current?.value ?? meta.default;
+    let beforeView: unknown = current ? current.value : meta.default;
     let afterView: unknown = input.value;
     if (isSocial(meta)) {
-      const prev = (current?.value ?? meta.default) as SocialProviderStored;
+      const prev = (current ? current.value : meta.default) as SocialProviderStored;
       stored = this.mergeSocial(prev, input.value, ctx);
       const replaced = typeof (input.value as { clientSecret?: unknown }).clientSecret === 'string';
       beforeView = socialAudit(prev);
@@ -130,7 +130,8 @@ export class AdminSettingsService {
       });
     }
     const version = currentVersion + 1;
-    const value = stored as Prisma.InputJsonValue;
+    // A stored null (unlimited, R-2.2) is a JSON null, not a missing row.
+    const value = stored === null ? Prisma.JsonNull : (stored as Prisma.InputJsonValue);
     // Read everything outside the transaction (a second connection inside it could wait forever).
     const critical = 'critical' in meta && meta.critical;
     const adminRecipients = critical ? ((await this.settings.get('S-100')) as string[]) : [];
@@ -271,6 +272,7 @@ export class AdminSettingsService {
         if (typeof value !== 'boolean') fail('true / false');
         return;
       case 'integer': {
+        if (value === null && 'nullable' in meta && meta.nullable) return;
         const min = 'minimum' in meta ? meta.minimum : undefined;
         const max = 'maximum' in meta ? meta.maximum : undefined;
         if (typeof value !== 'number' || !Number.isInteger(value)) fail('integer');
@@ -294,6 +296,8 @@ export class AdminSettingsService {
         }
         return;
       case 'structured': {
+        // Only S-130 so far; the other structured rows get their editors in slice 16.
+        if (meta.key !== settingsRegistry['S-130'].key) fail('not editable here yet');
         const v = value as { ios?: unknown; android?: unknown };
         if (
           !v ||
@@ -321,7 +325,7 @@ export class AdminSettingsService {
   ): S['SettingEntry'] {
     const by = row?.updatedByStaffId ? staff.find((s) => s.id === row.updatedByStaffId) : undefined;
     const social = isSocial(m);
-    const raw = row?.value ?? m.default;
+    const raw = row ? row.value : m.default;
     return {
       key: m.key,
       registerId: id,
@@ -340,7 +344,7 @@ export class AdminSettingsService {
       registerStatus: 'approved',
       isVersioned: true,
       isSecret: social,
-      isPublic: false,
+      isPublic: 'public' in m ? !!m.public : false,
       isCritical: 'critical' in m ? !!m.critical : false,
       stepUpRequired: 'stepUp' in m ? !!m.stepUp : false,
       writePermission: m.writePermission,

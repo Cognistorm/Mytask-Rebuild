@@ -230,6 +230,45 @@ describe('admin settings: the 2FA switch S-056 (spec 16 AC-51…AC-56, AC-7)', (
     expect(user.body.session.user.twoFactorAvailable).toBe(false);
   });
 
+  it('public rows (task 3.4): listed as public; a limit accepts null = unlimited (R-2.2)', async () => {
+    const staff = await makeStaff();
+    const auth = { Authorization: `Bearer ${await login(staff)}` };
+
+    const list = await request(app.getHttpServer()).get('/api/v1/admin/settings').set(auth);
+    expect(list.status).toBe(200);
+    const byId = (id: string) =>
+      list.body.settings.find((s: { registerId: string }) => s.registerId === id);
+    expect(byId('S-001')).toMatchObject({ value: 1, isPublic: true, area: 'plans' });
+    expect(byId('S-008')).toMatchObject({ value: { amount: 999, currency: 'GEL' }, type: 'money' });
+    expect(byId('S-065')).toMatchObject({ isPublic: false });
+    expect(byId('S-100')).toMatchObject({ isPublic: false });
+
+    const path = '/api/v1/admin/settings/plans.standard.gig_limit';
+    const unlimited = await request(app.getHttpServer())
+      .patch(path)
+      .set(auth)
+      .send({ value: null, expectedVersion: 1 });
+    expect(unlimited.status).toBe(200);
+    expect(unlimited.body).toMatchObject({ value: null, version: 2 });
+    const back = await request(app.getHttpServer())
+      .patch(path)
+      .set(auth)
+      .send({ value: 1, expectedVersion: 2 });
+    expect(back.status).toBe(200);
+
+    // Not nullable → null refused; structured rows other than S-130 wait for their slice 16 editors.
+    const nullDays = await request(app.getHttpServer())
+      .patch('/api/v1/admin/settings/escrow.auto_release.hours')
+      .set(auth)
+      .send({ value: null, expectedVersion: 1 });
+    expect(nullDays.status).toBe(400);
+    const branding = await request(app.getHttpServer())
+      .patch('/api/v1/admin/settings/branding.site')
+      .set(auth)
+      .send({ value: { ios: '1.0.0', android: '1.0.0' }, expectedVersion: 1 });
+    expect(branding.status).toBe(400);
+  });
+
   it('a staff member without a role cannot read settings', async () => {
     const plain = await makeStaff(false);
     const token = await login(plain);

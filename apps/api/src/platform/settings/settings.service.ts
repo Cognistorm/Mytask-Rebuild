@@ -23,7 +23,7 @@ export class SettingsService {
     const hit = this.cache.get(id);
     if (hit && Date.now() - hit.at < CACHE_MS) return hit.value as SettingValue<Id>;
     const row = await this.prisma.setting.findUnique({ where: { registerId: id } });
-    const value = (row?.value ?? settingsRegistry[id].default) as SettingValue<Id>;
+    const value = (row ? row.value : settingsRegistry[id].default) as SettingValue<Id>;
     this.cache.set(id, { value, at: Date.now() });
     return value;
   }
