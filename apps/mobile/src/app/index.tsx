@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { Text } from 'react-native';
 import { lightTheme as theme } from '@mytask/tokens/native';
 import type { components } from '@mytask/types';
-import { Button, Screen } from '../components/form';
+import { Button, LinkButton, Screen } from '../components/form';
 import { clearSession, loadSession, mobileApi } from '../lib/api';
 import { createT } from '../lib/i18n';
 
@@ -49,6 +49,10 @@ export default function Home() {
       <Text style={line}>{state.username}</Text>
       <Text style={line}>{state.email}</Text>
       <Text style={line}>{t(state.twoFactorEnabled ? 't_2fa_enabled' : 't_2fa_disabled')}</Text>
+      <LinkButton
+        label={t('t_security_settings_sidebar')}
+        onPress={() => router.push('/account/security')}
+      />
       <Button label={t('t_logout')} onPress={logout} />
     </Screen>
   );

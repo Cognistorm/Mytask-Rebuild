@@ -66,23 +66,26 @@ export function Button({
   label,
   onPress,
   busy,
+  disabled,
 }: {
   label: string;
   onPress: () => void;
   busy?: boolean;
+  disabled?: boolean;
 }) {
+  const off = !!busy || !!disabled;
   return (
     <Pressable
-      style={[s.button, busy ? s.buttonBusy : null]}
+      style={[s.button, off ? s.buttonBusy : null]}
       onPress={onPress}
-      disabled={busy}
+      disabled={off}
       accessibilityRole="button"
-      accessibilityState={{ busy: !!busy, disabled: !!busy }}
+      accessibilityState={{ busy: !!busy, disabled: off }}
     >
       {busy ? (
         <ActivityIndicator color={theme.colors.action.onPrimary} />
       ) : (
-        <Text style={s.buttonText}>{label}</Text>
+        <Text style={[s.buttonText, disabled ? s.buttonTextDisabled : null]}>{label}</Text>
       )}
     </Pressable>
   );
@@ -139,6 +142,7 @@ const s = StyleSheet.create({
   },
   buttonBusy: { backgroundColor: theme.colors.action.disabled },
   buttonText: { ...theme.text.label, color: theme.colors.action.onPrimary },
+  buttonTextDisabled: { color: theme.colors.action.onDisabled },
   link: { ...theme.text.body, color: theme.colors.text.link, textDecorationLine: 'underline' },
   notice: {
     borderWidth: theme.borderWidth.hairline,
