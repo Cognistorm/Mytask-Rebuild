@@ -57,11 +57,11 @@ Remaining:
 - [x] 3.12 Mobile: Account → Security (change password, 2FA switch, sessions).
 - [x] 3.13 Architect: record data-model gaps `staff.full_name` and the staff re-auth code purpose; add `/auth/password/update` and `/auth/verify` (with and without `/en`) to the App Link claims of url-map §7.2 (spec 01 screens table; app side done in 3.10/3.11).
 - [x] 3.14 Architect: P3-9 study on isolating S-110 custom code (note or ADR).
-- [ ] 3.15 QA parity report for all of slice 01 → `docs/06-qa/reports/` (split, 2026-10-01):
+- [x] 3.15 QA parity report for all of slice 01 → `docs/06-qa/reports/` (split, 2026-10-01):
   - [x] 3.15a Test plan `docs/06-qa/plans/01-auth.md` (AC → test case → evidence) + run every automated suite (lint, typecheck, API, web/admin E2E incl. full-stack via `pnpm preview`, mobile export) + API-level checks of the ACs on the running local stack; report part 1.
-  - [ ] 3.15b Screen parity vs live site and `/legacy/` (web + mobile), i18n check, cross-client check (web ↔ app), bugs + verdict; report complete.
+  - [x] 3.15b Screen parity vs live site and `/legacy/` (web + mobile), i18n check, cross-client check (web ↔ app), bugs + verdict; report complete.
 - [ ] 3.16 Security review of slice 01 B-1…B-2c, incl. SEC-09 → `docs/06-qa/security/`.
-- [ ] 3.17 Fix findings from 3.15/3.16 and the web 2FA switch for accounts without a password (emailed code, as mobile 3.12), the staff emailed re-auth code (`twofa_purpose` `staff_reauth`: Prisma enum + migration, `adminRequestReauthCode`, `adminReauthenticate` `method: email_code`; data-model §3.A, recorded in 3.13), plus the before-slice-01-done items of review 03 (SEC-39, rest of SEC-35 incl. register limit 10/hour/IP per Q-157, SEC-50, SEC-51, SEC-45 tests) (split into 3.17a/b… if more than one step).
+- [ ] 3.17 Fix findings from 3.15/3.16 and the web 2FA switch for accounts without a password (emailed code, as mobile 3.12), the staff emailed re-auth code (`twofa_purpose` `staff_reauth`: Prisma enum + migration, `adminRequestReauthCode`, `adminReauthenticate` `method: email_code`; data-model §3.A, recorded in 3.13), plus the QA 3.15 findings (`docs/06-qa/reports/01-auth-2026-10-01.md` §9 + §3: BUG-01 major — login/register legacy link list, subtitle, back-to-home on web + app; BUG-02 register field order; BUG-03 subtitles, back-to-sign-in, page titles; BUG-04 terms text (analyst decides); F-01 mobile reCAPTCHA doc gap; F-02 routed sessions E2E by state; F-04 spec text; F-05 admin aria-label; then QA re-check §10), plus the before-slice-01-done items of review 03 (SEC-39, rest of SEC-35 incl. register limit 10/hour/IP per Q-157, SEC-50, SEC-51, SEC-45 tests) (split into 3.17a/b… if more than one step).
 - [ ] 3.18 Open PR `feat/auth` → `main`, CI green (Owner merges).
 - [ ] 3.19 **Phase 3 gate (Owner):** register / log in / log out on web and app; approve.
 
