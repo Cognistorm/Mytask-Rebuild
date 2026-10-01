@@ -70,7 +70,7 @@ Remaining:
   - [x] 3.17m Architect + backend SEC-41 + I-23: `remember_me` on the session row (data-model + migration), carried through the 2FA challenge and used on every refresh; social login per I-23.
   - [x] 3.17n Backend SEC-47 (reCAPTCHA `action` + `hostname`, incl. staff login) + SEC-58 (social delivery and session client kind from the stored `state` client, P3 test).
   - [x] 3.17f SEC-45 tests (env tests SMTP_URL / SETTINGS_ENCRYPTION_KEY / memory:// / log; P4) + SEC-44 (server lost-race rule, client signs out only on 401).
-  - [ ] 3.17g Web: 2FA switch for accounts without a password (emailed code, as mobile 3.12) + SEC-48 replaceState on `auth/password/update` and `auth/verify` + F-05 admin aria-label.
+  - [x] 3.17g Web: 2FA switch for accounts without a password (emailed code, as mobile 3.12) + SEC-48 replaceState on `auth/password/update` and `auth/verify` + F-05 admin aria-label.
   - [ ] 3.17h Web + app: BUG-01 (legacy link list, subtitle, back-to-home on login/register), BUG-02 register field order, BUG-03 (subtitles, back-to-sign-in, page titles).
   - [ ] 3.17i Analyst/docs: BUG-04 terms text decision, F-04 spec text, F-01 mobile reCAPTCHA doc gap; F-02 routed sessions E2E by state.
   - [ ] 3.17j QA re-check report §10 (screens web ka + en, app source, web E2E on the production build).

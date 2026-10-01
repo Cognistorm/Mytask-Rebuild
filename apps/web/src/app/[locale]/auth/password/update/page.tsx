@@ -19,14 +19,21 @@ function UpdateForm() {
   const api = useApi(locale);
   const router = useRouter();
   const search = useSearchParams();
-  const token = search.get('token') ?? '';
-  const email = search.get('email') ?? '';
+  // Read once: the link token leaves the address bar right away (SEC-48: history, screenshots, Referer).
+  const [{ token, email }] = useState(() => ({
+    token: search.get('token') ?? '',
+    email: search.get('email') ?? '',
+  }));
   const [state, setState] = useState<'checking' | 'form' | 'expired'>('checking');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<ApiErrorBody>();
   const { fields, general } = splitErrors(err);
+
+  useEffect(() => {
+    window.history.replaceState(null, '', window.location.pathname);
+  }, []);
 
   useEffect(() => {
     void api.POST('/auth/password-reset/validate', { body: { token, email } }).then((res) => {

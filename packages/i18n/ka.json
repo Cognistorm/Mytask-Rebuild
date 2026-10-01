@@ -125,6 +125,7 @@
   "t_admin_maintenance_headline": "სათაური / შეტყობინება",
   "t_admin_maintenance_on_body": "{{staff}}-მა {{time}}-ზე ჩართო განახლების რეჟიმი. საიტი და აპლიკაცია მომხმარებლებისთვის დახურულია მის გამორთვამდე.",
   "t_admin_mark_reviewed": "განხილულად მონიშვნა",
+  "t_admin_navigation": "ადმინისტრაციის ნავიგაცია",
   "t_admin_negative_residual_write_off_only": "უარყოფითი ნაშთის მხოლოდ ჩამოწერაა შესაძლებელი.",
   "t_admin_no_results": "შედეგი ვერ მოიძებნა",
   "t_admin_permissions": "უფლებები",

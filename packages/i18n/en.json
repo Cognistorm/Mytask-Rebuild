@@ -125,6 +125,7 @@
   "t_admin_maintenance_headline": "Headline / Message",
   "t_admin_maintenance_on_body": "{{staff}} switched maintenance mode ON at {{time}}. The public website and app are closed to users until it is switched off.",
   "t_admin_mark_reviewed": "Mark as reviewed",
+  "t_admin_navigation": "Admin navigation",
   "t_admin_negative_residual_write_off_only": "A negative residual can only be written off.",
   "t_admin_no_results": "No results found",
   "t_admin_permissions": "Permissions",

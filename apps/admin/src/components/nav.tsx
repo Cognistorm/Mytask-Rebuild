@@ -39,7 +39,7 @@ export function AdminNav({ onMe }: { onMe?: (me: Me) => void }) {
 
   return (
     <header className="admin-header">
-      <nav aria-label="Admin" className="admin-nav">
+      <nav aria-label={t('t_admin_navigation')} className="admin-nav">
         {links
           .filter((l) => l.show)
           .map((l) => (

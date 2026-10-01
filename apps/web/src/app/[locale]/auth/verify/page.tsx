@@ -19,6 +19,8 @@ function Verify() {
     if (once.current) return;
     once.current = true;
     const body = { token: search.get('token') ?? '', email: search.get('email') ?? '' };
+    // SEC-48: the link token leaves the address bar (history, screenshots, Referer) once read.
+    window.history.replaceState(null, '', window.location.pathname);
     void api.POST('/auth/email-verification/confirm', { body }).then((res) => {
       if (res.error) return setErr(res.error as ApiErrorBody);
       router.replace(`${href(locale, '/auth/login')}?verified=1`);
