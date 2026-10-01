@@ -94,7 +94,7 @@ Remaining:
 
 ### 4.0 Before slice 1 — ADR-019 follow-ups (Owner Q-158 (a), 2026-10-01)
 - [x] 4.0.1 Architect + analyst: contract `422 CUSTOM_CODE_HOST_DENIED` on `adminUpdateSetting` / `adminRestoreSettingVersion` (additive) + i18n `t_custom_code_host_denied` (en + ka); spec 16 AC-73 (full page load at the public/private boundary) and AC-74 (built-in deny list). Done 2026-10-02: contract 1.3.0, branch `feat/adr-019-followups`.
-- [ ] 4.0.2 Web: split `apps/web/src/app/[locale]` into public and private root layouts (ADR-019 §2) + E2E (custom-code marker gone after navigating to `/auth/login` and `/account`; private CSP has no S-127 host).
+- [x] 4.0.2 Web: split `apps/web/src/app/[locale]` into public and private root layouts (ADR-019 §2) + E2E (custom-code marker gone after navigating to `/auth/login` and `/account`; private CSP has no S-127 host). Done 2026-10-02: `(public)` / `(private)` root layouts, nonce CSP in the proxy (S-127 hosts on public paths only), `e2e/custom-code.spec.ts` with a stand-in API. **4.0 complete.**
 
 ### 4.1 Slice 1 — spec 02 Profiles and dashboards (branch `feat/profiles`)
 - [ ] 4.1.1 Spec check: spec 02 vs contract ops and screens; list gaps/questions (no code).
