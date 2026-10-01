@@ -35,7 +35,10 @@ export default function ResendVerification() {
   }
 
   return (
-    <Screen title={t('t_resend_verification_email')}>
+    <Screen
+      title={t('t_resend_verification_email')}
+      subtitle={t('t_resend_verification_email_subtitle')}
+    >
       {sent ? <Notice kind="success" text={sent} /> : null}
       {general ? <Notice kind="error" text={general} /> : null}
       {!sent ? (
@@ -48,10 +51,10 @@ export default function ResendVerification() {
             textContentType="emailAddress"
             error={field('email')}
           />
-          <Button label={t('t_submit')} onPress={onSubmit} busy={busy} />
+          <Button label={t('t_send')} onPress={onSubmit} busy={busy} />
         </>
       ) : null}
-      <LinkButton label={t('t_login')} onPress={() => router.replace('/login')} />
+      <LinkButton label={t('t_back_to_sign_in')} onPress={() => router.replace('/login')} />
     </Screen>
   );
 }

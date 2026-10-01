@@ -12,13 +12,22 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { lightTheme as theme } from '@mytask/tokens/native';
 
-export function Screen({ title, children }: { title: string; children: ReactNode }) {
+export function Screen({
+  title,
+  subtitle,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  children: ReactNode;
+}) {
   return (
     <SafeAreaView style={s.screen}>
       <ScrollView contentContainerStyle={s.content} keyboardShouldPersistTaps="handled">
         <Text style={s.title} accessibilityRole="header">
           {title}
         </Text>
+        {subtitle ? <Text style={s.subtitle}>{subtitle}</Text> : null}
         {children}
       </ScrollView>
     </SafeAreaView>
@@ -99,6 +108,22 @@ export function LinkButton({ label, onPress }: { label: string; onPress: () => v
   );
 }
 
+/** The legacy link list under the auth panels (QA BUG-01): bulleted, muted links. */
+export function LinkList({ items }: { items: { label: string; onPress: () => void }[] }) {
+  return (
+    <View style={s.linkList}>
+      {items.map((i) => (
+        <View key={i.label} style={s.linkItem}>
+          <Text style={s.linkBullet}>{'•'}</Text>
+          <Pressable onPress={i.onPress} accessibilityRole="link">
+            <Text style={s.linkListText}>{i.label}</Text>
+          </Pressable>
+        </View>
+      ))}
+    </View>
+  );
+}
+
 export function Notice({ kind, text }: { kind: 'error' | 'info' | 'success'; text: string }) {
   const f = theme.colors.feedback;
   const c = {
@@ -144,6 +169,11 @@ const s = StyleSheet.create({
   buttonText: { ...theme.text.label, color: theme.colors.action.onPrimary },
   buttonTextDisabled: { color: theme.colors.action.onDisabled },
   link: { ...theme.text.body, color: theme.colors.text.link, textDecorationLine: 'underline' },
+  subtitle: { ...theme.text.body, color: theme.colors.text.secondary },
+  linkList: { gap: theme.space[2], marginTop: theme.space[4] },
+  linkItem: { flexDirection: 'row', gap: theme.space[2] },
+  linkBullet: { ...theme.text.bodySm, color: theme.colors.text.secondary },
+  linkListText: { ...theme.text.bodySm, color: theme.colors.text.secondary },
   notice: {
     borderWidth: theme.borderWidth.hairline,
     borderRadius: theme.radius.control,

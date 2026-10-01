@@ -3,12 +3,13 @@
 // (AC-13). Mobile stays signed in.
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Button, Input, LinkButton, Notice, Screen } from '../components/form';
+import { Button, Input, LinkList, Notice, Screen } from '../components/form';
 import { SocialButtons } from '../components/social';
 import { TwoFactorStep } from '../components/two-factor';
 import { getDeviceToken, mobileApi, saveSession } from '../lib/api';
 import { createT } from '../lib/i18n';
 import type { TwoFactorChallenge } from '../lib/social';
+import { openWebPage, PRIVACY_URL, TERMS_URL } from '../lib/web-pages';
 
 const locale = 'ka' as const;
 const t = createT(locale);
@@ -51,18 +52,12 @@ export default function Login() {
   }
 
   return (
-    <Screen title={t('t_welcome_back')}>
+    <Screen title={t('t_welcome_back')} subtitle={t('t_pls_login_to_continue')}>
       {verified ? (
         <Notice kind="success" text={t('t_ur_account_has_been_successfully_verified_email')} />
       ) : null}
       {reset ? <Notice kind="success" text={t('t_password_has_been_updated')} /> : null}
       {general ? <Notice kind="error" text={general} /> : null}
-      {error?.code === 'ACCOUNT_PENDING' && error.details?.verificationMethod === 'email' ? (
-        <LinkButton
-          label={t('t_resend_verification_email')}
-          onPress={() => router.push({ pathname: '/auth/request', params: { email } })}
-        />
-      ) : null}
       <Input
         label={t('t_email_address')}
         value={email}
@@ -79,17 +74,25 @@ export default function Login() {
         textContentType="password"
         error={field('password')}
       />
-      <LinkButton
-        label={t('t_forgot_password')}
-        onPress={() => router.push('/auth/password/reset')}
-      />
       <Button label={t('t_login')} onPress={onLogin} busy={busy} />
       <SocialButtons
         locale={locale}
         onSignedIn={() => router.replace('/')}
         onChallenge={setChallenge}
       />
-      <LinkButton label={t('t_create_account')} onPress={() => router.push('/register')} />
+      {/* Legacy link list (`login.blade.php`, QA BUG-01). */}
+      <LinkList
+        items={[
+          { label: t('t_create_account'), onPress: () => router.push('/register') },
+          { label: t('t_forgot_password'), onPress: () => router.push('/auth/password/reset') },
+          {
+            label: t('t_resend_verification_email'),
+            onPress: () => router.push({ pathname: '/auth/request', params: { email } }),
+          },
+          { label: t('t_privacy_policy'), onPress: () => openWebPage(PRIVACY_URL) },
+          { label: t('t_terms_of_service'), onPress: () => openWebPage(TERMS_URL) },
+        ]}
+      />
     </Screen>
   );
 }

@@ -58,7 +58,7 @@ export default function UpdatePassword() {
   }
 
   return (
-    <Screen title={t('t_update_password')}>
+    <Screen title={t('t_update_password')} subtitle={t('t_update_password_subtitle')}>
       {state === 'checking' ? (
         <Text
           accessibilityRole="progressbar"
@@ -95,7 +95,7 @@ export default function UpdatePassword() {
             textContentType="newPassword"
             error={field('passwordConfirmation')}
           />
-          <Button label={t('t_update_password')} onPress={onSubmit} busy={busy} />
+          <Button label={t('t_update')} onPress={onSubmit} busy={busy} />
         </>
       ) : null}
     </Screen>

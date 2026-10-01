@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
+import { AuthLinks, BackHome, PolicyLinks } from '../../../../components/auth/links';
 import { SocialButtons } from '../../../../components/auth/social';
 import { TwoFactorStep, type TwoFactorChallenge } from '../../../../components/auth/two-factor';
 import { Alert, AuthCard, Field, Submit } from '../../../../components/auth/ui';
@@ -47,15 +48,13 @@ function LoginForm() {
   if (challenge) return <TwoFactorStep challenge={challenge} onDone={done} />;
 
   return (
-    <AuthCard title={t('t_welcome_back')}>
+    <AuthCard title={t('t_welcome_back')} subtitle={t('t_pls_login_to_continue')}>
+      <BackHome locale={locale} t={t} />
       {search.get('verified') && (
         <Alert kind="success">{t('t_ur_account_has_been_successfully_verified_email')}</Alert>
       )}
       {search.get('reset') && <Alert kind="success">{t('t_password_has_been_updated')}</Alert>}
       {general && <Alert kind="error">{general}</Alert>}
-      {err?.code === 'ACCOUNT_PENDING' && err.details?.verificationMethod === 'email' && (
-        <Link href={href(locale, '/auth/request')}>{t('t_resend_verification_email')}</Link>
-      )}
       <form onSubmit={onLogin} noValidate>
         <Field
           label={t('t_email_address')}
@@ -79,17 +78,14 @@ function LoginForm() {
           showLabel={t('t_ui_show_password')}
           hideLabel={t('t_ui_hide_password')}
         />
-        <div className="auth-row">
-          <label className="auth-check">
-            <input
-              type="checkbox"
-              checked={rememberMe}
-              onChange={(e) => setRememberMe(e.target.checked)}
-            />
-            {t('t_remember_me')}
-          </label>
-          <Link href={href(locale, '/auth/password/reset')}>{t('t_forgot_password')}</Link>
-        </div>
+        <label className="auth-check">
+          <input
+            type="checkbox"
+            checked={rememberMe}
+            onChange={(e) => setRememberMe(e.target.checked)}
+          />
+          {t('t_remember_me')}
+        </label>
         <Submit busy={busy}>{t('t_login')}</Submit>
       </form>
       {/* A `?ref=` link that lands here still reaches a new social account (AC-38); a malformed one is ignored. */}
@@ -97,9 +93,19 @@ function LoginForm() {
         referralCode={/^[A-Za-z0-9]{8}$/.test(search.get('ref') ?? '') ? search.get('ref') : null}
         next={search.get('next')}
       />
-      <p className="auth-footer">
-        <Link href={href(locale, '/auth/register')}>{t('t_create_account')}</Link>
-      </p>
+      {/* Legacy link list (`login.blade.php`, QA BUG-01). */}
+      <AuthLinks>
+        <li>
+          <Link href={href(locale, '/auth/register')}>{t('t_create_account')}</Link>
+        </li>
+        <li>
+          <Link href={href(locale, '/auth/password/reset')}>{t('t_forgot_password')}</Link>
+        </li>
+        <li>
+          <Link href={href(locale, '/auth/request')}>{t('t_resend_verification_email')}</Link>
+        </li>
+        <PolicyLinks locale={locale} t={t} />
+      </AuthLinks>
     </AuthCard>
   );
 }

@@ -28,3 +28,29 @@ export const i18nextOptions = {
 export function isLocale(value: unknown): value is Locale {
   return value === 'ka' || value === 'en';
 }
+
+/** A piece of a translated text: plain text, or a link whose `link` names the URL parameter it stood for. */
+export interface TextPart {
+  text: string;
+  link?: string;
+}
+
+/**
+ * Legacy strings carry links as HTML, e.g. `t_by_signup_u_agree_to_terms_privacy`:
+ * `… <a href="{{privacy_url}}" class="…">privacy policy</a> …`. Translate them with each URL parameter set to its
+ * own name (`{ privacy_url: 'privacy_url' }`) and split the result here, so apps render real links and never
+ * inject HTML (QA BUG-04, ADR-006 §3). Any other markup is dropped.
+ */
+export function splitLegacyLinks(translated: string): TextPart[] {
+  const parts: TextPart[] = [];
+  const strip = (s: string) => s.replace(/<[^>]*>/g, '');
+  const re = /<a\s[^>]*href="([^"]*)"[^>]*>(.*?)<\/a>/gis;
+  let last = 0;
+  for (const m of translated.matchAll(re)) {
+    if (m.index! > last) parts.push({ text: strip(translated.slice(last, m.index)) });
+    parts.push({ text: strip(m[2]!), link: m[1]! });
+    last = m.index! + m[0].length;
+  }
+  if (last < translated.length) parts.push({ text: strip(translated.slice(last)) });
+  return parts.filter((p) => p.text !== '');
+}

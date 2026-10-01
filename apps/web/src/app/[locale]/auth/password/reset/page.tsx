@@ -33,7 +33,7 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <AuthCard title={t('t_reset_password')}>
+    <AuthCard title={t('t_reset_ur_password')} subtitle={t('t_reset_ur_password_subtitle')}>
       {sent && <Alert kind="success">{sent}</Alert>}
       {general && <Alert kind="error">{general}</Alert>}
       {!sent && (
@@ -52,7 +52,7 @@ export default function ForgotPasswordPage() {
         </form>
       )}
       <p className="auth-footer">
-        <Link href={href(locale, '/auth/login')}>{t('t_login')}</Link>
+        <Link href={href(locale, '/auth/login')}>{t('t_back_to_sign_in')}</Link>
       </p>
     </AuthCard>
   );

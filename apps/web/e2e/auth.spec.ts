@@ -88,7 +88,7 @@ test('login ignores an off-site ?next= (SEC-33)', async ({ page }) => {
   await page.getByLabel('E-mail address').fill(`nx_${n}@example.com`);
   await page.getByLabel('Password', { exact: true }).fill('Secret123');
   await page.getByRole('checkbox').check();
-  await page.getByRole('button', { name: 'Sign up' }).click();
+  await page.getByRole('button', { name: 'Create account' }).click();
   await expect(page).toHaveURL(/\/en\/account$/);
   await page.getByRole('button', { name: 'Logout' }).click();
   await page.goto('/en/auth/login?next=//evil.example/steal');

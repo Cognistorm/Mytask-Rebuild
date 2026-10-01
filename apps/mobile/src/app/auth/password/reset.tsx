@@ -34,7 +34,7 @@ export default function ForgotPassword() {
   }
 
   return (
-    <Screen title={t('t_reset_password')}>
+    <Screen title={t('t_reset_ur_password')} subtitle={t('t_reset_ur_password_subtitle')}>
       {sent ? <Notice kind="success" text={sent} /> : null}
       {general ? <Notice kind="error" text={general} /> : null}
       {!sent ? (
@@ -50,7 +50,7 @@ export default function ForgotPassword() {
           <Button label={t('t_reset_password')} onPress={onSubmit} busy={busy} />
         </>
       ) : null}
-      <LinkButton label={t('t_login')} onPress={() => router.replace('/login')} />
+      <LinkButton label={t('t_back_to_sign_in')} onPress={() => router.replace('/login')} />
     </Screen>
   );
 }

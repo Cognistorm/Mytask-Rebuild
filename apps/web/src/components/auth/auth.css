@@ -352,3 +352,30 @@
   color: var(--mt-action-on-disabled);
   cursor: progress;
 }
+
+/* Legacy link list under the auth panel (QA BUG-01). */
+.auth-links {
+  margin: var(--mt-space-6) 0 0;
+  padding-inline-start: var(--mt-space-4);
+  font-size: var(--mt-font-size-sm);
+  list-style: disc;
+  color: var(--mt-text-secondary);
+  display: grid;
+  gap: var(--mt-space-2);
+}
+.auth-card .auth-links a {
+  color: inherit;
+}
+.auth-card .auth-links a:hover {
+  text-decoration: underline;
+}
+/* "Back to homepage" is shown on small screens only, as on the live site (`block lg:hidden`). */
+.auth-back-home {
+  display: block;
+  margin-top: var(--mt-space-3);
+}
+@media (min-width: 1024px) {
+  .auth-back-home {
+    display: none;
+  }
+}

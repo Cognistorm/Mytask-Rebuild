@@ -33,7 +33,10 @@ export default function ResendVerificationPage() {
   }
 
   return (
-    <AuthCard title={t('t_resend_verification_email')}>
+    <AuthCard
+      title={t('t_resend_verification_email')}
+      subtitle={t('t_resend_verification_email_subtitle')}
+    >
       {sent && <Alert kind="success">{sent}</Alert>}
       {general && <Alert kind="error">{general}</Alert>}
       {!sent && (
@@ -48,11 +51,11 @@ export default function ResendVerificationPage() {
             onChange={setEmail}
             error={fields.email}
           />
-          <Submit busy={busy}>{t('t_submit')}</Submit>
+          <Submit busy={busy}>{t('t_send')}</Submit>
         </form>
       )}
       <p className="auth-footer">
-        <Link href={href(locale, '/auth/login')}>{t('t_login')}</Link>
+        <Link href={href(locale, '/auth/login')}>{t('t_back_to_sign_in')}</Link>
       </p>
     </AuthCard>
   );

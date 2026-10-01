@@ -56,7 +56,7 @@ function UpdateForm() {
   }
 
   return (
-    <AuthCard title={t('t_update_password')}>
+    <AuthCard title={t('t_update_password')} subtitle={t('t_update_password_subtitle')}>
       {state === 'expired' && (
         <>
           <Alert kind="error">{t('t_password_reset_link_expired')}</Alert>
@@ -90,7 +90,7 @@ function UpdateForm() {
             showLabel={t('t_ui_show_password')}
             hideLabel={t('t_ui_hide_password')}
           />
-          <Submit busy={busy}>{t('t_update_password')}</Submit>
+          <Submit busy={busy}>{t('t_update')}</Submit>
         </form>
       )}
     </AuthCard>

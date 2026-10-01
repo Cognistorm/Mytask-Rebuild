@@ -4,6 +4,7 @@
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
+import { AuthLinks, BackHome, TermsSentence } from '../../../../components/auth/links';
 import { SocialButtons } from '../../../../components/auth/social';
 import { Alert, AuthCard, Field, Submit } from '../../../../components/auth/ui';
 import {
@@ -14,6 +15,7 @@ import {
   useT,
   type ApiErrorBody,
 } from '../../../../lib/client';
+import { usePublicConfig } from '../../../../lib/public-config';
 
 function RegisterForm() {
   const locale = useLocale();
@@ -21,6 +23,7 @@ function RegisterForm() {
   const api = useApi(locale);
   const router = useRouter();
   const search = useSearchParams();
+  const siteTitle = usePublicConfig(locale)?.branding?.siteTitle ?? 'MyTask';
 
   const [form, setForm] = useState({
     fullName: '',
@@ -66,7 +69,11 @@ function RegisterForm() {
   }
 
   return (
-    <AuthCard title={t('t_create_account')}>
+    <AuthCard
+      title={t('t_welcome_to_app_name', { name: siteTitle })}
+      subtitle={t('t_pls_signup_to_continue')}
+    >
+      <BackHome locale={locale} t={t} />
       {general && <Alert kind="error">{general}</Alert>}
       <form onSubmit={onSubmit} noValidate>
         <Field
@@ -79,15 +86,6 @@ function RegisterForm() {
           error={fields.fullName}
         />
         <Field
-          label={t('t_username')}
-          name="username"
-          autoComplete="username"
-          required
-          value={form.username}
-          onChange={set('username')}
-          error={fields.username}
-        />
-        <Field
           label={t('t_email_address')}
           name="email"
           type="email"
@@ -96,6 +94,15 @@ function RegisterForm() {
           value={form.email}
           onChange={set('email')}
           error={fields.email}
+        />
+        <Field
+          label={t('t_username')}
+          name="username"
+          autoComplete="username"
+          required
+          value={form.username}
+          onChange={set('username')}
+          error={fields.username}
         />
         <Field
           label={t('t_password')}
@@ -126,10 +133,7 @@ function RegisterForm() {
               aria-invalid={!!fields.acceptTerms}
             />
             <span>
-              {t('t_i_agree_terms_privacy', {
-                terms: t('t_terms_of_service'),
-                privacy: t('t_privacy_policy'),
-              })}
+              <TermsSentence locale={locale} t={t} />
             </span>
           </label>
           {fields.acceptTerms && (
@@ -138,12 +142,19 @@ function RegisterForm() {
             </p>
           )}
         </div>
-        <Submit busy={busy}>{t('t_signup')}</Submit>
+        <Submit busy={busy}>{t('t_create_account')}</Submit>
       </form>
       <SocialButtons referralCode={form.referralCode} />
-      <p className="auth-footer">
-        {t('t_already_have_account')} <Link href={href(locale, '/auth/login')}>{t('t_login')}</Link>
-      </p>
+      {/* Legacy link list (`register.blade.php`, QA BUG-01); privacy and terms are in the sentence above. */}
+      <AuthLinks>
+        <li>
+          {t('t_already_have_account')}{' '}
+          <Link href={href(locale, '/auth/login')}>{t('t_login')}</Link>
+        </li>
+        <li>
+          <Link href={href(locale, '/auth/request')}>{t('t_resend_verification_email')}</Link>
+        </li>
+      </AuthLinks>
     </AuthCard>
   );
 }
