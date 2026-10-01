@@ -95,6 +95,7 @@ export default function SettingsPage() {
   }
 
   const areas = [...new Set(rows.map((r) => r.area))];
+  const valueOf = (registerId: string) => rows.find((r) => r.registerId === registerId)?.value;
   return (
     <main className="admin-page">
       <AdminNav />
@@ -110,7 +111,15 @@ export default function SettingsPage() {
             {rows
               .filter((r) => r.area === area)
               .map((row) => (
-                <SettingRow key={row.key} row={row} onSave={save} />
+                <SettingRow
+                  key={row.key}
+                  row={row}
+                  onSave={save}
+                  disabled={
+                    DEPENDS_ON[row.registerId] !== undefined &&
+                    valueOf(DEPENDS_ON[row.registerId]!) === false
+                  }
+                />
               ))}
           </ul>
         </section>
@@ -196,17 +205,30 @@ function SocialProviderRow({
   );
 }
 
-function SettingRow({ row, onSave }: { row: Entry; onSave: (row: Entry, value: unknown) => void }) {
+/** A row that only applies while another (boolean) row is ON: its field is disabled while that row is OFF. */
+const DEPENDS_ON: Record<string, string> = { 'S-132': 'S-131' }; // Q-159: EV-02 hourly cap needs the switch
+
+function SettingRow({
+  row,
+  onSave,
+  disabled = false,
+}: {
+  row: Entry;
+  onSave: (row: Entry, value: unknown) => void;
+  disabled?: boolean;
+}) {
   if (row.isSecret) return <SocialProviderRow row={row} onSave={onSave} />;
-  return <PlainSettingRow row={row} onSave={onSave} />;
+  return <PlainSettingRow row={row} onSave={onSave} disabled={disabled} />;
 }
 
 function PlainSettingRow({
   row,
   onSave,
+  disabled,
 }: {
   row: Entry;
   onSave: (row: Entry, value: unknown) => void;
+  disabled: boolean;
 }) {
   const [draft, setDraft] = useState(() =>
     typeof row.value === 'object' ? JSON.stringify(row.value) : String(row.value),
@@ -266,9 +288,21 @@ function PlainSettingRow({
             ))}
           </select>
         ) : (
-          <input id={id} value={draft} onChange={(e) => setDraft(e.target.value)} />
+          <input
+            id={id}
+            type={row.type === 'integer' ? 'number' : 'text'}
+            min={row.type === 'integer' ? (row.minimum ?? undefined) : undefined}
+            value={draft}
+            disabled={disabled}
+            onChange={(e) => setDraft(e.target.value)}
+          />
         )}
-        <button type="button" className="auth-button" onClick={() => onSave(row, parse())}>
+        <button
+          type="button"
+          className="auth-button"
+          disabled={disabled}
+          onClick={() => onSave(row, parse())}
+        >
           {t('t_save')}
         </button>
       </span>

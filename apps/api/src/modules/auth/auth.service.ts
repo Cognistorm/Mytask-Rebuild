@@ -76,11 +76,14 @@ export class AuthService {
       });
     }
     await this.requireRecaptcha(input.recaptchaToken, ctx);
-    const [verificationRequired, method, linkMinutes] = await Promise.all([
-      this.settings.get('S-052'),
-      this.settings.get('S-053'),
-      this.settings.get('S-054'),
-    ]);
+    const [verificationRequired, method, linkMinutes, adminEmailOn, adminEmailCap] =
+      await Promise.all([
+        this.settings.get('S-052'),
+        this.settings.get('S-053'),
+        this.settings.get('S-054'),
+        this.settings.get('S-131'),
+        this.settings.get('S-132'),
+      ]);
     const email = input.email.trim();
     const passwordHash = await this.passwords.hash(input.password);
     // Read settings before the transaction (never a second connection inside it).
@@ -139,7 +142,12 @@ export class AuthService {
             { userId: created.id, params: { token, email: created.email } },
             tx,
           );
-        } else {
+        } else if (
+          // Q-159: switchable (S-131) and capped per hour (S-132); a user above the cap is not emailed but is
+          // listed as pending in the admin Users list.
+          adminEmailOn &&
+          (await this.throttle.allowAdminRegistrationEmail(adminEmailCap))
+        ) {
           await this.outbox.add(
             'EV-02',
             { type: 'user', id: created.id },

@@ -3,7 +3,7 @@
 openapi: 3.1.0
 info:
   title: MyTask.ge API
-  version: 1.2.2
+  version: 1.2.3
   summary: One API for the MyTask.ge website, mobile apps (iOS, Android) and admin panel.
   description: |
     **Status: approved by the Owner 2026-09-30 as the contract** (Phase 2 gate, version 1.0.0, including
@@ -14,7 +14,8 @@ info:
     `SettingSocialProviderUpdate` (ADR-005 §8, Q-155) and the trusted-email rule of `completeSocialLogin`
     (ADR-002 §7, Q-156); **1.2.1** (descriptions only) staff-login IP bans: canonical spelling and
     automatic IPv6 bans per /64 prefix (ADR-002 §6, SEC-57, SEC-60); **1.2.2** (descriptions only) `register`
-    limit 10 per IP per hour (Q-157, SEC-35).
+    limit 10 per IP per hour (Q-157, SEC-35); **1.2.3** (descriptions only) register rows S-131/S-132, the EV-02
+    switch and hourly cap (Q-159).
 
     **The contract is the law** (CLAUDE.md). Web (`apps/web`), mobile (`apps/mobile`) and admin
     (`apps/admin`) use only this API through the generated `packages/types` + `packages/api-client`
@@ -8993,7 +8994,7 @@ paths:
         All register rows grouped by area (spec 16 AC-51; fixed list, not paginated), searchable by id, key or
         meaning (`q`). Secret rows show only "set / not set" (AC-54). S-110 and S-127 are returned only to
         holders of `settings.custom_code.write` (AC-72). Fee rules S-010…S-018 appear read-only with
-        `area: fees` (edited in `/admin/fee-rules`). Every row of the register S-001…S-129 is `registerStatus: approved` since the Owner gate of 2026-09-30 (P-135 and S-128 accepted, Q-111/Q-137; S-129 added, Q-144); `proposed` is kept for rows added later and not yet accepted.
+        `area: fees` (edited in `/admin/fee-rules`). Every row of the register S-001…S-129 is `registerStatus: approved` since the Owner gate of 2026-09-30 (P-135 and S-128 accepted, Q-111/Q-137; S-129 added, Q-144); S-130 (Q-153) and S-131, S-132 (EV-02 switch and hourly cap, Q-159, 2026-10-01) were added by the Owner and are approved too; `proposed` is kept for rows added later and not yet accepted.
       tags:
         - Admin Settings
       security:

@@ -1544,6 +1544,34 @@ export const settingsRegistry = {
     tag: 'NEW',
     writePermission: 'settings.system.write',
   }),
+  // Owner Q-159 (2026-10-01): admin email EV-02 "new registration waiting for approval" (S-053 = admin).
+  'S-131': row({
+    key: 'notifications.admin_new_registration.enabled',
+    default: true,
+    area: 'notifications',
+    type: 'boolean',
+    meaning: {
+      en: 'Email the admins about each new registration waiting for approval',
+      ka: 'ადმინისტრატორებისთვის ელ-ფოსტით შეტყობინება ყოველი დასადასტურებელი ახალი რეგისტრაციის შესახებ',
+    },
+    source: 'Q-159',
+    tag: 'NEW',
+    writePermission: 'settings.notifications.write',
+  }),
+  'S-132': row({
+    key: 'notifications.admin_new_registration.hourly_cap',
+    default: 20,
+    area: 'notifications',
+    type: 'integer',
+    minimum: 1,
+    meaning: {
+      en: 'Most "new registration waiting for approval" emails sent per hour (when S-131 is on)',
+      ka: '"ახალი დასადასტურებელი რეგისტრაციის" წერილების მაქსიმალური რაოდენობა საათში (როცა S-131 ჩართულია)',
+    },
+    source: 'Q-159, SEC-35',
+    tag: 'NEW',
+    writePermission: 'settings.notifications.write',
+  }),
 } as const;
 
 export type SettingId = keyof typeof settingsRegistry;

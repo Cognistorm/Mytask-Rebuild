@@ -75,7 +75,7 @@ Remaining:
   - [ ] 3.17i Analyst/docs: BUG-04 terms text decision, F-04 spec text, F-01 mobile reCAPTCHA doc gap; F-02 routed sessions E2E by state.
   - [ ] 3.17j QA re-check report §10 (screens web ka + en, app source, web E2E on the production build).
   - [ ] 3.17k Security re-check of 3.17a–g (SEC-57 gate for the merge; the rest for slice 01 done).
-  - [!] 3.17l Backend EV-02 cap per hour (SEC-35) — **waits on Owner Q-159** (open-questions.md).
+  - [x] 3.17l EV-02 admin email switch + hourly cap (SEC-35, Owner Q-159 (a)): register rows S-131 (switch, ON) and S-132 (cap, default 20), editable in Admin → Settings → Notifications (cap field disabled while the switch is OFF).
 - [ ] 3.18 Open PR `feat/auth` → `main`, CI green (Owner merges).
 - [ ] 3.19 **Phase 3 gate (Owner):** register / log in / log out on web and app; approve.
 

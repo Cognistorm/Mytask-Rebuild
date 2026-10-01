@@ -763,11 +763,12 @@ Note (no answer needed unless you disagree): the old main layout also hard-codes
 When: before slice 17 (content/SEO); the page-layout split (point 2 of ADR-019) is cheapest if done soon, but does not block slice 01.
 **Answer (Owner, 2026-10-01): (a) accept ADR-019 as proposed.** Custom scripts stay on public pages for all visitors; full page load at the public/private boundary, built-in tag-manager deny list, path-scoped CSP for `googletagmanager.com`, Clarity masking of the header account area. Messenger chat bubble not carried over.
 
-## Slice 01 close-out (backend, ROADMAP 3.17d, 2026-10-01) — open
+## Slice 01 close-out (backend, ROADMAP 3.17d, 2026-10-01) — answered by Owner 2026-10-01
 
 ### Q-159
 **Cap on the "new registration waiting for approval" email to the admin (EV-02).** When registrations need admin approval (S-053 = `admin`), every new registration emails the admin address (S-100). Registration is now limited to 10 per hour **per IP** (your answer Q-157), but someone using many IPs could still send hundreds of these emails per hour to your inbox (security review 02, SEC-35). The waiting users are always visible in the admin Users list (filter "pending"), so a capped email loses no data.
 Options: (a) at most **20 EV-02 emails per hour** in total; registrations above that are not emailed, they only appear in the admin Users list; (b) like (a) with another number you choose; (c) no cap (keep every email).
 Recommendation: (a).
 When: before slice 01 is marked done (security condition). Nothing else waits on it.
+**Answer (Owner, 2026-10-01): option (a), at most 20 per hour for now — and make it a setting in the admin panel:** (1) a switch to turn the "new registration waiting for approval" admin email on or off; (2) a whole-number field (default 20) for the hourly cap, editable whenever the switch is on. Recorded as register rows **S-131** (switch, default ON) and **S-132** (hourly cap, default 20) in spec 00 §4.15; built in ROADMAP 3.17l.
 

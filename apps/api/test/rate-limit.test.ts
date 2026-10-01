@@ -3,7 +3,9 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ENV, type Env } from '../src/platform/config/env';
+import { PrismaService } from '../src/platform/db/prisma.service';
 import { RedisService } from '../src/platform/redis/redis.module';
+import { SettingsService } from '../src/platform/settings/settings.service';
 import { ipBucket } from '../src/platform/client-ip/client-ip.resolver';
 import { LIMITS } from '../src/platform/rate-limit/rate-limit.middleware';
 import { createTestApp } from './app';
@@ -164,6 +166,54 @@ describe('per-operation limits by IP (SEC-35 register, SEC-42 /64)', () => {
       .set(visitor('2001:db8:7:7::99'))
       .send({ email, password: 'Secret123' });
     expect(locked.body.code).toBe('AUTH_LOGIN_LOCKED');
+    await redis.flushall();
+  });
+});
+
+describe('EV-02 "new registration waiting for approval" email (Q-159: S-131 switch, S-132 hourly cap)', () => {
+  const set = async (registerId: string, key: string, value: unknown) => {
+    const prisma = app.get(PrismaService);
+    await prisma.setting.upsert({
+      where: { key },
+      create: { key, registerId, value: value as never, currentVersion: 1 },
+      update: { value: value as never },
+    });
+    app.get(SettingsService).invalidate();
+  };
+  const register = () => {
+    const id = `${Date.now().toString(36)}${Math.floor(Math.random() * 1e6)}`;
+    return request(app.getHttpServer())
+      .post('/api/v1/auth/register')
+      .set({ 'X-MyTask-Client': 'ios' })
+      .send({
+        fullName: 'Pending User',
+        username: `pe_${id}`,
+        email: `pe${id}@example.com`,
+        password: 'Secret123',
+        acceptTerms: true,
+      });
+  };
+  const ev02 = () => app.get(PrismaService).outboxEvent.count({ where: { eventType: 'EV-02' } });
+
+  it('caps the emails per clock hour at S-132; S-131 OFF sends none; the users stay pending', async () => {
+    const redis = app.get(RedisService).client;
+    await redis.flushall();
+    await set('S-052', 'auth.email_verification.required', true);
+    await set('S-053', 'auth.email_verification.method', 'admin');
+    await set('S-132', 'notifications.admin_new_registration.hourly_cap', 2);
+    const before = await ev02();
+    for (let i = 0; i < 3; i++)
+      expect((await register()).body.outcome).toBe('pending_admin_review');
+    expect((await ev02()) - before).toBe(2);
+
+    await redis.flushall();
+    await set('S-131', 'notifications.admin_new_registration.enabled', false);
+    const off = await ev02();
+    expect((await register()).body.outcome).toBe('pending_admin_review');
+    expect(await ev02()).toBe(off);
+    const prisma = app.get(PrismaService);
+    await prisma.setting.deleteMany();
+    app.get(SettingsService).invalidate();
     await redis.flushall();
   });
 });

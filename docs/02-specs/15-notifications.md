@@ -105,7 +105,7 @@ One row per event. Legend — **E** email, **I** in-app, **P** push (NEW P-11; o
 | # | Event (trigger) | Recipient(s) | E | I | P | SMS | Template / keys | Covers | Status | Cat | Spec |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | EV-01 | Registration or "resend verification" | user | ✓ | – | – | o | `VerifyEmail` `t_subject_everyone_verify_ur_email` | E-56 | kept | S | 01 AC-4, AC-9 |
-| EV-02 | Registration with admin verification (S-053 = admin) | S-100 | ✓ | – | – | – | `Admin/PendingUser` `t_subject_admin_pending_user` | E-13 | kept (CHANGE recipients) | A | 01 AC-5 |
+| EV-02 | Registration with admin verification (S-053 = admin); switch S-131, at most S-132 per hour (Q-159) | S-100 | ✓ | – | – | – | `Admin/PendingUser` `t_subject_admin_pending_user` | E-13 | kept (CHANGE recipients) | A | 01 AC-5 |
 | EV-03 | Staff activate a pending user | user | ✓ | – | – | o | `AccountActivated` `t_subject_everyone_ur_account_activated` | E-39 | kept | S | 01 AC-5 |
 | EV-04 | Password reset requested | user | ✓ | – | – | o | `PasswordReset` `t_subject_everyone_reset_ur_password` | E-48 | kept | S | 01 AC-32 |
 | EV-05 | Password changed or reset completed | user | ✓ | – | – | o | `PasswordChanged` `t_subject_everyone_password_changed` | E-47 | kept | S | 01 AC-33, AC-35 |

@@ -223,6 +223,14 @@ export class ThrottleService {
     return n <= REGISTERS_PER_IP_PER_HOUR ? 0 : Math.max(1, await this.ttl(key));
   }
 
+  // ------------------------------------------------------------------ admin emails (Q-159, SEC-35)
+
+  /** True while fewer than `cap` EV-02 emails went out in this clock hour (all IPs together). */
+  async allowAdminRegistrationEmail(cap: number): Promise<boolean> {
+    const hour = Math.floor(Date.now() / 3_600_000);
+    return (await this.hit(`notify:ev02:${hour}`, 3700)) <= cap;
+  }
+
   // ------------------------------------------------------------------ link emails (AC-36, R-A9)
 
   /** True when another email may be sent (≤ 3 per address and per IP per hour, silent above). */
