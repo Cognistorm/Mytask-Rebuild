@@ -1,6 +1,8 @@
 # Local-only fake BOG (docker compose service `bog-mock`). Build context: repository root.
 FROM node:24-alpine
 WORKDIR /app
+# package.json carries "type": "module", so Node does not guess the module type on every start (QA P3 BUG-12b).
+COPY tools/bog-mock/package.json ./
 COPY tools/bog-mock/src ./src
 USER node
 EXPOSE 4100
