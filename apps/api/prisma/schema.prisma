@@ -189,6 +189,8 @@ model Session {
   expiresAt     DateTime             @map("expires_at") @db.Timestamptz(6)
   revokedAt     DateTime?            @map("revoked_at") @db.Timestamptz(6)
   revokeReason  SessionRevokeReason? @map("revoke_reason")
+  /// SEC-41: the login's "remember me"; OFF = browser-session refresh cookie on every refresh.
+  rememberMe    Boolean              @default(true) @map("remember_me")
   user          User?                @relation(fields: [userId], references: [id])
   refreshTokens RefreshToken[]
 
@@ -249,6 +251,8 @@ model TwoFactorChallenge {
   expiresAt     DateTime      @map("expires_at") @db.Timestamptz(6)
   consumedAt    DateTime?     @map("consumed_at") @db.Timestamptz(6)
   invalidatedAt DateTime?     @map("invalidated_at") @db.Timestamptz(6)
+  /// SEC-41: the "remember me" of the login that asked for this code (purpose login).
+  rememberMe    Boolean       @default(true) @map("remember_me")
   createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
   user          User?         @relation(fields: [userId], references: [id])
 

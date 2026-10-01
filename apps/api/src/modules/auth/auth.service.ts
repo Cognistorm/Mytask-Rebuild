@@ -283,7 +283,11 @@ export class AuthService {
     input: S['TwoFactorVerifyRequest'],
     ctx: RequestContext,
   ): Promise<SessionResult> {
-    const { owner } = await this.twoFactor.verify(input.challengeId, input.code, 'login');
+    const { owner, challenge } = await this.twoFactor.verify(
+      input.challengeId,
+      input.code,
+      'login',
+    );
     const user = await this.prisma.user.findUnique({
       where: { id: owner.id },
       include: { profile: true },
@@ -297,7 +301,7 @@ export class AuthService {
       ctx.ip,
       ctx.userAgent,
     );
-    const result = await this.issueSession(user, { ...ctx, deviceId }, true, {
+    const result = await this.issueSession(user, { ...ctx, deviceId }, challenge.rememberMe, {
       skipTwoFactor: true,
     });
     if (result.kind !== 'session') throw new Error('unreachable');
@@ -339,6 +343,7 @@ export class AuthService {
         deviceIdHash,
         ctx.ip,
         ctx.t,
+        rememberMe, // SEC-41: carried to the session the code creates
       );
       return { kind: 'challenge', body, deviceId };
     }
@@ -348,6 +353,7 @@ export class AuthService {
       deviceIdHash,
       ip: ctx.ip,
       userAgent: ctx.userAgent,
+      rememberMe,
     });
     const cookies = isCookieClient(ctx.client);
     const twoFactorAvailable = await this.settings.get('S-056');
@@ -391,7 +397,7 @@ export class AuthService {
       kind: 'session',
       tokens: outcome.tokens,
       deviceId: ctx.deviceId ?? '',
-      rememberMe: true,
+      rememberMe: outcome.rememberMe, // SEC-41: the login's choice, not always 30 days
       body: {
         user: toMe(user, await this.settings.get('S-056')),
         accessToken: cookies ? null : outcome.tokens.accessToken,

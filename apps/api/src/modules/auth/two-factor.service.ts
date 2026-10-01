@@ -112,6 +112,7 @@ export class TwoFactorService {
     deviceIdHash: Bytes | null,
     ip: string,
     translate: Translate,
+    rememberMe = true,
   ): Promise<ChallengeView> {
     const principal = `${owner.kind}:${owner.id}`;
     const wait = await this.throttle.codeSendWait(principal);
@@ -135,6 +136,7 @@ export class TwoFactorService {
           deviceIdHash,
           ip,
           maxAttempts,
+          rememberMe,
           expiresAt: new Date(Date.now() + ttlMinutes * 60_000),
         },
       });

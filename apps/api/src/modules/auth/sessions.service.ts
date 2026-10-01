@@ -22,7 +22,9 @@ export interface IssuedTokens {
 }
 
 export type RefreshOutcome =
-  { kind: 'ok'; userId: string; tokens: IssuedTokens } | { kind: 'invalid' } | { kind: 'banned' };
+  | { kind: 'ok'; userId: string; tokens: IssuedTokens; rememberMe: boolean }
+  | { kind: 'invalid' }
+  | { kind: 'banned' };
 
 const refreshExpiry = () => new Date(Date.now() + USER_REFRESH_DAYS * 86_400_000);
 
@@ -42,6 +44,7 @@ export class SessionsService {
     deviceIdHash: Bytes;
     ip: string;
     userAgent: string | undefined;
+    rememberMe?: boolean;
   }): Promise<IssuedTokens> {
     const audience = input.staffId ? 'staff' : 'user';
     const principalId = (input.staffId ?? input.userId)!;
@@ -63,6 +66,7 @@ export class SessionsService {
           deviceLabel: describeDevice(input.userAgent, input.client),
           ip: input.ip,
           expiresAt,
+          rememberMe: input.rememberMe ?? true,
         },
       });
       // A session is its own family: rotations stay inside it; reuse revokes it (ADR-002 §1).
@@ -157,6 +161,7 @@ export class SessionsService {
     return {
       kind: 'ok',
       userId: principalId,
+      rememberMe: session.rememberMe,
       tokens: {
         sessionId: session.id,
         accessToken: access.token,

@@ -100,15 +100,12 @@ describe('SEC-37: challenges cannot be revived', () => {
       orderBy: { id: 'desc' },
     });
     const token = (ev.payload as { params: { token: string } }).params.token;
-    const done = await http()
-      .post('/api/v1/auth/password-reset/complete')
-      .set(IOS)
-      .send({
-        email: u.email,
-        token,
-        password: 'NewSecret99',
-        passwordConfirmation: 'NewSecret99',
-      });
+    const done = await http().post('/api/v1/auth/password-reset/complete').set(IOS).send({
+      email: u.email,
+      token,
+      password: 'NewSecret99',
+      passwordConfirmation: 'NewSecret99',
+    });
     expect(done.status).toBe(200);
     await app.get(RedisService).client.flushall();
     expect((await resend(u.challengeId)).status).toBe(404);
@@ -172,5 +169,65 @@ describe('user re-authentication code (accounts without a password)', () => {
     const wrongPurpose = await http().put('/api/v1/me/two-factor').set(bearer(u.at)).send(body);
     expect(wrongPurpose.status).toBe(422);
     expect(wrongPurpose.body.code).toBe('TWO_FACTOR_CODE_EXPIRED');
+  });
+});
+
+describe('SEC-41: "remember me" is kept by the session', () => {
+  const WEB = { 'X-MyTask-Client': 'web', Origin: 'http://localhost:3100' };
+  const cookiesOf = (res: request.Response) => [res.headers['set-cookie'] ?? []].flat() as string[];
+  const refreshCookie = (res: request.Response) =>
+    cookiesOf(res).find((c) => c.startsWith('__Secure-mt_rt='))!;
+  const cookiePair = (c: string) => c.split(';')[0]!;
+
+  it('OFF: the refresh cookie stays a browser-session cookie after a refresh', async () => {
+    const u = await register();
+    const login = await http()
+      .post('/api/v1/auth/login')
+      .set(WEB)
+      .send({ email: u.email, password: PASSWORD, rememberMe: false });
+    expect(login.status).toBe(200);
+    expect(refreshCookie(login)).not.toMatch(/Expires=/i);
+    const refreshed = await http()
+      .post('/api/v1/auth/refresh')
+      .set(WEB)
+      .set('Cookie', cookiePair(refreshCookie(login)));
+    expect(refreshed.status).toBe(200);
+    expect(refreshCookie(refreshed)).toBeDefined();
+    expect(refreshCookie(refreshed)).not.toMatch(/Expires=/i);
+  });
+
+  it('ON (default): the refresh cookie has an expiry', async () => {
+    const u = await register();
+    const login = await http()
+      .post('/api/v1/auth/login')
+      .set(WEB)
+      .send({ email: u.email, password: PASSWORD, rememberMe: true });
+    expect(refreshCookie(login)).toMatch(/Expires=/i);
+  });
+
+  it('the 2FA step carries the choice to the session it creates', async () => {
+    const u = await register();
+    await http()
+      .put('/api/v1/me/two-factor')
+      .set(bearer(u.at))
+      .send({ enabled: true, currentPassword: PASSWORD });
+    const step = await http()
+      .post('/api/v1/auth/login')
+      .set(WEB)
+      .send({ email: u.email, password: PASSWORD, rememberMe: false });
+    expect(step.status).toBe(202);
+    const device = cookiesOf(step).find((c) => c.startsWith('__Host-mt_did='));
+    const ok = await http()
+      .post('/api/v1/auth/2fa/verify')
+      .set(WEB)
+      .set('Cookie', device ? cookiePair(device) : '')
+      .send({ challengeId: step.body.challengeId, code: await lastCode(u.id) });
+    expect(ok.status).toBe(200);
+    expect(refreshCookie(ok)).not.toMatch(/Expires=/i);
+    const session = await prisma.session.findFirstOrThrow({
+      where: { userId: u.id },
+      orderBy: { createdAt: 'desc' },
+    });
+    expect(session.rememberMe).toBe(false);
   });
 });
