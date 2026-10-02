@@ -785,3 +785,9 @@ When: before S-061 is turned ON in production. Nothing in Phase 3 waits on it.
 **File types and size limit for staff image uploads** (`adminCreateFileUpload`: category image, blog image, home logo). Legacy: category/sub/child category icon and image JPG/JPEG/PNG (`Admin/Categories/CreateValidator.php:44-46`); blog image JPG/JPEG/PNG/SVG/GIF (`Admin/Blog/CreateValidator.php:42`); site logos also WEBP/SVG (`Admin/Settings/GeneralValidator.php:32`); no size limit anywhere; the home logo cloud (`LogoCloud` model) had no upload screen.
 Options: (a) the legacy types without SVG (ADR-009 §5, script risk), at most 5 MB like the platform's other images (S-078), fixed rules; (b) like (a) but blog images and logos keep SVG (needs an SVG sanitiser); (c) like (a) with 10 MB.
 **Answer (Owner, 2026-10-02): (a).** Category image JPG/JPEG/PNG; blog image JPG/JPEG/PNG/GIF; home logo JPG/JPEG/PNG/WEBP/GIF; SVG refused; ≤ 5 MB; no new setting. Built in `apps/api/src/modules/files/purposes.ts` (4.1.5).
+
+## Account settings (web, ROADMAP 4.1.20a, 2026-10-02) — answered by Owner 2026-10-02
+
+### Q-162
+**Country field in account settings.** Spec 02 AC-29 had an optional country; legacy had it commented out; only Georgia is active.
+**Answer (Owner, 2026-10-02): remove it** ("the platform operates specifically for Georgia"). There is no country field in account settings, and the edit-profile card shows no country. `Me.countryCode` / `MeUpdateRequest.countryCode` are deprecated in contract 1.3.1. They are not removed, because ADR-014 §5 allows no breaking change in v1 (ADR-021).
