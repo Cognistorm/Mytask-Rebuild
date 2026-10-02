@@ -22,6 +22,9 @@ export type OutboxEventType =
   | 'EV-13' // Admin/ProfileReported (spec 02 AC-14)
   | 'EV-14' // Admin/PendingPortfolio (spec 02 AC-25)
   | 'EV-15' // PortfolioPublished (spec 02 AC-26)
+  | 'EV-16' // Admin/NewIdVerificationPending (spec 02 AC-36)
+  | 'EV-17' // VerificationApproved (spec 02 AC-37)
+  | 'EV-18' // VerificationDeclined (spec 02 AC-37)
   | 'EV-126' // PortfolioRejected (spec 02 AC-42, NEW Q-117)
   | 'EV-124' // Admin/CriticalSettingChanged
   | 'EV-128' // LoginSlowMode

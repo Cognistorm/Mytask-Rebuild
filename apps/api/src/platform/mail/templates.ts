@@ -199,6 +199,40 @@ export function renderEmail(i: TemplateInput): RenderedEmail {
         [t('t_notification_seller_line_1_portfolio_published')],
         { label: t('t_view_my_porfolio'), url: link(i.appUrl, i.locale, '/seller/portfolio') },
       );
+    case 'EV-16':
+      // legacy/APP/app/Notifications/Admin/NewIdVerificationPending.php:44-54 (texts were hard-coded English)
+      return layout(
+        i.locale,
+        t('t_subject_admin_pending_kyc'),
+        t('t_hi_admin'),
+        [t('t_notification_admin_pending_kyc')],
+        { label: t('t_verification_center'), url: `${i.adminUrl.replace(/\/$/, '')}/kyc` },
+      );
+    case 'EV-17':
+      // legacy/APP/app/Notifications/User/Everyone/VerificationApproved.php:44-53
+      return layout(
+        i.locale,
+        t('t_subject_everyone_verification_approved'),
+        hello,
+        [t('t_notification_verification_approved')],
+        {
+          label: t('t_verification_center'),
+          url: link(i.appUrl, i.locale, '/account/verification'),
+        },
+      );
+    case 'EV-18':
+      // legacy/APP/app/Notifications/User/Everyone/VerificationDeclined.php:44-53; the staff reason shows in
+      // the Verification centre (getMyKyc).
+      return layout(
+        i.locale,
+        t('t_subject_everyone_verification_declined'),
+        hello,
+        [t('t_notification_verification_declined')],
+        {
+          label: t('t_verification_center'),
+          url: link(i.appUrl, i.locale, '/account/verification'),
+        },
+      );
     case 'EV-126':
       // NEW (Q-117): the staff reason is shown to the owner.
       return layout(
