@@ -1611,7 +1611,7 @@
   "t_notification_admin_pending_withdrawal": "თქვენ გაქვთ ახალი თანხის გატანის მოთხოვნა. გთხოვთ, შეამოწმოთ ისინი მართვის პანელში დადასტურებისთვის.",
   "t_notification_admin_refund_dispute": "A user has raised a dispute about a refund, because seller has decided to decline it, please click the button below to see refund details",
   "t_notification_admin_reported_bid": "ამ პროექტზე გასაჩივრებულია წინადადება",
-  "t_notification_admin_reported_profile": "A user has reported a profile in your website, please click the button below to see reported profiles",
+  "t_notification_admin_reported_profile": "მომხმარებელმა თქვენს საიტზე პროფილი დაარეპორტა. დარეპორტებული პროფილების სანახავად დააჭირეთ ქვემოთ მოცემულ ღილაკს",
   "t_notification_admin_reported_project": "ზემოთხსენებული პროექტი გასაჩივრებულია",
   "t_notification_admin_support_message": "თქვენ მიიღეთ შეტყობინება",
   "t_notification_admin_u_have_new_offer_pending": "თქვენ გაქვთ შეთავაზებები, რომლებიც ელოდება თქვენს დადასტურებას",

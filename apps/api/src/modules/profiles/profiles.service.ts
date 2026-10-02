@@ -5,13 +5,7 @@
 // (legacy `config/app.php:73`, no editor). `account.updated` (x-emits) waits for the realtime gateway (slice 08).
 import { Injectable, Logger } from '@nestjs/common';
 import type { components } from '@mytask/types';
-import type {
-  LinkedProvider,
-  UserLanguage,
-  UserLinkedAccount,
-  UserProfile,
-  UserSkill,
-} from '../../generated/prisma/client';
+import type { UserProfile } from '../../generated/prisma/client';
 import { PrismaService } from '../../platform/db/prisma.service';
 import { ApiException } from '../../platform/errors/api-exception';
 import { OutboxService } from '../../platform/outbox/outbox.service';
@@ -21,20 +15,12 @@ import { AvatarReader } from '../auth/avatar.reader';
 import { PresenceService } from '../auth/presence.service';
 import type { RequestContext } from '../auth/request-context';
 import { FileAttachments, FilesService } from '../files/files.service';
+import { languageView, linkedView, skillView } from './profile-views';
 import { ReportLimiter } from './report-limiter';
 
 type S = components['schemas'];
 
 export const DEFAULT_TIMEZONE = 'Asia/Tbilisi';
-const PROVIDERS: LinkedProvider[] = [
-  'facebook',
-  'twitter',
-  'dribbble',
-  'stackoverflow',
-  'github',
-  'youtube',
-  'vimeo',
-];
 const EMPTY_RATING: S['RatingBlock'] = {
   count: 0,
   averageTenths: null,
@@ -52,21 +38,6 @@ const notFound = () => new ApiException(404, 'NOT_FOUND', 't_page_not_fount');
 
 /** Insertion order (uuid v7 ids are time-ordered), as the legacy lists. */
 const BY_ID = { orderBy: { id: 'asc' } } as const;
-
-function skillView(s: UserSkill): S['UserSkill'] {
-  return { id: s.id, name: s.name, slug: s.slug, experience: s.experience };
-}
-
-function languageView(l: UserLanguage): S['UserLanguage'] {
-  return { id: l.id, name: l.name, level: l.level };
-}
-
-function linkedView(rows: UserLinkedAccount[]): S['ProfileLinkedAccounts'] {
-  const urls = new Map(rows.map((r) => [r.provider, r.url]));
-  return Object.fromEntries(
-    PROVIDERS.map((p) => [p, urls.get(p) ?? null]),
-  ) as S['ProfileLinkedAccounts'];
-}
 
 /** The notice while "unavailable until" is in the future; a passed date shows nothing (AC-23). */
 function availabilityView(p: UserProfile | null, now: Date): S['AvailabilityNotice'] | null {
