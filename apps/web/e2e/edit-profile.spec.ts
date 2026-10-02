@@ -241,7 +241,8 @@ test('opens from the account menu; card, links and every block; linked accounts 
   await expect(card).toContainText('Nino Beridze');
   await expect(card.getByTestId('id-verified-mark')).toBeVisible();
   await expect(card).toContainText('10.05.2023');
-  await expect(card).toContainText('Georgia');
+  // No country (Georgia only, Owner 2026-10-02, ADR-021).
+  await expect(card).not.toContainText('Georgia');
   await expect(page.getByRole('link', { name: 'View profile' })).toHaveAttribute(
     'href',
     '/en/profile/nino_b',

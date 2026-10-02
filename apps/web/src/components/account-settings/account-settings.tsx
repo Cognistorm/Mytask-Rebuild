@@ -1,12 +1,12 @@
 'use client';
 // Account settings (spec 02 AC-29…AC-35, EC-12; legacy `Account/Settings/SettingsComponent.php:156-354` and
-// `account/settings/settings.blade.php`): username, email, full name, country, city, confirmed with the current
-// password (`updateMe`). Accounts without a password (social login only, Q-144) confirm only an email change,
+// `account/settings/settings.blade.php`): username, email, full name, city, confirmed with the current password
+// (`updateMe`). No country field (Georgia only; Owner 2026-10-02, ADR-021). Accounts without a password (social login only, Q-144) confirm only an email change,
 // with a code emailed to the current address (`email_change` challenge). A new email waits for its link
 // (AC-30, P-18: pending banner from `Me.pendingEmail`). Delete account with the legacy confirm dialog (AC-32…AC-34).
 import { useEffect, useState } from 'react';
 import type { components } from '@mytask/types';
-import { Alert, CodeInput, Dialog, Field, Select, Skeleton, Submit } from '@mytask/ui/web';
+import { Alert, CodeInput, Dialog, Field, Skeleton, Submit } from '@mytask/ui/web';
 import { href, splitErrors, useApi, useLocale, useT, type ApiErrorBody } from '../../lib/client';
 import { useDashboard } from '../dashboard/shell';
 import { Block } from '../profile-edit/block';
@@ -15,7 +15,6 @@ import '../profile-edit/edit.css';
 import './settings.css';
 
 type Me = components['schemas']['Me'];
-type Country = components['schemas']['Country'];
 type Challenge = components['schemas']['TwoFactorChallenge'];
 type UpdateBody = components['schemas']['MeUpdateRequest'];
 
@@ -23,7 +22,6 @@ interface Form {
   username: string;
   email: string;
   fullName: string;
-  countryCode: string;
   city: string;
 }
 
@@ -31,7 +29,6 @@ const formOf = (me: Me): Form => ({
   username: me.username,
   email: me.email,
   fullName: me.fullName,
-  countryCode: me.countryCode ?? '',
   city: me.city ?? '',
 });
 
@@ -41,7 +38,6 @@ export function AccountSettings() {
   const api = useApi(locale);
   const { me, setMe } = useDashboard();
   const [form, setForm] = useState<Form>();
-  const [countries, setCountries] = useState<Country[]>([]);
   const [password, setPassword] = useState('');
   const [challenge, setChallenge] = useState<Challenge>();
   const [code, setCode] = useState('');
@@ -57,12 +53,6 @@ export function AccountSettings() {
   useEffect(() => {
     if (me && !form) setForm(formOf(me));
   }, [me, form]);
-
-  useEffect(() => {
-    void api.GET('/countries').then((res) => {
-      if (res.data) setCountries(res.data.countries);
-    });
-  }, [api]);
 
   // The resend countdown of the emailed code (spec 01 AC-27 limits apply).
   useEffect(() => {
@@ -96,12 +86,11 @@ export function AccountSettings() {
   async function save(e: React.FormEvent) {
     e.preventDefault();
     if (!me || !form) return;
-    // Only what changed is sent (omitted fields stay as they are); an empty country clears it.
+    // Only what changed is sent (omitted fields stay as they are).
     const body: UpdateBody = {};
     if (form.username.trim() !== me.username) body.username = form.username.trim();
     if (emailChanged) body.email = form.email.trim();
     if (form.fullName.trim() !== me.fullName) body.fullName = form.fullName.trim();
-    if (form.countryCode !== (me.countryCode ?? '')) body.countryCode = form.countryCode || null;
     if (form.city.trim() !== (me.city ?? '')) body.city = form.city.trim();
     if (me.hasPassword) body.currentPassword = password;
     else if (needsCode && challenge) {
@@ -193,15 +182,6 @@ export function AccountSettings() {
                   value={form.fullName}
                   onChange={set('fullName')}
                   error={fields.fullName}
-                />
-                <Select
-                  label={t('t_country')}
-                  name="countryCode"
-                  placeholder={t('t_choose_country')}
-                  options={countries.map((c) => ({ value: c.code, label: c.name }))}
-                  value={form.countryCode}
-                  onChange={set('countryCode')}
-                  error={fields.countryCode}
                 />
                 <Field
                   label={t('t_city')}

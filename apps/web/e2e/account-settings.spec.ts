@@ -31,7 +31,7 @@ const fieldError = (field: string, message: string) => ({
   details: { fields: [{ field, code: 'invalid', message }] },
 });
 
-/** Routes getMe, getPublicConfig, listCountries, updateMe, the code challenge and deleteMe, keeping the state. */
+/** Routes getMe, getPublicConfig, updateMe, the code challenge and deleteMe, keeping the state. */
 async function fakeApi(page: Page, opts: { me?: Partial<typeof ME> } = {}) {
   const me = { ...ME, ...opts.me };
   const sent = { updates: [] as Record<string, unknown>[], challenges: 0, deletes: 0 };
@@ -81,9 +81,6 @@ async function fakeApi(page: Page, opts: { me?: Partial<typeof ME> } = {}) {
       escrow: { unblockRequestAvailable: true },
     }),
   );
-  await page.route('**/api/v1/countries', (route) =>
-    json(route, 200, { countries: [{ code: 'GE', name: 'Georgia' }] }),
-  );
   await page.route('**/api/v1/me/two-factor/challenges', (route) => {
     sent.challenges += 1;
     return json(route, 202, {
@@ -126,7 +123,8 @@ test('opens from the account menu; fields prefilled; account links with the curr
   await expect(form.getByLabel('Username')).toHaveValue('nino_b');
   await expect(form.getByLabel('E-mail address')).toHaveValue('nino@example.com');
   await expect(form.getByLabel('Fullname')).toHaveValue('Nino Beridze');
-  await expect(form.getByLabel('Country')).toHaveValue('GE');
+  // No country field (Georgia only, Owner 2026-10-02, ADR-021).
+  await expect(form.getByLabel('Country')).toHaveCount(0);
   await expect(form.getByLabel('City')).toHaveValue('Tbilisi');
   await expect(form.getByLabel('Password', { exact: true })).toBeVisible();
 
@@ -163,13 +161,11 @@ test('saves only the changed fields with the current password; wrong password an
   await expect(form).toContainText('The username has already been taken.');
 
   await form.getByLabel('Username').fill('nino_new');
-  await form.getByLabel('Country').selectOption('GE');
   await form.getByLabel('City').fill('  Batumi ');
   await form.getByRole('button', { name: 'Update' }).click();
   await expect(form).toContainText('Your account settings has been successfully updated');
   expect(api.sent.updates.at(-1)).toEqual({
     username: 'nino_new',
-    countryCode: 'GE',
     city: 'Batumi',
     currentPassword: 'Secret123',
   });

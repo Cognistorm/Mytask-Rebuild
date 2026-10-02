@@ -1,7 +1,7 @@
 'use client';
 // Left card of the edit-profile page (legacy `account/profile/profile.blade.php` "Profile header" + "Quick
 // stats"): avatar with Change / Remove (AC-16), username, full name, headline edited in place (AC-17), status,
-// member since, country.
+// member since (no country: Georgia only, Owner 2026-10-02, ADR-021).
 import { useRef, useState } from 'react';
 import { declaredType, fileExtension, uploadFile } from '@mytask/api-client';
 import type { components } from '@mytask/types';
@@ -28,7 +28,6 @@ export function ProfileCard(props: {
   onChange: (patch: Partial<MeProfile>) => void;
 }) {
   const { t, locale, me, profile } = props;
-  const country = me.countryCode ? regionName(locale, me.countryCode) : undefined;
   return (
     <div className="mt-edit-card" data-testid="profile-card">
       <AvatarEditor
@@ -64,21 +63,9 @@ export function ProfileCard(props: {
           <dt>{t('t_member_since')}</dt>
           <dd>{formatDate(me.createdAt)}</dd>
         </div>
-        <div>
-          <dt>{t('t_country')}</dt>
-          <dd>{country ?? t('t_n_a')}</dd>
-        </div>
       </dl>
     </div>
   );
-}
-
-function regionName(locale: Locale, code: string): string {
-  try {
-    return new Intl.DisplayNames([locale], { type: 'region' }).of(code) ?? code;
-  } catch {
-    return code;
-  }
 }
 
 function AvatarEditor(props: {
