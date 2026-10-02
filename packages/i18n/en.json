@@ -2538,6 +2538,7 @@
   "t_the_client_account_appear_if_contact_u": "The client's account will appear to you if he contacts you",
   "t_the_max_allowable_file_size_is": "The maximum allowable file size per upload is",
   "t_the_service_u_request_not_available_now": "The service you requested is not available at this time",
+  "t_theme": "Theme",
   "t_there_are_users_have_this_level": "You cannot delete this level because there are users have it",
   "t_these_fees_cover_costs_tooltip": "These fees cover the costs of payment gateways and help us operate the site and support you",
   "t_these_info_will_appear_on_ur_public_profile": "These information will appear on your public profile. Use the links below to edit other settings",

@@ -16,6 +16,7 @@ import {
 } from '@mytask/ui/web';
 import { href, useApi, useLocale, useT } from '../../lib/client';
 import { usePublicConfig, type PublicConfig } from '../../lib/public-config';
+import { applyTheme, savedThemeCookie } from '../../lib/theme-client';
 import { dashboardHome, navItems, switchTarget } from './nav';
 import './dashboard.css';
 
@@ -74,6 +75,15 @@ export function DashboardShell({
       live = false;
     };
   }, [api, router, locale, pathname]);
+
+  // The account's theme (spec 02 AC-35) wins over this browser's cookie: a choice made on another device, or
+  // a cookie left by another account, is corrected here (the server reads the cookie on the next page).
+  useEffect(() => {
+    if (!me || !config?.appearance?.themeSwitcherEnabled) return;
+    if ((me.theme ?? undefined) !== savedThemeCookie()) {
+      applyTheme(me.theme, config.appearance.defaultTheme);
+    }
+  }, [me, config]);
 
   const choose = useCallback(
     (to: DashboardSide) => {

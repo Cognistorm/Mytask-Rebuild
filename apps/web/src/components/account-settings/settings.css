@@ -29,3 +29,10 @@
 .mt-settings-danger {
   border-color: var(--mt-border-danger);
 }
+
+.mt-account-nav .mt-account-theme {
+  justify-self: stretch;
+  text-align: start;
+  padding-block-start: var(--mt-space-4);
+  border-block-start: var(--mt-border-width-hairline) solid var(--mt-border-subtle);
+}

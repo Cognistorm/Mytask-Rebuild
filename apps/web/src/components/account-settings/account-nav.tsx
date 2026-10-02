@@ -1,14 +1,20 @@
 'use client';
 // Account area side card (spec 02 AC-35; legacy `components/main/account/sidebar.blade.php`, audit §3.6): avatar,
 // username, then the account links. Billing, payment methods, subscription and referrals join with their
-// slices (specs 05, 09); the theme switch (S-105) with task 4.1.20d.
+// slices (specs 05, 09). Under them the theme switch (Light / Dark / System, S-105/S-106, task 4.1.20d).
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { components } from '@mytask/types';
 import type { Locale } from '@mytask/i18n';
-import { Avatar } from '@mytask/ui/web';
+import { useState } from 'react';
+import { Alert, Avatar, RadioGroup } from '@mytask/ui/web';
 import type { TFunction } from 'i18next';
 import { href, useApi } from '../../lib/client';
+import type { ThemeChoice } from '../../lib/theme';
+import { applyTheme } from '../../lib/theme-client';
+import { useDashboard } from '../dashboard/shell';
+import '../profile-edit/edit.css';
+import './settings.css';
 
 type Me = components['schemas']['Me'];
 
@@ -52,6 +58,49 @@ export function AccountNav(props: { t: TFunction; locale: Locale; me: Me; curren
           </button>
         </li>
       </ul>
+      <ThemeSwitch t={t} locale={locale} />
     </nav>
+  );
+}
+
+/**
+ * Light / Dark / System (spec 02 AC-35, Q-059; components.md §6.13 settings variant). Applies at once, saves the
+ * cookie the server reads and the account preference (`updateMyPreferences`), so the choice follows the user
+ * to other devices. Hidden when S-105 is OFF.
+ */
+function ThemeSwitch(props: { t: TFunction; locale: Locale }) {
+  const { t } = props;
+  const api = useApi(props.locale);
+  const { me, setMe, config } = useDashboard();
+  const [failed, setFailed] = useState(false);
+  if (!me || !config?.appearance?.themeSwitcherEnabled) return null;
+  const defaultTheme = config.appearance.defaultTheme;
+  const current: ThemeChoice = me.theme ?? defaultTheme;
+
+  async function choose(choice: ThemeChoice) {
+    if (!me) return;
+    setFailed(false);
+    applyTheme(choice, defaultTheme);
+    setMe({ ...me, theme: choice });
+    const res = await api.PATCH('/me/preferences', { body: { theme: choice } });
+    if (res.data) setMe(res.data);
+    else setFailed(true);
+  }
+
+  return (
+    <div className="mt-account-theme" data-testid="theme-switch">
+      <RadioGroup
+        label={t('t_theme')}
+        name="theme"
+        options={[
+          { value: 'light', label: t('t_light_mode') },
+          { value: 'dark', label: t('t_dark_mode') },
+          { value: 'system', label: t('t_system') },
+        ]}
+        value={current}
+        onChange={(v) => void choose(v)}
+      />
+      {failed && <Alert kind="error">{t('t_toast_something_went_wrong')}</Alert>}
+    </div>
   );
 }
