@@ -138,7 +138,9 @@ Remaining:
   - [x] 4.1.24c Account → Settings (AC-29…AC-34: username, email, full name, city, current password or emailed code, pending-email banner, delete account dialog) + the Account tab links (AC-35). Done 2026-10-03: `src/app/account/settings.tsx` (legacy fields and texts, only changed fields sent, current password for accounts with one, `email_change` code + resend wait for accounts without one when the email changes, pending-email notice from `Me.pendingEmail`, link opens the website `/auth/email-change`; delete account bottom sheet with the legacy warning, refusal shown in the sheet, success clears the session → login); Account tab: Account settings link + `getMe` on focus; edit-profile links include Settings; no new i18n key; SETUP-LOCAL §4 step 15; see `docs/handoffs/2026-10-03-mobile-engineer-to-mobile-qa-4-1-24c-account-settings-mobile.md`.
   - [x] 4.1.24d Verification centre (AC-36…AC-39: 3 steps camera first, status pending / verified / declined with "send again", own documents). Done 2026-10-03: `src/app/account/verification.tsx` (legacy 3 steps, all mounted so Back keeps the uploads, camera or gallery per photo, selfie opens the front camera, `kyc_document` JPG/JPEG/PNG ≤ 5 MB pre-checks, 409 → shows the current one; status card pending / verified / declined with reason, documents with size and Download via the 2-min owner signed link opened in the browser, Send files again); image picker takes `purpose`/`info`/`camera`; links on the Account tab and edit profile; no new i18n key; SETUP-LOCAL §4 step 16; see `docs/handoffs/2026-10-03-mobile-engineer-to-mobile-qa-4-1-24d-verification-centre-mobile.md`. **4.1.24 complete.**
 - [x] 4.1.25 E2E main flows. Done 2026-10-03: full-stack `apps/admin/e2e/profiles-main-flow.spec.ts` (web profile + avatar + portfolio + KYC → admin approve → guest public profile and work page; needs `ADMIN_E2E_LOG`); local public images fixed (SeaweedFS anonymous `Read:public-media` only, also in `docker-compose.yml`); `LOCAL_PGLITE_DIR` throw-away DB (SETUP-LOCAL §5); mobile stays on the manual SETUP-LOCAL §4 steps (harness = Owner decision); admin E2E 17/17; see `docs/handoffs/2026-10-03-web-engineer-to-qa-4-1-25-e2e-main-flows.md`.
-- [ ] 4.1.26 QA parity report.
+- [ ] 4.1.26 QA parity report for slice 1 → `docs/06-qa/reports/` (split 2026-10-03 into a/b, as 3.15):
+  - [ ] 4.1.26a Test plan `docs/06-qa/plans/02-profiles.md` (spec 02 AC → test case → evidence) + run every automated suite (lint, typecheck, API, web/admin E2E incl. the full-stack `profiles-main-flow` on a throw-away DB, mobile export) + API-level checks of the ACs on the running local stack; report part 1.
+  - [ ] 4.1.26b Screen parity vs live site and `/legacy/` (web + app + admin queues; every image screen now that local public images load), i18n check, cross-client check (web ↔ app), bugs + verdict; report complete.
 - [ ] 4.1.27 Security review (personal data, uploads, KYC).
 - [ ] 4.1.28 Fix findings.
 - [ ] 4.1.29 PR + CI + STATUS.
@@ -532,6 +534,7 @@ Remaining:
 - [ ] 6.10 301 redirects + SEO check on staging.
 - [ ] 6.11 Load test.
 - [ ] 6.12 Final security review + pre-launch checklist (incl. ADR-019 §5 Clarity "Strict" masking and §7 re-entering GA4/Clarity with their S-127 hosts).
+- [ ] 6.12a Mobile E2E harness (Maestro on an emulator/simulator with a dev build, not Expo Go) + main-flow tests for every app screen built in Phase 3–4 (Owner decision 2026-10-03: automation waits for Phase 6; until then the manual SETUP-LOCAL §4 steps).
 - [ ] 6.13 Mobile: EAS production builds.
 - [ ] 6.14 Mobile: store listings + submission for iOS and Android (ADR-016).
 - [ ] 6.15 Cutover plan + rehearsal.

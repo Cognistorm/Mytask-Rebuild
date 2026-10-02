@@ -58,7 +58,7 @@ Phase: 4 — Features **NEXT** | Phase 3 gate: APPROVED by Owner 2026-10-02 | Ph
 
 ## Micro-task workflow (Owner rule 2026-09-30)
 The plan lives in **docs/ROADMAP.md** (checkbox per micro-task). One micro-task at a time; when it is done and tests pass, tick it there and add one line below.
-**Next micro-task: 4.1.26** (slice 1, spec 02, branch `feat/profiles`): QA parity report of slice 1 (qa-engineer; include the new full-stack flow and re-check every image screen now that local public images load). **Owner decision open:** mobile E2E harness (Maestro on an emulator + dev build) now or at Phase 6 — the app keeps the manual SETUP-LOCAL §4 steps meanwhile. Owner rule 2026-10-02: no push or PR until Phase 4 is complete; all work stays local until then. **Owner decisions still open:** DEV-M1 (no "back to homepage" in the app until slice 02; QA recommends approve), Q-160 (mobile bot check; before S-061 ON).
+**Next micro-task: 4.1.26a** (slice 1, spec 02, branch `feat/profiles`): QA test plan + automated suites + API-level AC checks (qa-engineer); 4.1.26b screen parity + verdict follows. Owner decision 2026-10-03: mobile E2E automation waits for Phase 6 (ROADMAP 6.12a); the app keeps the manual SETUP-LOCAL §4 steps. Owner rule 2026-10-02: no push or PR until Phase 4 is complete; all work stays local until then. **Owner decisions still open:** DEV-M1 (no "back to homepage" in the app until slice 02; QA recommends approve), Q-160 (mobile bot check; before S-061 ON).
 
 ### Micro-task log
 - 2026-10-02 3.18 + 3.19 done: PR #1 `feat/auth` merged into `main`, CI 10/10 green; Phase 3 gate approved by Owner. **Phase 3 closed.**
