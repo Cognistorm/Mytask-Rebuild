@@ -116,7 +116,7 @@ Remaining:
   - user: `createKycVerification`, `getMyKyc`;
   - staff: `adminListKycVerifications`, `adminGetKycVerification`, `adminApproveKycVerification`, `adminDeclineKycVerification`, `adminGetKycFileDownload`.
   Done 2026-10-02: one pending/verified per user (409 + partial unique index for races); back side must match the type; own ready unused `kyc_document` files; EV-16 to S-100; provider seam `KycProviders` (S-122 manual); declined rows kept and resubmit needs new photos (legacy deleted the row); staff compare-and-set (409 `t_item_already_decided`), decline reason shown to the user, audited 2-min file links; EV-16/17/18 email templates built (2 new i18n keys for the hard-coded legacy EV-16 text); see `docs/handoffs/2026-10-02-backend-engineer-to-web-mobile-qa-4-1-13-kyc-api.md`.
-- [ ] 4.1.14 API: `getSellingDashboard`.
+- [x] 4.1.14 API: `getSellingDashboard`. Done 2026-10-02: `DashboardService` in the profiles module; welcome data real (full name or username, KYC badge, member-since); KPIs and lists = contract neutral values (0 / []) with a comment naming the slice that fills each; `latestAwardedProjects` null while S-075 is OFF; see `docs/handoffs/2026-10-02-backend-engineer-to-web-mobile-qa-4-1-14-selling-dashboard-api.md`.
 - [ ] 4.1.15 Spec 02 notifications (email templates via outbox): EV-11…EV-18, EV-126 (EV-11/12 done in 4.1.11, EV-13 in 4.1.8b, EV-14/15/126 in 4.1.12, EV-16/17/18 in 4.1.13); in-app + push of EV-15/17/18/126 come in 4.14.
 - [ ] 4.1.16 Web: dashboard shell + switcher, Selling Home, Buying dashboard.
 - [ ] 4.1.17 Web: public profile + portfolio list/item.

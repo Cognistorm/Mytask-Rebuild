@@ -1,13 +1,14 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
 import { FilesModule } from '../files/files.module';
+import { DashboardService } from './dashboard.service';
 import { KycProviders, ManualKycProvider } from './kyc-provider';
 import { AdminKycController, KycController } from './kyc.controllers';
 import { KycService } from './kyc.service';
 import { AdminPortfolioController, PortfolioController } from './portfolio.controllers';
 import { PortfolioService } from './portfolio.service';
 import { ProfileListsService } from './profile-lists.service';
-import { ProfileListsController, ProfilesController } from './profiles.controllers';
+import { DashboardController, ProfileListsController, ProfilesController } from './profiles.controllers';
 import { ProfilesService } from './profiles.service';
 import { ReportLimiter } from './report-limiter';
 import { UserSummaries } from './user-summaries';
@@ -17,6 +18,7 @@ import { UserSummaries } from './user-summaries';
   controllers: [
     ProfilesController,
     ProfileListsController,
+    DashboardController,
     PortfolioController,
     AdminPortfolioController,
     KycController,
@@ -24,6 +26,7 @@ import { UserSummaries } from './user-summaries';
   ],
   providers: [
     ProfilesService,
+    DashboardService,
     ProfileListsService,
     PortfolioService,
     KycService,

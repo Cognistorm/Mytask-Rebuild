@@ -18,6 +18,7 @@ import type { Request, Response } from 'express';
 import { ClientIpResolver } from '../../platform/client-ip/client-ip.resolver';
 import { CurrentAuth, OptionalAuth, OptionalUser, type AuthState } from '../auth/auth.guard';
 import { buildContext } from '../auth/request-context';
+import { DashboardService } from './dashboard.service';
 import { ProfileListsService } from './profile-lists.service';
 import { ProfilesService } from './profiles.service';
 
@@ -181,5 +182,16 @@ export class ProfileListsController {
     @Req() req: Request,
   ): Promise<S['ProfileLinkedAccounts']> {
     return this.lists.putLinkedAccounts(auth.userId, body, this.ctx(req));
+  }
+}
+
+/** Contract: getSellingDashboard (ROADMAP 4.1.14). */
+@Controller('me/dashboard')
+export class DashboardController {
+  constructor(private readonly dashboard: DashboardService) {}
+
+  @Get('selling')
+  getSelling(@CurrentAuth() auth: AuthState): Promise<S['DashboardSelling']> {
+    return this.dashboard.getSelling(auth.userId);
   }
 }
