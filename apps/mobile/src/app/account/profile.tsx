@@ -1,8 +1,8 @@
 // Edit profile on mobile, Account → Profile (spec 02 AC-15…AC-23, P-23; screens table "per-block saving spinner;
 // inline errors; success"), the same blocks, order, texts and ops as the web `/account/profile`
 // (`apps/web/src/components/profile-edit/`). Reads `getMe` + `getMyProfile` once; every block saves on its own.
-// The legacy "Update profile" links list only the app screens that exist (settings and the verification centre
-// join with 4.1.24).
+// The legacy "Update profile" links list only the app screens that exist (account settings since 4.1.24c; the
+// verification centre joins with 4.1.24d).
 import { Redirect, router } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
@@ -98,6 +98,10 @@ export default function EditProfileScreen() {
             title={t('t_update_profile')}
             hint={t('t_these_info_will_appear_on_ur_public_profile')}
           >
+            <LinkButton
+              label={t('t_account_settings')}
+              onPress={() => router.push('/account/settings')}
+            />
             <LinkButton
               label={t('t_change_password')}
               onPress={() => router.push('/account/security/password')}

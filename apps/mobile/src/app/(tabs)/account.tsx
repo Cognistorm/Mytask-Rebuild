@@ -1,8 +1,11 @@
 // Account tab (spec 02 AC-1, AC-2, screens table "Account tab with a segmented Buying / Selling control").
-// The switcher opens the chosen dashboard (saved on the account, AC-3). Account links (AC-35): "Edit profile"
-// (4.1.23b), "View profile" (the own public profile, 4.1.23a) and the slice 01 links; settings and the
-// verification centre join with 4.1.24.
-import { router } from 'expo-router';
+// The switcher opens the chosen dashboard (saved on the account, AC-3). Account links (AC-35) in the web side
+// card's order: Account settings (4.1.24c), Edit profile (4.1.23b), View profile (4.1.23a), Password and security
+// with the sessions (slice 01), Logout; the verification centre joins with 4.1.24d, billing, payment methods,
+// subscription and referrals with specs 05/09. The account is read again on focus, so a change made in Settings
+// (username, email) shows here at once.
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { lightTheme as theme } from '@mytask/tokens/native';
 import { RoleSwitcher } from '../../components/dashboard';
@@ -17,9 +20,18 @@ const t = createT(locale);
 const api = mobileApi(locale);
 
 export default function AccountTab() {
-  const { me } = useMe();
+  const { me, setMe } = useMe();
   const side = useDashboardSide();
   const switchTo = useSwitchDashboard(api);
+
+  useFocusEffect(
+    useCallback(() => {
+      void api
+        .GET('/me')
+        .then((res) => res.data && setMe(res.data))
+        .catch(() => undefined);
+    }, [setMe]),
+  );
 
   async function logout() {
     await api.POST('/auth/logout', { body: {} });
@@ -47,6 +59,10 @@ export default function AccountTab() {
         <Text style={s.line}>{me.email}</Text>
         <Text style={s.line}>{t(me.twoFactorEnabled ? 't_2fa_enabled' : 't_2fa_disabled')}</Text>
       </View>
+      <LinkButton
+        label={t('t_account_settings')}
+        onPress={() => router.push('/account/settings')}
+      />
       <LinkButton label={t('t_edit_profile')} onPress={() => router.push('/account/profile')} />
       <LinkButton
         label={t('t_view_profile')}
