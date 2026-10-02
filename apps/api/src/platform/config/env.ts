@@ -63,6 +63,18 @@ export const envSchema = z
     RECAPTCHA_SITE_KEY: z.string().optional(),
     /** reCAPTCHA v3 server secret; only read while S-061 is ON (spec 01 AC-18). */
     RECAPTCHA_SECRET_KEY: z.string().optional(),
+    /** Object storage, S3 API (ADR-009 §1; SeaweedFS locally, ADR-017). Without it, file operations answer 503. */
+    S3_ENDPOINT: z.url().optional(),
+    /** Endpoint written into presigned URLs for browsers/apps when it differs from S3_ENDPOINT (compose: `s3` vs localhost). */
+    S3_PUBLIC_ENDPOINT: z.url().optional(),
+    S3_REGION: z.string().min(1).default('us-east-1'),
+    S3_ACCESS_KEY_ID: z.string().optional(),
+    S3_SECRET_ACCESS_KEY: z.string().optional(),
+    S3_BUCKET_PUBLIC: z.string().min(3).default('public-media'),
+    S3_BUCKET_PRIVATE: z.string().min(3).default('private'),
+    S3_BUCKET_KYC: z.string().min(3).default('kyc'),
+    /** Base URL of processed public images (CDN, or the local S3 bucket path). */
+    PUBLIC_MEDIA_BASE_URL: z.url().optional(),
     /** API tests only (ADR-002 §2); refused in production below. */
     STAFF_BODY_TOKENS_ENABLED: bool,
   })
@@ -87,6 +99,22 @@ export const envSchema = z
         path: ['SETTINGS_ENCRYPTION_KEY'],
         message: 'required in production (social-login secrets are stored encrypted, ADR-005 §8)',
       });
+    }
+    if (env.NODE_ENV === 'production') {
+      for (const name of [
+        'S3_ENDPOINT',
+        'S3_ACCESS_KEY_ID',
+        'S3_SECRET_ACCESS_KEY',
+        'PUBLIC_MEDIA_BASE_URL',
+      ] as const) {
+        if (!env[name]) {
+          ctx.addIssue({
+            code: 'custom',
+            path: [name],
+            message: 'required in production (uploads, ADR-009)',
+          });
+        }
+      }
     }
     if (env.NODE_ENV === 'production' && env.MAIL_TRANSPORT === 'log') {
       ctx.addIssue({

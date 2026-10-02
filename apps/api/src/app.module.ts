@@ -1,5 +1,6 @@
 import { type MiddlewareConsumer, Module, type NestModule } from '@nestjs/common';
 import { AuthModule } from './modules/auth/auth.module';
+import { FilesModule } from './modules/files/files.module';
 import { RestrictionsModule } from './modules/restrictions/restrictions.module';
 import { StaffModule } from './modules/staff/staff.module';
 import { AuditModule } from './platform/audit/audit.service';
@@ -14,6 +15,7 @@ import { PublicConfigModule } from './platform/public-config/public-config.modul
 import { OutboxModule } from './platform/outbox/outbox.module';
 import { RedisModule } from './platform/redis/redis.module';
 import { SettingsModule } from './platform/settings/settings.module';
+import { StorageModule } from './platform/storage/storage';
 
 // Domain modules (src/modules/*) are added one per slice (architecture §4).
 @Module({
@@ -22,6 +24,7 @@ import { SettingsModule } from './platform/settings/settings.module';
     LoggingModule,
     DbModule,
     RedisModule,
+    StorageModule,
     SettingsModule,
     ClientIpModule,
     OutboxModule,
@@ -30,6 +33,7 @@ import { SettingsModule } from './platform/settings/settings.module';
     AuthModule,
     StaffModule,
     RestrictionsModule,
+    FilesModule,
     PublicConfigModule,
   ],
   controllers: [HealthController],

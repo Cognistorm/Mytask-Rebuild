@@ -99,7 +99,7 @@ Remaining:
 ### 4.1 Slice 1 — spec 02 Profiles and dashboards (branch `feat/profiles`)
 - [x] 4.1.1 Spec check: spec 02 vs contract ops and screens; list gaps/questions (no code). Done 2026-10-02: contract complete (35 API ACs all covered), no contract/data-model change, no new Owner question; task gaps added to 4.1.7–4.1.15 below; neutral values for later-slice data; see `docs/handoffs/2026-10-02-orchestrator-to-backend-web-mobile-4-1-1-spec-02-check.md`.
 - [x] 4.1.2 `packages/ui`: move shared form pieces (Field, TextArea, Submit, Alert, CodeInput) out of apps/web and apps/admin. Done 2026-10-02: new `@mytask/ui/web` (`packages/ui/src/web/form.tsx` + `form.css`); `AuthCard` stays per app; class names unchanged.
-- [ ] 4.1.3 Files F0 part 1 (ADR-009/017): `files` table, S3 client, `createFileUpload`, `completeFileUpload`, `getFile`, `deleteFile` + tests.
+- [x] 4.1.3 Files F0 part 1 (ADR-009/017): `files` table, S3 client, `createFileUpload`, `completeFileUpload`, `getFile`, `deleteFile` + tests. Done 2026-10-02: purposes avatar / portfolio_image / kyc_document enabled (others 403 until their slice); presigned POST + GET proven on SeaweedFS 4.48 (ADR-017 §3, no fallback needed); see `docs/handoffs/2026-10-02-backend-engineer-to-backend-qa-security-4-1-3-files-f0-part-1.md`.
 - [ ] 4.1.4 Files F0 part 2: worker pipeline — magic bytes, ClamAV with limits ≥ 100 MB (Q-154), `sharp` variants, ready/rejected.
 - [ ] 4.1.5 Files F0 part 3: `getFileDownload` signed URLs + `adminCreateFileUpload`, `adminGetFile`, `adminCompleteFileUpload`.
 - [ ] 4.1.6 Appeal files:

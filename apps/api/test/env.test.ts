@@ -60,6 +60,10 @@ describe('loadEnv (ADR-013 §8 boot validation)', () => {
       ADMIN_URL: 'https://admin.mytask.ge',
       SMTP_URL: 'smtp://mail.example:587',
       SETTINGS_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString('base64'),
+      S3_ENDPOINT: 'https://s3.example',
+      S3_ACCESS_KEY_ID: 'key',
+      S3_SECRET_ACCESS_KEY: 'secret',
+      PUBLIC_MEDIA_BASE_URL: 'https://media.mytask.ge',
     };
 
     it('accepts a complete production environment', () => {
@@ -71,6 +75,9 @@ describe('loadEnv (ADR-013 §8 boot validation)', () => {
       ['SETTINGS_ENCRYPTION_KEY', { SETTINGS_ENCRYPTION_KEY: undefined }],
       ['MAIL_TRANSPORT', { MAIL_TRANSPORT: 'log' }],
       ['REDIS_URL', { REDIS_URL: 'memory://local' }],
+      ['S3_ENDPOINT', { S3_ENDPOINT: undefined }],
+      ['S3_SECRET_ACCESS_KEY', { S3_SECRET_ACCESS_KEY: undefined }],
+      ['PUBLIC_MEDIA_BASE_URL', { PUBLIC_MEDIA_BASE_URL: undefined }],
     ])('refuses to start without a safe %s', (name, change) => {
       expect(() => loadEnv({ ...prod, ...change })).toThrow(new RegExp(name));
     });

@@ -517,3 +517,75 @@ model SocialAccount {
   @@index([userId])
   @@map("social_accounts")
 }
+
+// ---------------------------------------------------------------- files (data-model §3.Q, ADR-009, ADR-017)
+
+enum FilePurpose {
+  avatar
+  gig_image
+  gig_thumbnail
+  gig_document
+  portfolio_image
+  category_image
+  blog_image
+  project_thumbnail
+  project_file
+  delivery
+  chat_attachment
+  offer_attachment
+  appeal_file
+  kyc_document
+  home_logo
+
+  @@map("file_purpose")
+}
+
+enum FileBucket {
+  public_media
+  private
+  kyc
+
+  @@map("file_bucket")
+}
+
+enum FileStatus {
+  pending
+  scanning
+  ready
+  rejected
+  deleted
+
+  @@map("file_status")
+}
+
+/// Every uploaded file. `bucket` + `object_key` say where the object is NOW: `quarantine/{id}` until the
+/// worker moves it to its final place (ADR-009 §3.5). `variants` = `{thumb, medium, large}` keys of a public image.
+model File {
+  id             String      @id @default(uuid(7)) @db.Uuid
+  legacySource   String?     @map("legacy_source")
+  legacyId       BigInt?     @map("legacy_id")
+  purpose        FilePurpose
+  ownerUserId    String?     @map("owner_user_id") @db.Uuid
+  ownerStaffId   String?     @map("owner_staff_id") @db.Uuid
+  bucket         FileBucket
+  objectKey      String      @map("object_key")
+  originalName   String      @map("original_name") @db.VarChar(255)
+  declaredType   String      @map("declared_type") @db.VarChar(127)
+  detectedType   String?     @map("detected_type") @db.VarChar(127)
+  sizeBytes      BigInt      @map("size_bytes")
+  checksumSha256 Bytes?      @map("checksum_sha256")
+  status         FileStatus  @default(pending)
+  rejectReason   String?     @map("reject_reason")
+  scanSkipped    Boolean     @default(false) @map("scan_skipped")
+  variants       Json?
+  width          Int?
+  height         Int?
+  legacyPath     String?     @map("legacy_path")
+  createdAt      DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  readyAt        DateTime?   @map("ready_at") @db.Timestamptz(6)
+  deletedAt      DateTime?   @map("deleted_at") @db.Timestamptz(6)
+
+  @@unique([bucket, objectKey])
+  @@index([ownerUserId, purpose])
+  @@map("files")
+}

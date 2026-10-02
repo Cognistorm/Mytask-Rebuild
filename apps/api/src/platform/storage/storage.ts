@@ -1,0 +1,170 @@
+// Object storage over the S3 API (ADR-009 §1–§4; SeaweedFS locally, ADR-017; R2/Hetzner in production).
+// Business code depends on `ObjectStorage` only; tests swap in an in-memory stand-in. Two clients: one for
+// the API's own calls (S3_ENDPOINT, e.g. `http://s3:8333` inside compose) and one that signs URLs handed to
+// browsers and apps (S3_PUBLIC_ENDPOINT, e.g. `http://localhost:8333`), because a presigned GET signs the host.
+import {
+  DeleteObjectCommand,
+  GetObjectCommand,
+  HeadObjectCommand,
+  NotFound,
+  S3Client,
+} from '@aws-sdk/client-s3';
+import { createPresignedPost } from '@aws-sdk/s3-presigned-post';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { Global, Inject, Injectable, Logger, Module } from '@nestjs/common';
+import type { FileBucket } from '../../generated/prisma/client';
+import { ENV, type Env } from '../config/env';
+import { ApiException } from '../errors/api-exception';
+
+export interface PresignedPost {
+  url: string;
+  fields: Record<string, string>;
+  expiresAt: Date;
+}
+
+export interface PresignedPostInput {
+  bucket: FileBucket;
+  key: string;
+  contentType: string;
+  /** Upper bound of the `content-length-range` condition. */
+  maxBytes: number;
+  expiresSeconds: number;
+}
+
+export interface PresignedGetInput {
+  bucket: FileBucket;
+  key: string;
+  expiresSeconds: number;
+  /** Sent back as `Content-Disposition: attachment` (ADR-009 §4: never inline). */
+  downloadName: string;
+}
+
+export interface ObjectHead {
+  sizeBytes: number;
+  contentType: string | null;
+}
+
+export abstract class ObjectStorage {
+  abstract presignedPost(input: PresignedPostInput): Promise<PresignedPost>;
+  abstract presignedGet(input: PresignedGetInput): Promise<string>;
+  /** `null` when the object does not exist. */
+  abstract head(bucket: FileBucket, key: string): Promise<ObjectHead | null>;
+  /** Idempotent: deleting a missing object is not an error. */
+  abstract delete(bucket: FileBucket, key: string): Promise<void>;
+}
+
+/** RFC 6266 `attachment` with an ASCII fallback and the UTF-8 name (Georgian file names). */
+export function attachmentDisposition(name: string): string {
+  const ascii = name.replace(/[^\x20-\x7e]/g, '_').replace(/["\\]/g, '_');
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(name)}`;
+}
+
+export class S3ObjectStorage extends ObjectStorage {
+  private readonly client: S3Client;
+  private readonly signer: S3Client;
+  private readonly buckets: Record<FileBucket, string>;
+
+  constructor(env: Env) {
+    super();
+    const credentials = {
+      accessKeyId: env.S3_ACCESS_KEY_ID ?? '',
+      secretAccessKey: env.S3_SECRET_ACCESS_KEY ?? '',
+    };
+    // Path-style URLs work on SeaweedFS, R2 and Hetzner alike (no per-bucket DNS).
+    const base = { region: env.S3_REGION, credentials, forcePathStyle: true };
+    this.client = new S3Client({ ...base, endpoint: env.S3_ENDPOINT });
+    this.signer = new S3Client({ ...base, endpoint: env.S3_PUBLIC_ENDPOINT ?? env.S3_ENDPOINT });
+    this.buckets = {
+      public_media: env.S3_BUCKET_PUBLIC,
+      private: env.S3_BUCKET_PRIVATE,
+      kyc: env.S3_BUCKET_KYC,
+    };
+  }
+
+  async presignedPost(input: PresignedPostInput): Promise<PresignedPost> {
+    const { url, fields } = await createPresignedPost(this.signer, {
+      Bucket: this.buckets[input.bucket],
+      Key: input.key,
+      Conditions: [
+        ['content-length-range', 1, input.maxBytes],
+        ['eq', '$Content-Type', input.contentType],
+      ],
+      Fields: { 'Content-Type': input.contentType },
+      Expires: input.expiresSeconds,
+    });
+    return { url, fields, expiresAt: new Date(Date.now() + input.expiresSeconds * 1000) };
+  }
+
+  presignedGet(input: PresignedGetInput): Promise<string> {
+    return getSignedUrl(
+      this.signer,
+      new GetObjectCommand({
+        Bucket: this.buckets[input.bucket],
+        Key: input.key,
+        ResponseContentDisposition: attachmentDisposition(input.downloadName),
+      }),
+      { expiresIn: input.expiresSeconds },
+    );
+  }
+
+  async head(bucket: FileBucket, key: string): Promise<ObjectHead | null> {
+    try {
+      const out = await this.client.send(
+        new HeadObjectCommand({ Bucket: this.buckets[bucket], Key: key }),
+      );
+      return { sizeBytes: out.ContentLength ?? 0, contentType: out.ContentType ?? null };
+    } catch (err) {
+      if (err instanceof NotFound || (err as { name?: string }).name === 'NotFound') return null;
+      throw err;
+    }
+  }
+
+  async delete(bucket: FileBucket, key: string): Promise<void> {
+    await this.client.send(new DeleteObjectCommand({ Bucket: this.buckets[bucket], Key: key }));
+  }
+}
+
+/** S3_* not set (Docker-free preview): file operations answer 503 instead of failing at boot. */
+class UnconfiguredStorage extends ObjectStorage {
+  private fail(): never {
+    throw new ApiException(503, 'SERVICE_UNAVAILABLE', 't_toast_something_went_wrong');
+  }
+  presignedPost(): Promise<PresignedPost> {
+    this.fail();
+  }
+  presignedGet(): Promise<string> {
+    this.fail();
+  }
+  head(): Promise<ObjectHead | null> {
+    this.fail();
+  }
+  delete(): Promise<void> {
+    this.fail();
+  }
+}
+
+@Injectable()
+class StorageFactory {
+  constructor(@Inject(ENV) private readonly env: Env) {}
+  create(): ObjectStorage {
+    const { S3_ENDPOINT, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY } = this.env;
+    if (S3_ENDPOINT && S3_ACCESS_KEY_ID && S3_SECRET_ACCESS_KEY)
+      return new S3ObjectStorage(this.env);
+    new Logger('Storage').warn('S3_* not set — file uploads are unavailable (local preview only)');
+    return new UnconfiguredStorage();
+  }
+}
+
+@Global()
+@Module({
+  providers: [
+    StorageFactory,
+    {
+      provide: ObjectStorage,
+      useFactory: (f: StorageFactory) => f.create(),
+      inject: [StorageFactory],
+    },
+  ],
+  exports: [ObjectStorage],
+})
+export class StorageModule {}

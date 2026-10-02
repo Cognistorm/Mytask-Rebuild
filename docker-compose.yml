@@ -16,6 +16,8 @@ x-app-env: &app-env
     DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
     REDIS_URL: redis://redis:6379
     S3_ENDPOINT: http://s3:8333
+    # Presigned upload/download URLs are opened by the browser, which reaches the s3 port on localhost.
+    S3_PUBLIC_ENDPOINT: http://localhost:8333
     SMTP_URL: smtp://mailpit:1025
     BOG_API_BASE_URL: http://bog-mock:4100
     CLAMAV_HOST: clamav
