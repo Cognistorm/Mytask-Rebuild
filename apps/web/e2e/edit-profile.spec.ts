@@ -296,9 +296,9 @@ test('availability: modal from tomorrow, error in the modal, set, change, remove
   await expect(dialog).toBeVisible();
   const date = dialog.getByLabel('When do you expect to be ready for new work?');
   const min = await date.getAttribute('min');
-  const tomorrow = new Date(Date.now() + 24 * 3600 * 1000).toISOString().slice(0, 10);
-  // Tomorrow in Asia/Tbilisi: today's or tomorrow's UTC date + 1 depending on the hour.
-  expect(min! >= new Date().toISOString().slice(0, 10) && min! <= tomorrow).toBe(true);
+  // Tomorrow in Asia/Tbilisi (UTC+4, no DST): after 20:00 UTC that is two UTC days ahead.
+  const tomorrow = new Date(Date.now() + (4 + 24) * 3600 * 1000).toISOString().slice(0, 10);
+  expect(min).toBe(tomorrow);
 
   // The API refuses a date not in the future; the message stays in the modal under the field.
   await date.fill('2025-12-31');
