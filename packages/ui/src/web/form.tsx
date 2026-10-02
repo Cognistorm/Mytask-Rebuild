@@ -16,9 +16,19 @@ export function Field(props: {
   required?: boolean;
   showLabel?: string;
   hideLabel?: string;
+  /** Earliest value of a `date` field (`YYYY-MM-DD`). */
+  min?: string;
+  maxLength?: number;
+  placeholder?: string;
+  /** Id of a `<datalist>` with suggestions. */
+  list?: string;
+  /** Help text under the field (linked with aria-describedby). */
+  hint?: string;
 }) {
   const id = useId();
   const [shown, setShown] = useState(false);
+  const describedBy =
+    [props.hint && `${id}-hint`, props.error && `${id}-err`].filter(Boolean).join(' ') || undefined;
   const isPassword = props.type === 'password';
   return (
     <div className="auth-field">
@@ -30,9 +40,13 @@ export function Field(props: {
           type={isPassword && shown ? 'text' : (props.type ?? 'text')}
           autoComplete={props.autoComplete}
           required={props.required}
+          min={props.min}
+          maxLength={props.maxLength}
+          placeholder={props.placeholder}
+          list={props.list}
           value={props.value}
           aria-invalid={!!props.error}
-          aria-describedby={props.error ? `${id}-err` : undefined}
+          aria-describedby={describedBy}
           onChange={(e) => props.onChange(e.target.value)}
         />
         {isPassword && (
@@ -47,12 +61,57 @@ export function Field(props: {
           </button>
         )}
       </div>
+      {props.hint && (
+        <p id={`${id}-hint`} className="auth-hint">
+          {props.hint}
+        </p>
+      )}
       {props.error && (
         <p id={`${id}-err`} className="auth-error" role="alert">
           {props.error}
         </p>
       )}
     </div>
+  );
+}
+
+/** Radio group (components.md §5.8): fieldset + visible legend, native radios (arrow keys move the choice). */
+export function RadioGroup<V extends string>(props: {
+  label: string;
+  name: string;
+  options: { value: V; label: string }[];
+  value: V | undefined;
+  onChange: (v: V) => void;
+  error?: string;
+}) {
+  const id = useId();
+  return (
+    <fieldset
+      className="auth-radios"
+      aria-invalid={!!props.error}
+      aria-describedby={props.error ? `${id}-err` : undefined}
+    >
+      <legend>{props.label}</legend>
+      <div className="auth-radios-options">
+        {props.options.map((o) => (
+          <label key={o.value} className="auth-radio">
+            <input
+              type="radio"
+              name={props.name}
+              value={o.value}
+              checked={props.value === o.value}
+              onChange={() => props.onChange(o.value)}
+            />
+            {o.label}
+          </label>
+        ))}
+      </div>
+      {props.error && (
+        <p id={`${id}-err`} className="auth-error" role="alert">
+          {props.error}
+        </p>
+      )}
+    </fieldset>
   );
 }
 
@@ -64,6 +123,7 @@ export function TextArea(props: {
   onChange: (v: string) => void;
   maxLength?: number;
   rows?: number;
+  placeholder?: string;
 }) {
   const id = useId();
   return (
@@ -74,6 +134,7 @@ export function TextArea(props: {
         name={props.name}
         rows={props.rows ?? 5}
         maxLength={props.maxLength}
+        placeholder={props.placeholder}
         value={props.value}
         aria-invalid={!!props.error}
         aria-describedby={props.error ? `${id}-err` : undefined}
