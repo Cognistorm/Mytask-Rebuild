@@ -368,3 +368,16 @@
   color: var(--mt-text-success);
   font-size: var(--mt-font-size-sm);
 }
+
+/* Report user dialog (AC-14). */
+.mt-profile-report {
+  display: grid;
+  gap: var(--mt-space-4);
+}
+
+.mt-profile-report-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--mt-space-2);
+}

@@ -2,7 +2,7 @@
 // `Main/Profile/ProfileComponent.php`, `livewire/main/profile/profile.blade.php`). Rendered on the server as
 // the visitor of the request: real 404 for hidden users (AC-9), `noindex, follow` for empty profiles
 // (spec 17 AC-41). Left card + main column as on the live site; one h1 (audit §3.6).
-// Not in this task: "Report user" (4.1.20), the gigs list (slice 3, D2), "Request an offer" (slice 11: the API
+// "Report user" (AC-14) since 4.1.20c. Not yet: the gigs list (slice 3, D2), "Request an offer" (slice 11: the API
 // sends `canRequestOffer: false` until then).
 import type { Metadata } from 'next';
 import Link from 'next/link';
@@ -18,6 +18,7 @@ import {
 import {
   LocalTime,
   PortfolioCardView,
+  ReportButton,
   SessionRefresh,
   ShareButton,
 } from '../../../../../components/profile/client';
@@ -117,6 +118,7 @@ export default async function ProfilePage({ params }: Params) {
               title={name}
               copiedText={t('t_profile_link_copied_to_ur_clipboard')}
             />
+            {!p.isOwnProfile && <ReportButton username={p.username} signedIn={p.canReport} />}
           </div>
 
           <dl className="mt-profile-facts">

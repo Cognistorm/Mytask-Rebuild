@@ -1,12 +1,12 @@
 'use client';
-// Browser parts of the public profile pages: share dialog, local clock, the session refresh and the portfolio
-// "Load more" grid (spec 02 AC-8, AC-28).
+// Browser parts of the public profile pages: share dialog, report dialog, local clock, the session refresh and the
+// portfolio "Load more" grid (spec 02 AC-8, AC-14, AC-28).
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import type { components } from '@mytask/types';
-import { Dialog, Pill } from '@mytask/ui/web';
-import { href, useApi, useLocale, useT } from '../../lib/client';
+import { Alert, Dialog, Pill, TextArea } from '@mytask/ui/web';
+import { href, splitErrors, useApi, useLocale, useT, type ApiErrorBody } from '../../lib/client';
 
 type PortfolioCard = components['schemas']['PortfolioItemCard'];
 
@@ -76,6 +76,116 @@ export function ShareButton(props: { label: string; title: string; copiedText: s
         <p role="status" className="mt-profile-share-status">
           {copied ? props.copiedText : ''}
         </p>
+      </Dialog>
+    </>
+  );
+}
+
+/**
+ * "Report user" (AC-14; legacy `ProfileComponent.php:275-352` and the report modal of `profile.blade.php`): a reason
+ * (required, ≤ 1,500) → `createUserReport`; a second report replaces the first (200 or 201, same message). Guests
+ * get the login message with a link back here. Not rendered on the own profile (AC-13).
+ */
+export function ReportButton(props: { username: string; signedIn: boolean }) {
+  const locale = useLocale();
+  const t = useT(locale);
+  const api = useApi(locale);
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
+  const [needsLogin, setNeedsLogin] = useState(!props.signedIn);
+  const [err, setErr] = useState<ApiErrorBody>();
+  const [empty, setEmpty] = useState(false);
+  const { fields, general } = splitErrors(err);
+  const [here, setHere] = useState('');
+  useEffect(() => setHere(window.location.pathname), []);
+
+  async function send(e: React.FormEvent) {
+    e.preventDefault();
+    const text = reason.trim();
+    if (!text) return setEmpty(true);
+    setEmpty(false);
+    setBusy(true);
+    setErr(undefined);
+    const res = await api.POST('/users/{username}/reports', {
+      params: { path: { username: props.username } },
+      body: { reason: text },
+    });
+    setBusy(false);
+    // The session ended since the page was rendered: as a guest.
+    if (res.response.status === 401) return setNeedsLogin(true);
+    if (res.error) return setErr(res.error as ApiErrorBody);
+    setDone(true);
+    setReason('');
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        className="mt-button"
+        data-testid="report-user"
+        onClick={() => {
+          setDone(false);
+          setErr(undefined);
+          setEmpty(false);
+          setOpen(true);
+        }}
+      >
+        {t('t_report_user')}
+      </button>
+      <Dialog
+        open={open}
+        onClose={() => setOpen(false)}
+        title={t('t_report_user')}
+        closeLabel={t('t_ui_close')}
+        testId="report-dialog"
+      >
+        {needsLogin ? (
+          <div className="mt-profile-report">
+            <Alert kind="info">{t('t_u_must_login_to_report_this_profile')}</Alert>
+            <a
+              className="mt-button mt-button-primary"
+              href={`${href(locale, '/auth/login')}?next=${encodeURIComponent(here)}`}
+            >
+              {t('t_login')}
+            </a>
+          </div>
+        ) : done ? (
+          <div className="mt-profile-report">
+            <Alert kind="success">{t('t_profile_has_been_successfully_reported')}</Alert>
+            <button type="button" className="mt-button" onClick={() => setOpen(false)}>
+              {t('t_ui_close')}
+            </button>
+          </div>
+        ) : (
+          <form className="mt-profile-report" onSubmit={send} noValidate>
+            {general && <Alert kind="error">{general}</Alert>}
+            <TextArea
+              label={t('t_reason')}
+              name="reason"
+              placeholder={t('t_report_user_reason_placeholder')}
+              maxLength={1500}
+              value={reason}
+              onChange={setReason}
+              error={empty ? t('t_validator_required') : fields.reason}
+            />
+            <div className="mt-profile-report-buttons">
+              <button type="button" className="mt-button" onClick={() => setOpen(false)}>
+                {t('t_cancel')}
+              </button>
+              <button
+                type="submit"
+                className="mt-button mt-button-primary"
+                disabled={busy}
+                aria-busy={busy}
+              >
+                {t('t_report')}
+              </button>
+            </div>
+          </form>
+        )}
       </Dialog>
     </>
   );
