@@ -1,11 +1,12 @@
-// Profiles (ROADMAP 4.1.8a; spec 02 AC-8…AC-10, AC-13, AC-15…AC-18, R-P3, EC-4): getMyProfile,
-// updateMyProfile, putMyAvatar, deleteMyAvatar and the public getUserProfile with neutral values for the
-// data of later slices. Object storage is MemoryStorage.
+// Profiles (ROADMAP 4.1.8a/b; spec 02 AC-8…AC-10, AC-13…AC-18, R-P3, R-P4, EC-4): getMyProfile,
+// updateMyProfile, putMyAvatar, deleteMyAvatar, the public getUserProfile with neutral values for the data of
+// later slices, online status (presence) and createUserReport (EV-13). Object storage is MemoryStorage.
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import request from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { File as FileRow } from '../src/generated/prisma/client';
 import { PrismaService } from '../src/platform/db/prisma.service';
+import { renderEmail } from '../src/platform/mail/templates';
 import { RedisService } from '../src/platform/redis/redis.module';
 import { SettingsService } from '../src/platform/settings/settings.service';
 import { ObjectStorage } from '../src/platform/storage/storage';
@@ -285,8 +286,9 @@ describe('putMyAvatar / deleteMyAvatar (AC-16)', () => {
 
 describe('getUserProfile (AC-8…AC-10, AC-13, R-P3, EC-4)', () => {
   it('shows a profile to guests with the neutral values of later slices', async () => {
-    const { userId, username, auth } = await member();
-    await http().patch('/api/v1/me/profile').set(auth).send({ headline: 'Translator' });
+    const { userId, username } = await member();
+    // Written directly: an authenticated request would make the user online.
+    await prisma.userProfile.update({ where: { userId }, data: { headline: 'Translator' } });
     const res = await profile(username);
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({
@@ -363,7 +365,6 @@ describe('getUserProfile (AC-8…AC-10, AC-13, R-P3, EC-4)', () => {
 
   it('shows skills, languages, country, timezone, availability, online, KYC and public portfolio', async () => {
     const u = await member();
-    const now = Date.now();
     await prisma.userProfile.update({
       where: { userId: u.userId },
       data: {
@@ -372,10 +373,6 @@ describe('getUserProfile (AC-8…AC-10, AC-13, R-P3, EC-4)', () => {
         unavailableUntil: new Date('2099-05-01T12:00:00Z'),
         unavailableMessage: 'On holiday',
       },
-    });
-    await prisma.user.update({
-      where: { id: u.userId },
-      data: { lastActivityAt: new Date(now - 60_000) },
     });
     await prisma.userSkill.createMany({
       data: [
@@ -444,18 +441,13 @@ describe('getUserProfile (AC-8…AC-10, AC-13, R-P3, EC-4)', () => {
     expect(mine.body.skills).toHaveLength(2);
   });
 
-  it('hides a passed availability and an old activity (AC-23, R-P4)', async () => {
+  it('hides a passed availability (AC-23)', async () => {
     const u = await member();
     await prisma.userProfile.update({
       where: { userId: u.userId },
       data: { unavailableUntil: new Date(Date.now() - 1000), unavailableMessage: 'Away' },
     });
-    await prisma.user.update({
-      where: { id: u.userId },
-      data: { lastActivityAt: new Date(Date.now() - 11 * 60_000) },
-    });
-    const res = await profile(u.username);
-    expect(res.body).toMatchObject({ availability: null, isOnline: false });
+    expect((await profile(u.username)).body.availability).toBeNull();
   });
 
   it('shows linked accounts only while S-123 is ON', async () => {
@@ -479,5 +471,134 @@ describe('getUserProfile (AC-8…AC-10, AC-13, R-P3, EC-4)', () => {
       await prisma.setting.deleteMany({ where: { key: S123_KEY } });
       app.get(SettingsService).invalidate();
     }
+  });
+});
+
+describe('online status (R-P4)', () => {
+  it('turns online with an authenticated request and offline when presence expires', async () => {
+    const u = await member();
+    // Registration is not an authenticated request.
+    expect((await profile(u.username)).body.isOnline).toBe(false);
+    expect((await http().get('/api/v1/me').set(u.auth)).status).toBe(200);
+    expect((await profile(u.username)).body.isOnline).toBe(true);
+    // The column is written in the background.
+    await expect
+      .poll(
+        async () =>
+          (await prisma.user.findUniqueOrThrow({ where: { id: u.userId } })).lastActivityAt,
+      )
+      .not.toBeNull();
+    // Presence gone (10 minutes passed) → offline.
+    await app.get(RedisService).client.del(`presence:user:${u.userId}`);
+    expect((await profile(u.username)).body.isOnline).toBe(false);
+  });
+
+  it('writes last_activity_at at most once a minute', async () => {
+    const u = await member();
+    await http().get('/api/v1/me').set(u.auth);
+    await expect
+      .poll(
+        async () =>
+          (await prisma.user.findUniqueOrThrow({ where: { id: u.userId } })).lastActivityAt,
+      )
+      .not.toBeNull();
+    await prisma.user.update({ where: { id: u.userId }, data: { lastActivityAt: new Date(0) } });
+    await http().get('/api/v1/me/profile').set(u.auth);
+    await http().get('/api/v1/me').set(u.auth);
+    const after = (await prisma.user.findUniqueOrThrow({ where: { id: u.userId } })).lastActivityAt;
+    // Same minute: no second write.
+    expect(after!.getTime()).toBe(0);
+  });
+
+  it('counts a signed-in visitor of a public page and a restricted user', async () => {
+    const viewer = await member();
+    const target = await member();
+    await profile(target.username, viewer.auth);
+    expect((await profile(viewer.username)).body.isOnline).toBe(true);
+    const r = await member();
+    await prisma.user.update({ where: { id: r.userId }, data: { isRestricted: true } });
+    await http().get('/api/v1/me/restrictions').set(r.auth);
+    expect((await profile(r.username)).body.isOnline).toBe(true);
+  });
+});
+
+describe('createUserReport (AC-14, EV-13, SEC-23)', () => {
+  const report = (auth: Auth, username: string, reason: unknown = 'Fake reviews.') =>
+    http().post(`/api/v1/users/${username}/reports`).set(auth).send({ reason });
+
+  it('saves a report (201), replaces it on a second one (200) and emails S-100 each time', async () => {
+    const reporter = await member();
+    const target = await member();
+    const first = await report(reporter.auth, target.username, '  Fake reviews.  ');
+    expect(first.status).toBe(201);
+    expect(first.body).toMatchObject({ reason: 'Fake reviews.' });
+    await prisma.report.update({
+      where: { id: first.body.id },
+      data: { status: 'dismissed', decisionNote: 'ok', handledAt: new Date() },
+    });
+    const second = await report(reporter.auth, target.username, 'Spam links.');
+    expect(second.status).toBe(200);
+    expect(second.body).toMatchObject({ id: first.body.id, reason: 'Spam links.' });
+    const row = await prisma.report.findUniqueOrThrow({ where: { id: first.body.id } });
+    expect(row).toMatchObject({
+      targetType: 'user',
+      targetId: target.userId,
+      reporterUserId: reporter.userId,
+      status: 'pending',
+      decisionNote: null,
+      handledAt: null,
+    });
+    const events = await prisma.outboxEvent.findMany({
+      where: { eventType: 'EV-13', aggregateId: first.body.id },
+    });
+    expect(events).toHaveLength(2);
+    expect(events[0]!.payload).toMatchObject({
+      to: expect.arrayContaining([expect.stringContaining('@')]),
+      params: { username: target.username },
+    });
+  });
+
+  it('refuses guests (401), yourself (403), hidden or unknown profiles (404) and bad reasons', async () => {
+    const u = await member();
+    const guest = await report({ 'X-MyTask-Client': 'ios' }, u.username);
+    expect(guest.status).toBe(401);
+    expect((await report(u.auth, u.username)).status).toBe(403);
+    const banned = await member();
+    await prisma.user.update({ where: { id: banned.userId }, data: { status: 'banned' } });
+    expect((await report(u.auth, banned.username)).status).toBe(404);
+    expect((await report(u.auth, 'nobody_here_xyz')).status).toBe(404);
+    const other = await member();
+    for (const reason of ['', '   ', 'x'.repeat(1501)]) {
+      const res = await report(u.auth, other.username, reason);
+      expect(res.status).toBe(400);
+      expect(res.body.code).toBe('VALIDATION_FAILED');
+    }
+  });
+
+  it('allows 10 reports per user and hour (SEC-23)', async () => {
+    const reporter = await member();
+    const target = await member();
+    for (let i = 0; i < 10; i += 1) {
+      expect((await report(reporter.auth, target.username)).status).toBeLessThan(300);
+    }
+    const res = await report(reporter.auth, target.username);
+    expect(res.status).toBe(429);
+    expect(res.body.code).toBe('RATE_LIMITED');
+    expect(Number(res.headers['retry-after'])).toBeGreaterThan(0);
+  });
+
+  it('renders the EV-13 email for the admins', () => {
+    const mail = renderEmail({
+      event: 'EV-13',
+      locale: 'en',
+      username: '',
+      email: 'admin@example.com',
+      appUrl: 'https://mytask.ge',
+      adminUrl: 'https://admin.mytask.ge/',
+      params: { username: 'nino' },
+    });
+    expect(mail.subject).toBe('Profile reported');
+    expect(mail.html).toContain('https://admin.mytask.ge/reports');
+    expect(mail.text).toContain('reported a profile');
   });
 });

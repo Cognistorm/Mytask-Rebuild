@@ -1,4 +1,5 @@
-// Profiles (spec 02, ROADMAP 4.1.8a): getMyProfile, updateMyProfile, getUserProfile, putMyAvatar, deleteMyAvatar.
+// Profiles (spec 02, ROADMAP 4.1.8a/b): getMyProfile, updateMyProfile, getUserProfile, putMyAvatar, deleteMyAvatar,
+// createUserReport (AC-14, EV-13).
 // Data of slices not built yet gets the contract's neutral value (4.1.1 handoff §C): ratings empty, no
 // Premium, `canRequestOffer` false, `isIndexable` from the public portfolio only. `timezone` null → Asia/Tbilisi
 // (legacy `config/app.php:73`, no editor). `account.updated` (x-emits) waits for the realtime gateway (slice 08).
@@ -13,17 +14,18 @@ import type {
 } from '../../generated/prisma/client';
 import { PrismaService } from '../../platform/db/prisma.service';
 import { ApiException } from '../../platform/errors/api-exception';
+import { OutboxService } from '../../platform/outbox/outbox.service';
 import { SettingsService } from '../../platform/settings/settings.service';
 import { AccountService } from '../auth/account.service';
 import { AvatarReader } from '../auth/avatar.reader';
+import { PresenceService } from '../auth/presence.service';
 import type { RequestContext } from '../auth/request-context';
 import { FileAttachments, FilesService } from '../files/files.service';
+import { ReportLimiter } from './report-limiter';
 
 type S = components['schemas'];
 
 export const DEFAULT_TIMEZONE = 'Asia/Tbilisi';
-/** R-P4 / BR-012: online = an authenticated request in the last 10 minutes. */
-export const ONLINE_WINDOW_MS = 10 * 60 * 1000;
 const PROVIDERS: LinkedProvider[] = [
   'facebook',
   'twitter',
@@ -85,6 +87,9 @@ export class ProfilesService {
     private readonly account: AccountService,
     private readonly avatars: AvatarReader,
     private readonly files: FilesService,
+    private readonly presence: PresenceService,
+    private readonly outbox: OutboxService,
+    private readonly reportLimiter: ReportLimiter,
     attachmentChecks: FileAttachments,
   ) {
     // The current avatar cannot be deleted through deleteFile (409); deleteMyAvatar removes it.
@@ -216,11 +221,12 @@ export class ProfilesService {
     });
     if (!user) throw notFound();
     const now = new Date();
-    const [portfolioCount, idVerified, linkedEnabled, avatar] = await Promise.all([
+    const [portfolioCount, idVerified, linkedEnabled, avatar, isOnline] = await Promise.all([
       this.prisma.portfolioItem.count({ where: { userId: user.id, status: 'active' } }),
       this.prisma.kycVerification.count({ where: { userId: user.id, status: 'verified' } }),
       this.settings.get('S-123'),
       this.avatars.get(user.profile?.avatarFileId),
+      this.presence.isOnline(user),
     ]);
     const isOwnProfile = viewerId === user.id;
     return {
@@ -232,9 +238,7 @@ export class ProfilesService {
       avatar,
       countryCode: user.profile?.country?.iso2 ?? null,
       timezone: user.profile?.timezone ?? DEFAULT_TIMEZONE,
-      isOnline:
-        user.lastActivityAt !== null &&
-        now.getTime() - user.lastActivityAt.getTime() <= ONLINE_WINDOW_MS,
+      isOnline,
       availability: availabilityView(user.profile, now),
       lastDeliveryAt: user.profile?.lastDeliveryAt?.toISOString() ?? null,
       createdAt: user.createdAt.toISOString(),
@@ -257,5 +261,77 @@ export class ProfilesService {
       // Spec 17 AC-41: active gig (slice 3) or visible review (slice 6) count too, once they exist.
       isIndexable: portfolioCount > 0,
     };
+  }
+
+  // ------------------------------------------------------------------ report a profile (AC-14)
+
+  /**
+   * One report per reporter and profile: a second one replaces the reason and puts it back in the staff queue
+   * (`created` false → 200). Every report emails all S-100 addresses (EV-13; legacy notified on every save).
+   * Shares the SEC-23 limit with the gig, project and proposal reports.
+   */
+  async report(
+    reporterId: string,
+    username: string,
+    input: S['UserReportCreateRequest'],
+    ctx: RequestContext,
+  ): Promise<{ created: boolean; report: S['UserReport'] }> {
+    await this.reportLimiter.hit(reporterId);
+    const target = await this.prisma.user.findFirst({
+      where: { username, deletedAt: null, status: { in: ['active', 'verified'] } },
+      select: { id: true, username: true },
+    });
+    if (!target) throw notFound();
+    if (target.id === reporterId) throw new ApiException(403, 'FORBIDDEN', 't_forbidden');
+    const reason = input.reason.trim();
+    if (!reason) {
+      throw new ApiException(400, 'VALIDATION_FAILED', 't_validator_required', {
+        fields: [
+          {
+            field: 'reason',
+            code: 'required',
+            message: ctx.t('t_validator_required'),
+            messageKey: 't_validator_required',
+          },
+        ],
+      });
+    }
+    const admins = await this.settings.get('S-100');
+    const key = { reporterUserId: reporterId, targetType: 'user' as const, targetId: target.id };
+    return this.prisma.$transaction(async (tx) => {
+      const before = await tx.report.findUnique({
+        where: { reporterUserId_targetType_targetId: key },
+        select: { id: true },
+      });
+      const row = await tx.report.upsert({
+        where: { reporterUserId_targetType_targetId: key },
+        create: { ...key, reason },
+        // Back to the queue with the new reason, like legacy `seen = false`.
+        update: {
+          reason,
+          status: 'pending',
+          decisionNote: null,
+          handledByStaffId: null,
+          handledAt: null,
+        },
+      });
+      if (admins.length) {
+        await this.outbox.add(
+          'EV-13',
+          { type: 'report', id: row.id },
+          { to: [...admins], locale: 'ka', params: { username: target.username } },
+          tx,
+        );
+      }
+      return {
+        created: before === null,
+        report: {
+          id: row.id,
+          reason: row.reason,
+          createdAt: row.createdAt.toISOString(),
+          updatedAt: row.updatedAt.toISOString(),
+        },
+      };
+    });
   }
 }

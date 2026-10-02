@@ -16,6 +16,7 @@ import { ApiException } from '../../platform/errors/api-exception';
 import { ClientIpResolver } from '../../platform/client-ip/client-ip.resolver';
 import type { components } from '@mytask/types';
 import { COOKIE_ACCESS, COOKIE_STAFF_ACCESS } from './auth.constants';
+import { PresenceService } from './presence.service';
 import { SessionsService } from './sessions.service';
 import { TokensService } from './tokens.service';
 
@@ -93,6 +94,7 @@ export class AuthGuard implements CanActivate {
     private readonly sessions: SessionsService,
     private readonly prisma: PrismaService,
     private readonly ipResolver: ClientIpResolver,
+    private readonly presence: PresenceService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -145,6 +147,8 @@ export class AuthGuard implements CanActivate {
 
     req.auth = { userId: claims.sub, sessionId: claims.sid };
     void this.sessions.touch(claims.sid, this.ipResolver.resolve(req).ip).catch(() => undefined);
+    // R-P4: every authenticated request counts as activity (online status).
+    await this.presence.touch(claims.sub);
   }
 
   private async staff(req: AuthedRequest, permission: PermissionCode | null): Promise<boolean> {

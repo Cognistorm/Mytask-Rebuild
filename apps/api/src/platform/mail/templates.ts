@@ -151,6 +151,15 @@ export function renderEmail(i: TemplateInput): RenderedEmail {
         { label: t('t_restrictions_removal_center'), url: link(i.appUrl, i.locale, '/restricted') },
       );
     }
+    case 'EV-13':
+      // legacy/APP/app/Notifications/Admin/ProfileReported.php:44-51
+      return layout(
+        i.locale,
+        t('t_subject_admin_profile_reported'),
+        t('t_hi_admin'),
+        [t('t_notification_admin_reported_profile')],
+        { label: t('t_reported_users'), url: `${i.adminUrl.replace(/\/$/, '')}/reports` },
+      );
     case 'EV-124':
       return layout(i.locale, t('t_subject_admin_critical_setting_changed'), t('t_hi_admin'), [
         t('t_admin_critical_setting_changed_body', i.params),

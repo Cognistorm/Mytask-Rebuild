@@ -7,6 +7,7 @@ import { AuthGuard } from './auth.guard';
 import { AuthService } from './auth.service';
 import { MeController } from './me.controller';
 import { PasswordService } from './password.service';
+import { PresenceService } from './presence.service';
 import { RecaptchaService } from './recaptcha.service';
 import { ReferralService } from './referral.service';
 import { SessionsService } from './sessions.service';
@@ -24,6 +25,7 @@ import { TwoFactorService } from './two-factor.service';
     AccountService,
     AvatarReader,
     PasswordService,
+    PresenceService,
     RecaptchaService,
     ReferralService,
     SessionsService,
@@ -38,6 +40,7 @@ import { TwoFactorService } from './two-factor.service';
   exports: [
     AccountService,
     AvatarReader,
+    PresenceService,
     SessionsService,
     PasswordService,
     RecaptchaService,
