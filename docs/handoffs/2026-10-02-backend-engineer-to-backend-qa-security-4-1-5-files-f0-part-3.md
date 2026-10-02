@@ -49,6 +49,6 @@ From: backend-engineer · To: backend-engineer (4.1.6, 4.1.8a, 4.1.12, 4.1.13, l
 - **Not done (outside the task):** `getPublicConfig` still answers null for image file ids (noted in 3.5 / 4.1.3). Resolve them when the slice that sets those images exists.
 
 ## Open questions / risks
-- **Restricted users and their own appeal files:** `getFileDownload` has audience `user`, so a restricted user cannot download an appeal file they uploaded. They can still see it through `getFile`. If the appeal screen (4.1.6) needs a download, the architect must allow it in the contract.
+- **Restricted users and their own appeal files:** `getFileDownload` has audience `user`, so a restricted user cannot download an appeal file they uploaded. They can still see it through `getFile`. If the appeal screen (4.1.6) needs a download, the architect must allow it in the contract. **Owner 2026-10-02: leave it as it is; no download button for restricted users.**
 - The 302 is the API's first redirect response. The contract validator accepts it (tested). Web links must open it in a new tab or as a download, not through `fetch` (the redirect goes to the storage host).
 - No business rule invented: the staff image types and limit are the Owner's answer Q-161. No contract change.

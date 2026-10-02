@@ -250,6 +250,14 @@ export class FilesService {
       file.ownerUserId === userId || (await this.downloadAccess.mayDownload(file, userId));
     if (!allowed) throw notFound();
     if (file.status !== 'ready') throw new ApiException(422, 'FILE_NOT_READY', 't_file_not_ready');
+    return this.signDownload(file);
+  }
+
+  /**
+   * Presigned GET of a ready file after the caller's own policy check: getFileDownload above, and the staff
+   * download operations of each group (e.g. adminGetRestrictionAppealFileDownload), which audit the access.
+   */
+  async signDownload(file: FileRow): Promise<S['SignedUrl']> {
     const expiresSeconds =
       file.bucket === 'kyc' ? KYC_DOWNLOAD_EXPIRES_SECONDS : DOWNLOAD_EXPIRES_SECONDS;
     const url = await this.storage.presignedGet({

@@ -6,7 +6,12 @@ import type { SettingId } from '../../platform/settings/registry';
 import type { PermissionCode } from '../auth/auth.guard';
 import type { SettingsService } from '../../platform/settings/settings.service';
 
-/** Allowed MIME types per extension; the declared `contentType` must match the file name's extension. */
+/**
+ * Allowed MIME types per extension; the declared `contentType` must match the file name's extension. Several
+ * names per type are what browsers and phones really send; for documents and videos many systems know no type
+ * and send `application/octet-stream`. The worker's magic-byte check decides the real type (scan/magic.ts).
+ */
+const UNKNOWN = 'application/octet-stream';
 export const MIME_BY_EXTENSION: Record<string, readonly string[]> = {
   jpg: ['image/jpeg'],
   jpeg: ['image/jpeg'],
@@ -14,6 +19,14 @@ export const MIME_BY_EXTENSION: Record<string, readonly string[]> = {
   webp: ['image/webp'],
   gif: ['image/gif'],
   pdf: ['application/pdf'],
+  doc: ['application/msword', UNKNOWN],
+  docx: ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', UNKNOWN],
+  txt: ['text/plain'],
+  mp4: ['video/mp4'],
+  mov: ['video/quicktime', UNKNOWN],
+  avi: ['video/x-msvideo', 'video/avi', 'video/msvideo', UNKNOWN],
+  mkv: ['video/x-matroska', UNKNOWN],
+  webm: ['video/webm', 'audio/webm'],
 };
 
 export interface PurposeLimits {
@@ -90,6 +103,19 @@ export const PURPOSE_POLICIES: Partial<Record<FilePurpose, PurposePolicy>> = {
     processing: 'private_image',
     quarantineBucket: 'kyc',
     limits: () => Promise.resolve({ extensions: IMAGES_JPG_PNG, maxMb: 5, sizeSettingId: null }),
+  },
+  // Spec 01 AC-47: restriction appeal files, ≤ S-092 MB of the S-093 types (Q-154). Documents and videos are
+  // kept as uploaded (after the virus scan) in `private`; only staff download them (R-A8).
+  appeal_file: {
+    uploader: USER,
+    finalBucket: 'private',
+    processing: 'none',
+    quarantineBucket: 'private',
+    limits: async (settings) => ({
+      extensions: (await settings.get('S-093')).map((e) => e.toLowerCase()),
+      maxMb: await settings.get('S-092'),
+      sizeSettingId: 'S-092',
+    }),
   },
   // Spec 16 AC-60: category icon/image (legacy `Admin/Categories/CreateValidator.php:44-46`).
   category_image: staffImage('catalog.write', IMAGES_JPG_PNG),

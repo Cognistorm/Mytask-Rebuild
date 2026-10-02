@@ -1,17 +1,16 @@
 // Files F0 part 3 (ROADMAP 4.1.5, ADR-009 §4): getFileDownload, adminCreateFileUpload, adminGetFile,
 // adminCompleteFileUpload. Real HTTP pipeline with contract validation; object storage is MemoryStorage.
-import { hash, Algorithm } from '@node-rs/argon2';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import request from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { File as FileRow } from '../src/generated/prisma/client';
 import { FileDownloadAccess } from '../src/modules/files/files.service';
-import { PERMISSIONS, SUPER_ADMIN_ROLE } from '../src/modules/staff/permissions';
 import { PrismaService } from '../src/platform/db/prisma.service';
 import { RedisService } from '../src/platform/redis/redis.module';
 import { ObjectStorage } from '../src/platform/storage/storage';
 import { createTestApp } from './app';
 import { MemoryStorage } from './memory-storage';
+import { makeStaff as staffWith } from './test-staff';
 
 let app: NestExpressApplication;
 let prisma: PrismaService;
@@ -19,8 +18,6 @@ const storage = new MemoryStorage();
 let seq = 0;
 
 const IOS = { 'X-MyTask-Client': 'ios' };
-const ADMIN = { 'X-MyTask-Client': 'admin', Origin: 'http://localhost:3200' };
-const PASSWORD = 'StaffSecret1';
 const MB = 1024 * 1024;
 const http = () => request(app.getHttpServer());
 const uniq = () => `${Date.now().toString(36)}${(seq += 1)}`;
@@ -45,70 +42,7 @@ async function register() {
 }
 
 type Auth = Awaited<ReturnType<typeof register>>['auth'];
-
-/** A staff member with the system Super-admin role, with the given permissions, or with no role at all. */
-async function makeStaff(grant: 'super' | 'none' | string[]) {
-  for (const code of PERMISSIONS) {
-    await prisma.permission.upsert({
-      where: { code },
-      create: { code, area: code.split('.')[0]! },
-      update: {},
-    });
-  }
-  let roleId: string | null = null;
-  if (grant === 'super') {
-    roleId = (
-      await prisma.role.upsert({
-        where: { code: SUPER_ADMIN_ROLE },
-        create: { code: SUPER_ADMIN_ROLE, name: 'Super-admin', isSystem: true },
-        update: {},
-      })
-    ).id;
-  } else if (grant !== 'none') {
-    roleId = (
-      await prisma.role.create({
-        data: {
-          code: `files_role_${uniq()}`,
-          name: 'Files test role',
-          permissions: { create: grant.map((permissionCode) => ({ permissionCode })) },
-        },
-      })
-    ).id;
-  }
-  const n = uniq();
-  const staff = await prisma.staff.create({
-    data: {
-      username: `fstaff_${n}`,
-      fullName: 'Files Staff',
-      email: `fstaff${n}@example.com`,
-      passwordHash: await hash(PASSWORD, { algorithm: Algorithm.Argon2id }),
-      passwordAlgo: 'argon2id',
-      ...(roleId ? { roles: { create: { roleId } } } : {}),
-    },
-  });
-  return { id: staff.id, auth: { Authorization: `Bearer ${await staffLogin(staff)}` } };
-}
-
-async function staffLogin(staff: { username: string; email: string }): Promise<string> {
-  const res = await http()
-    .post('/api/v1/admin/auth/login')
-    .set(ADMIN)
-    .send({ login: staff.username, password: PASSWORD });
-  if (res.status === 200) return res.body.accessToken;
-  expect(res.status).toBe(202);
-  const rows = await prisma.outboxEvent.findMany({
-    where: { eventType: 'EV-06' },
-    orderBy: { id: 'desc' },
-  });
-  const row = rows.find((r) => (r.payload as { to?: string[] }).to?.includes(staff.email));
-  const code = String((row!.payload as { params: { code: string } }).params.code);
-  const verify = await http()
-    .post('/api/v1/admin/auth/2fa/verify')
-    .set(ADMIN)
-    .send({ challengeId: res.body.challengeId, code });
-  expect(verify.status).toBe(200);
-  return verify.body.accessToken;
-}
+const makeStaff = (grant: 'super' | 'none' | string[]) => staffWith(app, grant);
 
 const kycPhoto = {
   purpose: 'kyc_document',
@@ -147,7 +81,7 @@ async function readyFile(auth: Auth, body: object = kycPhoto): Promise<FileRow> 
   });
 }
 
-const download = (auth: Auth, id: string, mode?: string) =>
+const download = (auth: Record<string, string>, id: string, mode?: string) =>
   http()
     .get(`/api/v1/files/${id}/download`)
     .query(mode ? { mode } : {})

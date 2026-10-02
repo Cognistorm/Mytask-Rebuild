@@ -1,9 +1,21 @@
 // Contract: listMyRestrictions, createRestrictionAppeal (restricted users allowed, spec 01 AC-19) and
 // adminListRestrictions, adminCreateRestriction, adminDeleteRestriction, adminListRestrictionAppeals,
-// adminApproveRestrictionAppeal, adminRejectRestrictionAppeal (slice 01 part B-2b).
-import { Body, Controller, Delete, Get, HttpCode, Param, Post, Query, Req } from '@nestjs/common';
+// adminApproveRestrictionAppeal, adminRejectRestrictionAppeal (slice 01 part B-2b),
+// adminGetRestrictionAppealFileDownload (ROADMAP 4.1.6a).
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  Post,
+  Query,
+  Req,
+  Res,
+} from '@nestjs/common';
 import type { components } from '@mytask/types';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 import type { RestrictionStatus } from '../../generated/prisma/client';
 import { ClientIpResolver } from '../../platform/client-ip/client-ip.resolver';
 import {
@@ -123,6 +135,29 @@ export class AdminRestrictionsController extends WithContext {
       staff.staffId,
       this.ctx(req),
     );
+  }
+
+  /** Same answer as getFileDownload: 302 by default, `mode=json` → SignedUrl; never cached. */
+  @StaffRoute('users.restrict')
+  @Get('restriction-appeals/:appealId/files/:fileId/download')
+  async fileDownload(
+    @Param('appealId') appealId: string,
+    @Param('fileId') fileId: string,
+    @CurrentStaff() staff: StaffAuthState,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+    @Query('mode') mode?: 'redirect' | 'json',
+  ): Promise<S['SignedUrl'] | undefined> {
+    const signed = await this.restrictions.fileDownload(
+      appealId,
+      fileId,
+      staff.staffId,
+      this.ctx(req),
+    );
+    res.setHeader('Cache-Control', 'no-store');
+    if (mode === 'json') return signed;
+    res.redirect(302, signed.url);
+    return undefined;
   }
 
   @StaffRoute('users.restrict')

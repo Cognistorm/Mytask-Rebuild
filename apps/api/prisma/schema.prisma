@@ -482,13 +482,26 @@ model UserRestriction {
 }
 
 model RestrictionAppeal {
-  id            String          @id @default(uuid(7)) @db.Uuid
-  restrictionId String          @unique @map("restriction_id") @db.Uuid
-  message       String          @db.VarChar(1500)
-  createdAt     DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
-  restriction   UserRestriction @relation(fields: [restrictionId], references: [id])
+  id            String                  @id @default(uuid(7)) @db.Uuid
+  restrictionId String                  @unique @map("restriction_id") @db.Uuid
+  message       String                  @db.VarChar(1500)
+  createdAt     DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  restriction   UserRestriction         @relation(fields: [restrictionId], references: [id])
+  files         RestrictionAppealFile[]
 
   @@map("restriction_appeals")
+}
+
+/// Appeal files (data-model §3.A, spec 01 AC-47): `appeal_file` uploads in the `private` bucket, staff-only
+/// download (R-A8). The FK to `files` is in the migration SQL.
+model RestrictionAppealFile {
+  appealId String            @map("appeal_id") @db.Uuid
+  fileId   String            @map("file_id") @db.Uuid
+  position Int               @db.SmallInt
+  appeal   RestrictionAppeal @relation(fields: [appealId], references: [id])
+
+  @@id([appealId, fileId])
+  @@map("restriction_appeal_files")
 }
 
 /// Social login links (data-model §3.A `social_accounts`, ADR-002 §7). Legacy `users.provider_name/provider_id`
