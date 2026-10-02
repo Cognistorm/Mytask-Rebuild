@@ -8,6 +8,7 @@ import { PrismaService } from '../../platform/db/prisma.service';
 import { ApiException } from '../../platform/errors/api-exception';
 import { OutboxService } from '../../platform/outbox/outbox.service';
 import { SettingsService } from '../../platform/settings/settings.service';
+import { AvatarReader } from './avatar.reader';
 import { toMe } from './me.mapper';
 import { PasswordService } from './password.service';
 import type { RequestContext } from './request-context';
@@ -28,6 +29,7 @@ export class AccountService {
     private readonly throttle: ThrottleService,
     private readonly twoFactor: TwoFactorService,
     private readonly outbox: OutboxService,
+    private readonly avatars: AvatarReader,
   ) {}
 
   async me(userId: string): Promise<S['Me']> {
@@ -35,7 +37,11 @@ export class AccountService {
       where: { id: userId },
       include: { profile: true, socialAccounts: { select: { provider: true } } },
     });
-    return toMe(user, await this.settings.get('S-056'));
+    return toMe(
+      user,
+      await this.settings.get('S-056'),
+      await this.avatars.get(user.profile?.avatarFileId),
+    );
   }
 
   /** AC-35 + AC-55: change password with the current one; other sessions end, this one stays. */

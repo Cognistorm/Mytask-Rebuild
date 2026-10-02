@@ -25,6 +25,13 @@ export const ALLOW_RESTRICTED = 'mytask:allow-restricted';
 export const Public = () => SetMetadata(IS_PUBLIC, true);
 /** Restricted users may call (contract audience `restricted-user`, ADR-002 §4). */
 export const AllowRestricted = () => SetMetadata(ALLOW_RESTRICTED, true);
+export const OPTIONAL_USER = 'mytask:optional-user';
+/**
+ * Guests may call; a valid user session is attached when present (contract audience `optional-user`, e.g. the
+ * public profile). A missing, expired, revoked or banned session is treated as a guest, never as 401/403;
+ * restricted users are signed in (public data). Redis down still answers 503 (fail closed).
+ */
+export const OptionalUser = () => SetMetadata(OPTIONAL_USER, true);
 
 export type PermissionCode = components['schemas']['PermissionCode'];
 export const STAFF_ROUTE = 'mytask:staff';
@@ -66,6 +73,12 @@ export const CurrentAuth = createParamDecorator((_: unknown, ctx: ExecutionConte
   return auth;
 });
 
+/** The viewer on an @OptionalUser route: the session when signed in, else null (guest). */
+export const OptionalAuth = createParamDecorator(
+  (_: unknown, ctx: ExecutionContext): AuthState | null =>
+    ctx.switchToHttp().getRequest<AuthedRequest>().auth ?? null,
+);
+
 export function accessTokenFrom(req: AuthedRequest): string | undefined {
   const header = req.headers.authorization;
   if (header?.startsWith('Bearer ')) return header.slice(7).trim() || undefined;
@@ -92,6 +105,20 @@ export class AuthGuard implements CanActivate {
       targets,
     );
     if (staffRoute) return this.staff(req, staffRoute.permission);
+    if (this.reflector.getAllAndOverride<boolean>(OPTIONAL_USER, targets)) {
+      try {
+        await this.user(req, true);
+      } catch (e) {
+        if (e instanceof ApiException && e.status === 503) throw e;
+      }
+      return true;
+    }
+    await this.user(req, !!this.reflector.getAllAndOverride<boolean>(ALLOW_RESTRICTED, targets));
+    return true;
+  }
+
+  /** Verifies the user session and sets `req.auth`; throws 401/403/503 as described at the top. */
+  private async user(req: AuthedRequest, allowRestricted: boolean): Promise<void> {
     const token = accessTokenFrom(req);
     const claims = token ? await this.tokens.verifyAccess(token, 'user') : null;
     if (!claims) throw new ApiException(401, 'UNAUTHENTICATED', 't_unauthorized');
@@ -112,16 +139,12 @@ export class AuthGuard implements CanActivate {
     if (!user || user.deletedAt) throw new ApiException(401, 'UNAUTHENTICATED', 't_unauthorized');
     if (user.status === 'banned')
       throw new ApiException(403, 'ACCOUNT_SUSPENDED', 't_account_suspended');
-    if (
-      user.isRestricted &&
-      !this.reflector.getAllAndOverride<boolean>(ALLOW_RESTRICTED, targets)
-    ) {
+    if (user.isRestricted && !allowRestricted) {
       throw new ApiException(403, 'ACCOUNT_RESTRICTED', 't_account_restricted_notice');
     }
 
     req.auth = { userId: claims.sub, sessionId: claims.sid };
     void this.sessions.touch(claims.sid, this.ipResolver.resolve(req).ip).catch(() => undefined);
-    return true;
   }
 
   private async staff(req: AuthedRequest, permission: PermissionCode | null): Promise<boolean> {

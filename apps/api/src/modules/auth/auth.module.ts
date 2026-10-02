@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { AccountService } from './account.service';
 import { AuthController } from './auth.controller';
+import { AvatarReader } from './avatar.reader';
 import { AuthGuard } from './auth.guard';
 import { AuthService } from './auth.service';
 import { MeController } from './me.controller';
@@ -21,6 +22,7 @@ import { TwoFactorService } from './two-factor.service';
   providers: [
     AuthService,
     AccountService,
+    AvatarReader,
     PasswordService,
     RecaptchaService,
     ReferralService,
@@ -34,6 +36,8 @@ import { TwoFactorService } from './two-factor.service';
     { provide: APP_GUARD, useClass: AuthGuard },
   ],
   exports: [
+    AccountService,
+    AvatarReader,
     SessionsService,
     PasswordService,
     RecaptchaService,

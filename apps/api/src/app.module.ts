@@ -1,6 +1,7 @@
 import { type MiddlewareConsumer, Module, type NestModule } from '@nestjs/common';
 import { AuthModule } from './modules/auth/auth.module';
 import { FilesModule } from './modules/files/files.module';
+import { ProfilesModule } from './modules/profiles/profiles.module';
 import { RestrictionsModule } from './modules/restrictions/restrictions.module';
 import { StaffModule } from './modules/staff/staff.module';
 import { AuditModule } from './platform/audit/audit.service';
@@ -34,6 +35,7 @@ import { StorageModule } from './platform/storage/storage';
     StaffModule,
     RestrictionsModule,
     FilesModule,
+    ProfilesModule,
     PublicConfigModule,
   ],
   controllers: [HealthController],

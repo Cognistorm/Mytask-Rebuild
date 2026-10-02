@@ -8,6 +8,7 @@ import { ApiException } from '../../platform/errors/api-exception';
 import { randomReferralCode, randomToken, sha256 } from '../../platform/crypto';
 import { OutboxService } from '../../platform/outbox/outbox.service';
 import { SettingsService } from '../../platform/settings/settings.service';
+import { AvatarReader } from './avatar.reader';
 import { toMe } from './me.mapper';
 import { PasswordService } from './password.service';
 import { RecaptchaService, type RecaptchaAction } from './recaptcha.service';
@@ -61,6 +62,7 @@ export class AuthService {
     private readonly recaptcha: RecaptchaService,
     private readonly referrals: ReferralService,
     private readonly outbox: OutboxService,
+    private readonly avatars: AvatarReader,
   ) {}
 
   // ------------------------------------------------------------------ register (AC-1…AC-6, EC-1)
@@ -367,7 +369,11 @@ export class AuthService {
       deviceId,
       rememberMe,
       body: {
-        user: toMe({ ...user, socialAccounts }, twoFactorAvailable),
+        user: toMe(
+          { ...user, socialAccounts },
+          twoFactorAvailable,
+          await this.avatars.get(user.profile?.avatarFileId),
+        ),
         // Browsers get HttpOnly cookies instead of body tokens (ADR-002 §2).
         accessToken: cookies ? null : tokens.accessToken,
         accessTokenExpiresAt: tokens.accessTokenExpiresAt.toISOString(),
@@ -399,7 +405,11 @@ export class AuthService {
       deviceId: ctx.deviceId ?? '',
       rememberMe: outcome.rememberMe, // SEC-41: the login's choice, not always 30 days
       body: {
-        user: toMe(user, await this.settings.get('S-056')),
+        user: toMe(
+          user,
+          await this.settings.get('S-056'),
+          await this.avatars.get(user.profile?.avatarFileId),
+        ),
         accessToken: cookies ? null : outcome.tokens.accessToken,
         accessTokenExpiresAt: outcome.tokens.accessTokenExpiresAt.toISOString(),
         refreshToken: cookies ? null : outcome.tokens.refreshToken,

@@ -1,5 +1,6 @@
 // User row -> contract `Me` (getMe, AuthSession.user). Fields of later slices get their neutral values:
-// avatar (slice 02 files), plan/premium (slice 09), country/city (slice 02), KYC (slice 02), social = linked providers.
+// plan/premium (slice 09), country/city (4.1.11), KYC (4.1.13); social = linked providers. The avatar comes
+// from AvatarReader (spec 02 AC-16).
 import type { components } from '@mytask/types';
 import type { SocialProvider, User, UserProfile } from '../../generated/prisma/client';
 
@@ -8,6 +9,7 @@ export type Me = components['schemas']['Me'];
 export function toMe(
   user: User & { profile: UserProfile | null; socialAccounts?: { provider: SocialProvider }[] },
   twoFactorAvailable: boolean,
+  avatar: components['schemas']['ImageVariants'] | null = null,
 ): Me {
   return {
     id: user.id,
@@ -16,7 +18,7 @@ export function toMe(
     pendingEmail: null,
     emailVerifiedAt: user.emailVerifiedAt?.toISOString() ?? null,
     fullName: user.profile?.fullname ?? user.username,
-    avatar: null,
+    avatar,
     status: user.status,
     isRestricted: user.isRestricted,
     hasPassword: user.passwordHash !== null,

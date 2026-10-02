@@ -14,6 +14,7 @@ import { SettingsService } from '../../platform/settings/settings.service';
 import { AuditService } from '../../platform/audit/audit.service';
 import { ObjectStorage } from '../../platform/storage/storage';
 import type { StaffAuthState } from '../auth/auth.guard';
+import { imageVariants } from './image-variants';
 import type { RequestContext } from '../auth/request-context';
 import {
   MB,
@@ -355,25 +356,9 @@ export class FilesService {
       // Stored as an i18n key by the worker (scan/file-scan.service.ts REJECT_REASONS).
       rejectReason:
         row.status === 'rejected' && row.rejectReason ? translate(row.rejectReason, locale) : null,
-      image: this.image(row),
+      image: imageVariants(row, this.env.PUBLIC_MEDIA_BASE_URL),
       createdAt: row.createdAt.toISOString(),
       readyAt: row.readyAt?.toISOString() ?? null,
-    };
-  }
-
-  /** CDN variants of a ready public image (ADR-009 §2); null otherwise. */
-  private image(row: FileRow): S['ImageVariants'] | null {
-    const v = row.variants as { thumb?: string; medium?: string; large?: string } | null;
-    const base = this.env.PUBLIC_MEDIA_BASE_URL?.replace(/\/+$/, '');
-    if (row.status !== 'ready' || row.bucket !== 'public_media' || !base) return null;
-    if (!v?.thumb || !v.medium || !v.large) return null;
-    return {
-      fileId: row.id,
-      thumb: `${base}/${v.thumb}`,
-      medium: `${base}/${v.medium}`,
-      large: `${base}/${v.large}`,
-      width: row.width,
-      height: row.height,
     };
   }
 }
