@@ -618,6 +618,16 @@
   background: var(--mt-action-primary-hover);
 }
 
+.mt-button-danger {
+  border-color: transparent;
+  background: var(--mt-action-danger);
+  color: var(--mt-action-on-danger);
+}
+
+.mt-button-danger:hover {
+  background: var(--mt-action-danger-hover);
+}
+
 .mt-button:focus-visible {
   outline: var(--mt-focus-ring-width) solid var(--mt-focus-ring);
   outline-offset: var(--mt-focus-ring-offset);
