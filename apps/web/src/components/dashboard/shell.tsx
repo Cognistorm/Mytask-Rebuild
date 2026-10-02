@@ -23,6 +23,8 @@ type Me = components['schemas']['Me'];
 
 interface DashboardContextValue {
   me: Me | undefined;
+  /** Replaces the account after a save that returns `Me` (account settings: the menu shows the new username). */
+  setMe: (me: Me) => void;
   config: PublicConfig | undefined;
   /** Link to the other side (twin page or its home) that also saves the choice. */
   otherSide: { href: string; onSelect: () => void };
@@ -96,7 +98,7 @@ export function DashboardShell({
 
   return (
     <DashboardContext.Provider
-      value={{ me, config, otherSide: { href: otherHref, onSelect: () => choose(other) } }}
+      value={{ me, setMe, config, otherSide: { href: otherHref, onSelect: () => choose(other) } }}
     >
       <DashboardLayout
         side={side}
@@ -150,8 +152,9 @@ export function DashboardShell({
             <Link href={otherHref} onClick={() => choose(other)} data-testid="menu-switch">
               {t(other === 'selling' ? 't_switch_to_selling' : 't_switch_to_buying')}
             </Link>
-            {/* Account settings move to /account/settings with task 4.1.20. */}
-            <Link href={href(locale, '/account')}>{t('t_account_settings')}</Link>
+            <Link href={href(locale, '/account/settings')} data-testid="menu-settings">
+              {t('t_account_settings')}
+            </Link>
             <Link href={href(locale, '/account/password')}>{t('t_update_password')}</Link>
             <button type="button" onClick={() => void logout()}>
               {t('t_logout')}

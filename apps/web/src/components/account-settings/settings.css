@@ -1,0 +1,31 @@
+/* Account settings `/account/settings` (spec 02 AC-29…AC-35): design tokens only (CLAUDE.md); the layout,
+   card, blocks and links come from ../profile-edit/edit.css. */
+.mt-account-nav .mt-edit-links {
+  justify-self: stretch;
+  text-align: start;
+}
+
+/* Legacy sidebar: the current page is marked with the brand colour and a start border. */
+.mt-account-nav .mt-edit-links a {
+  padding-inline-start: var(--mt-space-3);
+  border-inline-start: var(--mt-border-width-strong) solid transparent;
+}
+
+.mt-account-nav .mt-edit-links a[aria-current='page'] {
+  border-inline-start-color: var(--mt-border-brand);
+  color: var(--mt-text-primary);
+  font-weight: var(--mt-font-weight-semibold);
+}
+
+.mt-account-nav .mt-edit-link {
+  padding-inline-start: var(--mt-space-3);
+}
+
+.mt-settings-code {
+  display: grid;
+  gap: var(--mt-space-3);
+}
+
+.mt-settings-danger {
+  border-color: var(--mt-border-danger);
+}

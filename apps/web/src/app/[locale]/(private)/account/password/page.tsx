@@ -114,7 +114,7 @@ export default function ChangePasswordPage() {
           <Submit busy={busy}>{t('t_update')}</Submit>
         </form>
       )}
-      <Link href={href(locale, '/account')}>{t('t_account_settings')}</Link>
+      <Link href={href(locale, '/account/settings')}>{t('t_account_settings')}</Link>
     </AuthCard>
   );
 }

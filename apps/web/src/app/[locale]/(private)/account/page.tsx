@@ -2,7 +2,7 @@
 // Signed-in placeholder for slice 01: who am I, the 2FA switch (AC-20, AC-21) and logout (AC-42).
 // The switch asks for the current password, or for an account without one (social login only) a
 // `toggle_two_factor` code emailed to the account (SEC-05, Q-144; as the app, task 3.12). "My dashboard" opens
-// the dashboard chosen last (spec 02 AC-3); account settings proper arrive with task 4.1.20.
+// the dashboard chosen last (spec 02 AC-3); account settings proper are `/account/settings` (task 4.1.20a).
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
@@ -130,6 +130,9 @@ export default function AccountPage() {
       </dl>
       <Link href={lastDashboardHref(locale, me, config)} data-testid="my-dashboard">
         {t('t_my_dashboard')}
+      </Link>
+      <Link href={href(locale, '/account/settings')} data-testid="settings-link">
+        {t('t_account_settings')}
       </Link>
       <Link href={href(locale, '/account/profile')}>{t('t_edit_profile')}</Link>
       <Link href={href(locale, '/account/password')}>{t('t_change_password')}</Link>

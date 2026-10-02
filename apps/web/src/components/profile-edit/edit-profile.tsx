@@ -68,8 +68,7 @@ export function EditProfile() {
           <AccountLinks
             t={t}
             links={[
-              // Account settings move to /account/settings with task 4.1.20 (verification centre too).
-              { href: href(locale, '/account'), label: t('t_account_settings') },
+              { href: href(locale, '/account/settings'), label: t('t_account_settings') },
               { href: href(locale, '/account/password'), label: t('t_change_password') },
               { href: href(locale, '/account/verification'), label: t('t_get_verified') },
               { href: href(locale, `/profile/${me.username}`), label: t('t_view_profile') },
