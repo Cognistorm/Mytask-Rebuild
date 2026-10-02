@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
+import { AccountDeletionGuards } from './account-deletion.guards';
+import { AccountSettingsService } from './account-settings.service';
 import { AccountService } from './account.service';
 import { AuthController } from './auth.controller';
 import { AvatarReader } from './avatar.reader';
@@ -23,6 +25,8 @@ import { TwoFactorService } from './two-factor.service';
   providers: [
     AuthService,
     AccountService,
+    AccountSettingsService,
+    AccountDeletionGuards,
     AvatarReader,
     PasswordService,
     PresenceService,
@@ -39,6 +43,7 @@ import { TwoFactorService } from './two-factor.service';
   ],
   exports: [
     AccountService,
+    AccountDeletionGuards,
     AvatarReader,
     PresenceService,
     SessionsService,

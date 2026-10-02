@@ -35,12 +35,22 @@ export class AccountService {
   async me(userId: string): Promise<S['Me']> {
     const user = await this.prisma.user.findUniqueOrThrow({
       where: { id: userId },
-      include: { profile: true, socialAccounts: { select: { provider: true } } },
+      include: {
+        profile: { include: { country: true } },
+        socialAccounts: { select: { provider: true } },
+      },
+    });
+    // The open email-change link, if any (spec 02 AC-30: `t_email_change_pending`).
+    const pending = await this.prisma.authToken.findFirst({
+      where: { userId, purpose: 'email_change', consumedAt: null, expiresAt: { gt: new Date() } },
+      orderBy: { createdAt: 'desc' },
+      select: { newEmail: true },
     });
     return toMe(
       user,
       await this.settings.get('S-056'),
       await this.avatars.get(user.profile?.avatarFileId),
+      pending?.newEmail ?? null,
     );
   }
 
@@ -170,10 +180,11 @@ export class AccountService {
 
   // ------------------------------------------------------------------ re-authentication (AC-55, SEC-04)
 
-  private async reauthenticate(
+  /** Current password, or for accounts without one an emailed code of `purpose` (also used by updateMe). */
+  async reauthenticate(
     user: User,
     input: { currentPassword?: string | null; challengeId?: string | null; code?: string | null },
-    purpose: 'revoke_sessions' | 'toggle_two_factor',
+    purpose: 'revoke_sessions' | 'toggle_two_factor' | 'email_change',
     ctx: RequestContext,
   ): Promise<void> {
     if (user.passwordHash) {
@@ -238,7 +249,7 @@ export class AccountService {
     return attempt;
   }
 
-  private fieldError(ctx: RequestContext, field: string, code: string, messageKey: string) {
+  fieldError(ctx: RequestContext, field: string, code: string, messageKey: string) {
     return new ApiException(400, 'VALIDATION_FAILED', 't_toast_something_went_wrong', {
       fields: [{ field, code, message: ctx.t(messageKey), messageKey }],
     });

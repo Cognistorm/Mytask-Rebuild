@@ -151,6 +151,27 @@ export function renderEmail(i: TemplateInput): RenderedEmail {
         { label: t('t_restrictions_removal_center'), url: link(i.appUrl, i.locale, '/restricted') },
       );
     }
+    case 'EV-11':
+      // NEW (P-18): sent to the new address; the link opens the web page that calls confirmEmailChange.
+      return layout(
+        i.locale,
+        t('t_email_change_confirm_subject'),
+        hello,
+        [t('t_email_change_confirm_body', i.params)],
+        {
+          label: t('t_confirm_new_email'),
+          url: link(
+            i.appUrl,
+            i.locale,
+            `/auth/email-change?token=${encodeURIComponent(String(i.params.token ?? ''))}`,
+          ),
+        },
+      );
+    case 'EV-12':
+      // NEW (P-18): notice to the old address.
+      return layout(i.locale, t('t_email_change_notice_subject'), hello, [
+        t('t_email_change_notice_body', i.params),
+      ]);
     case 'EV-13':
       // legacy/APP/app/Notifications/Admin/ProfileReported.php:44-51
       return layout(

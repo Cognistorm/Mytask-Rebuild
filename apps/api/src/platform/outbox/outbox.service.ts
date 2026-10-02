@@ -17,6 +17,8 @@ export type OutboxEventType =
   | 'EV-08' // Admin/NewRestrictionAppeal
   | 'EV-09' // AppealAccepted
   | 'EV-10' // AppealRejected
+  | 'EV-11' // EmailChangeConfirm (to the new address, spec 02 AC-30)
+  | 'EV-12' // EmailChangeNotice (to the old address, spec 02 AC-30)
   | 'EV-13' // Admin/ProfileReported (spec 02 AC-14)
   | 'EV-124' // Admin/CriticalSettingChanged
   | 'EV-128' // LoginSlowMode
