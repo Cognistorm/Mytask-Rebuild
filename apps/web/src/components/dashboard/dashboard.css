@@ -1,0 +1,91 @@
+/* Dashboard page content (Selling Home, Buying dashboard). Tokens only (CLAUDE.md). */
+.mt-dash-heading {
+  display: grid;
+  gap: var(--mt-space-4);
+}
+
+.mt-dash-title {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.mt-dash-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mt-space-1) var(--mt-space-4);
+  margin: var(--mt-space-2) 0 0;
+  color: var(--mt-text-secondary);
+  font-size: var(--mt-font-size-sm);
+}
+
+.mt-dash-verified {
+  color: var(--mt-text-success);
+  font-weight: var(--mt-font-weight-medium);
+}
+
+.mt-dash-actions {
+  display: grid;
+  gap: var(--mt-space-2);
+}
+
+.mt-dash-columns {
+  display: grid;
+  gap: var(--mt-space-6);
+}
+
+.mt-dash-muted {
+  margin: 0;
+  color: var(--mt-text-secondary);
+  font-size: var(--mt-font-size-sm);
+}
+
+.mt-dash-contacts {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+}
+
+.mt-dash-contacts a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--mt-space-2);
+  min-height: var(--mt-size-touch-target-min);
+  color: var(--mt-text-primary);
+  text-decoration: none;
+}
+
+.mt-dash-count {
+  min-width: var(--mt-space-5);
+  padding: 0 var(--mt-space-1);
+  border-radius: var(--mt-radius-pill);
+  background: var(--mt-badge-danger-bg);
+  color: var(--mt-badge-danger-text);
+  font-size: var(--mt-font-size-xs);
+  text-align: center;
+}
+
+.mt-dash-error {
+  display: grid;
+  justify-items: start;
+  gap: var(--mt-space-3);
+}
+
+@media (min-width: 768px) {
+  .mt-dash-heading {
+    grid-template-columns: 1fr auto;
+    align-items: center;
+  }
+
+  .mt-dash-actions {
+    grid-auto-flow: column;
+  }
+}
+
+@media (min-width: 1280px) {
+  .mt-dash-columns {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+    align-items: start;
+  }
+}

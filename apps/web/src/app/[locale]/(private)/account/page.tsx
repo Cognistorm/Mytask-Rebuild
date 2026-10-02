@@ -1,14 +1,15 @@
 'use client';
 // Signed-in placeholder for slice 01: who am I, the 2FA switch (AC-20, AC-21) and logout (AC-42).
 // The switch asks for the current password, or for an account without one (social login only) a
-// `toggle_two_factor` code emailed to the account (SEC-05, Q-144; as the app, task 3.12). The real dashboards
-// arrive with slice 02.
+// `toggle_two_factor` code emailed to the account (SEC-05, Q-144; as the app, task 3.12). "My dashboard" opens
+// the dashboard chosen last (spec 02 AC-3); account settings proper arrive with task 4.1.20.
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import type { components } from '@mytask/types';
 import { Alert, CodeInput, Field, Submit } from '@mytask/ui/web';
 import { AuthCard } from '../../../../components/auth/ui';
+import { lastDashboardHref } from '../../../../components/dashboard/shell';
 import {
   href,
   splitErrors,
@@ -17,6 +18,7 @@ import {
   useT,
   type ApiErrorBody,
 } from '../../../../lib/client';
+import { usePublicConfig } from '../../../../lib/public-config';
 
 type Me = components['schemas']['Me'];
 type Challenge = components['schemas']['TwoFactorChallenge'];
@@ -26,6 +28,7 @@ export default function AccountPage() {
   const t = useT(locale);
   const api = useApi(locale);
   const router = useRouter();
+  const config = usePublicConfig(locale);
   const [me, setMe] = useState<Me>();
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
@@ -125,6 +128,9 @@ export default function AccountPage() {
         <dt>{t('t_referral_code')}</dt>
         <dd>{me.referralCode}</dd>
       </dl>
+      <Link href={lastDashboardHref(locale, me, config)} data-testid="my-dashboard">
+        {t('t_my_dashboard')}
+      </Link>
       <Link href={href(locale, '/account/password')}>{t('t_change_password')}</Link>
       <Link href={href(locale, '/account/sessions')}>{t('t_browser_sessions')}</Link>
       {me.twoFactorAvailable && (

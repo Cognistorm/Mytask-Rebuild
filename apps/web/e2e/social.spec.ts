@@ -27,7 +27,7 @@ async function fakeStack(
   const providers = opts.providers ?? ['google', 'github'];
 
   await page.route('**/api/v1/config/public', (route) =>
-    json(route, 200, { auth: { socialProviders: providers } }),
+    json(route, 200, { auth: { socialProviders: providers }, projects: { enabled: true } }),
   );
   await page.route('**/api/v1/auth/social/*/authorize', async (route) => {
     const provider = new URL(route.request().url()).pathname.split('/').at(-2)!;
