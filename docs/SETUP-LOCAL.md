@@ -99,6 +99,12 @@ Your phone and computer must be on the **same Wi-Fi**.
 
 Browser tests start their own website/admin server and **stop with "port is already used"** if something already runs on 3100/3200 (the website tests also start a small stand-in API on 3199). To test against a running `pnpm local` on purpose, add `PW_REUSE=1` (PowerShell: `$env:PW_REUSE='1'; pnpm --filter @mytask/admin test:e2e`).
 
+**Full-stack tests** (the real API, storage and worker; e.g. the profiles main flow in `apps/admin/e2e/profiles-main-flow.spec.ts`) sign in as the first Super-admin, so they read the password the seed prints. To keep your own local data out of it, start a throw-away database in an empty folder and save the output (PowerShell):
+```
+$env:LOCAL_PGLITE_DIR='C:\temp\mytask-test-db'; pnpm local *> C:\temp\local.log
+```
+In a second window: `$env:PW_REUSE='1'; $env:ADMIN_E2E_LOG='C:\temp\local.log'; pnpm --filter @mytask/admin test:e2e`. Without `ADMIN_E2E_LOG` these tests are skipped. Later starts with the same folder print no password, so keep the first log. Your normal `pnpm local` (without `LOCAL_PGLITE_DIR`) still uses `apps/api/.pglite`.
+
 ## 6. Stop, reset, update
 
 | Task | Command |

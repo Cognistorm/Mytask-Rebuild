@@ -140,7 +140,12 @@ try {
   start(
     'postgres',
     process.execPath,
-    [join(api, 'scripts/pglite-server.mjs'), String(dbPort), join(api, '.pglite')],
+    // LOCAL_PGLITE_DIR: a throw-away database for full-stack test runs (fresh seed, owner data untouched).
+    [
+      join(api, 'scripts/pglite-server.mjs'),
+      String(dbPort),
+      resolve(process.env.LOCAL_PGLITE_DIR ?? join(api, '.pglite')),
+    ],
     {
       cwd: api,
     },
@@ -170,6 +175,9 @@ try {
           credentials: [{ accessKey: env.S3_ACCESS_KEY_ID, secretKey: env.S3_SECRET_ACCESS_KEY }],
           actions: ['Admin', 'Read', 'List', 'Tagging', 'Write'],
         },
+        // ADR-009: browsers read the processed public images directly (the CDN's job in production);
+        // read only, this one bucket only, no listing. Private and KYC files stay behind signed links.
+        { name: 'anonymous', actions: [`Read:${env.S3_BUCKET_PUBLIC ?? 'public-media'}`] },
       ],
     }),
   );
