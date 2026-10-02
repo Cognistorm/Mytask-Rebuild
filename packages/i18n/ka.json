@@ -2696,6 +2696,7 @@
   "t_u_will_get": "თქვენ ჩაგერიცხებათ",
   "t_u_wont_be_able_to_receive_orders_until_date": "თქვენ ვერ მიიღებთ ახალ შეკვეთებს ან შეტყობინებებს {{date}} -მდე",
   "t_ui_attach_file": "ფაილის მიმაგრება",
+  "t_ui_choose_photo": "გალერეიდან არჩევა",
   "t_ui_clear_search": "ძიების გასუფთავება",
   "t_ui_client_name_hidden": "დამკვეთის სახელი დამალულია",
   "t_ui_close": "დახურვა",

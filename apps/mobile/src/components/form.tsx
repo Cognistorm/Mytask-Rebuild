@@ -43,9 +43,9 @@ export function Input(props: {
   multiline?: boolean;
   maxLength?: number;
   placeholder?: string;
-  keyboardType?: 'default' | 'email-address' | 'number-pad';
+  keyboardType?: 'default' | 'email-address' | 'number-pad' | 'url';
   textContentType?:
-    'emailAddress' | 'password' | 'newPassword' | 'username' | 'name' | 'oneTimeCode';
+    'emailAddress' | 'password' | 'newPassword' | 'username' | 'name' | 'oneTimeCode' | 'URL';
 }) {
   return (
     <View style={s.field}>

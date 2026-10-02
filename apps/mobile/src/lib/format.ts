@@ -45,3 +45,30 @@ export function formatClock(timeZone: string, now = new Date()): string | undefi
     return undefined;
   }
 }
+
+/** Today's calendar date in the platform time zone, `YYYY-MM-DD` (as the web `platformToday`). */
+export function platformToday(now = new Date()): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    timeZone: 'Asia/Tbilisi',
+  }).format(now);
+}
+
+/** `YYYY-MM-DD` plus `days` calendar days. */
+export function addDays(date: string, days: number): string {
+  const [year, month, day] = date.split('-').map(Number) as [number, number, number];
+  return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
+}
+
+/** A calendar date as the device-local midnight the native date picker works with, and back. */
+export function dateOnlyToLocal(date: string): Date {
+  const [year, month, day] = date.split('-').map(Number) as [number, number, number];
+  return new Date(year, month - 1, day);
+}
+
+export function localToDateOnly(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}

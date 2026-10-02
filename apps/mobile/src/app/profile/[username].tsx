@@ -1,11 +1,11 @@
 // Public profile screen (spec 02 AC-8…AC-14, AC-18, AC-28/AC-42 owner view, EC-10; screens table "Profile screen:
 // left card stacks on top, share opens the native share sheet"; design components.md §7.4), the same data, order
 // and keys as the web `/profile/{username}`. Open to guests (no session gate): the API answers as the visitor.
-// Not yet in the app (no screen to open, so no dead end, as 4.1.22): "Contact me" (chat, slice 08), "Edit
-// profile" (4.1.23b), the portfolio item viewer and "View my portfolio" (4.1.24), skill pages `/hire/{slug}`
+// "Edit profile" for the owner since 4.1.23b. Not yet in the app (no screen to open, so no dead end, as 4.1.22):
+// "Contact me" (chat, slice 08), the portfolio item viewer and "View my portfolio" (4.1.24), skill pages `/hire/{slug}`
 // (slice 03), the gigs list (slice 03), "Request an offer" (slice 11; the API sends `canRequestOffer: false`).
-import { router, useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useCallback, useState } from 'react';
 import {
   Linking,
   Platform,
@@ -19,7 +19,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { lightTheme as theme } from '@mytask/tokens/native';
 import { EmptyState, Section, SecondaryButton, Skeleton } from '../../components/dashboard';
-import { Notice } from '../../components/form';
+import { Button, Notice } from '../../components/form';
 import {
   Avatar,
   Chip,
@@ -72,7 +72,8 @@ export default function ProfileScreen() {
   const [state, setState] = useState<State>({ kind: 'loading' });
 
   const load = useCallback(async () => {
-    setState({ kind: 'loading' });
+    // Coming back (e.g. from Edit profile) re-reads quietly; only the first load shows the skeleton.
+    setState((current) => (current.kind === 'ready' ? current : { kind: 'loading' }));
     const hasSession = await loadSession();
     let next = await fetchProfile(username);
     // A stored session whose access token expired reads as a guest (the profile endpoints take an optional
@@ -84,7 +85,11 @@ export default function ProfileScreen() {
     setState(next);
   }, [username]);
 
-  useEffect(() => void load(), [load]);
+  useFocusEffect(
+    useCallback(() => {
+      void load();
+    }, [load]),
+  );
 
   return (
     <SafeAreaView style={s.screen}>
@@ -174,6 +179,9 @@ function Profile({
         {p.headline ? <Text style={s.headline}>{p.headline}</Text> : null}
 
         <View style={s.actions}>
+          {p.isOwnProfile ? (
+            <Button label={t('t_edit_profile')} onPress={() => router.push('/account/profile')} />
+          ) : null}
           <OutlineButton label={t('t_share_profile')} onPress={share} testID="share-profile" />
           {!p.isOwnProfile ? (
             <ReportUser api={api} t={t} username={p.username} signedIn={p.canReport} />

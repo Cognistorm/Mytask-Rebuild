@@ -2691,6 +2691,7 @@
   "t_u_will_get": "You will get",
   "t_u_wont_be_able_to_receive_orders_until_date": "You won't be able to receive new orders or messages until {{date}}",
   "t_ui_attach_file": "Attach file",
+  "t_ui_choose_photo": "Choose from gallery",
   "t_ui_clear_search": "Clear search",
   "t_ui_client_name_hidden": "Client name hidden",
   "t_ui_close": "Close",
