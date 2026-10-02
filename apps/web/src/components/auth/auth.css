@@ -192,6 +192,50 @@
   margin: var(--mt-space-2) 0 0;
 }
 
+/* Appeal file picker (spec 01 AC-47): name, size, state, remove. */
+.appeal-files-required {
+  color: var(--mt-text-danger);
+}
+
+.appeal-files-info {
+  margin: 0;
+  font-size: var(--mt-font-size-sm);
+}
+
+.appeal-files-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--mt-space-2);
+}
+
+.appeal-file {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--mt-space-1) var(--mt-space-3);
+  padding: var(--mt-space-2) var(--mt-space-3);
+  border: var(--mt-border-width-hairline) solid var(--mt-border-default);
+  border-radius: var(--mt-radius-control);
+  font-size: var(--mt-font-size-sm);
+}
+
+.appeal-file-name {
+  flex: 1 1 12rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.appeal-file[data-state='ready'] .appeal-file-state {
+  color: var(--mt-text-success);
+}
+
+.appeal-file[data-state='failed'] .appeal-file-state {
+  color: var(--mt-text-danger);
+  flex-basis: 100%;
+}
+
 /* "or" divider + social buttons (components.md Divider `labelled`, AuthLayout: secondary, full width, brand mark). */
 .auth-divider {
   display: flex;

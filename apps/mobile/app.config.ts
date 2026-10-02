@@ -27,7 +27,21 @@ const config: ExpoConfig = {
   orientation: 'portrait',
   userInterfaceStyle: 'automatic',
   platforms: ['ios', 'android'],
-  plugins: ['expo-router', 'expo-font', 'expo-web-browser'],
+  plugins: [
+    'expo-router',
+    'expo-font',
+    'expo-web-browser',
+    // Appeal files (spec 01: "camera or files"): camera only; files come from the document picker, so no
+    // photo-library or microphone access is requested. Store-language texts for the prompt: Phase 6.
+    [
+      'expo-image-picker',
+      {
+        cameraPermission: 'MyTask uses the camera to photograph documents you attach.',
+        photosPermission: false,
+        microphonePermission: false,
+      },
+    ],
+  ],
   experiments: { typedRoutes: true },
   ios: appLinks ? { associatedDomains: [`applinks:${appHost}`] } : undefined,
   android: appLinks

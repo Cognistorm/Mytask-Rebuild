@@ -1,11 +1,12 @@
 'use client';
 // Restrictions removal center (spec 01 AC-19, AC-46…AC-49; legacy resources/views/livewire/restricted/
-// index.blade.php): each restriction with its status and date, the reason, and the appeal form while pending.
-// Appeal files wait for the files foundation (F0) and Q-154.
+// index.blade.php): each restriction with its status and date, the reason, and the appeal form while pending,
+// with the file picker (S-091…S-093 from the public config; required when the restriction asks for files).
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import type { components } from '@mytask/types';
 import { Alert, Submit, TextArea } from '@mytask/ui/web';
+import { AppealFiles } from '../../../../components/appeal-files';
 import { AuthCard } from '../../../../components/auth/ui';
 import {
   href,
@@ -15,6 +16,7 @@ import {
   useT,
   type ApiErrorBody,
 } from '../../../../lib/client';
+import { usePublicConfig } from '../../../../lib/public-config';
 
 type Restriction = components['schemas']['Restriction'];
 
@@ -29,17 +31,24 @@ function AppealForm({ restriction, onDone }: { restriction: Restriction; onDone:
   const locale = useLocale();
   const t = useT(locale);
   const api = useApi(locale);
+  const rule = usePublicConfig(locale)?.uploads.appealFile;
   const [message, setMessage] = useState('');
+  const [fileIds, setFileIds] = useState<string[]>([]);
+  const [uploading, setUploading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<ApiErrorBody>();
   const { fields, general } = splitErrors(err);
+  const onFiles = useCallback((ids: string[], running: boolean) => {
+    setFileIds(ids);
+    setUploading(running);
+  }, []);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     setErr(undefined);
     const res = await api.POST('/restriction-appeals', {
-      body: { restrictionId: restriction.id, message },
+      body: { restrictionId: restriction.id, message, fileIds },
     });
     setBusy(false);
     if (res.error) return setErr(res.error as ApiErrorBody);
@@ -55,9 +64,18 @@ function AppealForm({ restriction, onDone }: { restriction: Restriction; onDone:
         maxLength={1500}
         value={message}
         onChange={setMessage}
-        error={fields.message ?? fields.fileIds}
+        error={fields.message}
       />
-      <Submit busy={busy}>{t('t_appeal_the_closure')}</Submit>
+      {rule?.enabled && (
+        <AppealFiles
+          locale={locale}
+          rule={rule}
+          required={restriction.filesRequired}
+          error={fields.fileIds}
+          onChange={onFiles}
+        />
+      )}
+      <Submit busy={busy || uploading}>{t('t_appeal_the_closure')}</Submit>
     </form>
   );
 }

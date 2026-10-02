@@ -162,3 +162,6 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
   }
   return client;
 }
+
+export { declaredType, fileExtension, uploadFile } from './upload';
+export type { UploadBody, UploadError, UploadInput, UploadOptions, UploadResult } from './upload';

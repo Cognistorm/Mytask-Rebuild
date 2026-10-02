@@ -22,7 +22,11 @@ export default defineConfig({
       // Reusing a running server is opt-in (PW_REUSE=1, e.g. against `pnpm preview`): otherwise a busy port
       // fails loudly instead of silently testing another checkout's build (QA BUG-07).
       reuseExistingServer: reuse,
-      env: { API_INTERNAL_URL: 'http://localhost:3199/api/v1' },
+      // Uploads go to a routed storage host in e2e/restricted-appeal.spec.ts (CSP connect-src).
+      env: {
+        API_INTERNAL_URL: 'http://localhost:3199/api/v1',
+        S3_PUBLIC_ENDPOINT: 'http://storage.test',
+      },
       timeout: 120_000,
     },
   ],

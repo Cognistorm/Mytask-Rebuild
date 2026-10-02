@@ -198,3 +198,16 @@
   padding-block: var(--mt-space-3);
   border-bottom: var(--mt-border-width-hairline) solid var(--mt-border-subtle);
 }
+
+/* Appeal files in the restriction appeals queue (spec 16 AC-29). */
+.admin-files {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--mt-space-1);
+}
+
+.admin-file-name {
+  overflow-wrap: anywhere;
+}

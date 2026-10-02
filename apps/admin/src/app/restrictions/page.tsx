@@ -2,7 +2,8 @@
 // User restrictions (spec 01 AC-46…AC-50; spec 16 AC-19, AC-29, AC-32; legacy
 // resources/views/livewire/admin/users/options/restrict.blade.php): the appeals queue with approve/reject,
 // adding a restriction, and the restrictions history of one user (`?userId=`, the EV-08 email link).
-// The user list/detail pages (slice 16) will link here; appeal files arrive with F0 and Q-154.
+// The user list/detail pages (slice 16) will link here. Appeal files open through
+// adminGetRestrictionAppealFileDownload (audited, short-lived signed URL; spec 16 AC-29, R-A8).
 import { useCallback, useEffect, useState } from 'react';
 import type { components } from '@mytask/types';
 import { AdminNav } from '../../components/nav';
@@ -19,6 +20,7 @@ const STATUS_KEY: Record<S['RestrictionStatus'], string> = {
   rejected: 't_rejected',
 };
 const date = (iso: string) => new Date(iso).toLocaleString('ka-GE', { timeZone: 'Asia/Tbilisi' });
+const MB = 1024 * 1024;
 
 function AppealCard({
   appeal,
@@ -31,6 +33,16 @@ function AppealCard({
   const [reason, setReason] = useState('');
   const [err, setErr] = useState<ApiErrorBody>();
   const { fields, general } = splitErrors(err);
+
+  // Every open is audited by the API; the signed URL answers as an attachment, so the page stays.
+  async function download(fileId: string) {
+    setErr(undefined);
+    const res = await api.GET('/admin/restriction-appeals/{appealId}/files/{fileId}/download', {
+      params: { path: { appealId: appeal.id, fileId }, query: { mode: 'json' } },
+    });
+    if (res.error) return setErr(res.error as ApiErrorBody);
+    window.location.assign((res.data as S['SignedUrl']).url);
+  }
 
   async function decide(kind: 'approve' | 'reject') {
     setErr(undefined);
@@ -55,6 +67,28 @@ function AppealCard({
       <p className="admin-message">{appeal.restriction.message}</p>
       <span className="auth-muted">{t('t_restriction_response')}</span>
       <p className="admin-message">{appeal.message}</p>
+      {appeal.files.length > 0 && (
+        <>
+          <span className="auth-muted">{t('t_attachments')}</span>
+          <ul className="admin-files">
+            {appeal.files.map((f) => (
+              <li key={f.fileId} data-testid="appeal-file">
+                <span className="admin-file-name">{f.fileName}</span>{' '}
+                <span className="auth-muted">
+                  {t('t_ui_file_size_mb', { size: (f.sizeBytes / MB).toFixed(1) })}
+                </span>{' '}
+                <button
+                  type="button"
+                  className="auth-link-button"
+                  onClick={() => download(f.fileId)}
+                >
+                  {t('t_download')}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
       {general && <Alert kind="error">{general}</Alert>}
       <TextArea
         label={t('t_reason')}
