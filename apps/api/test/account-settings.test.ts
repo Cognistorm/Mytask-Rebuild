@@ -165,7 +165,9 @@ describe('email change (AC-30, P-18)', () => {
     expect(link.to).toEqual([newEmail]);
     expect(link.params).toMatchObject({ email: newEmail, minutes: 60 });
     const notice = await lastEvent('EV-12', m.userId);
-    expect(notice).toMatchObject({ userId: m.userId, params: { email: newEmail } });
+    // Pinned to the old address at request time (4.1.15), not read again when the worker sends it.
+    expect(notice).toMatchObject({ to: [m.email], params: { email: newEmail } });
+    expect(notice.userId).toBeUndefined();
 
     const done = await confirm(String(link.params.token));
     expect(done.status).toBe(200);

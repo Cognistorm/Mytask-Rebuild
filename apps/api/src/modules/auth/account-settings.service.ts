@@ -135,10 +135,12 @@ export class AccountSettingsService {
             },
             tx,
           );
+          // The old address is fixed now: the worker reads `userId` at send time, which after a quick
+          // confirm (or a delayed retry) would already be the new address.
           await this.outbox.add(
             'EV-12',
             { type: 'user', id: userId },
-            { userId, params: { email: email! } },
+            { to: [user.email], locale: user.locale, params: { email: email!, username } },
             tx,
           );
         }
