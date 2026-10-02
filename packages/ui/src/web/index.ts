@@ -18,3 +18,15 @@ export {
   type LinkComponent,
   type SidebarItem,
 } from './dashboard';
+export {
+  Avatar,
+  ChipLink,
+  Dialog,
+  ExpandableText,
+  OnlineStatus,
+  Pill,
+  RatingStars,
+  RatingSummary,
+  type AvatarImage,
+  type RatingBlockData,
+} from './profile';
