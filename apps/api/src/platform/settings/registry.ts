@@ -871,6 +871,20 @@ export const settingsRegistry = {
     socialProvider: true,
     writePermission: 'settings.auth.write',
   }),
+  // 4.11 Moderation (auto-approve)
+  'S-071': row({
+    key: 'moderation.portfolio.auto_approve',
+    default: false,
+    area: 'moderation',
+    type: 'boolean',
+    meaning: {
+      en: 'Portfolio items go live without review',
+      ka: 'პორტფოლიოს ნამუშევრები ქვეყნდება განხილვის გარეშე',
+    },
+    source: 'settings_publish, Q-068',
+    tag: 'LEGACY',
+    writePermission: 'settings.moderation.write',
+  }),
   // 4.12 Projects
   'S-075': row({
     key: 'projects.enabled',
@@ -1486,6 +1500,20 @@ export const settingsRegistry = {
     source: 'Admin/System/MaintenanceComponent.php',
     tag: 'LEGACY',
     public: true,
+    writePermission: 'settings.system.write',
+  }),
+  'S-122': row({
+    key: 'kyc.provider',
+    default: 'manual' as const,
+    area: 'system',
+    type: 'enum',
+    allowedValues: ['manual'],
+    meaning: {
+      en: 'ID verification: manual staff review now, external service later',
+      ka: 'პირადობის ვერიფიკაცია: ახლა ადმინისტრატორის ხელით განხილვა, მოგვიანებით გარე სერვისი',
+    },
+    source: 'Q-048',
+    tag: 'LEGACY',
     writePermission: 'settings.system.write',
   }),
   'S-123': row({

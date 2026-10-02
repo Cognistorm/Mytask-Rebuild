@@ -73,9 +73,11 @@ describe('settings registry', () => {
     expect(d('S-029')).toBe(false);
     expect(d('S-031')).toEqual({ amount: 1000, currency: 'GEL' });
     expect(d('S-034')).toBe(true);
+    expect(d('S-071')).toBe(false);
     expect(d('S-092')).toBe(100);
     expect(d('S-103')).toBe('ka');
     expect(d('S-107')).toBe(false);
     expect(d('S-121')).toEqual({ enabled: false, headline: null, message: null });
+    expect(d('S-122')).toBe('manual');
   });
 });

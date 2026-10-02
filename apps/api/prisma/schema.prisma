@@ -141,16 +141,34 @@ model User {
   referralsMade       Referral[]           @relation("referrer")
   referredBy          Referral?            @relation("referred")
   socialAccounts      SocialAccount[]
+  skills              UserSkill[]
+  languages           UserLanguage[]
+  linkedAccounts      UserLinkedAccount[]
+  portfolioItems      PortfolioItem[]
+  kycVerifications    KycVerification[]
+  reportsMade         Report[]
 
   @@map("users")
 }
 
-/// Public profile data (spec 02). Only `fullname` is used by slice 01; the rest arrives with slice 02.
+/// Public profile data (data-model §3.B, spec 02). `timezone` null = `Asia/Tbilisi` (no editor, legacy
+/// behaviour); `last_delivery_at` is a cache filled by gig orders (slice 5). The FK to `files` and the
+/// partial index on `unavailable_until` (daily availability reset) are in the migration SQL.
 model UserProfile {
-  userId    String   @id @map("user_id") @db.Uuid
-  fullname  String   @db.VarChar(60)
-  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
-  user      User     @relation(fields: [userId], references: [id])
+  userId             String    @id @map("user_id") @db.Uuid
+  fullname           String    @db.VarChar(60)
+  headline           String?   @db.VarChar(100)
+  about              String?   @db.VarChar(1500)
+  avatarFileId       String?   @map("avatar_file_id") @db.Uuid
+  countryId          Int?      @map("country_id") @db.SmallInt
+  city               String?   @db.VarChar(60)
+  timezone           String?   @db.VarChar(64)
+  unavailableUntil   DateTime? @map("unavailable_until") @db.Timestamptz(6)
+  unavailableMessage String?   @map("unavailable_message") @db.VarChar(750)
+  lastDeliveryAt     DateTime? @map("last_delivery_at") @db.Timestamptz(6)
+  updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user               User      @relation(fields: [userId], references: [id])
+  country            Country?  @relation(fields: [countryId], references: [id])
 
   @@map("user_profiles")
 }
@@ -601,4 +619,217 @@ model File {
   @@unique([bucket, objectKey])
   @@index([ownerUserId, purpose])
   @@map("files")
+}
+
+// ---------------------------------------------------------------- 3.B Profiles, KYC, reports (spec 02)
+
+enum SkillLevel {
+  beginner
+  intermediate
+  pro
+
+  @@map("skill_level")
+}
+
+enum LanguageLevel {
+  basic
+  conversational
+  fluent
+  native
+
+  @@map("language_level")
+}
+
+enum LinkedProvider {
+  facebook
+  twitter
+  dribbble
+  stackoverflow
+  github
+  youtube
+  vimeo
+
+  @@map("linked_provider")
+}
+
+enum PortfolioStatus {
+  pending
+  active
+  rejected
+
+  @@map("portfolio_status")
+}
+
+enum KycDocumentType {
+  national_id
+  driver_license
+  passport
+
+  @@map("kyc_document_type")
+}
+
+enum KycStatus {
+  pending
+  verified
+  declined
+
+  @@map("kyc_status")
+}
+
+/// S-122; an external provider adds its value later (spec 02 AC-40).
+enum KycProvider {
+  manual
+
+  @@map("kyc_provider")
+}
+
+enum ReportTarget {
+  user
+  gig
+  project
+  proposal
+
+  @@map("report_target")
+}
+
+enum ReportStatus {
+  pending
+  dismissed
+  resolved
+
+  @@map("report_status")
+}
+
+/// Reference data (legacy ids kept, data-model §12.2); names per language, inactive ones are not offered.
+model Country {
+  id       Int           @id @db.SmallInt
+  iso2     String        @unique @db.Char(2)
+  nameKa   String        @map("name_ka") @db.VarChar(100)
+  nameEn   String        @map("name_en") @db.VarChar(100)
+  isActive Boolean       @default(true) @map("is_active")
+  profiles UserProfile[]
+
+  @@map("countries")
+}
+
+/// Shown as Beginner / Intermediate / Expert. UK `(user_id, lower(name))` and the trigram indexes are in SQL.
+model UserSkill {
+  id         String     @id @default(uuid(7)) @db.Uuid
+  userId     String     @map("user_id") @db.Uuid
+  name       String     @db.VarChar(30)
+  slug       String     @db.VarChar(60)
+  experience SkillLevel
+  createdAt  DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  user       User       @relation(fields: [userId], references: [id])
+
+  @@index([slug])
+  @@map("user_skills")
+}
+
+/// UK `(user_id, lower(name))` is in SQL.
+model UserLanguage {
+  id     String        @id @default(uuid(7)) @db.Uuid
+  userId String        @map("user_id") @db.Uuid
+  name   String        @db.VarChar(100)
+  level  LanguageLevel
+  user   User          @relation(fields: [userId], references: [id])
+
+  @@map("user_languages")
+}
+
+/// Shown only when S-123 is ON.
+model UserLinkedAccount {
+  userId   String         @map("user_id") @db.Uuid
+  provider LinkedProvider
+  url      String         @db.VarChar(160)
+  user     User           @relation(fields: [userId], references: [id])
+
+  @@id([userId, provider])
+  @@map("user_linked_accounts")
+}
+
+/// `rejection_reason` / `rejected_at` are shown only to the owner while `rejected` (spec 02 AC-42, Q-117).
+/// Hard delete with files (AC-27). FKs to `files` and `staff` are in the migration SQL.
+model PortfolioItem {
+  id                String           @id @default(uuid(7)) @db.Uuid
+  legacyId          BigInt?          @unique @map("legacy_id")
+  uid               String           @unique @db.VarChar(20)
+  userId            String           @map("user_id") @db.Uuid
+  slug              String           @db.VarChar(160)
+  title             String           @db.VarChar(100)
+  description       String
+  projectUrl        String?          @map("project_url") @db.VarChar(120)
+  videoUrl          String?          @map("video_url") @db.VarChar(120)
+  thumbnailFileId   String           @map("thumbnail_file_id") @db.Uuid
+  status            PortfolioStatus  @default(pending)
+  rejectionReason   String?          @map("rejection_reason") @db.VarChar(1000)
+  rejectedAt        DateTime?        @map("rejected_at") @db.Timestamptz(6)
+  reviewedByStaffId String?          @map("reviewed_by_staff_id") @db.Uuid
+  reviewedAt        DateTime?        @map("reviewed_at") @db.Timestamptz(6)
+  publishedAt       DateTime?        @map("published_at") @db.Timestamptz(6)
+  createdAt         DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user              User             @relation(fields: [userId], references: [id])
+  images            PortfolioImage[]
+
+  @@index([userId, status])
+  @@map("portfolio_items")
+}
+
+model PortfolioImage {
+  portfolioItemId String        @map("portfolio_item_id") @db.Uuid
+  fileId          String        @map("file_id") @db.Uuid
+  position        Int           @db.SmallInt
+  portfolioItem   PortfolioItem @relation(fields: [portfolioItemId], references: [id], onDelete: Cascade)
+
+  @@id([portfolioItemId, fileId])
+  @@map("portfolio_images")
+}
+
+/// One active verification per user: partial UK `(user_id) WHERE status IN ('pending','verified')` in SQL
+/// (spec 02 AC-38). Files in the `kyc` bucket; FKs to `files` and `staff` are in the migration SQL.
+model KycVerification {
+  id                String          @id @default(uuid(7)) @db.Uuid
+  legacyId          BigInt?         @unique @map("legacy_id")
+  userId            String          @map("user_id") @db.Uuid
+  documentType      KycDocumentType @map("document_type")
+  frontFileId       String          @map("front_file_id") @db.Uuid
+  backFileId        String?         @map("back_file_id") @db.Uuid
+  selfieFileId      String          @map("selfie_file_id") @db.Uuid
+  status            KycStatus       @default(pending)
+  provider          KycProvider     @default(manual)
+  providerReference String?         @map("provider_reference")
+  /// Staff reason of a decline, shown to the user (contract KycVerification.declineReason, spec 16 AC-27).
+  declineReason     String?         @map("decline_reason")
+  reviewedByStaffId String?         @map("reviewed_by_staff_id") @db.Uuid
+  reviewedAt        DateTime?       @map("reviewed_at") @db.Timestamptz(6)
+  createdAt         DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  user              User            @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt])
+  @@map("kyc_verifications")
+}
+
+/// User, gig, project and proposal reports. A second report of the same item by the same person replaces the
+/// first (UK, spec 02 AC-14). `target_id` has no FK (the target table depends on `target_type`).
+model Report {
+  id               String       @id @default(uuid(7)) @db.Uuid
+  legacySource     String?      @map("legacy_source")
+  legacyId         BigInt?      @map("legacy_id")
+  reporterUserId   String       @map("reporter_user_id") @db.Uuid
+  targetType       ReportTarget @map("target_type")
+  targetId         String       @map("target_id") @db.Uuid
+  reason           String       @db.VarChar(1500)
+  status           ReportStatus @default(pending)
+  decisionNote     String?      @map("decision_note") @db.VarChar(1000)
+  handledByStaffId String?      @map("handled_by_staff_id") @db.Uuid
+  handledAt        DateTime?    @map("handled_at") @db.Timestamptz(6)
+  createdAt        DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+  reporter         User         @relation(fields: [reporterUserId], references: [id])
+
+  @@unique([reporterUserId, targetType, targetId])
+  @@index([targetType, targetId])
+  @@index([status, createdAt])
+  @@map("reports")
 }
