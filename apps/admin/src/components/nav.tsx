@@ -29,6 +29,8 @@ export function AdminNav({ onMe }: { onMe?: (me: Me) => void }) {
     { href: '/settings', label: t('t_settings'), show: can('settings.read') },
     { href: '/security', label: t('t_banned_ips'), show: can('security.ip_bans') },
     { href: '/restrictions', label: t('t_user_restrictions'), show: can('users.read') },
+    { href: '/portfolio', label: t('t_portfolios'), show: can('portfolio.moderate') },
+    { href: '/kyc', label: t('t_verifications'), show: can('kyc.review') },
     { href: '/account', label: t('t_change_password'), show: !!me },
   ];
 
