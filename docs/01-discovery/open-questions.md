@@ -779,3 +779,9 @@ When: before slice 01 is marked done (security condition). Nothing else waits on
 Recommendation: (a) for launch, with (b) on the Phase 6 checklist if the S-061 switch is ever turned ON.
 When: before S-061 is turned ON in production. Nothing in Phase 3 waits on it.
 
+## Files F0 part 3 (backend, ROADMAP 4.1.5, 2026-10-02) — answered by Owner 2026-10-02
+
+### Q-161
+**File types and size limit for staff image uploads** (`adminCreateFileUpload`: category image, blog image, home logo). Legacy: category/sub/child category icon and image JPG/JPEG/PNG (`Admin/Categories/CreateValidator.php:44-46`); blog image JPG/JPEG/PNG/SVG/GIF (`Admin/Blog/CreateValidator.php:42`); site logos also WEBP/SVG (`Admin/Settings/GeneralValidator.php:32`); no size limit anywhere; the home logo cloud (`LogoCloud` model) had no upload screen.
+Options: (a) the legacy types without SVG (ADR-009 §5, script risk), at most 5 MB like the platform's other images (S-078), fixed rules; (b) like (a) but blog images and logos keep SVG (needs an SVG sanitiser); (c) like (a) with 10 MB.
+**Answer (Owner, 2026-10-02): (a).** Category image JPG/JPEG/PNG; blog image JPG/JPEG/PNG/GIF; home logo JPG/JPEG/PNG/WEBP/GIF; SVG refused; ≤ 5 MB; no new setting. Built in `apps/api/src/modules/files/purposes.ts` (4.1.5).

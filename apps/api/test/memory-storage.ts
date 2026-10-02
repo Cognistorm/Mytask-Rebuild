@@ -18,6 +18,7 @@ interface StoredObject extends ObjectHead {
 export class MemoryStorage extends ObjectStorage {
   readonly objects = new Map<string, StoredObject>();
   readonly posts: PresignedPostInput[] = [];
+  readonly gets: PresignedGetInput[] = [];
   /** Makes the next `read` throw, as an unreachable storage would. */
   failNextRead = false;
 
@@ -35,6 +36,7 @@ export class MemoryStorage extends ObjectStorage {
   }
 
   presignedGet(input: PresignedGetInput): Promise<string> {
+    this.gets.push(input);
     return Promise.resolve(`http://storage.test/${input.bucket}/${input.key}?signed=1`);
   }
 

@@ -1060,6 +1060,7 @@
   "t_fee_requires_payment_flow": "This fee cannot be switched on yet: there is no payment step for it.",
   "t_file_has_been_successfully_deleted": "File has been successfully deleted",
   "t_file_not_found": "File not found",
+  "t_file_not_ready": "The file is still being checked. Please try again in a moment",
   "t_file_ready_for_upload": "File Ready for Upload",
   "t_file_rejected_type": "The file content does not match an allowed file type",
   "t_file_rejected_unreadable": "The image could not be read. Please upload another file",

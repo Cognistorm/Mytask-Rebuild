@@ -1,6 +1,6 @@
-// Files F0 part 1 (ADR-009 §3, ROADMAP 4.1.3): createFileUpload, getFile, deleteFile, completeFileUpload.
-// The scan pipeline that turns `scanning` into `ready`/`rejected` is the worker's job (scan/, 4.1.4);
-// downloads and staff uploads come in 4.1.5.
+// Files F0 (ADR-009 §3–§4, ROADMAP 4.1.3, 4.1.5): createFileUpload, getFile, deleteFile, completeFileUpload,
+// getFileDownload, and the staff side adminCreateFileUpload, adminGetFile, adminCompleteFileUpload.
+// The scan pipeline that turns `scanning` into `ready`/`rejected` is the worker's job (scan/, 4.1.4).
 import { randomUUID } from 'node:crypto';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { components, Locale } from '@mytask/types';
@@ -11,8 +11,17 @@ import { ApiException } from '../../platform/errors/api-exception';
 import { translate } from '../../platform/errors/messages';
 import { RedisService } from '../../platform/redis/redis.module';
 import { SettingsService } from '../../platform/settings/settings.service';
+import { AuditService } from '../../platform/audit/audit.service';
 import { ObjectStorage } from '../../platform/storage/storage';
-import { MB, MIME_BY_EXTENSION, PURPOSE_POLICIES, extensionOf } from './purposes';
+import type { StaffAuthState } from '../auth/auth.guard';
+import type { RequestContext } from '../auth/request-context';
+import {
+  MB,
+  MIME_BY_EXTENSION,
+  PURPOSE_POLICIES,
+  extensionOf,
+  type PurposePolicy,
+} from './purposes';
 
 type S = components['schemas'];
 
@@ -21,6 +30,12 @@ export const UPLOAD_EXPIRES_SECONDS = 15 * 60;
 /** Contract `x-rate-limit` of createFileUpload: 60 requests / 10 min per user. */
 export const UPLOADS_PER_WINDOW = 60;
 export const UPLOAD_WINDOW_SECONDS = 10 * 60;
+/** Presigned GET lifetime: about 5 minutes; KYC 2 minutes (ADR-009 §2, §4). */
+export const DOWNLOAD_EXPIRES_SECONDS = 5 * 60;
+export const KYC_DOWNLOAD_EXPIRES_SECONDS = 2 * 60;
+
+/** Who uploads a file: a user (`owner_user_id`) or a staff member (`owner_staff_id`). */
+type Uploader = { userId: string } | { staffId: string };
 
 /** Answers whether a file is referenced by a resource (avatar, portfolio, KYC, …). */
 export type FileAttachmentCheck = (file: FileRow) => Promise<boolean>;
@@ -39,6 +54,27 @@ export class FileAttachments {
 
   async isAttached(file: FileRow): Promise<boolean> {
     for (const check of this.checks) if (await check(file)) return true;
+    return false;
+  }
+}
+
+/**
+ * Answers whether a user other than the owner may download a file (getFileDownload): escrow parties for
+ * deliveries and requirement files (spec 06), conversation participants for chat attachments (spec 08), …
+ * Slices register their rule here; without one only the owner may download.
+ */
+export type FileDownloadCheck = (file: FileRow, userId: string) => Promise<boolean>;
+
+@Injectable()
+export class FileDownloadAccess {
+  private readonly checks: FileDownloadCheck[] = [];
+
+  register(check: FileDownloadCheck): void {
+    this.checks.push(check);
+  }
+
+  async mayDownload(file: FileRow, userId: string): Promise<boolean> {
+    for (const check of this.checks) if (await check(file, userId)) return true;
     return false;
   }
 }
@@ -64,6 +100,8 @@ export class FilesService {
     private readonly redis: RedisService,
     private readonly storage: ObjectStorage,
     private readonly attachments: FileAttachments,
+    private readonly downloadAccess: FileDownloadAccess,
+    private readonly audit: AuditService,
   ) {}
 
   async create(
@@ -75,8 +113,48 @@ export class FilesService {
     // Every purpose and permission check runs before a presigned POST exists (ADR-009 §3, P2-B5 item 12).
     if (body.purpose !== 'appeal_file' && (await this.isRestricted(userId))) throw restricted();
     const policy = PURPOSE_POLICIES[body.purpose];
-    if (!policy) throw new ApiException(403, 'FORBIDDEN', 't_forbidden');
+    if (policy?.uploader.kind !== 'user') throw new ApiException(403, 'FORBIDDEN', 't_forbidden');
+    return this.slot({ userId }, policy, body, locale);
+  }
 
+  /**
+   * adminCreateFileUpload: staff purposes only (else 422 FILE_PURPOSE_MISMATCH); exactly one permission is
+   * checked, the one of the purpose (contract `x-permission.permissionBy`, spec 16 AC-9).
+   */
+  async adminCreate(
+    staff: StaffAuthState,
+    body: S['FileUploadRequest'],
+    ctx: RequestContext,
+  ): Promise<S['FileUploadTicket']> {
+    const policy = PURPOSE_POLICIES[body.purpose];
+    if (policy?.uploader.kind !== 'staff') {
+      throw new ApiException(422, 'FILE_PURPOSE_MISMATCH', 't_forbidden');
+    }
+    const { permission } = policy.uploader;
+    if (!staff.isSuperAdmin && !staff.permissions.has(permission)) {
+      throw new ApiException(403, 'FORBIDDEN', 't_forbidden', { permission });
+    }
+    const ticket = await this.slot({ staffId: staff.staffId }, policy, body, ctx.locale);
+    await this.audit.write({
+      actorStaffId: staff.staffId,
+      permissionCode: permission,
+      action: 'file.upload',
+      targetType: 'file',
+      targetId: ticket.file.id,
+      after: { purpose: body.purpose, fileName: ticket.file.fileName, sizeBytes: body.sizeBytes },
+      ip: ctx.ip,
+      userAgent: ctx.userAgent,
+    });
+    return ticket;
+  }
+
+  /** Type/size checks, presigned POST, `pending` row: the same for users and staff. */
+  private async slot(
+    uploader: Uploader,
+    policy: PurposePolicy,
+    body: S['FileUploadRequest'],
+    locale: Locale,
+  ): Promise<S['FileUploadTicket']> {
     const limits = await policy.limits(this.settings);
     const fileName = cleanFileName(body.fileName);
     const ext = extensionOf(fileName);
@@ -110,7 +188,9 @@ export class FilesService {
     const row = await this.prisma.file.create({
       data: {
         purpose: body.purpose,
-        ownerUserId: userId,
+        ...('userId' in uploader
+          ? { ownerUserId: uploader.userId }
+          : { ownerStaffId: uploader.staffId }),
         bucket: policy.quarantineBucket,
         objectKey,
         originalName: fileName,
@@ -134,8 +214,56 @@ export class FilesService {
   }
 
   async complete(userId: string, fileId: string, locale: Locale): Promise<S['File']> {
-    const file = await this.own(userId, fileId);
-    if (file.status !== 'pending') return this.toFile(file, locale); // idempotent
+    return this.toFile(await this.queueScan(await this.own(userId, fileId)), locale);
+  }
+
+  async adminGet(staffId: string, fileId: string, locale: Locale): Promise<S['File']> {
+    return this.toFile(await this.ownStaff(staffId, fileId), locale);
+  }
+
+  async adminComplete(staffId: string, fileId: string, ctx: RequestContext): Promise<S['File']> {
+    const before = await this.ownStaff(staffId, fileId);
+    const file = await this.queueScan(before);
+    if (before.status === 'pending') {
+      await this.audit.write({
+        actorStaffId: staffId,
+        action: 'file.upload.complete',
+        targetType: 'file',
+        targetId: file.id,
+        after: { purpose: file.purpose, status: file.status },
+        ip: ctx.ip,
+        userAgent: ctx.userAgent,
+      });
+    }
+    return this.toFile(file, ctx.locale);
+  }
+
+  /**
+   * getFileDownload (ADR-009 §4): the owner, or a user a slice's rule allows (FileDownloadAccess); everyone
+   * else 404, never 403. Staff-owned files have no user owner, so only such a rule could open them.
+   * A short-lived presigned GET with `Content-Disposition: attachment` and the original name.
+   */
+  async download(userId: string, fileId: string): Promise<S['SignedUrl']> {
+    const file = await this.prisma.file.findUnique({ where: { id: fileId } });
+    if (!file || file.status === 'deleted') throw notFound();
+    const allowed =
+      file.ownerUserId === userId || (await this.downloadAccess.mayDownload(file, userId));
+    if (!allowed) throw notFound();
+    if (file.status !== 'ready') throw new ApiException(422, 'FILE_NOT_READY', 't_file_not_ready');
+    const expiresSeconds =
+      file.bucket === 'kyc' ? KYC_DOWNLOAD_EXPIRES_SECONDS : DOWNLOAD_EXPIRES_SECONDS;
+    const url = await this.storage.presignedGet({
+      bucket: file.bucket,
+      key: file.objectKey,
+      expiresSeconds,
+      downloadName: downloadName(file),
+    });
+    return { url, expiresAt: new Date(Date.now() + expiresSeconds * 1000).toISOString() };
+  }
+
+  /** `pending` → `scanning` once the object exists; any other state is returned as it is (idempotent). */
+  private async queueScan(file: FileRow): Promise<FileRow> {
+    if (file.status !== 'pending') return file;
     const head = await this.storage.head(file.bucket, file.objectKey);
     if (!head) throw new ApiException(422, 'FILE_NOT_READY', 't_file_not_found');
     // Compare-and-set: two parallel calls queue the scan once. The worker's files-scan sweeper picks up
@@ -144,10 +272,7 @@ export class FilesService {
       where: { id: file.id, status: 'pending' },
       data: { status: 'scanning' },
     });
-    return this.toFile(
-      await this.prisma.file.findUniqueOrThrow({ where: { id: file.id } }),
-      locale,
-    );
+    return this.prisma.file.findUniqueOrThrow({ where: { id: file.id } });
   }
 
   async remove(userId: string, fileId: string): Promise<void> {
@@ -181,6 +306,13 @@ export class FilesService {
     const file = await this.prisma.file.findUnique({ where: { id: fileId } });
     if (!file || file.ownerUserId !== userId || file.status === 'deleted') throw notFound();
     if (file.purpose !== 'appeal_file' && (await this.isRestricted(userId))) throw restricted();
+    return file;
+  }
+
+  /** File uploaded by this staff member, not deleted; others get 404 (contract adminGetFile ownership). */
+  private async ownStaff(staffId: string, fileId: string): Promise<FileRow> {
+    const file = await this.prisma.file.findUnique({ where: { id: fileId } });
+    if (!file || file.ownerStaffId !== staffId || file.status === 'deleted') throw notFound();
     return file;
   }
 
@@ -236,6 +368,13 @@ export class FilesService {
       height: row.height,
     };
   }
+}
+
+/** Public images are stored as WebP variants: the download name says so, the rest keeps the original name. */
+function downloadName(file: FileRow): string {
+  if (file.bucket !== 'public_media') return file.originalName;
+  const dot = file.originalName.lastIndexOf('.');
+  return `${dot > 0 ? file.originalName.slice(0, dot) : file.originalName}.webp`;
 }
 
 function variantKeys(file: FileRow): string[] {

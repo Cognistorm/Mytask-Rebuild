@@ -3,6 +3,7 @@
 // with the permission/context rule it needs (e.g. delivery → freelancer of `context.escrowId`, spec 06).
 import type { FileBucket, FilePurpose } from '../../generated/prisma/client';
 import type { SettingId } from '../../platform/settings/registry';
+import type { PermissionCode } from '../auth/auth.guard';
 import type { SettingsService } from '../../platform/settings/settings.service';
 
 /** Allowed MIME types per extension; the declared `contentType` must match the file name's extension. */
@@ -30,6 +31,11 @@ export interface PurposeLimits {
 export type Processing = 'public_image' | 'private_image' | 'none';
 
 export interface PurposePolicy {
+  /**
+   * Who uploads this purpose: users through `createFileUpload`, staff through `adminCreateFileUpload` with
+   * the given permission (contract `x-permission.permissionBy`). Each side refuses the other's purposes.
+   */
+  uploader: { kind: 'user' } | { kind: 'staff'; permission: PermissionCode };
   /** Bucket of the ready file (ADR-009 §2). */
   finalBucket: FileBucket;
   processing: Processing;
@@ -39,10 +45,26 @@ export interface PurposePolicy {
 }
 
 const IMAGES_JPG_PNG = ['jpg', 'jpeg', 'png'] as const;
+const USER = { kind: 'user' } as const;
+
+/**
+ * Staff images (Owner 2026-10-02, Q-161): the legacy admin types without SVG (ADR-009 §5, script risk),
+ * at most 5 MB like the platform's other images (S-078). Fixed rules, no setting.
+ */
+function staffImage(permission: PermissionCode, extensions: readonly string[]): PurposePolicy {
+  return {
+    uploader: { kind: 'staff', permission },
+    finalBucket: 'public_media',
+    processing: 'public_image',
+    quarantineBucket: 'private',
+    limits: () => Promise.resolve({ extensions, maxMb: 5, sizeSettingId: null }),
+  };
+}
 
 export const PURPOSE_POLICIES: Partial<Record<FilePurpose, PurposePolicy>> = {
   // Spec 02 AC-16, P-24: JPG, JPEG, PNG, WEBP ≤ 2 MB; SVG refused.
   avatar: {
+    uploader: USER,
     finalBucket: 'public_media',
     processing: 'public_image',
     quarantineBucket: 'private',
@@ -51,6 +73,7 @@ export const PURPOSE_POLICIES: Partial<Record<FilePurpose, PurposePolicy>> = {
   },
   // Spec 02 AC-24: JPG/PNG, each ≤ S-090 MB (thumbnail and gallery images).
   portfolio_image: {
+    uploader: USER,
     finalBucket: 'public_media',
     processing: 'public_image',
     quarantineBucket: 'private',
@@ -62,11 +85,18 @@ export const PURPOSE_POLICIES: Partial<Record<FilePurpose, PurposePolicy>> = {
   },
   // Spec 02 AC-36: document photos and selfie, JPG/JPEG/PNG ≤ 5 MB (legacy Account/Verification validators).
   kyc_document: {
+    uploader: USER,
     finalBucket: 'kyc',
     processing: 'private_image',
     quarantineBucket: 'kyc',
     limits: () => Promise.resolve({ extensions: IMAGES_JPG_PNG, maxMb: 5, sizeSettingId: null }),
   },
+  // Spec 16 AC-60: category icon/image (legacy `Admin/Categories/CreateValidator.php:44-46`).
+  category_image: staffImage('catalog.write', IMAGES_JPG_PNG),
+  // Spec 17 blog article image (legacy `Admin/Blog/CreateValidator.php:42`, SVG dropped).
+  blog_image: staffImage('content.write', [...IMAGES_JPG_PNG, 'gif']),
+  // Spec 17 AC-35 logo cloud (S-109); legacy had no upload screen, site-logo types `Settings/GeneralValidator.php:32`.
+  home_logo: staffImage('content.write', [...IMAGES_JPG_PNG, 'webp', 'gif']),
 };
 
 export const MB = 1024 * 1024;
