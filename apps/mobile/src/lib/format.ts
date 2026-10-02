@@ -25,3 +25,23 @@ export function formatMoney(money: { amount: number; currency: string }): string
 
 /** Counts as on the web tiles (`1,234`). */
 export const formatCount = (n: number) => n.toLocaleString('en-US');
+
+/** A calendar date (`2026-10-15`, no time zone) as `15.10.2026`, as the web `formatDateOnly`. */
+export function formatDateOnly(date: string): string {
+  const [year, month, day] = date.split('-');
+  return `${day}.${month}.${year}`;
+}
+
+/** The clock in an IANA zone (`14:05`), or undefined for a zone this device does not know. */
+export function formatClock(timeZone: string, now = new Date()): string | undefined {
+  try {
+    return new Intl.DateTimeFormat('en-GB', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+      timeZone,
+    }).format(now);
+  } catch {
+    return undefined;
+  }
+}

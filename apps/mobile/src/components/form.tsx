@@ -42,6 +42,7 @@ export function Input(props: {
   secure?: boolean;
   multiline?: boolean;
   maxLength?: number;
+  placeholder?: string;
   keyboardType?: 'default' | 'email-address' | 'number-pad';
   textContentType?:
     'emailAddress' | 'password' | 'newPassword' | 'username' | 'name' | 'oneTimeCode';
@@ -56,6 +57,8 @@ export function Input(props: {
         secureTextEntry={props.secure}
         multiline={props.multiline}
         maxLength={props.maxLength}
+        placeholder={props.placeholder}
+        placeholderTextColor={theme.colors.text.muted}
         autoCapitalize={props.multiline ? 'sentences' : 'none'}
         autoCorrect={!!props.multiline}
         keyboardType={props.keyboardType ?? 'default'}

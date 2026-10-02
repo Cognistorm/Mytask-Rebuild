@@ -12,3 +12,6 @@ export const TERMS_URL = `${appUrl}/page/terms-of-service`;
 export function openWebPage(url: string): void {
   void Linking.openURL(url);
 }
+
+/** The public web address of a profile (shared through the native share sheet, spec 02 screens table). */
+export const profileUrl = (username: string) => `${appUrl}/profile/${encodeURIComponent(username)}`;

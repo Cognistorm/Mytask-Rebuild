@@ -1,6 +1,7 @@
 // Account tab (spec 02 AC-1, AC-2, screens table "Account tab with a segmented Buying / Selling control").
 // The switcher opens the chosen dashboard (saved on the account, AC-3). The full account link list (AC-35:
-// settings, edit profile, verification centre…) arrives with 4.1.23/4.1.24; slice 01 links stay.
+// settings, edit profile, verification centre…) arrives with 4.1.23b/4.1.24; slice 01 links stay. "View profile"
+// opens the own public profile (4.1.23a).
 import { router } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
 import { lightTheme as theme } from '@mytask/tokens/native';
@@ -46,6 +47,12 @@ export default function AccountTab() {
         <Text style={s.line}>{me.email}</Text>
         <Text style={s.line}>{t(me.twoFactorEnabled ? 't_2fa_enabled' : 't_2fa_disabled')}</Text>
       </View>
+      <LinkButton
+        label={t('t_view_profile')}
+        onPress={() =>
+          router.push({ pathname: '/profile/[username]', params: { username: me.username } })
+        }
+      />
       <LinkButton
         label={t('t_security_settings_sidebar')}
         onPress={() => router.push('/account/security')}
