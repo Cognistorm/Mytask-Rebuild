@@ -79,16 +79,19 @@ export function Button({
   onPress,
   busy,
   disabled,
+  danger,
 }: {
   label: string;
   onPress: () => void;
   busy?: boolean;
   disabled?: boolean;
+  /** Destructive action (e.g. the delete confirmation). */
+  danger?: boolean;
 }) {
   const off = !!busy || !!disabled;
   return (
     <Pressable
-      style={[s.button, off ? s.buttonBusy : null]}
+      style={[s.button, danger ? s.buttonDanger : null, off ? s.buttonBusy : null]}
       onPress={onPress}
       disabled={off}
       accessibilityRole="button"
@@ -168,6 +171,7 @@ const s = StyleSheet.create({
     padding: theme.space[3],
     alignItems: 'center',
   },
+  buttonDanger: { backgroundColor: theme.colors.action.danger },
   buttonBusy: { backgroundColor: theme.colors.action.disabled },
   buttonText: { ...theme.text.label, color: theme.colors.action.onPrimary },
   buttonTextDisabled: { color: theme.colors.action.onDisabled },

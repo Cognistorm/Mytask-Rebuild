@@ -29,7 +29,7 @@ const SELLING: NavDef[] = [
   { key: 'reviews', label: 't_reviews' },
   { key: 'refunds', label: 't_refunds' },
   { key: 'unblock', label: 't_unblock_money_requests', show: unblockOn },
-  { key: 'portfolio', label: 't_portfolio' },
+  { key: 'portfolio', label: 't_portfolio', screen: '/seller/portfolio' },
   { key: 'earnings', label: 't_earnings' },
   { key: 'withdrawals', label: 't_withdrawals' },
 ];

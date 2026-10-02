@@ -306,7 +306,15 @@ function Profile({
       {portfolio.length > 0 || p.isOwnProfile ? (
         <Section title={t('t_portfolio')} testID="portfolio-preview">
           {portfolio.length === 0 ? (
-            <EmptyState title={t('t_no_portfolio_yet')} />
+            <EmptyState
+              title={t('t_no_portfolio_yet')}
+              action={
+                <Button
+                  label={t('t_create_project')}
+                  onPress={() => router.push('/seller/portfolio/create')}
+                />
+              }
+            />
           ) : (
             <View style={s.gap}>
               <PortfolioGrid username={p.username} items={portfolio} t={t} />

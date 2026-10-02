@@ -213,6 +213,7 @@ export function Chip({
 const PILL = {
   warning: { backgroundColor: theme.colors.badge.warningBg, color: theme.colors.badge.warningText },
   danger: { backgroundColor: theme.colors.badge.dangerBg, color: theme.colors.badge.dangerText },
+  success: { backgroundColor: theme.colors.badge.successBg, color: theme.colors.badge.successText },
 };
 
 /** Status pill (§7.6): text on a soft colour, never colour alone. */
