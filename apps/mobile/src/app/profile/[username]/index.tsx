@@ -2,8 +2,9 @@
 // left card stacks on top, share opens the native share sheet"; design components.md §7.4), the same data, order
 // and keys as the web `/profile/{username}`. Open to guests (no session gate): the API answers as the visitor.
 // "Edit profile" for the owner since 4.1.23b. Not yet in the app (no screen to open, so no dead end, as 4.1.22):
-// "Contact me" (chat, slice 08), the portfolio item viewer and "View my portfolio" (4.1.24), skill pages `/hire/{slug}`
-// (slice 03), the gigs list (slice 03), "Request an offer" (slice 11; the API sends `canRequestOffer: false`).
+// "Contact me" (chat, slice 08), skill pages `/hire/{slug}` (slice 03), the gigs list (slice 03), "Request an offer"
+// (slice 11; the API sends `canRequestOffer: false`). Since 4.1.24a a work opens the item viewer and "View my portfolio"
+// opens the portfolio screen when there are more than the preview shows.
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
 import {
@@ -18,8 +19,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { lightTheme as theme } from '@mytask/tokens/native';
-import { EmptyState, Section, SecondaryButton, Skeleton } from '../../components/dashboard';
-import { Button, Notice } from '../../components/form';
+import { EmptyState, Section, SecondaryButton, Skeleton } from '../../../components/dashboard';
+import { Button, Notice } from '../../../components/form';
 import {
   Avatar,
   Chip,
@@ -27,14 +28,14 @@ import {
   LocalTime,
   OnlineStatus,
   OutlineButton,
-  PortfolioCard,
   RatingSummary,
   VerifiedMark,
-} from '../../components/profile';
-import { ReportUser } from '../../components/report-user';
-import { loadSession, mobileApi } from '../../lib/api';
-import { formatDate, formatDateOnly } from '../../lib/format';
-import { createT } from '../../lib/i18n';
+} from '../../../components/profile';
+import { PortfolioGrid } from '../../../components/portfolio';
+import { ReportUser } from '../../../components/report-user';
+import { loadSession, mobileApi } from '../../../lib/api';
+import { formatDate, formatDateOnly } from '../../../lib/format';
+import { createT } from '../../../lib/i18n';
 import {
   isGuestView,
   LANGUAGE_LEVEL,
@@ -43,8 +44,8 @@ import {
   SKILL_LEVEL,
   type PortfolioItemCard,
   type UserProfile,
-} from '../../lib/profile';
-import { profileUrl } from '../../lib/web-pages';
+} from '../../../lib/profile';
+import { profileUrl } from '../../../lib/web-pages';
 
 const locale = 'ka' as const;
 const t = createT(locale);
@@ -54,7 +55,7 @@ type State =
   | { kind: 'loading' }
   | { kind: 'not-found' }
   | { kind: 'error' }
-  | { kind: 'ready'; profile: UserProfile; portfolio: PortfolioItemCard[] };
+  | { kind: 'ready'; profile: UserProfile; portfolio: PortfolioItemCard[]; hasMore: boolean };
 
 async function fetchProfile(username: string): Promise<State> {
   const [profile, portfolio] = await Promise.all([
@@ -64,7 +65,12 @@ async function fetchProfile(username: string): Promise<State> {
   // Pending, banned, deleted and unknown users (AC-9, EC-4).
   if (profile.response.status === 404) return { kind: 'not-found' };
   if (!profile.data) return { kind: 'error' };
-  return { kind: 'ready', profile: profile.data, portfolio: portfolio.data?.data ?? [] };
+  return {
+    kind: 'ready',
+    profile: profile.data,
+    portfolio: portfolio.data?.data ?? [],
+    hasMore: !!portfolio.data?.nextCursor,
+  };
 }
 
 export default function ProfileScreen() {
@@ -113,7 +119,7 @@ export default function ProfileScreen() {
           </View>
         ) : null}
         {state.kind === 'ready' ? (
-          <Profile profile={state.profile} portfolio={state.portfolio} />
+          <Profile profile={state.profile} portfolio={state.portfolio} hasMore={state.hasMore} />
         ) : null}
       </ScrollView>
     </SafeAreaView>
@@ -123,9 +129,11 @@ export default function ProfileScreen() {
 function Profile({
   profile: p,
   portfolio,
+  hasMore,
 }: {
   profile: UserProfile;
   portfolio: PortfolioItemCard[];
+  hasMore: boolean;
 }) {
   const name = p.fullName || p.username;
 
@@ -300,10 +308,20 @@ function Profile({
           {portfolio.length === 0 ? (
             <EmptyState title={t('t_no_portfolio_yet')} />
           ) : (
-            <View style={s.works}>
-              {portfolio.map((item) => (
-                <PortfolioCard key={item.id} item={item} t={t} />
-              ))}
+            <View style={s.gap}>
+              <PortfolioGrid username={p.username} items={portfolio} t={t} />
+              {hasMore ? (
+                <OutlineButton
+                  label={t('t_view_my_porfolio')}
+                  onPress={() =>
+                    router.push({
+                      pathname: '/profile/[username]/portfolio',
+                      params: { username: p.username },
+                    })
+                  }
+                  testID="view-portfolio"
+                />
+              ) : null}
             </View>
           )}
         </Section>
@@ -409,11 +427,5 @@ const s = StyleSheet.create({
   noticeTitle: { ...theme.text.label, color: theme.colors.feedback.warningText },
   noticeText: { ...theme.text.bodySm, color: theme.colors.feedback.warningText },
   ratings: { gap: theme.space[6] },
-  works: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    rowGap: theme.space[4],
-  },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: theme.space[2] },
 });

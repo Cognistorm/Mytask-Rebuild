@@ -15,3 +15,7 @@ export function openWebPage(url: string): void {
 
 /** The public web address of a profile (shared through the native share sheet, spec 02 screens table). */
 export const profileUrl = (username: string) => `${appUrl}/profile/${encodeURIComponent(username)}`;
+
+/** The public web address of a portfolio item (url-map §4.3), shared through the native share sheet. */
+export const portfolioItemUrl = (username: string, slug: string) =>
+  `${profileUrl(username)}/portfolio/${encodeURIComponent(slug)}`;

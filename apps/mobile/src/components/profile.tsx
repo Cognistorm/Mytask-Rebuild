@@ -225,17 +225,25 @@ const STATUS_PILL = {
   rejected: { tone: 'danger', key: 't_portfolio_status_rejected' },
 } as const;
 
-/** One work in a portfolio grid; the owner also sees "Pending" / "Rejected" (AC-28, AC-42). */
+/** One work in a portfolio grid; the owner also sees "Pending" / "Rejected" (AC-28, AC-42). Opens the item viewer. */
 export function PortfolioCard({
   item,
   t,
+  onPress,
 }: {
   item: PortfolioItemCard;
   t: (key: string) => string;
+  onPress: () => void;
 }) {
   const pill = item.status === 'active' ? null : STATUS_PILL[item.status];
   return (
-    <View style={s.work} testID={`portfolio-${item.uid}`}>
+    <Pressable
+      style={({ pressed }) => [s.work, pressed && s.pressed]}
+      onPress={onPress}
+      accessibilityRole="link"
+      accessibilityLabel={pill ? `${item.title}, ${t(pill.key)}` : item.title}
+      testID={`portfolio-${item.uid}`}
+    >
       <Image
         source={{ uri: item.thumbnail.medium }}
         style={s.workImage}
@@ -245,7 +253,7 @@ export function PortfolioCard({
         {item.title}
       </Text>
       {pill ? <Pill tone={pill.tone} label={t(pill.key)} /> : null}
-    </View>
+    </Pressable>
   );
 }
 
@@ -401,6 +409,7 @@ const s = StyleSheet.create({
     paddingHorizontal: theme.space[2],
   },
   work: { width: '48%', gap: theme.space[1] },
+  pressed: { backgroundColor: theme.colors.action.ghostPressed, borderRadius: theme.radius.md },
   workImage: {
     width: '100%',
     aspectRatio: theme.size.layout.cardImageRatio,

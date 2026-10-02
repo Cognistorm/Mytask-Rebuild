@@ -4,6 +4,8 @@ import type { components } from '@mytask/types';
 
 export type UserProfile = components['schemas']['UserProfile'];
 export type PortfolioItemCard = components['schemas']['PortfolioItemCard'];
+export type PortfolioItem = components['schemas']['PortfolioItem'];
+export type UserSummary = components['schemas']['UserSummary'];
 type LinkedAccounts = components['schemas']['ProfileLinkedAccounts'];
 
 export const LANGUAGE_LEVEL = {
@@ -30,8 +32,12 @@ export const LINKED: [keyof LinkedAccounts, string][] = [
   ['vimeo', 't_vimeo'],
 ];
 
-/** The profile preview shows 6 works (legacy). */
+/** The profile preview shows 6 works (legacy); the portfolio screen loads 24 at a time (as the web). */
 export const PREVIEW_SIZE = 6;
+export const PORTFOLIO_PAGE_SIZE = 24;
 
 /** The API's optional-user answer has no "viewer" field: a signed-in visitor can report, a guest cannot. */
 export const isGuestView = (p: UserProfile) => !p.isOwnProfile && !p.canReport;
+
+/** Usernames compare without case (EC-4: the item's owner must match the username in the path). */
+export const sameUser = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
