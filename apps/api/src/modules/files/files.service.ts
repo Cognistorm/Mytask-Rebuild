@@ -1,13 +1,14 @@
 // Files F0 part 1 (ADR-009 §3, ROADMAP 4.1.3): createFileUpload, getFile, deleteFile, completeFileUpload.
-// The scan pipeline that turns `scanning` into `ready`/`rejected` is the worker's job (4.1.4); downloads and
-// staff uploads come in 4.1.5.
+// The scan pipeline that turns `scanning` into `ready`/`rejected` is the worker's job (scan/, 4.1.4);
+// downloads and staff uploads come in 4.1.5.
 import { randomUUID } from 'node:crypto';
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import type { components } from '@mytask/types';
+import type { components, Locale } from '@mytask/types';
 import type { File as FileRow } from '../../generated/prisma/client';
 import { ENV, type Env } from '../../platform/config/env';
 import { PrismaService } from '../../platform/db/prisma.service';
 import { ApiException } from '../../platform/errors/api-exception';
+import { translate } from '../../platform/errors/messages';
 import { RedisService } from '../../platform/redis/redis.module';
 import { SettingsService } from '../../platform/settings/settings.service';
 import { ObjectStorage } from '../../platform/storage/storage';
@@ -65,7 +66,11 @@ export class FilesService {
     private readonly attachments: FileAttachments,
   ) {}
 
-  async create(userId: string, body: S['FileUploadRequest']): Promise<S['FileUploadTicket']> {
+  async create(
+    userId: string,
+    body: S['FileUploadRequest'],
+    locale: Locale,
+  ): Promise<S['FileUploadTicket']> {
     await this.throttle(userId);
     // Every purpose and permission check runs before a presigned POST exists (ADR-009 §3, P2-B5 item 12).
     if (body.purpose !== 'appeal_file' && (await this.isRestricted(userId))) throw restricted();
@@ -114,7 +119,7 @@ export class FilesService {
       },
     });
     return {
-      file: this.toFile(row),
+      file: this.toFile(row, locale),
       upload: {
         url: post.url,
         method: 'POST',
@@ -124,25 +129,29 @@ export class FilesService {
     };
   }
 
-  async get(userId: string, fileId: string): Promise<S['File']> {
-    return this.toFile(await this.own(userId, fileId));
+  async get(userId: string, fileId: string, locale: Locale): Promise<S['File']> {
+    return this.toFile(await this.own(userId, fileId), locale);
   }
 
-  async complete(userId: string, fileId: string): Promise<S['File']> {
+  async complete(userId: string, fileId: string, locale: Locale): Promise<S['File']> {
     const file = await this.own(userId, fileId);
-    if (file.status !== 'pending') return this.toFile(file); // idempotent
+    if (file.status !== 'pending') return this.toFile(file, locale); // idempotent
     const head = await this.storage.head(file.bucket, file.objectKey);
     if (!head) throw new ApiException(422, 'FILE_NOT_READY', 't_file_not_found');
-    // Compare-and-set: two parallel calls queue the scan once. The worker (4.1.4) picks up `scanning` files.
+    // Compare-and-set: two parallel calls queue the scan once. The worker's files-scan sweeper picks up
+    // `scanning` files within seconds.
     await this.prisma.file.updateMany({
       where: { id: file.id, status: 'pending' },
       data: { status: 'scanning' },
     });
-    return this.toFile(await this.prisma.file.findUniqueOrThrow({ where: { id: file.id } }));
+    return this.toFile(
+      await this.prisma.file.findUniqueOrThrow({ where: { id: file.id } }),
+      locale,
+    );
   }
 
   async remove(userId: string, fileId: string): Promise<void> {
-    const file = await this.own(userId, fileId);
+    let file = await this.own(userId, fileId);
     if (await this.attachments.isAttached(file)) {
       // "This item is still in use and cannot be deleted."
       throw new ApiException(409, 'STATE_CONFLICT', 't_category_in_use', {
@@ -150,12 +159,20 @@ export class FilesService {
       });
     }
     // Storage first: a KYC photo the user removed must really be gone; S3 deletes are idempotent on retry.
-    await this.storage.delete(file.bucket, file.objectKey);
-    for (const key of variantKeys(file)) await this.storage.delete('public_media', key);
-    await this.prisma.file.updateMany({
-      where: { id: file.id, status: { not: 'deleted' } },
-      data: { status: 'deleted', deletedAt: new Date() },
-    });
+    // The row is marked deleted only if it is still in the state whose objects were removed: when the
+    // worker finished the scan meanwhile (quarantine → final objects), the new objects are removed too.
+    for (;;) {
+      await this.storage.delete(file.bucket, file.objectKey);
+      for (const key of variantKeys(file)) await this.storage.delete('public_media', key);
+      const done = await this.prisma.file.updateMany({
+        where: { id: file.id, status: file.status, objectKey: file.objectKey },
+        data: { status: 'deleted', deletedAt: new Date() },
+      });
+      if (done.count) break;
+      const now = await this.prisma.file.findUnique({ where: { id: file.id } });
+      if (!now || now.status === 'deleted') break;
+      file = now;
+    }
     this.logger.log({ fileId: file.id, purpose: file.purpose }, 'file deleted by owner');
   }
 
@@ -187,7 +204,7 @@ export class FilesService {
     }
   }
 
-  toFile(row: FileRow): S['File'] {
+  toFile(row: FileRow, locale: Locale): S['File'] {
     return {
       id: row.id,
       purpose: row.purpose as S['FilePurpose'],
@@ -195,7 +212,9 @@ export class FilesService {
       fileName: row.originalName,
       contentType: row.detectedType ?? row.declaredType,
       sizeBytes: Number(row.sizeBytes),
-      rejectReason: row.status === 'rejected' ? row.rejectReason : null,
+      // Stored as an i18n key by the worker (scan/file-scan.service.ts REJECT_REASONS).
+      rejectReason:
+        row.status === 'rejected' && row.rejectReason ? translate(row.rejectReason, locale) : null,
       image: this.image(row),
       createdAt: row.createdAt.toISOString(),
       readyAt: row.readyAt?.toISOString() ?? null,

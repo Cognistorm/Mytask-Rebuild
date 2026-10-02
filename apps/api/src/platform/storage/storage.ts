@@ -3,10 +3,13 @@
 // the API's own calls (S3_ENDPOINT, e.g. `http://s3:8333` inside compose) and one that signs URLs handed to
 // browsers and apps (S3_PUBLIC_ENDPOINT, e.g. `http://localhost:8333`), because a presigned GET signs the host.
 import {
+  CopyObjectCommand,
   DeleteObjectCommand,
   GetObjectCommand,
   HeadObjectCommand,
+  NoSuchKey,
   NotFound,
+  PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
 import { createPresignedPost } from '@aws-sdk/s3-presigned-post';
@@ -44,11 +47,28 @@ export interface ObjectHead {
   contentType: string | null;
 }
 
+export interface PutObjectInput {
+  bucket: FileBucket;
+  key: string;
+  body: Buffer;
+  contentType: string;
+  /** Processed public images have unique keys per file, so they can be cached forever. */
+  cacheControl?: string;
+}
+
 export abstract class ObjectStorage {
   abstract presignedPost(input: PresignedPostInput): Promise<PresignedPost>;
   abstract presignedGet(input: PresignedGetInput): Promise<string>;
   /** `null` when the object does not exist. */
   abstract head(bucket: FileBucket, key: string): Promise<ObjectHead | null>;
+  /** The object's bytes as a stream (the worker reads uploads of up to 100 MB); `null` when missing. */
+  abstract read(bucket: FileBucket, key: string): Promise<AsyncIterable<Uint8Array> | null>;
+  abstract put(input: PutObjectInput): Promise<void>;
+  /** Server-side copy (large files never pass through the worker's memory). */
+  abstract copy(
+    from: { bucket: FileBucket; key: string },
+    to: { bucket: FileBucket; key: string; contentType: string },
+  ): Promise<void>;
   /** Idempotent: deleting a missing object is not an error. */
   abstract delete(bucket: FileBucket, key: string): Promise<void>;
 }
@@ -119,6 +139,46 @@ export class S3ObjectStorage extends ObjectStorage {
     }
   }
 
+  async read(bucket: FileBucket, key: string): Promise<AsyncIterable<Uint8Array> | null> {
+    try {
+      const out = await this.client.send(
+        new GetObjectCommand({ Bucket: this.buckets[bucket], Key: key }),
+      );
+      return (out.Body as AsyncIterable<Uint8Array> | undefined) ?? null;
+    } catch (err) {
+      if (err instanceof NoSuchKey || (err as { name?: string }).name === 'NoSuchKey') return null;
+      throw err;
+    }
+  }
+
+  async put(input: PutObjectInput): Promise<void> {
+    await this.client.send(
+      new PutObjectCommand({
+        Bucket: this.buckets[input.bucket],
+        Key: input.key,
+        Body: input.body,
+        ContentType: input.contentType,
+        CacheControl: input.cacheControl,
+      }),
+    );
+  }
+
+  async copy(
+    from: { bucket: FileBucket; key: string },
+    to: { bucket: FileBucket; key: string; contentType: string },
+  ): Promise<void> {
+    await this.client.send(
+      new CopyObjectCommand({
+        Bucket: this.buckets[to.bucket],
+        Key: to.key,
+        // Keys are opaque ASCII (`quarantine/<uuid>`), so no URL encoding is needed.
+        CopySource: `${this.buckets[from.bucket]}/${from.key}`,
+        ContentType: to.contentType,
+        MetadataDirective: 'REPLACE',
+      }),
+    );
+  }
+
   async delete(bucket: FileBucket, key: string): Promise<void> {
     await this.client.send(new DeleteObjectCommand({ Bucket: this.buckets[bucket], Key: key }));
   }
@@ -136,6 +196,15 @@ class UnconfiguredStorage extends ObjectStorage {
     this.fail();
   }
   head(): Promise<ObjectHead | null> {
+    this.fail();
+  }
+  read(): Promise<AsyncIterable<Uint8Array> | null> {
+    this.fail();
+  }
+  put(): Promise<void> {
+    this.fail();
+  }
+  copy(): Promise<void> {
     this.fail();
   }
   delete(): Promise<void> {

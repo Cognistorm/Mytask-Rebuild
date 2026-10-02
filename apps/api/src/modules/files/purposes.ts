@@ -22,9 +22,17 @@ export interface PurposeLimits {
   sizeSettingId: SettingId | null;
 }
 
+/**
+ * What the worker does with a clean upload (ADR-009 §3.5): `public_image` = re-encoded WebP variants in
+ * `public_media`; `private_image` = re-encoded in place of the original (EXIF/GPS removed), still private;
+ * `none` = copied unchanged (documents, videos).
+ */
+export type Processing = 'public_image' | 'private_image' | 'none';
+
 export interface PurposePolicy {
   /** Bucket of the ready file (ADR-009 §2). */
   finalBucket: FileBucket;
+  processing: Processing;
   /** Bucket of the `quarantine/` upload: KYC never leaves the `kyc` bucket, everything else waits in `private`. */
   quarantineBucket: FileBucket;
   limits(settings: SettingsService): Promise<PurposeLimits>;
@@ -36,6 +44,7 @@ export const PURPOSE_POLICIES: Partial<Record<FilePurpose, PurposePolicy>> = {
   // Spec 02 AC-16, P-24: JPG, JPEG, PNG, WEBP ≤ 2 MB; SVG refused.
   avatar: {
     finalBucket: 'public_media',
+    processing: 'public_image',
     quarantineBucket: 'private',
     limits: () =>
       Promise.resolve({ extensions: [...IMAGES_JPG_PNG, 'webp'], maxMb: 2, sizeSettingId: null }),
@@ -43,6 +52,7 @@ export const PURPOSE_POLICIES: Partial<Record<FilePurpose, PurposePolicy>> = {
   // Spec 02 AC-24: JPG/PNG, each ≤ S-090 MB (thumbnail and gallery images).
   portfolio_image: {
     finalBucket: 'public_media',
+    processing: 'public_image',
     quarantineBucket: 'private',
     limits: async (settings) => ({
       extensions: IMAGES_JPG_PNG,
@@ -53,6 +63,7 @@ export const PURPOSE_POLICIES: Partial<Record<FilePurpose, PurposePolicy>> = {
   // Spec 02 AC-36: document photos and selfie, JPG/JPEG/PNG ≤ 5 MB (legacy Account/Verification validators).
   kyc_document: {
     finalBucket: 'kyc',
+    processing: 'private_image',
     quarantineBucket: 'kyc',
     limits: () => Promise.resolve({ extensions: IMAGES_JPG_PNG, maxMb: 5, sizeSettingId: null }),
   },

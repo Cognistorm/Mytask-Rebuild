@@ -21,6 +21,9 @@ x-app-env: &app-env
     SMTP_URL: smtp://mailpit:1025
     BOG_API_BASE_URL: http://bog-mock:4100
     CLAMAV_HOST: clamav
+    # Uploads wait in `scanning` until clamd answers; without `--profile scan`, set SCAN_PROVIDER=none in
+    # .env to mark them scan_skipped instead (local only, ADR-009 §6).
+    SCAN_PROVIDER: ${SCAN_PROVIDER:-clamav}
     APP_URL: http://localhost:8080
     ADMIN_URL: http://admin.localhost:8080
 
@@ -131,6 +134,8 @@ services:
     # Virus scanning of uploads (ADR-009). Optional locally: `--profile scan`.
     image: clamav/clamav:1.5-debian13-slim
     profiles: [scan]
+    # Size limits ≥ 100 MB for appeal videos (Q-154).
+    volumes: ['./tools/clamav/clamd.conf:/etc/clamav/clamd.conf:ro']
     ports: ['127.0.0.1:3310:3310']
     networks: [app]
 

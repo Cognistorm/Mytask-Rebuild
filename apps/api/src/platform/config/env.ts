@@ -75,6 +75,15 @@ export const envSchema = z
     S3_BUCKET_KYC: z.string().min(3).default('kyc'),
     /** Base URL of processed public images (CDN, or the local S3 bucket path). */
     PUBLIC_MEDIA_BASE_URL: z.url().optional(),
+    /**
+     * Virus scanner of uploads (ADR-009 §6). `clamav` needs CLAMAV_HOST; `none` marks files `scan_skipped`.
+     * Unset = `clamav` when CLAMAV_HOST is set, else `none`. Production needs a scanner unless `none` is
+     * set explicitly (Owner approval).
+     */
+    SCAN_PROVIDER: z.enum(['clamav', 'none']).optional(),
+    /** clamd TCP address (compose profile `scan`: `clamav:3310`). */
+    CLAMAV_HOST: z.string().optional(),
+    CLAMAV_PORT: z.coerce.number().int().positive().default(3310),
     /** API tests only (ADR-002 §2); refused in production below. */
     STAFF_BODY_TOKENS_ENABLED: bool,
   })
@@ -115,6 +124,21 @@ export const envSchema = z
           });
         }
       }
+    }
+    if (env.SCAN_PROVIDER === 'clamav' && !env.CLAMAV_HOST) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['CLAMAV_HOST'],
+        message: 'required when SCAN_PROVIDER=clamav',
+      });
+    }
+    if (env.NODE_ENV === 'production' && !env.SCAN_PROVIDER && !env.CLAMAV_HOST) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['CLAMAV_HOST'],
+        message:
+          'required in production (virus scan of uploads, ADR-009 §6); SCAN_PROVIDER=none only with Owner approval',
+      });
     }
     if (env.NODE_ENV === 'production' && env.MAIL_TRANSPORT === 'log') {
       ctx.addIssue({

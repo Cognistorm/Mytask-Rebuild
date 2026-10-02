@@ -26,9 +26,8 @@ describe.skipIf(!enabled)('object storage (integration, ADR-017 §3)', () => {
         secretAccessKey: env.S3_SECRET_ACCESS_KEY ?? '',
       },
     });
-    await admin
-      .send(new CreateBucketCommand({ Bucket: env.S3_BUCKET_PRIVATE }))
-      .catch(() => undefined);
+    for (const bucket of [env.S3_BUCKET_PRIVATE, env.S3_BUCKET_PUBLIC])
+      await admin.send(new CreateBucketCommand({ Bucket: bucket })).catch(() => undefined);
   });
 
   async function post(key: string, body: Buffer, contentType: string, maxBytes = 1000) {
@@ -82,6 +81,49 @@ describe.skipIf(!enabled)('object storage (integration, ADR-017 §3)', () => {
     const res = await post(key, Buffer.alloc(100, 1), 'text/html');
     expect(res.status).toBe(403);
     expect(await storage.head('private', key)).toBeNull();
+  });
+
+  it('worker calls (4.1.4): stream read, put with cache headers, server-side copy', async () => {
+    const id = randomUUID();
+    const bytes = Buffer.alloc(300 * 1024, 9);
+    expect((await post(`quarantine/${id}`, bytes, 'image/png', bytes.length)).status).toBeLessThan(
+      300,
+    );
+
+    const stream = await storage.read('private', `quarantine/${id}`);
+    const parts: Buffer[] = [];
+    for await (const chunk of stream!) parts.push(Buffer.from(chunk));
+    expect(Buffer.concat(parts).equals(bytes)).toBe(true);
+    expect(await storage.read('private', `quarantine/${randomUUID()}`)).toBeNull();
+
+    await storage.copy(
+      { bucket: 'private', key: `quarantine/${id}` },
+      { bucket: 'private', key: `files/${id}`, contentType: 'application/pdf' },
+    );
+    expect(await storage.head('private', `files/${id}`)).toEqual({
+      sizeBytes: bytes.length,
+      contentType: 'application/pdf',
+    });
+
+    const key = `images/${id}/thumb.webp`;
+    await storage.put({
+      bucket: 'public_media',
+      key,
+      body: Buffer.from('webp'),
+      contentType: 'image/webp',
+      cacheControl: 'public, max-age=31536000, immutable',
+    });
+    expect(await storage.head('public_media', key)).toEqual({
+      sizeBytes: 4,
+      contentType: 'image/webp',
+    });
+
+    for (const [bucket, k] of [
+      ['private', `quarantine/${id}`],
+      ['private', `files/${id}`],
+      ['public_media', key],
+    ] as const)
+      await storage.delete(bucket, k);
   });
 
   it('refuses a presigned GET whose signature was tampered with', async () => {

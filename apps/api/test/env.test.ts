@@ -64,6 +64,7 @@ describe('loadEnv (ADR-013 §8 boot validation)', () => {
       S3_ACCESS_KEY_ID: 'key',
       S3_SECRET_ACCESS_KEY: 'secret',
       PUBLIC_MEDIA_BASE_URL: 'https://media.mytask.ge',
+      CLAMAV_HOST: 'clamav',
     };
 
     it('accepts a complete production environment', () => {
@@ -78,8 +79,18 @@ describe('loadEnv (ADR-013 §8 boot validation)', () => {
       ['S3_ENDPOINT', { S3_ENDPOINT: undefined }],
       ['S3_SECRET_ACCESS_KEY', { S3_SECRET_ACCESS_KEY: undefined }],
       ['PUBLIC_MEDIA_BASE_URL', { PUBLIC_MEDIA_BASE_URL: undefined }],
+      ['CLAMAV_HOST', { CLAMAV_HOST: undefined }],
     ])('refuses to start without a safe %s', (name, change) => {
       expect(() => loadEnv({ ...prod, ...change })).toThrow(new RegExp(name));
+    });
+
+    it('runs without a scanner only when SCAN_PROVIDER=none is set explicitly (ADR-009 §6)', () => {
+      const env = loadEnv({ ...prod, CLAMAV_HOST: undefined, SCAN_PROVIDER: 'none' });
+      expect(env.SCAN_PROVIDER).toBe('none');
+    });
+
+    it('refuses SCAN_PROVIDER=clamav without CLAMAV_HOST', () => {
+      expect(() => loadEnv({ ...base, SCAN_PROVIDER: 'clamav' })).toThrow(/CLAMAV_HOST/);
     });
   });
 });
