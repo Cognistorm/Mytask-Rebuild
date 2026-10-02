@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useRef, useState } from 'react';
-import { Alert, AuthCard } from '../../../../../components/auth/ui';
+import { Alert } from '@mytask/ui/web';
+import { AuthCard } from '../../../../../components/auth/ui';
 import { href, useApi, useLocale, useT, type ApiErrorBody } from '../../../../../lib/client';
 
 function Verify() {

@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import type { components } from '@mytask/types';
 import { AdminNav } from '../../components/nav';
-import { Alert, AuthCard, Field, Submit } from '../../components/ui';
+import { Alert, Field, Submit } from '@mytask/ui/web';
+import { AuthCard } from '../../components/ui';
 import { splitErrors, t, useAdminApi, type ApiErrorBody } from '../../lib/client';
 
 type Entry = components['schemas']['SettingEntry'];

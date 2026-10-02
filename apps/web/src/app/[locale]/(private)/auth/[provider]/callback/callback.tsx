@@ -11,7 +11,8 @@ import {
   TwoFactorStep,
   type TwoFactorChallenge,
 } from '../../../../../../components/auth/two-factor';
-import { Alert, AuthCard } from '../../../../../../components/auth/ui';
+import { Alert } from '@mytask/ui/web';
+import { AuthCard } from '../../../../../../components/auth/ui';
 import {
   href,
   safeNext,

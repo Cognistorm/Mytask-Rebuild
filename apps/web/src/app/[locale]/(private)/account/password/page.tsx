@@ -6,7 +6,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import type { components } from '@mytask/types';
-import { Alert, AuthCard, Field, Submit } from '../../../../../components/auth/ui';
+import { Alert, Field, Submit } from '@mytask/ui/web';
+import { AuthCard } from '../../../../../components/auth/ui';
 import {
   href,
   splitErrors,

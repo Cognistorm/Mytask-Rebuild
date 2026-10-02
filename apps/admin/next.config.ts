@@ -8,7 +8,13 @@ const config: NextConfig = {
   outputFileTracingRoot: resolve(import.meta.dirname, '../..'),
   poweredByHeader: false,
   reactStrictMode: true,
-  transpilePackages: ['@mytask/api-client', '@mytask/i18n', '@mytask/tokens', '@mytask/types'],
+  transpilePackages: [
+    '@mytask/api-client',
+    '@mytask/i18n',
+    '@mytask/tokens',
+    '@mytask/types',
+    '@mytask/ui',
+  ],
   async headers() {
     // The staff panel is never indexed (ADR-010); Caddy sets the same header in production.
     return [{ source: '/:path*', headers: [{ key: 'X-Robots-Tag', value: 'noindex, nofollow' }] }];

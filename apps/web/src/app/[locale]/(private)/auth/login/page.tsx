@@ -6,7 +6,8 @@ import { Suspense, useState } from 'react';
 import { AuthLinks, BackHome, PolicyLinks } from '../../../../../components/auth/links';
 import { SocialButtons } from '../../../../../components/auth/social';
 import { TwoFactorStep, type TwoFactorChallenge } from '../../../../../components/auth/two-factor';
-import { Alert, AuthCard, Field, Submit } from '../../../../../components/auth/ui';
+import { Alert, Field, Submit } from '@mytask/ui/web';
+import { AuthCard } from '../../../../../components/auth/ui';
 import {
   href,
   safeNext,

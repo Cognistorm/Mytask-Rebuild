@@ -2,7 +2,8 @@
 // Spec 01 AC-9: resend the verification email.
 import Link from 'next/link';
 import { useState } from 'react';
-import { Alert, AuthCard, Field, Submit } from '../../../../../components/auth/ui';
+import { Alert, Field, Submit } from '@mytask/ui/web';
+import { AuthCard } from '../../../../../components/auth/ui';
 import {
   href,
   splitErrors,

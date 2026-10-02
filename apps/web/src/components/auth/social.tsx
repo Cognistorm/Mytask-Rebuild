@@ -6,7 +6,7 @@ import { useState } from 'react';
 import { href, useApi, useLocale, useT, type ApiErrorBody } from '../../lib/client';
 import { usePublicConfig, type SocialProvider } from '../../lib/public-config';
 import { SocialIcon } from './social-icons';
-import { Alert } from './ui';
+import { Alert } from '@mytask/ui/web';
 
 /** Legacy button order (`livewire/main/auth/login.blade.php`). */
 const ORDER: SocialProvider[] = ['facebook', 'google', 'github', 'twitter', 'linkedin'];

@@ -5,7 +5,8 @@
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import type { components } from '@mytask/types';
-import { Alert, AuthCard, Submit, TextArea } from '../../../../components/auth/ui';
+import { Alert, Submit, TextArea } from '@mytask/ui/web';
+import { AuthCard } from '../../../../components/auth/ui';
 import {
   href,
   splitErrors,

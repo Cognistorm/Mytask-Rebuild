@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { components } from '@mytask/types';
 import { AdminNav } from '../../components/nav';
-import { Alert, Field, TextArea } from '../../components/ui';
+import { Alert, Field, TextArea } from '@mytask/ui/web';
 import { splitErrors, t, useAdminApi, type ApiErrorBody } from '../../lib/client';
 
 type S = components['schemas'];

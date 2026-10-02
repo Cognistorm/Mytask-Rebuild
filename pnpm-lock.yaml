@@ -190,6 +190,9 @@ importers:
       '@mytask/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@mytask/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
       i18next:
         specifier: 26.4.2
         version: 26.4.2(typescript@5.9.3)
@@ -472,6 +475,9 @@ importers:
       '@mytask/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@mytask/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
       i18next:
         specifier: 26.4.2
         version: 26.4.2(typescript@5.9.3)
@@ -587,6 +593,24 @@ importers:
       yaml:
         specifier: 2.8.1
         version: 2.8.1
+
+  packages/ui:
+    devDependencies:
+      '@mytask/config':
+        specifier: workspace:*
+        version: link:../config
+      '@types/react':
+        specifier: 19.2.18
+        version: 19.2.18
+      eslint:
+        specifier: 10.11.0
+        version: 10.11.0(jiti@2.7.0)(supports-color@10.2.2)
+      react:
+        specifier: 19.2.3
+        version: 19.2.3
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
 
   tools/bog-mock:
     devDependencies:

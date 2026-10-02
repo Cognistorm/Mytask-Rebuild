@@ -5,7 +5,8 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { Alert, AuthCard } from '../../../../../../components/auth/ui';
+import { Alert } from '@mytask/ui/web';
+import { AuthCard } from '../../../../../../components/auth/ui';
 import { getT, toLocale } from '../../../../../../lib/i18n';
 import type { SocialProvider } from '../../../../../../lib/public-config';
 

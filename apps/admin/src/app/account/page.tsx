@@ -2,7 +2,7 @@
 // The staff member's own password (spec 16 AC-6): other sessions end, this one stays.
 import { useState } from 'react';
 import { AdminNav } from '../../components/nav';
-import { Alert, Field, Submit } from '../../components/ui';
+import { Alert, Field, Submit } from '@mytask/ui/web';
 import { splitErrors, t, useAdminApi, type ApiErrorBody } from '../../lib/client';
 
 export default function AccountPage() {

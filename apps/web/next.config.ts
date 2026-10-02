@@ -12,7 +12,13 @@ const config: NextConfig = {
   reactStrictMode: true,
   // src/proxy.ts removes trailing slashes together with the /ka prefix in one 301 (url-map §1).
   skipTrailingSlashRedirect: true,
-  transpilePackages: ['@mytask/api-client', '@mytask/i18n', '@mytask/tokens', '@mytask/types'],
+  transpilePackages: [
+    '@mytask/api-client',
+    '@mytask/i18n',
+    '@mytask/tokens',
+    '@mytask/types',
+    '@mytask/ui',
+  ],
   // `/app-return/*` URLs can carry one-time codes (social login, url-map §7): no Referer from the very first
   // request (the <meta> tag comes too late for early asset requests), and never indexed.
   async headers() {

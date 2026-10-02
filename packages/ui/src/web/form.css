@@ -1,0 +1,120 @@
+/* @mytask/ui/web form pieces: design tokens only (CLAUDE.md). Class names kept from slice 01 (apps and E2E use them). */
+.auth-field {
+  display: grid;
+  gap: var(--mt-space-1);
+}
+
+.auth-field label {
+  font-weight: var(--mt-font-weight-medium);
+  font-size: var(--mt-font-size-sm);
+}
+
+.auth-input-wrap {
+  position: relative;
+}
+
+.auth-field input,
+.auth-field textarea {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  font-size: var(--mt-font-size-md);
+  padding: var(--mt-space-3);
+  border: var(--mt-border-width-hairline) solid var(--mt-border-strong);
+  border-radius: var(--mt-radius-control);
+  background: var(--mt-bg-surface);
+  color: var(--mt-text-primary);
+}
+
+.auth-field input:focus-visible,
+.auth-field textarea:focus-visible,
+.auth-code input:focus-visible,
+.auth-button:focus-visible {
+  outline: var(--mt-border-width-strong) solid var(--mt-border-brand);
+  outline-offset: var(--mt-space-0-5);
+}
+
+.auth-field input[aria-invalid='true'],
+.auth-field textarea[aria-invalid='true'] {
+  border-color: var(--mt-border-danger);
+}
+
+.auth-eye {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: var(--mt-space-2);
+  background: none;
+  border: 0;
+  color: var(--mt-text-secondary);
+  cursor: pointer;
+}
+
+.auth-error {
+  color: var(--mt-text-danger);
+  font-size: var(--mt-font-size-sm);
+  margin: 0;
+}
+
+.auth-button {
+  font: inherit;
+  font-weight: var(--mt-font-weight-semibold);
+  padding: var(--mt-space-3);
+  border: 0;
+  border-radius: var(--mt-radius-control);
+  background: var(--mt-action-primary);
+  color: var(--mt-action-on-primary);
+  cursor: pointer;
+}
+
+.auth-button:hover {
+  background: var(--mt-action-primary-hover);
+}
+
+.auth-button[disabled] {
+  background: var(--mt-action-disabled);
+  color: var(--mt-action-on-disabled);
+  cursor: progress;
+}
+
+.auth-alert {
+  padding: var(--mt-space-3);
+  border-radius: var(--mt-radius-control);
+  border: var(--mt-border-width-hairline) solid;
+}
+
+.auth-alert-error {
+  background: var(--mt-feedback-danger-bg);
+  color: var(--mt-feedback-danger-text);
+  border-color: var(--mt-feedback-danger-border);
+}
+
+.auth-alert-success {
+  background: var(--mt-feedback-success-bg);
+  color: var(--mt-feedback-success-text);
+  border-color: var(--mt-feedback-success-border);
+}
+
+.auth-alert-info {
+  background: var(--mt-feedback-info-bg);
+  color: var(--mt-feedback-info-text);
+  border-color: var(--mt-feedback-info-border);
+}
+
+.auth-code {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: var(--mt-space-2);
+}
+
+.auth-code input {
+  text-align: center;
+  font-size: var(--mt-font-size-2xl);
+  font-variant-numeric: tabular-nums;
+  padding: var(--mt-space-3) 0;
+  border: var(--mt-border-width-hairline) solid var(--mt-border-strong);
+  border-radius: var(--mt-radius-control);
+  min-width: 0;
+}

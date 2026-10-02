@@ -1,6 +1,8 @@
 import '@mytask/tokens/fonts.css';
 import '@mytask/tokens/tokens.css';
 import './globals.css';
+// Admin page and auth panel styles (every admin screen uses them).
+import '../components/auth.css';
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import { createT } from '../lib/i18n';

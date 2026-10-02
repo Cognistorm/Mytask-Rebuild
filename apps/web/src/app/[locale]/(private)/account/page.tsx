@@ -7,7 +7,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import type { components } from '@mytask/types';
-import { Alert, AuthCard, CodeInput, Field, Submit } from '../../../../components/auth/ui';
+import { Alert, CodeInput, Field, Submit } from '@mytask/ui/web';
+import { AuthCard } from '../../../../components/auth/ui';
 import {
   href,
   splitErrors,
