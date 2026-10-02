@@ -14,6 +14,7 @@
 }
 
 .auth-field input,
+.auth-field select,
 .auth-field textarea {
   width: 100%;
   box-sizing: border-box;
@@ -27,6 +28,7 @@
 }
 
 .auth-field input:focus-visible,
+.auth-field select:focus-visible,
 .auth-field textarea:focus-visible,
 .auth-code input:focus-visible,
 .auth-button:focus-visible {
@@ -35,6 +37,7 @@
 }
 
 .auth-field input[aria-invalid='true'],
+.auth-field select[aria-invalid='true'],
 .auth-field textarea[aria-invalid='true'] {
   border-color: var(--mt-border-danger);
 }

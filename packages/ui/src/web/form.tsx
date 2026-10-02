@@ -115,6 +115,45 @@ export function RadioGroup<V extends string>(props: {
   );
 }
 
+/** Native select (components.md §5.1 Select): label, options, field error. */
+export function Select(props: {
+  label: string;
+  name: string;
+  options: { value: string; label: string }[];
+  /** Text of the empty first option (value ''); omitted = no empty option. */
+  placeholder?: string;
+  value: string;
+  onChange: (v: string) => void;
+  error?: string;
+}) {
+  const id = useId();
+  return (
+    <div className="auth-field">
+      <label htmlFor={id}>{props.label}</label>
+      <select
+        id={id}
+        name={props.name}
+        value={props.value}
+        aria-invalid={!!props.error}
+        aria-describedby={props.error ? `${id}-err` : undefined}
+        onChange={(e) => props.onChange(e.target.value)}
+      >
+        {props.placeholder !== undefined && <option value="">{props.placeholder}</option>}
+        {props.options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+      {props.error && (
+        <p id={`${id}-err`} className="auth-error" role="alert">
+          {props.error}
+        </p>
+      )}
+    </div>
+  );
+}
+
 export function TextArea(props: {
   label: string;
   name: string;
