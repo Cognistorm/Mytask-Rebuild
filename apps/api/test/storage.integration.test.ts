@@ -1,6 +1,6 @@
 // ADR-017 §3: presigned POST (with its policy: size range, content type) and presigned GET must work against
 // the local S3 server (SeaweedFS). Needs a running S3 endpoint: S3_INTEGRATION=1 plus the S3_* variables
-// (`docker compose up s3 s3-init`, then S3_ENDPOINT=http://localhost:8333 and the keys from .env).
+// (`pnpm infra:up`, then S3_INTEGRATION=1 with the S3_* values of .env; ADR-020).
 import { CreateBucketCommand, S3Client } from '@aws-sdk/client-s3';
 import { randomUUID } from 'node:crypto';
 import { beforeAll, describe, expect, it } from 'vitest';

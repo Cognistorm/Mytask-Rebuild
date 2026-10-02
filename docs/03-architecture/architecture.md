@@ -237,7 +237,7 @@ The return URL never changes state (fixes R-004). If the callback is lost, the w
 
 | Environment | When | What runs | Payments | Email |
 |---|---|---|---|---|
-| **local** | Phase 3 onward, on the Owner's computer | `docker compose up`: postgres, redis, s3 = SeaweedFS (+ bucket init, ADR-017), mailpit, clamav (profile `scan`, optional because it needs ~1.5 GB RAM), bog-mock. Apps run with `pnpm dev` (hot reload) or as compose services (`--profile apps`). Mobile: Expo Go / dev build pointing at the computer's LAN address | `tools/bog-mock` only. No real BOG credentials locally | Mailpit (http://localhost:8025), nothing leaves the computer |
+| **local** | Phase 3 onward, on the Owner's computer | **`pnpm local`, no Docker (ADR-020, Owner 2026-10-02):** PGlite (PostgreSQL in WebAssembly, all extensions), native Redis 7.4, native SeaweedFS 4.48, native Mailpit, bog-mock run by Node; no ClamAV (`SCAN_PROVIDER=none`). CI and deployment keep `docker compose`: postgres, redis, s3 = SeaweedFS (+ bucket init, ADR-017), mailpit, clamav (profile `scan`, optional because it needs ~1.5 GB RAM), bog-mock. Apps run with `pnpm dev` (hot reload) or as compose services (`--profile apps`). Mobile: Expo Go / dev build pointing at the computer's LAN address | `tools/bog-mock` only. No real BOG credentials locally | Mailpit (http://localhost:8025), nothing leaves the computer |
 | **staging** | Phase 5–6, only after Owner approval | Same compose file on a small VPS, separate database/buckets/keys, `noindex`, basic-auth in front of web and admin | BOG test environment if BOG provides one for the merchant; otherwise real 0.01 GEL tests only with explicit Owner approval (the legacy `staging` practice) | SendGrid sandbox mode or a restricted recipient allowlist |
 | **production** | Phase 6, explicit Owner approval (CLAUDE.md) | Same containers; hosting proposal in ADR-015 (one VPS + managed/external object storage + off-site backups) | BOG live | SendGrid live |
 
@@ -433,7 +433,7 @@ R-031 unscheduled crons → worker sweeper with monitoring (ADR-008). R-032 awar
 | Clean codebase | One language (TypeScript strict), one API, domain modules with explicit boundaries, generated types, tests required per endpoint (CLAUDE.md) |
 | SEO | SSR HTML, stable legacy URL patterns, `/en/` prefix with hreflang/canonical, working sitemap, JSON-LD (spec 17, url-map.md) |
 | Scalability for AI features | Translation rows with `source` + source hash for AI listing translation; chat messages stored with `locale` for later AI chat translation; `pgvector` available in PostgreSQL for semantic search; AI calls go through a worker queue (never from clients) |
-| Runs on the Owner's computer | `docker compose up` + `pnpm dev`; no paid service needed locally (bog-mock, Mailpit, SeaweedFS) |
+| Runs on the Owner's computer | `pnpm local` (no Docker, ADR-020); no paid service needed locally (bog-mock, Mailpit, SeaweedFS) |
 | Affordable hosting | One VPS runs everything except object storage and email (ADR-015); every component is open source |
 | Mobile app | Same API; Expo push; deep links; offline-tolerant list caching in the app (read-only) |
 
@@ -459,5 +459,6 @@ R-031 unscheduled crons → worker sweeper with monitoring (ADR-008). R-032 awar
 | [015](adr/015-environments-hosting-and-observability.md) | Local docker compose → staging → production on one VPS + S3-compatible storage + Cloudflare; GitHub Actions deploys; nightly encrypted backups + WAL archiving; Sentry-compatible errors, health checks, money alarms |
 | [016](adr/016-mobile-payments-and-store-rules.md) | All payments in the app via BOG, **including Premium (Q-081)**; app-store billing risk documented; S-126 switches the in-app card purchase of Premium off without an app release; store billing provider possible later |
 | [017](adr/017-local-object-storage-after-minio.md) | Local object storage: SeaweedFS replaces MinIO (no longer published); S3 API and `S3_*` names unchanged; production unchanged (accepted, Q-152) |
+| [020](adr/020-local-development-without-docker.md) | Local development without Docker (Owner 2026-10-02): `pnpm local` runs PGlite + native Redis, SeaweedFS, Mailpit; CI and deployment keep containers |
 | [018](adr/018-mobile-app-version-header.md) | Accepted (Q-153): mobile sends `X-MyTask-App-Version`; S-130 minimum version per platform; `426 APP_VERSION_UNSUPPORTED` with exemptions (Q-153) |
 | [019](adr/019-isolating-s110-custom-code.md) | Accepted (Q-158 (a)): S-110 stays on the page (no iframe isolation; it breaks GA4 and Clarity in use today); two web root layouts force a full page load between public and private pages; built-in tag-manager deny list (`CUSTOM_CODE_HOST_DENIED`); path-scoped CSP for `googletagmanager.com` |

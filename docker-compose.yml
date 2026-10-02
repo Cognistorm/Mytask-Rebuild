@@ -1,4 +1,5 @@
-# MyTask.ge local stack (architecture §6, ADR-015 §1). Everything stays on this computer.
+# MyTask.ge container stack (ADR-015). NOT used on the Owner's computer: Docker is not available there, so
+# local development runs `pnpm local` (native tools, ADR-020). Kept as the reference for CI and deployment.
 #
 #   pnpm setup:env                       # once: writes a local-only .env with random secrets
 #   docker compose up -d                 # infrastructure for `pnpm dev`
