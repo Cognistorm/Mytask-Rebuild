@@ -26,6 +26,8 @@ export default defineConfig({
       env: {
         API_INTERNAL_URL: 'http://localhost:3199/api/v1',
         S3_PUBLIC_ENDPOINT: 'http://storage.test',
+        // Profile and portfolio images in e2e/profile.spec.ts (CSP img-src).
+        PUBLIC_MEDIA_BASE_URL: 'http://media.test/public-media',
       },
       timeout: 120_000,
     },

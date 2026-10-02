@@ -5,7 +5,11 @@
 // too (e2e/custom-code.spec.ts checks both directions). Unknown paths count as private (fail closed).
 
 /** AC-73 allow-list, as path patterns without the `/en` prefix. Grows with the slices that build them. */
-const PUBLIC_PATTERNS: readonly RegExp[] = [/^\/$/];
+const PUBLIC_PATTERNS: readonly RegExp[] = [
+  /^\/$/,
+  // Profile, portfolio list and item (spec 02 AC-8, AC-28; url-map §3).
+  /^\/profile\/[^/]+(\/portfolio(\/[^/]+)?)?$/,
+];
 
 /** `pathname` as the browser sent it (`/`, `/en/...`; the proxy has already removed `/ka` and trailing slashes). */
 export function isPublicPath(pathname: string): boolean {

@@ -15,3 +15,9 @@ export function formatDate(iso: string): string {
   const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((p) => p.type === type)?.value;
   return `${part('day')}.${part('month')}.${part('year')}`;
 }
+
+/** A calendar date from the API (`2026-10-15`, already a platform-zone date) as `15.10.2026`. */
+export function formatDateOnly(date: string): string {
+  const [year, month, day] = date.split('-');
+  return `${day}.${month}.${year}`;
+}

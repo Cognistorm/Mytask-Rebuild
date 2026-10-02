@@ -6,7 +6,7 @@
 // Every page gets a Content-Security-Policy with a fresh nonce (ADR-013 §5): the strict one, plus the S-127
 // custom-code hosts on public pages only (spec 16 AC-73/AC-74, ADR-019 §2).
 import { type NextRequest, NextResponse } from 'next/server';
-import { buildCsp, createNonce, storageOrigin } from './lib/csp';
+import { buildCsp, createNonce, mediaOrigin, storageOrigin } from './lib/csp';
 import { getWebCustomCode } from './lib/custom-code';
 import { isPublicPath } from './lib/zones';
 
@@ -26,6 +26,7 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
     nonce,
     customCodeHosts: customCode?.allowedHosts,
     storage: storageOrigin(process.env, dev),
+    media: mediaOrigin(process.env),
     dev,
   });
   // Next.js reads the nonce from the request's CSP header; the layouts read `x-nonce`.
