@@ -144,6 +144,9 @@ export function DashboardShell({
             {me && (
               <Link href={href(locale, `/profile/${me.username}`)}>{t('t_view_profile')}</Link>
             )}
+            <Link href={href(locale, '/account/profile')} data-testid="menu-edit-profile">
+              {t('t_edit_profile')}
+            </Link>
             <Link href={otherHref} onClick={() => choose(other)} data-testid="menu-switch">
               {t(other === 'selling' ? 't_switch_to_selling' : 't_switch_to_buying')}
             </Link>

@@ -6,7 +6,6 @@
 // sends `canRequestOffer: false` until then).
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import type { components } from '@mytask/types';
 import {
   Avatar,
   ChipLink,
@@ -28,6 +27,7 @@ import {
   loadProfile,
   PREVIEW_SIZE,
 } from '../../../../../components/profile/data';
+import { LANGUAGE_LEVEL, LINKED, SKILL_LEVEL } from '../../../../../components/profile/levels';
 import { contactHref, VerifiedMark } from '../../../../../components/profile/parts';
 import { formatDate, formatDateOnly } from '../../../../../lib/format';
 import { href } from '../../../../../lib/href';
@@ -35,30 +35,6 @@ import { getT, toLocale } from '../../../../../lib/i18n';
 import { pageTitle } from '../../../../../lib/page-title';
 
 type Params = { params: Promise<{ locale: string; username: string }> };
-type LinkedAccounts = components['schemas']['ProfileLinkedAccounts'];
-
-const LANGUAGE_LEVEL = {
-  basic: 't_basic',
-  conversational: 't_conversational',
-  fluent: 't_fluent',
-  native: 't_native',
-} as const;
-
-const SKILL_LEVEL = {
-  beginner: 't_beginner',
-  intermediate: 't_intermediate',
-  pro: 't_expert',
-} as const;
-
-const LINKED: [keyof LinkedAccounts, string][] = [
-  ['facebook', 't_facebook'],
-  ['twitter', 't_twitter'],
-  ['dribbble', 't_dribbble'],
-  ['stackoverflow', 't_stackoverflow'],
-  ['github', 't_github'],
-  ['youtube', 't_youtube'],
-  ['vimeo', 't_vimeo'],
-];
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { locale: raw, username } = await params;

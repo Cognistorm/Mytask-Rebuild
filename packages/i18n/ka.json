@@ -2687,7 +2687,7 @@
   "t_u_will_be_charged_fee_custom_offer_buyer": "თქვენ ჩამოგეჭრებათ დამატებითი {{fee_amount}} საკომისიო ამ ბიუჯეტიდან, როდესაც ფრილანსერი მიიღებს თქვენს შეთავაზებას.",
   "t_u_will_be_depositing_this_amount_employer_milestone": "თქვენ რიცხავთ პროექტისთვის განკუთვნილ თანხას, რომელიც უსაფრთხოდ ინახება პლატფორმის ანგარიშზე. თანხა მხოლოდ მას შემდეგ გადაირიცხება ფრილანსერის ანგარიშზე, როცა ის ჩაგაბარებთ ნამუშევარს და თქვენ მოხსნით თანხის ბლოკს.",
   "t_u_will_get": "თქვენ ჩაგერიცხებათ",
-  "t_u_wont_be_able_to_receive_orders_until_date": "თქვენ ვერ მიიღებთ ახალ შეკვეთებს ან შეტყობინებებს <span class=’font-semibold text-gray-900 dark:text-gray-200’>{{date}}</span> -მდე",
+  "t_u_wont_be_able_to_receive_orders_until_date": "თქვენ ვერ მიიღებთ ახალ შეკვეთებს ან შეტყობინებებს {{date}} -მდე",
   "t_ui_attach_file": "ფაილის მიმაგრება",
   "t_ui_clear_search": "ძიების გასუფთავება",
   "t_ui_client_name_hidden": "დამკვეთის სახელი დამალულია",

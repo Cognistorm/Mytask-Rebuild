@@ -131,6 +131,7 @@ export default function AccountPage() {
       <Link href={lastDashboardHref(locale, me, config)} data-testid="my-dashboard">
         {t('t_my_dashboard')}
       </Link>
+      <Link href={href(locale, '/account/profile')}>{t('t_edit_profile')}</Link>
       <Link href={href(locale, '/account/password')}>{t('t_change_password')}</Link>
       <Link href={href(locale, '/account/sessions')}>{t('t_browser_sessions')}</Link>
       {me.twoFactorAvailable && (

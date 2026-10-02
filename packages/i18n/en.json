@@ -2682,7 +2682,7 @@
   "t_u_will_be_charged_fee_custom_offer_buyer": "You will be charged an extra {{fee_amount}} fee of this budget when the freelancer approves your offer.",
   "t_u_will_be_depositing_this_amount_employer_milestone": "You deposit the required project amount, which is securely held in the platform's account. The funds will only be released to the freelancer once the work is delivered and you approve it by unblocking the payment.",
   "t_u_will_get": "You will get",
-  "t_u_wont_be_able_to_receive_orders_until_date": "You won't be able to receive new orders or messages until <span class='font-semibold text-gray-900 dark:text-gray-200'>{{date}}</span>",
+  "t_u_wont_be_able_to_receive_orders_until_date": "You won't be able to receive new orders or messages until {{date}}",
   "t_ui_attach_file": "Attach file",
   "t_ui_clear_search": "Clear search",
   "t_ui_client_name_hidden": "Client name hidden",

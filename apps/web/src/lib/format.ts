@@ -21,3 +21,19 @@ export function formatDateOnly(date: string): string {
   const [year, month, day] = date.split('-');
   return `${day}.${month}.${year}`;
 }
+
+/** Today's calendar date in the platform time zone, `YYYY-MM-DD`. */
+export function platformToday(now = new Date()): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    timeZone: 'Asia/Tbilisi',
+  }).format(now);
+}
+
+/** `YYYY-MM-DD` plus `days` calendar days. */
+export function addDays(date: string, days: number): string {
+  const [year, month, day] = date.split('-').map(Number) as [number, number, number];
+  return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
+}
