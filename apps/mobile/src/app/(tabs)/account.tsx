@@ -1,8 +1,8 @@
 // Account tab (spec 02 AC-1, AC-2, screens table "Account tab with a segmented Buying / Selling control").
 // The switcher opens the chosen dashboard (saved on the account, AC-3). Account links (AC-35) in the web side
-// card's order: Account settings (4.1.24c), Edit profile (4.1.23b), View profile (4.1.23a), Password and security
-// with the sessions (slice 01), Logout; the verification centre joins with 4.1.24d, billing, payment methods,
-// subscription and referrals with specs 05/09. The account is read again on focus, so a change made in Settings
+// card's order: Account settings (4.1.24c), Edit profile (4.1.23b), View profile (4.1.23a), Verification centre
+// (4.1.24d), Password and security with the sessions (slice 01), Logout; billing, payment methods, subscription and
+// referrals join with specs 05/09. The account is read again on focus, so a change made in Settings
 // (username, email) shows here at once.
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback } from 'react';
@@ -69,6 +69,10 @@ export default function AccountTab() {
         onPress={() =>
           router.push({ pathname: '/profile/[username]', params: { username: me.username } })
         }
+      />
+      <LinkButton
+        label={t('t_verification_center')}
+        onPress={() => router.push('/account/verification')}
       />
       <LinkButton
         label={t('t_security_settings_sidebar')}

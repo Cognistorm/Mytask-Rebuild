@@ -3,11 +3,18 @@
 // `ImageUploader`: camera or photo library, client pre-checks of type and size (S-090) and count (S-089) before any
 // upload, each image straight to storage through the shared protocol (ADR-009 §3), usable once the scan says
 // `ready`. Per image: preview, "Uploading / Processing", or the reason it cannot be used; Remove deletes the
-// unattached file. `max` 1 = one image, a new pick replaces it.
+// unattached file. `max` 1 = one image, a new pick replaces it. Also the photo slots of the verification centre
+// (purpose `kyc_document`, task 4.1.24d; the selfie opens the front camera).
 import * as ImagePicker from 'expo-image-picker';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
-import { declaredType, fileExtension, uploadFile, type ApiClient } from '@mytask/api-client';
+import {
+  declaredType,
+  fileExtension,
+  uploadFile,
+  type ApiClient,
+  type UploadInput,
+} from '@mytask/api-client';
 import { lightTheme as theme } from '@mytask/tokens/native';
 import { LinkButton, Notice } from '../form';
 
@@ -36,6 +43,12 @@ export function ImagePickerField(props: {
   api: ApiClient;
   t: T;
   label: string;
+  /** Upload purpose; default `portfolio_image`. */
+  purpose?: UploadInput['purpose'];
+  /** Replaces the generic "allowed types and size" line (e.g. the legacy KYC text). */
+  info?: string;
+  /** The camera the "Take a photo" action opens first (the selfie: front). */
+  camera?: 'front' | 'back';
   max: number;
   maxSizeMb: number | null;
   extensions: string[];
@@ -88,7 +101,7 @@ export function ImagePickerField(props: {
     const res = await uploadFile(
       api,
       {
-        purpose: 'portfolio_image',
+        purpose: props.purpose ?? 'portfolio_image',
         fileName: asset.name,
         sizeBytes: asset.size,
         contentType: asset.type,
@@ -172,6 +185,9 @@ export function ImagePickerField(props: {
     const options: ImagePicker.ImagePickerOptions = {
       mediaTypes: ['images'],
       quality: 0.8,
+      ...(source === 'camera' && props.camera === 'front'
+        ? { cameraType: ImagePicker.CameraType.front }
+        : {}),
       preferredAssetRepresentationMode:
         ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible,
       ...(source === 'library' && left > 1
@@ -204,10 +220,11 @@ export function ImagePickerField(props: {
     <View style={s.box} testID={props.testID}>
       <Text style={s.label}>{props.label}</Text>
       <Text style={s.muted}>
-        {t('t_restrictions_files_allowed_info_explain', {
-          size: props.maxSizeMb ?? '',
-          extensions: props.extensions.join(', '),
-        })}
+        {props.info ??
+          t('t_restrictions_files_allowed_info_explain', {
+            size: props.maxSizeMb ?? '',
+            extensions: props.extensions.join(', '),
+          })}
       </Text>
       {props.note ? <Text style={s.muted}>{props.note}</Text> : null}
       {canAdd ? (
