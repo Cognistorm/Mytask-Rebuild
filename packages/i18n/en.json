@@ -1881,6 +1881,7 @@
   "t_portfolio_deleted_successfully": "Portfolio has been successfully deleted",
   "t_portfolio_image_max_size": "Portfolio image maximum size",
   "t_portfolio_max_images": "Portfolio maximum images",
+  "t_portfolio_new_images_replace_gallery": "New images replace the current gallery.",
   "t_portfolio_pending_review": "This work is waiting for review and is not public yet.",
   "t_portfolio_published_successfully": "Portfolio has been successfully published",
   "t_portfolio_rejected_email_body": "Your work {{title}} was not approved. Reason: {{reason}}. You can edit it and send it for review again, or delete it.",

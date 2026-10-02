@@ -1885,6 +1885,7 @@
   "t_portfolio_deleted_successfully": "პორტფოლიო წარმატებით წაიშალა",
   "t_portfolio_image_max_size": "პორტფოლიოს სურათების მაქსიმალური ზომა",
   "t_portfolio_max_images": "Portfolio maximum images",
+  "t_portfolio_new_images_replace_gallery": "ახალი სურათები ჩაანაცვლებს მიმდინარე გალერეას.",
   "t_portfolio_pending_review": "ეს ნამუშევარი განხილვას ელოდება და ჯერ არ არის საჯარო.",
   "t_portfolio_published_successfully": "პორტფოლიო წარმატებით გამოქვეყნდა",
   "t_portfolio_rejected_email_body": "თქვენი ნამუშევარი {{title}} არ დამტკიცდა. მიზეზი: {{reason}}. შეგიძლიათ შეცვალოთ და ხელახლა გაგზავნოთ განსახილველად, ან წაშალოთ.",
