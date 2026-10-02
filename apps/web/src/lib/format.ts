@@ -37,3 +37,15 @@ export function addDays(date: string, days: number): string {
   const [year, month, day] = date.split('-').map(Number) as [number, number, number];
   return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
 }
+
+/** File size as legacy `format_bytes`: "512 B", "1.4 KB", "2.3 MB" (base 1024, one decimal). */
+export function formatBytes(bytes: number): string {
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let value = bytes;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit += 1;
+  }
+  return `${unit === 0 ? value : value.toFixed(1)} ${units[unit]}`;
+}

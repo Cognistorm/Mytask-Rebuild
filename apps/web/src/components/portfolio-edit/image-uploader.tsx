@@ -3,8 +3,9 @@
 // legacy `x-forms.uploader` with jpg/jpeg/png, S-090 MB per image, S-089 images). Each image goes straight to
 // storage through the shared upload protocol (ADR-009 §3) and is usable once the scan says `ready`. Per image:
 // preview, "Uploading / Processing", or the reason it cannot be used (type, size, scan verdict); Remove.
+// Also the photo slots of the verification centre (purpose `kyc_document`, task 4.1.20b).
 import { useEffect, useId, useRef, useState } from 'react';
-import { declaredType, fileExtension, uploadFile } from '@mytask/api-client';
+import { declaredType, fileExtension, uploadFile, type UploadInput } from '@mytask/api-client';
 import type { Locale } from '@mytask/i18n';
 import { Alert } from '@mytask/ui/web';
 import { useApi, useT } from '../../lib/client';
@@ -27,6 +28,10 @@ let seq = 0;
 export function ImageUploader(props: {
   locale: Locale;
   label: string;
+  /** Upload purpose; default `portfolio_image`. */
+  purpose?: UploadInput['purpose'];
+  /** Replaces the generic "allowed types and size" line (e.g. the legacy KYC text). */
+  info?: string;
   /** 1 = one image; a new pick replaces it. */
   max: number;
   maxSizeMb: number | null;
@@ -72,7 +77,7 @@ export function ImageUploader(props: {
     const res = await uploadFile(
       api,
       {
-        purpose: 'portfolio_image',
+        purpose: props.purpose ?? 'portfolio_image',
         fileName: file.name,
         sizeBytes: file.size,
         contentType: declaredType(file.type),
@@ -192,10 +197,11 @@ export function ImageUploader(props: {
         />
       </label>
       <p id={`${id}-info`} className="mt-pf-muted">
-        {t('t_restrictions_files_allowed_info_explain', {
-          size: props.maxSizeMb,
-          extensions: props.extensions.join(', '),
-        })}
+        {props.info ??
+          t('t_restrictions_files_allowed_info_explain', {
+            size: props.maxSizeMb,
+            extensions: props.extensions.join(', '),
+          })}
         {props.max > 1 && ` ${t('t_validator_max_array', { max: props.max })}`}
       </p>
       {props.note && <p className="mt-pf-muted">{props.note}</p>}
