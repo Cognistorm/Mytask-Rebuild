@@ -8,7 +8,11 @@ import { KycService } from './kyc.service';
 import { AdminPortfolioController, PortfolioController } from './portfolio.controllers';
 import { PortfolioService } from './portfolio.service';
 import { ProfileListsService } from './profile-lists.service';
-import { DashboardController, ProfileListsController, ProfilesController } from './profiles.controllers';
+import {
+  DashboardController,
+  ProfileListsController,
+  ProfilesController,
+} from './profiles.controllers';
 import { ProfilesService } from './profiles.service';
 import { ReportLimiter } from './report-limiter';
 import { UserSummaries } from './user-summaries';
