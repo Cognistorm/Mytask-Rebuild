@@ -2716,6 +2716,8 @@
   "t_ui_show_password": "Show password",
   "t_ui_skip_to_content": "Skip to content",
   "t_ui_staff_read_only_view": "Read-only staff view",
+  "t_ui_tab_account": "Account",
+  "t_ui_tab_dashboard": "Dashboard",
   "t_ui_take_photo": "Take a photo",
   "t_ui_verification_code": "Verification code",
   "t_unable_to_take_more_selfies": "Unable to take more snapsots, please refresh this page",

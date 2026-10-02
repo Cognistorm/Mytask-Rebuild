@@ -2721,6 +2721,8 @@
   "t_ui_show_password": "პაროლის ჩვენება",
   "t_ui_skip_to_content": "მთავარ შინაარსზე გადასვლა",
   "t_ui_staff_read_only_view": "პერსონალის ხედი, მხოლოდ წასაკითხად",
+  "t_ui_tab_account": "ანგარიში",
+  "t_ui_tab_dashboard": "პანელი",
   "t_ui_take_photo": "ფოტოს გადაღება",
   "t_ui_verification_code": "დამადასტურებელი კოდი",
   "t_unable_to_take_more_selfies": "სამწუხაროდ ფოტოს გადაღება შეუძლებელია, გთხოვთ განაახლოთ გვერდი",
