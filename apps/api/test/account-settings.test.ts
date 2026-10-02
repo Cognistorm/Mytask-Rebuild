@@ -373,3 +373,23 @@ describe('deleteMe (AC-32…AC-34)', () => {
     expect((await getMe(m.auth)).status).toBe(200);
   });
 });
+
+describe('listCountries (country select, AC-29)', () => {
+  it('lists only active countries, public, with names in the request language', async () => {
+    await prisma.country.upsert({
+      where: { iso2: 'ZZ' },
+      create: { id: 999, iso2: 'ZZ', nameKa: 'ზზ', nameEn: 'Zed', isActive: false },
+      update: { isActive: false },
+    });
+    try {
+      const en = await http().get('/api/v1/countries').set('Accept-Language', 'en');
+      expect(en.status).toBe(200);
+      expect(en.body.countries).toContainEqual({ code: 'GE', name: 'Georgia' });
+      expect(en.body.countries.map((c: { code: string }) => c.code)).not.toContain('ZZ');
+      const ka = await http().get('/api/v1/countries').set('Accept-Language', 'ka');
+      expect(ka.body.countries).toContainEqual({ code: 'GE', name: 'საქართველო' });
+    } finally {
+      await prisma.country.delete({ where: { iso2: 'ZZ' } });
+    }
+  });
+});

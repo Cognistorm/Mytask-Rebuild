@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
 import { FilesModule } from '../files/files.module';
+import { CountriesController } from './countries.controller';
 import { DashboardService } from './dashboard.service';
 import { KycProviders, ManualKycProvider } from './kyc-provider';
 import { AdminKycController, KycController } from './kyc.controllers';
@@ -27,6 +28,7 @@ import { UserSummaries } from './user-summaries';
     AdminPortfolioController,
     KycController,
     AdminKycController,
+    CountriesController,
   ],
   providers: [
     ProfilesService,
