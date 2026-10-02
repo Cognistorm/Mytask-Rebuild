@@ -20,10 +20,10 @@ From: backend-engineer · To: backend-engineer (4.1.8a onward), QA · Date: 2026
   recorded `kyc_verifications.decline_reason text null` in data-model §3.B, with a "Revised 2026-10-02" note.
   Legacy `verification_center` has no reason column, so migrated declines get null. The CHECK therefore only
   enforces "reason ⇒ declined".
-- **Countries reference data** is in the migration, so every environment and test DB has it. It has the 243 legacy
-  rows from `legacy/APP/database/seeders/CountriesTableSeeder.php`, with legacy ids and legacy `is_active` (Algeria
-  is inactive in the seed). English names come from legacy. Georgian names come from CLDR (Node `Intl.DisplayNames('ka')`).
-  **Two legacy codes are not ISO 3166 and were corrected:** Mayotte `TY` → `YT`, Kosovo `KS` → `XK`.
+- **Countries reference data** is in the migration, so every environment and test DB has it. **Only Georgia** (Owner
+  2026-10-02: other countries are not needed at this stage): `(81, 'GE', 'საქართველო', 'Georgia', true)`, which keeps the
+  legacy id from `legacy/APP/database/seeders/CountriesTableSeeder.php`. A first version had all 243 legacy rows; the
+  Owner removed them before the migration was applied anywhere, so the migration was edited in place.
 - **Settings registry:** S-071 `moderation.portfolio.auto_approve` (boolean, default OFF, area `moderation`) and
   S-122 `kyc.provider` (enum `manual`, area `system`). Neither is public.
 - **i18n:** 31 keys added, en first with ka alongside (Q-058), values from the spec 02 Texts tables and
@@ -45,9 +45,10 @@ From: backend-engineer · To: backend-engineer (4.1.8a onward), QA · Date: 2026
 - `listCountries` (spec 16 AC-62) reads `countries` where `is_active`.
 
 ## Open questions / risks
-- No new Owner question. Phase 5 ETL: legacy *production* `countries` may differ from the seed. The ETL upserts by
-  id and must map `TY`/`KS` the same way.
-- Docker Desktop's engine did not start on this machine (WSL is not installed), so the migration was checked on
-  PGlite only (same as the unit tests): it applies cleanly, and `prisma migrate diff` shows no drift apart from the
-  SQL-only objects. CI runs it on real PostgreSQL.
+- No new Owner question. **Phase 5 ETL (task 5.5):** legacy users with a country other than Georgia have no matching
+  row yet. Before importing profiles, either add those countries by legacy id, or the Owner decides to drop the value.
+  If they are added: legacy codes `TY` (Mayotte) and `KS` (Kosovo) are not ISO 3166 and become `YT` / `XK`.
+- The Owner's computer has no Docker (ADR-020). The migration was checked on PGlite (`pnpm local` and `pnpm test`):
+  it applies cleanly, and `prisma migrate diff` shows no drift apart from the SQL-only objects. CI runs it on real
+  PostgreSQL.
 - Tests: API 253 passed / 5 skipped, i18n OK, typecheck and lint clean, format OK.

@@ -47,13 +47,11 @@ afterAll(async () => {
   await app?.close();
 });
 
-describe('countries (legacy reference rows)', () => {
-  it('has the 243 legacy countries with Georgian and English names and legacy ids', async () => {
-    expect(await prisma.country.count()).toBe(243);
-    const ge = await prisma.country.findUniqueOrThrow({ where: { iso2: 'GE' } });
-    expect(ge).toMatchObject({ nameEn: 'Georgia', nameKa: 'საქართველო', isActive: true });
-    expect(await prisma.country.findUnique({ where: { iso2: 'YT' } })).toMatchObject({ id: 139 });
-    expect(await prisma.country.findUnique({ where: { iso2: 'TY' } })).toBeNull();
+describe('countries (reference rows)', () => {
+  it('has only Georgia for now, with its legacy id (Owner 2026-10-02)', async () => {
+    expect(await prisma.country.findMany()).toEqual([
+      { id: 81, iso2: 'GE', nameKa: 'საქართველო', nameEn: 'Georgia', isActive: true },
+    ]);
   });
 
   it('links a profile to a country', async () => {
