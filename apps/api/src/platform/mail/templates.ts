@@ -181,6 +181,33 @@ export function renderEmail(i: TemplateInput): RenderedEmail {
         [t('t_notification_admin_reported_profile')],
         { label: t('t_reported_users'), url: `${i.adminUrl.replace(/\/$/, '')}/reports` },
       );
+    case 'EV-14':
+      // legacy/APP/app/Notifications/Admin/PendingPortfolio.php:44-54
+      return layout(
+        i.locale,
+        t('t_subject_admin_pending_portfolio'),
+        t('t_hi_admin'),
+        [t('t_notification_admin_pending_portfolio')],
+        { label: t('t_pending_portfolios'), url: `${i.adminUrl.replace(/\/$/, '')}/portfolio` },
+      );
+    case 'EV-15':
+      // legacy/APP/app/Notifications/User/Seller/PortfolioPublished.php:44-54
+      return layout(
+        i.locale,
+        t('t_subject_seller_portfolio_published'),
+        hello,
+        [t('t_notification_seller_line_1_portfolio_published')],
+        { label: t('t_view_my_porfolio'), url: link(i.appUrl, i.locale, '/seller/portfolio') },
+      );
+    case 'EV-126':
+      // NEW (Q-117): the staff reason is shown to the owner.
+      return layout(
+        i.locale,
+        t('t_subject_seller_portfolio_rejected'),
+        hello,
+        [t('t_portfolio_rejected_email_body', i.params)],
+        { label: t('t_view_my_porfolio'), url: link(i.appUrl, i.locale, '/seller/portfolio') },
+      );
     case 'EV-124':
       return layout(i.locale, t('t_subject_admin_critical_setting_changed'), t('t_hi_admin'), [
         t('t_admin_critical_setting_changed_body', i.params),

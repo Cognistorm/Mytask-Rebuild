@@ -285,13 +285,30 @@ export class FilesService {
   }
 
   async remove(userId: string, fileId: string): Promise<void> {
-    let file = await this.own(userId, fileId);
+    const file = await this.own(userId, fileId);
     if (await this.attachments.isAttached(file)) {
       // "This item is still in use and cannot be deleted."
       throw new ApiException(409, 'STATE_CONFLICT', 't_category_in_use', {
         currentState: 'attached',
       });
     }
+    await this.purge(file);
+    this.logger.log({ fileId: file.id, purpose: file.purpose }, 'file deleted by owner');
+  }
+
+  /**
+   * Deletes a file whose item is already gone (portfolio item deleted by its owner or by staff, AC-27). No
+   * owner, restriction or attachment check: the caller has just detached it. Unknown or deleted → nothing.
+   */
+  async purgeDetached(fileId: string): Promise<void> {
+    const file = await this.prisma.file.findUnique({ where: { id: fileId } });
+    if (!file || file.status === 'deleted') return;
+    await this.purge(file);
+    this.logger.log({ fileId: file.id, purpose: file.purpose }, 'detached file deleted');
+  }
+
+  private async purge(start: FileRow): Promise<void> {
+    let file = start;
     // Storage first: a KYC photo the user removed must really be gone; S3 deletes are idempotent on retry.
     // The row is marked deleted only if it is still in the state whose objects were removed: when the
     // worker finished the scan meanwhile (quarantine → final objects), the new objects are removed too.
@@ -307,7 +324,6 @@ export class FilesService {
       if (!now || now.status === 'deleted') break;
       file = now;
     }
-    this.logger.log({ fileId: file.id, purpose: file.purpose }, 'file deleted by owner');
   }
 
   /** Own, not deleted file; others get 404 (never 403, files cannot be probed). Restricted: appeal files only. */

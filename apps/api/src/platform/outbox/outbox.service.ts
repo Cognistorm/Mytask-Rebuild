@@ -20,6 +20,9 @@ export type OutboxEventType =
   | 'EV-11' // EmailChangeConfirm (to the new address, spec 02 AC-30)
   | 'EV-12' // EmailChangeNotice (to the old address, spec 02 AC-30)
   | 'EV-13' // Admin/ProfileReported (spec 02 AC-14)
+  | 'EV-14' // Admin/PendingPortfolio (spec 02 AC-25)
+  | 'EV-15' // PortfolioPublished (spec 02 AC-26)
+  | 'EV-126' // PortfolioRejected (spec 02 AC-42, NEW Q-117)
   | 'EV-124' // Admin/CriticalSettingChanged
   | 'EV-128' // LoginSlowMode
   | 'EV-129'; // TwoFactorLocked
