@@ -7,6 +7,7 @@ import { RedisModule } from './platform/redis/redis.module';
 import { ScannerModule } from './platform/scanner/scanner';
 import { SettingsModule } from './platform/settings/settings.module';
 import { StorageModule } from './platform/storage/storage';
+import { AvailabilityResetSweeper } from './worker/availability-reset.sweeper';
 import { FilesScanSweeper } from './worker/files-scan.sweeper';
 import { OutboxDispatcher } from './worker/outbox.dispatcher';
 
@@ -22,6 +23,6 @@ import { OutboxDispatcher } from './worker/outbox.dispatcher';
     ScannerModule,
     SettingsModule,
   ],
-  providers: [OutboxDispatcher, FileScanService, FilesScanSweeper],
+  providers: [OutboxDispatcher, FileScanService, FilesScanSweeper, AvailabilityResetSweeper],
 })
 export class WorkerModule {}

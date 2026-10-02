@@ -1,5 +1,5 @@
 // Contract: getMyProfile, updateMyProfile, putMyAvatar, deleteMyAvatar, getUserProfile (ROADMAP 4.1.8a),
-// createUserReport (4.1.8b); skills, languages and linked accounts (4.1.9) below.
+// createUserReport (4.1.8b), putMyAvailability, deleteMyAvailability (4.1.10); skills, languages and linked accounts (4.1.9) below.
 import {
   Body,
   Controller,
@@ -61,6 +61,21 @@ export class ProfilesController {
   @HttpCode(204)
   deleteAvatar(@CurrentAuth() auth: AuthState): Promise<void> {
     return this.profiles.deleteAvatar(auth.userId);
+  }
+
+  @Put('me/availability')
+  putAvailability(
+    @CurrentAuth() auth: AuthState,
+    @Body() body: S['AvailabilityPutRequest'],
+    @Req() req: Request,
+  ): Promise<S['AvailabilityNotice']> {
+    return this.profiles.putAvailability(auth.userId, body, this.ctx(req));
+  }
+
+  @Delete('me/availability')
+  @HttpCode(204)
+  deleteAvailability(@CurrentAuth() auth: AuthState): Promise<void> {
+    return this.profiles.deleteAvailability(auth.userId);
   }
 
   @OptionalUser()

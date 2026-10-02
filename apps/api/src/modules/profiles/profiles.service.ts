@@ -1,5 +1,5 @@
-// Profiles (spec 02, ROADMAP 4.1.8a/b): getMyProfile, updateMyProfile, getUserProfile, putMyAvatar, deleteMyAvatar,
-// createUserReport (AC-14, EV-13).
+// Profiles (spec 02, ROADMAP 4.1.8a/b, 4.1.10): getMyProfile, updateMyProfile, getUserProfile, putMyAvatar, deleteMyAvatar,
+// createUserReport (AC-14, EV-13), putMyAvailability, deleteMyAvailability (AC-22, AC-23).
 // Data of slices not built yet gets the contract's neutral value (4.1.1 handoff §C): ratings empty, no
 // Premium, `canRequestOffer` false, `isIndexable` from the public portfolio only. `timezone` null → Asia/Tbilisi
 // (legacy `config/app.php:73`, no editor). `account.updated` (x-emits) waits for the realtime gateway (slice 08).
@@ -38,6 +38,16 @@ const notFound = () => new ApiException(404, 'NOT_FOUND', 't_page_not_fount');
 
 /** Insertion order (uuid v7 ids are time-ordered), as the legacy lists. */
 const BY_ID = { orderBy: { id: 'asc' } } as const;
+
+/**
+ * The instant a user is available again: the start of the chosen day on the platform clock (legacy
+ * `Carbon::create($date)` at midnight; Asia/Tbilisi is UTC+4 all year). Null for a date that does not exist.
+ */
+export function availableFrom(date: string): Date | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
+  const at = new Date(`${date}T00:00:00+04:00`);
+  return Number.isNaN(at.getTime()) || dateOnly.format(at) !== date ? null : at;
+}
 
 /** The notice while "unavailable until" is in the future; a passed date shows nothing (AC-23). */
 function availabilityView(p: UserProfile | null, now: Date): S['AvailabilityNotice'] | null {
@@ -174,6 +184,40 @@ export class ProfilesService {
       }
       return;
     }
+  }
+
+  // ------------------------------------------------------------------ availability (AC-22, AC-23, R-P5)
+
+  /** Replaces the user's one "unavailable until" (legacy deleted the old row and created a new one). */
+  async putAvailability(
+    userId: string,
+    input: S['AvailabilityPutRequest'],
+    ctx: RequestContext,
+  ): Promise<S['AvailabilityNotice']> {
+    const fail = (field: string, code: string, messageKey: string) =>
+      new ApiException(400, 'VALIDATION_FAILED', messageKey, {
+        fields: [{ field, code, message: ctx.t(messageKey), messageKey }],
+      });
+    const until = availableFrom(input.unavailableUntil);
+    if (!until) throw fail('unavailableUntil', 'format', 't_invalid_carbon_date_format');
+    if (until <= new Date()) {
+      throw fail('unavailableUntil', 'future', 't_pls_select_availability_date_in_future');
+    }
+    const message = input.message.trim();
+    if (!message) throw fail('message', 'required', 't_validator_required');
+    await this.prisma.userProfile.update({
+      where: { userId },
+      data: { unavailableUntil: until, unavailableMessage: message },
+    });
+    return { unavailableUntil: input.unavailableUntil, message };
+  }
+
+  /** Early removal (AC-23); nothing set → still 204. */
+  async deleteAvailability(userId: string): Promise<void> {
+    await this.prisma.userProfile.update({
+      where: { userId },
+      data: { unavailableUntil: null, unavailableMessage: null },
+    });
   }
 
   // ------------------------------------------------------------------ public profile (AC-8…AC-13, R-P3)
