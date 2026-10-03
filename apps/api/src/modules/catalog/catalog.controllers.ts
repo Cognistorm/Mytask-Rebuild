@@ -1,7 +1,8 @@
 // Contract: listCategories, lookupCategory, getCategory (D2 `/categories`), listProjectCategories,
 // lookupProjectCategory (D2 `/project-categories`), searchGigs (`/search/gigs`), listGigs (`GET /gigs`, the profile list;
-// the gig writes of slice 3 join the `/gigs` path in their own module). Public reads of spec 03; the staff CRUD comes
-// in 4.2.7/4.2.8.
+// the gig writes of slice 3 join the `/gigs` path in their own module), searchProjects (`/search/projects`),
+// listSellers (`/sellers`), listHireSellers (`/hire/{keyword}`). Public reads of spec 03; the staff CRUD comes in
+// 4.2.7/4.2.8.
 import { Controller, Get, Param, Query, Req } from '@nestjs/common';
 import type { Schema } from '@mytask/types';
 import type { Request } from 'express';
@@ -10,6 +11,8 @@ import { OptionalAuth, OptionalUser, Public, type AuthState } from '../auth/auth
 import { CategoriesService } from './categories.service';
 import { GigSearchService, type GigSearchQuery } from './gig-search.service';
 import { ProjectCategoriesService } from './project-categories.service';
+import { ProjectSearchService } from './project-search.service';
+import { SellerListsService } from './seller-lists.service';
 
 const localeOf = (req: Request) => resolveLocale(req.headers['accept-language']);
 /** Query values arrive as text; the contract validator has already checked their type and range. */
@@ -103,5 +106,44 @@ export class GigListsController {
       localeOf(req),
       viewer?.userId ?? null,
     );
+  }
+}
+
+const pageQuery = (q: RawQuery) => ({ cursor: q.cursor, limit: int(q.limit), page: int(q.page) });
+
+@Controller()
+export class ProjectAndSellerListsController {
+  constructor(
+    private readonly projects: ProjectSearchService,
+    private readonly sellers: SellerListsService,
+  ) {}
+
+  /** The token will only decide the masking of the project owner (slice 9). */
+  @OptionalUser()
+  @Get('search/projects')
+  searchProjects(
+    @Req() req: Request,
+    @Query() q: RawQuery,
+  ): Promise<Schema<'SearchProjectCardPage'>> {
+    return this.projects.search(
+      { q: q.q, projectCategoryId: q.projectCategoryId, skillId: q.skillId, ...pageQuery(q) },
+      localeOf(req),
+    );
+  }
+
+  @Public()
+  @Get('sellers')
+  listSellers(@Req() req: Request, @Query() q: RawQuery): Promise<Schema<'SellerCardPage'>> {
+    return this.sellers.sellers(pageQuery(q), localeOf(req));
+  }
+
+  @Public()
+  @Get('hire/:keyword')
+  listHireSellers(
+    @Req() req: Request,
+    @Param('keyword') keyword: string,
+    @Query() q: RawQuery,
+  ): Promise<Schema<'HireSellerPage'>> {
+    return this.sellers.hire(keyword, pageQuery(q), localeOf(req));
   }
 }
