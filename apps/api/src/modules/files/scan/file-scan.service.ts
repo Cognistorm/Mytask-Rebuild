@@ -71,6 +71,15 @@ export class FileScanService {
     private readonly settings: SettingsService,
   ) {}
 
+  /** SHA-256 of a stored object, or null when it is gone. */
+  private async sha256Of(bucket: FileRow['bucket'], key: string): Promise<Buffer | null> {
+    const object = await this.storage.read(bucket, key);
+    if (!object) return null;
+    const hash = createHash('sha256');
+    for await (const chunk of object.body) hash.update(chunk);
+    return hash.digest();
+  }
+
   /** Scans one file. Throws on infrastructure errors (storage, clamd); the sweeper retries later. */
   async process(fileId: string): Promise<ScanOutcome> {
     const file = await this.prisma.file.findUnique({ where: { id: fileId } });
@@ -101,10 +110,16 @@ export class FileScanService {
       if (!(err instanceof Unreadable)) throw err;
       return this.reject(file, REJECT_REASONS.unreadable, detected);
     }
+    // Without an ETag the copy below could not insist on the scanned version (review 07 I-38): refuse, before
+    // anything is written. A provider that drops the header does so every time, so a retry would not help.
+    if (placement.copy && !source.etag) {
+      this.logger.error(
+        { fileId: file.id },
+        'upload rejected: storage returned no ETag to pin the scan',
+      );
+      return this.reject(file, REJECT_REASONS.unreadable, detected);
+    }
     for (const put of placement.puts) await this.storage.put(put);
-    // Without an ETag the copy below could not insist on the scanned version (review 07 I-38): retry later.
-    if (placement.copy && !source.etag)
-      throw new Error('storage returned no ETag for a scanned upload');
     if (placement.copy) {
       // Only the version that was scanned: the presigned POST stays usable until it expires, and a re-upload
       // landing between the scan and this copy must not become `ready` unscanned (security review 06 SEC-63).
@@ -116,6 +131,17 @@ export class FileScanService {
       } catch (err) {
         if (!(err instanceof ObjectChangedError)) throw err;
         this.logger.warn({ fileId: file.id }, 'upload rejected: replaced after the scan');
+        return this.reject(file, REJECT_REASONS.unreadable, detected);
+      }
+      // The ETag is the MD5 of the body, so a colliding re-upload would still match (review 07 SEC-75): the
+      // copy must hash to what was scanned, so the stored checksum belongs to the stored bytes.
+      const copied = await this.sha256Of(placement.bucket, placement.objectKey);
+      if (!copied?.equals(read.checksum)) {
+        await this.storage.delete(placement.bucket, placement.objectKey);
+        this.logger.error(
+          { fileId: file.id },
+          'upload rejected: the copy differs from the scanned bytes',
+        );
         return this.reject(file, REJECT_REASONS.unreadable, detected);
       }
     }

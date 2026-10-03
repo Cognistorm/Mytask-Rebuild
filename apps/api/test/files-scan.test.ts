@@ -404,6 +404,43 @@ describe('files-scan: stored-as-uploaded files (security review 06 SEC-63)', () 
     expect(storage.has(row.bucket, row.objectKey)).toBe(false);
   });
 
+  it('a copy whose bytes differ from the scanned ones (same MD5 ETag) is deleted and rejected (SEC-75)', async () => {
+    const row = await appealFile(pdf('clean'));
+    // Stands in for a chosen-prefix MD5 collision: the ETag matched, but other bytes were copied.
+    storage.afterNextCopy = (to) =>
+      storage.upload(to.bucket, to.key, 0, 'application/pdf', pdf('UNSCANNED payload'));
+    expect(await sweeper.tick()).toBe(1);
+    const file = await prisma.file.findUniqueOrThrow({ where: { id: row.id } });
+    expect(file.status).toBe('rejected');
+    expect(file.rejectReason).toBe('t_file_rejected_unreadable');
+    expect(storage.has('private', `files/${row.id}`)).toBe(false);
+    expect(storage.has(row.bucket, row.objectKey)).toBe(false);
+  });
+
+  it('a ready as-uploaded file stores the checksum of the bytes actually copied (SEC-75)', async () => {
+    const body = pdf('clean');
+    const row = await appealFile(body);
+    expect(await sweeper.tick()).toBe(1);
+    const file = await prisma.file.findUniqueOrThrow({ where: { id: row.id } });
+    expect(file.status).toBe('ready');
+    const stored = storage.get(file.bucket, file.objectKey)!.body;
+    expect(Buffer.from(file.checksumSha256!)).toEqual(createHash('sha256').update(stored).digest());
+  });
+
+  it('without an ETag the upload is rejected and nothing is copied (I-38)', async () => {
+    const row = await appealFile(pdf('clean'));
+    storage.dropEtag = true;
+    try {
+      expect(await sweeper.tick()).toBe(1);
+    } finally {
+      storage.dropEtag = false;
+    }
+    const file = await prisma.file.findUniqueOrThrow({ where: { id: row.id } });
+    expect(file.status).toBe('rejected');
+    expect(file.rejectReason).toBe('t_file_rejected_unreadable');
+    expect(storage.has('private', `files/${row.id}`)).toBe(false);
+  });
+
   it('a re-post after the scan is deleted once the POST has expired; open scans keep theirs', async () => {
     const row = await appealFile(pdf('clean'));
     expect(await sweeper.tick()).toBe(1);

@@ -26,6 +26,10 @@ export class MemoryStorage extends ObjectStorage {
   failNextRead = false;
   /** Runs once after the next `read` stream ends (e.g. a re-upload landing between scan and copy). */
   afterNextRead: (() => void) | null = null;
+  /** Runs once after the next `copy` (e.g. other bytes behind the same MD5 ETag, review 07 SEC-75). */
+  afterNextCopy: ((to: { bucket: FileBucket; key: string }) => void) | null = null;
+  /** `read` answers without an ETag, as a provider or proxy that drops the header (review 07 I-38). */
+  dropEtag = false;
 
   private etag(o: StoredObject): string {
     return `"${createHash('md5').update(o.body).digest('hex')}"`;
@@ -68,7 +72,7 @@ export class MemoryStorage extends ObjectStorage {
       for (let i = 0; i < o!.body.length; i += 16 * 1024) yield o!.body.subarray(i, i + 16 * 1024);
       after?.();
     }
-    return Promise.resolve({ body: chunks(), etag: this.etag(o) });
+    return Promise.resolve({ body: chunks(), etag: this.dropEtag ? null : this.etag(o) });
   }
 
   put(input: PutObjectInput): Promise<void> {
@@ -90,6 +94,9 @@ export class MemoryStorage extends ObjectStorage {
     if (from.ifMatch && from.ifMatch !== this.etag(o))
       return Promise.reject(new ObjectChangedError('precondition failed'));
     this.objects.set(this.id(to.bucket, to.key), { ...o, contentType: to.contentType });
+    const after = this.afterNextCopy;
+    this.afterNextCopy = null;
+    after?.(to);
     return Promise.resolve();
   }
 
