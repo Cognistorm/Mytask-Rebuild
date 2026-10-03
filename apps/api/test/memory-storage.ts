@@ -1,9 +1,12 @@
 // In-memory ObjectStorage for API tests (no S3 server). `upload` plays the client's direct POST; the real
 // presigned POST/GET against SeaweedFS is proven by storage.integration.test.ts (ADR-017 §3).
 import type { FileBucket } from '../src/generated/prisma/client';
+import { createHash } from 'node:crypto';
 import {
+  ObjectChangedError,
   ObjectStorage,
   type ObjectHead,
+  type ObjectRead,
   type PresignedGetInput,
   type PresignedPost,
   type PresignedPostInput,
@@ -21,6 +24,12 @@ export class MemoryStorage extends ObjectStorage {
   readonly gets: PresignedGetInput[] = [];
   /** Makes the next `read` throw, as an unreachable storage would. */
   failNextRead = false;
+  /** Runs once after the next `read` stream ends (e.g. a re-upload landing between scan and copy). */
+  afterNextRead: (() => void) | null = null;
+
+  private etag(o: StoredObject): string {
+    return `"${createHash('md5').update(o.body).digest('hex')}"`;
+  }
 
   private id(bucket: FileBucket, key: string) {
     return `${bucket}/${key}`;
@@ -45,18 +54,21 @@ export class MemoryStorage extends ObjectStorage {
     return Promise.resolve(o ? { sizeBytes: o.sizeBytes, contentType: o.contentType } : null);
   }
 
-  read(bucket: FileBucket, key: string): Promise<AsyncIterable<Uint8Array> | null> {
+  read(bucket: FileBucket, key: string): Promise<ObjectRead | null> {
     if (this.failNextRead) {
       this.failNextRead = false;
       return Promise.reject(new Error('storage unavailable'));
     }
     const o = this.objects.get(this.id(bucket, key));
     if (!o) return Promise.resolve(null);
+    const after = this.afterNextRead;
+    this.afterNextRead = null;
     // Small chunks, like a network stream.
     async function* chunks() {
       for (let i = 0; i < o!.body.length; i += 16 * 1024) yield o!.body.subarray(i, i + 16 * 1024);
+      after?.();
     }
-    return Promise.resolve(chunks());
+    return Promise.resolve({ body: chunks(), etag: this.etag(o) });
   }
 
   put(input: PutObjectInput): Promise<void> {
@@ -70,11 +82,13 @@ export class MemoryStorage extends ObjectStorage {
   }
 
   copy(
-    from: { bucket: FileBucket; key: string },
+    from: { bucket: FileBucket; key: string; ifMatch?: string | null },
     to: { bucket: FileBucket; key: string; contentType: string },
   ): Promise<void> {
     const o = this.objects.get(this.id(from.bucket, from.key));
     if (!o) return Promise.reject(new Error('NoSuchKey'));
+    if (from.ifMatch && from.ifMatch !== this.etag(o))
+      return Promise.reject(new ObjectChangedError('precondition failed'));
     this.objects.set(this.id(to.bucket, to.key), { ...o, contentType: to.contentType });
     return Promise.resolve();
   }

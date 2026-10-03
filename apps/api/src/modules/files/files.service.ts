@@ -27,7 +27,7 @@ import {
 type S = components['schemas'];
 
 /** Presigned POST lifetime ("short expiry", ADR-009 §3.2). */
-export const UPLOAD_EXPIRES_SECONDS = 15 * 60;
+export const UPLOAD_EXPIRES_SECONDS = 10 * 60;
 /** Contract `x-rate-limit` of createFileUpload: 60 requests / 10 min per user. */
 export const UPLOADS_PER_WINDOW = 60;
 export const UPLOAD_WINDOW_SECONDS = 10 * 60;
@@ -386,7 +386,7 @@ function downloadName(file: FileRow): string {
   return `${dot > 0 ? file.originalName.slice(0, dot) : file.originalName}.webp`;
 }
 
-function variantKeys(file: FileRow): string[] {
+export function variantKeys(file: FileRow): string[] {
   const v = file.variants as Record<string, unknown> | null;
   if (!v) return [];
   return Object.values(v).filter((k): k is string => typeof k === 'string' && k !== file.objectKey);

@@ -5,7 +5,7 @@ import { CreateBucketCommand, S3Client } from '@aws-sdk/client-s3';
 import { randomUUID } from 'node:crypto';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { loadEnv, type Env } from '../src/platform/config/env';
-import { S3ObjectStorage } from '../src/platform/storage/storage';
+import { ObjectChangedError, S3ObjectStorage } from '../src/platform/storage/storage';
 
 const enabled = process.env.S3_INTEGRATION === '1';
 
@@ -63,6 +63,8 @@ describe.skipIf(!enabled)('object storage (integration, ADR-017 §3)', () => {
     expect(got.status).toBe(200);
     expect(Buffer.from(await got.arrayBuffer()).equals(bytes)).toBe(true);
     expect(got.headers.get('content-disposition')).toMatch(/^attachment;/);
+    // SEC-70: signed links of private files are never cached.
+    expect(got.headers.get('cache-control')).toBe('private, no-store');
 
     await storage.delete('private', key);
     expect(await storage.head('private', key)).toBeNull();
@@ -92,12 +94,13 @@ describe.skipIf(!enabled)('object storage (integration, ADR-017 §3)', () => {
 
     const stream = await storage.read('private', `quarantine/${id}`);
     const parts: Buffer[] = [];
-    for await (const chunk of stream!) parts.push(Buffer.from(chunk));
+    for await (const chunk of stream!.body) parts.push(Buffer.from(chunk));
+    expect(stream!.etag).toBeTruthy();
     expect(Buffer.concat(parts).equals(bytes)).toBe(true);
     expect(await storage.read('private', `quarantine/${randomUUID()}`)).toBeNull();
 
     await storage.copy(
-      { bucket: 'private', key: `quarantine/${id}` },
+      { bucket: 'private', key: `quarantine/${id}`, ifMatch: stream!.etag },
       { bucket: 'private', key: `files/${id}`, contentType: 'application/pdf' },
     );
     expect(await storage.head('private', `files/${id}`)).toEqual({
@@ -124,6 +127,22 @@ describe.skipIf(!enabled)('object storage (integration, ADR-017 §3)', () => {
       ['public_media', key],
     ] as const)
       await storage.delete(bucket, k);
+  });
+
+  it('SEC-63: a copy that names the scanned ETag fails once the object was re-uploaded', async () => {
+    const id = randomUUID();
+    expect((await post(`quarantine/${id}`, Buffer.alloc(200, 1), 'image/png')).status).toBeLessThan(300);
+    const first = await storage.read('private', `quarantine/${id}`);
+    for await (const _ of first!.body) void _;
+    expect((await post(`quarantine/${id}`, Buffer.alloc(200, 2), 'image/png')).status).toBeLessThan(300);
+    await expect(
+      storage.copy(
+        { bucket: 'private', key: `quarantine/${id}`, ifMatch: first!.etag },
+        { bucket: 'private', key: `files/${id}`, contentType: 'image/png' },
+      ),
+    ).rejects.toBeInstanceOf(ObjectChangedError);
+    expect(await storage.head('private', `files/${id}`)).toBeNull();
+    await storage.delete('private', `quarantine/${id}`);
   });
 
   it('refuses a presigned GET whose signature was tampered with', async () => {

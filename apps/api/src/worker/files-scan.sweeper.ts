@@ -3,14 +3,18 @@
 // no queue. A scan of a 100 MB video must not hold a database transaction open, so each file is claimed
 // with a Redis lease instead of FOR UPDATE SKIP LOCKED; several workers never scan the same file at once,
 // and the compare-and-set in FileScanService makes a double run harmless anyway.
-// Also runs the cleanup of `pending` uploads never completed within 24 hours (contract createFileUpload).
+// Also runs the cleanup of `pending` uploads never completed within 24 hours (contract createFileUpload), and
+// deletes each scanned upload's quarantine key once more after its presigned POST has expired: the POST can be
+// re-used until then, and a re-post after the scan would otherwise leave an object nobody owns (SEC-63).
 import {
   Injectable,
   Logger,
   type OnApplicationBootstrap,
   type OnApplicationShutdown,
 } from '@nestjs/common';
+import { UPLOAD_EXPIRES_SECONDS, variantKeys } from '../modules/files/files.service';
 import { FileScanService } from '../modules/files/scan/file-scan.service';
+import type { File as FileRow, FileBucket } from '../generated/prisma/client';
 import { PrismaService } from '../platform/db/prisma.service';
 import { RedisService } from '../platform/redis/redis.module';
 import { ObjectStorage } from '../platform/storage/storage';
@@ -24,8 +28,13 @@ export const LEASE_SECONDS = 10 * 60;
 /** Retry after an infrastructure error: 30 s, 1 min, 2 min … at most 30 min. */
 export const retryDelaySeconds = (attempt: number) => Math.min(30 * 2 ** (attempt - 1), 30 * 60);
 export const PENDING_TTL_HOURS = 24;
+/** Ready public images (avatar, portfolio) never attached within this time are deleted (SEC-64 stop-gap). */
+export const UNATTACHED_TTL_HOURS = 24;
 const CLEANUP_EVERY_MS = 60 * 60 * 1000;
 
+/** Sorted set of `bucket␟key` quarantine objects to delete again, scored by the time their POST expired. */
+export const LATE_QUARANTINE_KEY = 'files:quarantine:late';
+const SEP = '';
 const leaseKey = (id: string) => `files:scan:lease:${id}`;
 const attemptsKey = (id: string) => `files:scan:attempts:${id}`;
 
@@ -61,15 +70,18 @@ export class FilesScanSweeper implements OnApplicationBootstrap, OnApplicationSh
         where: { status: 'scanning' },
         orderBy: { createdAt: 'asc' },
         take: CANDIDATES,
-        select: { id: true },
+        select: { id: true, bucket: true, objectKey: true, createdAt: true },
       });
       let finished = 0;
       let claimedCount = 0;
-      for (const { id } of rows) {
+      for (const { id, bucket, objectKey, createdAt } of rows) {
         if (claimedCount === BATCH) break;
         const claimed = await this.redis.client.set(leaseKey(id), '1', 'EX', LEASE_SECONDS, 'NX');
         if (claimed !== 'OK') continue; // another worker has it, or it waits for its retry
         claimedCount++;
+        // Remember the quarantine key before the scan moves the row to its final key.
+        const expired = createdAt.getTime() + (UPLOAD_EXPIRES_SECONDS + 60) * 1000;
+        await this.redis.client.zadd(LATE_QUARANTINE_KEY, expired, `${bucket}${SEP}${objectKey}`);
         try {
           const outcome = await this.scan.process(id);
           await this.redis.client.del(leaseKey(id), attemptsKey(id));
@@ -97,8 +109,73 @@ export class FilesScanSweeper implements OnApplicationBootstrap, OnApplicationSh
     }
   }
 
+  /** Deletes quarantine objects whose presigned POST has expired (a re-post after the scan); public for tests. */
+  async cleanupLateQuarantine(now = new Date()): Promise<number> {
+    try {
+      const due = await this.redis.client.zrangebyscore(
+        LATE_QUARANTINE_KEY,
+        '-inf',
+        now.getTime(),
+        'LIMIT',
+        0,
+        1000,
+      );
+      let removed = 0;
+      for (const member of due) {
+        const [bucket, key] = member.split(SEP) as [FileBucket, string];
+        // Still waiting for its scan (a retry after a storage or clamd error): keep it for the next pass.
+        const open = await this.prisma.file.count({
+          where: { bucket, objectKey: key, status: { in: ['pending', 'scanning'] } },
+        });
+        if (open) continue;
+        await this.storage.delete(bucket, key);
+        await this.redis.client.zrem(LATE_QUARANTINE_KEY, member);
+        removed++;
+      }
+      return removed;
+    } catch (err) {
+      this.logger.error({ err }, 'late quarantine cleanup failed');
+      return 0;
+    }
+  }
+
+  /**
+   * Security review 06 SEC-64 (stop-gap until images are published only on attach/approval, ADR-009): avatar
+   * and portfolio images are public as soon as they are `ready`, so one that is still not the avatar of anyone
+   * and not on any portfolio item after 24 h is deleted with its public variants. The compare-and-set re-checks
+   * "not attached" in the same statement, so an attach that commits first keeps its file. Public for tests.
+   */
+  async cleanupUnattachedPublic(now = new Date()): Promise<number> {
+    try {
+      const cutoff = new Date(now.getTime() - UNATTACHED_TTL_HOURS * 3600 * 1000);
+      const rows = await this.prisma.$queryRaw<FileRow[]>`
+        UPDATE files f SET status = 'deleted', deleted_at = ${now}
+        WHERE f.id IN (
+          SELECT c.id FROM files c
+          WHERE c.status = 'ready' AND c.purpose IN ('avatar', 'portfolio_image') AND c.ready_at < ${cutoff}
+          ORDER BY c.ready_at LIMIT 500
+        )
+          AND f.status = 'ready'
+          AND NOT EXISTS (SELECT 1 FROM user_profiles p WHERE p.avatar_file_id = f.id)
+          AND NOT EXISTS (SELECT 1 FROM portfolio_items i WHERE i.thumbnail_file_id = f.id)
+          AND NOT EXISTS (SELECT 1 FROM portfolio_images g WHERE g.file_id = f.id)
+        RETURNING f.bucket, f.object_key AS "objectKey", f.variants`;
+      for (const file of rows) {
+        await this.storage.delete(file.bucket, file.objectKey);
+        for (const key of variantKeys(file)) await this.storage.delete('public_media', key);
+      }
+      if (rows.length) this.logger.log({ removed: rows.length }, 'unattached public images deleted');
+      return rows.length;
+    } catch (err) {
+      this.logger.error({ err }, 'unattached public image cleanup failed');
+      return 0;
+    }
+  }
+
   /** Deletes `pending` uploads older than 24 h (and their object, if the client uploaded one). */
   async cleanupPending(now = new Date()): Promise<number> {
+    await this.cleanupLateQuarantine(now);
+    await this.cleanupUnattachedPublic(now);
     try {
       const cutoff = new Date(now.getTime() - PENDING_TTL_HOURS * 3600 * 1000);
       const rows = await this.prisma.file.findMany({

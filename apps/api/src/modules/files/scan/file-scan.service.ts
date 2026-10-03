@@ -11,7 +11,11 @@ import type { File as FileRow, Prisma } from '../../../generated/prisma/client';
 import { PrismaService } from '../../../platform/db/prisma.service';
 import { VirusScanner } from '../../../platform/scanner/scanner';
 import { SettingsService } from '../../../platform/settings/settings.service';
-import { ObjectStorage, type PutObjectInput } from '../../../platform/storage/storage';
+import {
+  ObjectChangedError,
+  ObjectStorage,
+  type PutObjectInput,
+} from '../../../platform/storage/storage';
 import { MB, PURPOSE_POLICIES, type PurposePolicy } from '../purposes';
 import { DETECTED_BY_EXTENSION, SNIFF_BYTES, sniff } from './magic';
 
@@ -77,7 +81,7 @@ export class FileScanService {
     const source = await this.storage.read(file.bucket, file.objectKey);
     if (!source) return this.reject(file, REJECT_REASONS.missing, null);
 
-    const read = await this.readAndScan(file, source, policy.processing !== 'none');
+    const read = await this.readAndScan(file, source.body, policy.processing !== 'none');
     const detected = sniff(read.head, read.sizeBytes <= SNIFF_BYTES);
     if (read.infected) {
       this.logger.warn({ fileId, signature: read.infected }, 'upload rejected: virus found');
@@ -99,10 +103,18 @@ export class FileScanService {
     }
     for (const put of placement.puts) await this.storage.put(put);
     if (placement.copy) {
-      await this.storage.copy(
-        { bucket: file.bucket, key: file.objectKey },
-        { bucket: placement.bucket, key: placement.objectKey, contentType: detected },
-      );
+      // Only the version that was scanned: the presigned POST stays usable until it expires, and a re-upload
+      // landing between the scan and this copy must not become `ready` unscanned (security review 06 SEC-63).
+      try {
+        await this.storage.copy(
+          { bucket: file.bucket, key: file.objectKey, ifMatch: source.etag },
+          { bucket: placement.bucket, key: placement.objectKey, contentType: detected },
+        );
+      } catch (err) {
+        if (!(err instanceof ObjectChangedError)) throw err;
+        this.logger.warn({ fileId: file.id }, 'upload rejected: replaced after the scan');
+        return this.reject(file, REJECT_REASONS.unreadable, detected);
+      }
     }
 
     const done = await this.prisma.file.updateMany({

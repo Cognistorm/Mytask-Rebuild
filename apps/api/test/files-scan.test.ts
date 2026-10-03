@@ -13,7 +13,7 @@ import { RedisService } from '../src/platform/redis/redis.module';
 import { type ScanVerdict, VirusScanner } from '../src/platform/scanner/scanner';
 import { SettingsService } from '../src/platform/settings/settings.service';
 import { ObjectStorage } from '../src/platform/storage/storage';
-import { FilesScanSweeper } from '../src/worker/files-scan.sweeper';
+import { FilesScanSweeper, LATE_QUARANTINE_KEY } from '../src/worker/files-scan.sweeper';
 import { createTestApp } from './app';
 import { MemoryStorage } from './memory-storage';
 
@@ -354,5 +354,95 @@ describe('files-scan: retries, races, cleanup', () => {
       'pending',
     );
     expect(storage.has(fresh.bucket, fresh.objectKey)).toBe(true);
+  });
+});
+
+describe('files-scan: stored-as-uploaded files (security review 06 SEC-63)', () => {
+  /** An `appeal_file` (copied as uploaded, no processing) in `scanning`, as completeFileUpload leaves it. */
+  async function appealFile(body: Buffer) {
+    const auth = await register();
+    const me = await http().get('/api/v1/me').set(auth);
+    const row = await prisma.file.create({
+      data: {
+        purpose: 'appeal_file',
+        ownerUserId: me.body.id as string,
+        bucket: 'private',
+        objectKey: `quarantine/${crypto.randomUUID()}`,
+        originalName: 'proof.pdf',
+        declaredType: 'application/pdf',
+        sizeBytes: BigInt(body.length),
+        status: 'scanning',
+      },
+    });
+    storage.upload(row.bucket, row.objectKey, body.length, row.declaredType, body);
+    return row;
+  }
+  const pdf = (text: string) => Buffer.from(`%PDF-1.4
+% ${text}
+%%EOF
+`);
+
+  it('a clean file is copied as scanned', async () => {
+    const row = await appealFile(pdf('clean'));
+    expect(await sweeper.tick()).toBe(1);
+    const file = await prisma.file.findUniqueOrThrow({ where: { id: row.id } });
+    expect(file.status).toBe('ready');
+    expect(storage.get(file.bucket, file.objectKey)?.body.toString()).toContain('clean');
+  });
+
+  it('a re-upload landing between the scan and the copy is rejected, never ready unscanned', async () => {
+    const row = await appealFile(pdf('clean'));
+    // The presigned POST is still valid: the uploader re-posts other bytes while the scan runs.
+    storage.afterNextRead = () =>
+      storage.upload(row.bucket, row.objectKey, 0, 'application/pdf', pdf('UNSCANNED payload'));
+    expect(await sweeper.tick()).toBe(1);
+    const file = await prisma.file.findUniqueOrThrow({ where: { id: row.id } });
+    expect(file.status).toBe('rejected');
+    expect(file.rejectReason).toBe('t_file_rejected_unreadable');
+    expect(storage.has('private', `files/${row.id}`)).toBe(false);
+    expect(storage.has(row.bucket, row.objectKey)).toBe(false);
+  });
+
+  it('a re-post after the scan is deleted once the POST has expired; open scans keep theirs', async () => {
+    const row = await appealFile(pdf('clean'));
+    expect(await sweeper.tick()).toBe(1);
+    // Re-posted after `ready` with the still-valid form: an object nobody owns.
+    storage.upload(row.bucket, row.objectKey, 0, 'application/pdf', pdf('late'));
+    const waiting = await appealFile(pdf('retry later'));
+    await redis.client.zadd(LATE_QUARANTINE_KEY, 0, `${waiting.bucket}${waiting.objectKey}`);
+
+    // Not before the POST expired.
+    expect(await sweeper.cleanupLateQuarantine(new Date())).toBe(0);
+    expect(storage.has(row.bucket, row.objectKey)).toBe(true);
+
+    const later = new Date(Date.now() + 12 * 60 * 1000);
+    expect(await sweeper.cleanupLateQuarantine(later)).toBe(1);
+    expect(storage.has(row.bucket, row.objectKey)).toBe(false);
+    // Still `scanning` (e.g. waiting for a retry): its object is kept and the entry stays queued.
+    expect(storage.has(waiting.bucket, waiting.objectKey)).toBe(true);
+    expect(await redis.client.zscore(LATE_QUARANTINE_KEY, `${waiting.bucket}${waiting.objectKey}`)).toBe('0');
+  });
+});
+
+describe('files-scan: unattached public images (security review 06 SEC-64 stop-gap)', () => {
+  it('a ready avatar or portfolio image never attached within 24 h is deleted with its variants', async () => {
+    const auth = await register();
+    const stray = await upload(auth, await photo());
+    const avatar = await upload(auth, await photo());
+    const fresh = await upload(auth, await photo(), { purpose: 'portfolio_image' });
+    expect(await sweeper.tick()).toBe(3);
+    expect((await http().put('/api/v1/me/avatar').set(auth).send({ fileId: avatar.id })).status).toBe(200);
+    const old = new Date(Date.now() - 25 * 3600 * 1000);
+    await prisma.file.updateMany({ where: { id: { in: [stray.id, avatar.id] } }, data: { readyAt: old } });
+    const strayReady = await prisma.file.findUniqueOrThrow({ where: { id: stray.id } });
+    const strayKeys = Object.values(strayReady.variants as Record<string, string>);
+    expect(strayKeys.every((k) => storage.has('public_media', k))).toBe(true);
+
+    expect(await sweeper.cleanupUnattachedPublic()).toBe(1);
+    expect((await prisma.file.findUniqueOrThrow({ where: { id: stray.id } })).status).toBe('deleted');
+    expect(strayKeys.some((k) => storage.has('public_media', k))).toBe(false);
+    // The current avatar and a fresh upload (its form may still be open) are kept.
+    expect((await prisma.file.findUniqueOrThrow({ where: { id: avatar.id } })).status).toBe('ready');
+    expect((await prisma.file.findUniqueOrThrow({ where: { id: fresh.id } })).status).toBe('ready');
   });
 });

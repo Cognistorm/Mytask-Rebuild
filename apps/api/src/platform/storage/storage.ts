@@ -47,6 +47,15 @@ export interface ObjectHead {
   contentType: string | null;
 }
 
+/** An object's bytes and the version they belong to (`ETag`), so a later copy can insist on that version. */
+export interface ObjectRead {
+  body: AsyncIterable<Uint8Array>;
+  etag: string | null;
+}
+
+/** `copy` with `ifMatch`: the source changed since it was read (security review 06 SEC-63). */
+export class ObjectChangedError extends Error {}
+
 export interface PutObjectInput {
   bucket: FileBucket;
   key: string;
@@ -62,11 +71,14 @@ export abstract class ObjectStorage {
   /** `null` when the object does not exist. */
   abstract head(bucket: FileBucket, key: string): Promise<ObjectHead | null>;
   /** The object's bytes as a stream (the worker reads uploads of up to 100 MB); `null` when missing. */
-  abstract read(bucket: FileBucket, key: string): Promise<AsyncIterable<Uint8Array> | null>;
+  abstract read(bucket: FileBucket, key: string): Promise<ObjectRead | null>;
   abstract put(input: PutObjectInput): Promise<void>;
-  /** Server-side copy (large files never pass through the worker's memory). */
+  /**
+   * Server-side copy (large files never pass through the worker's memory). With `ifMatch` the copy happens
+   * only while the source still has that ETag, otherwise `ObjectChangedError` (a re-upload after the scan).
+   */
   abstract copy(
-    from: { bucket: FileBucket; key: string },
+    from: { bucket: FileBucket; key: string; ifMatch?: string | null },
     to: { bucket: FileBucket; key: string; contentType: string },
   ): Promise<void>;
   /** Idempotent: deleting a missing object is not an error. */
@@ -122,6 +134,8 @@ export class S3ObjectStorage extends ObjectStorage {
         Bucket: this.buckets[input.bucket],
         Key: input.key,
         ResponseContentDisposition: attachmentDisposition(input.downloadName),
+        // Private and KYC files must not stay in a browser or proxy cache after the link expires (SEC-70).
+        ResponseCacheControl: 'private, no-store',
       }),
       { expiresIn: input.expiresSeconds },
     );
@@ -139,12 +153,13 @@ export class S3ObjectStorage extends ObjectStorage {
     }
   }
 
-  async read(bucket: FileBucket, key: string): Promise<AsyncIterable<Uint8Array> | null> {
+  async read(bucket: FileBucket, key: string): Promise<ObjectRead | null> {
     try {
       const out = await this.client.send(
         new GetObjectCommand({ Bucket: this.buckets[bucket], Key: key }),
       );
-      return (out.Body as AsyncIterable<Uint8Array> | undefined) ?? null;
+      const body = out.Body as AsyncIterable<Uint8Array> | undefined;
+      return body ? { body, etag: out.ETag ?? null } : null;
     } catch (err) {
       if (err instanceof NoSuchKey || (err as { name?: string }).name === 'NoSuchKey') return null;
       throw err;
@@ -164,19 +179,27 @@ export class S3ObjectStorage extends ObjectStorage {
   }
 
   async copy(
-    from: { bucket: FileBucket; key: string },
+    from: { bucket: FileBucket; key: string; ifMatch?: string | null },
     to: { bucket: FileBucket; key: string; contentType: string },
   ): Promise<void> {
-    await this.client.send(
-      new CopyObjectCommand({
-        Bucket: this.buckets[to.bucket],
-        Key: to.key,
-        // Keys are opaque ASCII (`quarantine/<uuid>`), so no URL encoding is needed.
-        CopySource: `${this.buckets[from.bucket]}/${from.key}`,
-        ContentType: to.contentType,
-        MetadataDirective: 'REPLACE',
-      }),
-    );
+    try {
+      await this.client.send(
+        new CopyObjectCommand({
+          Bucket: this.buckets[to.bucket],
+          Key: to.key,
+          // Keys are opaque ASCII (`quarantine/<uuid>`), so no URL encoding is needed.
+          CopySource: `${this.buckets[from.bucket]}/${from.key}`,
+          CopySourceIfMatch: from.ifMatch ?? undefined,
+          ContentType: to.contentType,
+          MetadataDirective: 'REPLACE',
+        }),
+      );
+    } catch (err) {
+      const e = err as { name?: string; $metadata?: { httpStatusCode?: number } };
+      if (e.name === 'PreconditionFailed' || e.$metadata?.httpStatusCode === 412)
+        throw new ObjectChangedError(`${from.bucket}/${from.key} changed since it was read`);
+      throw err;
+    }
   }
 
   async delete(bucket: FileBucket, key: string): Promise<void> {
@@ -198,7 +221,7 @@ class UnconfiguredStorage extends ObjectStorage {
   head(): Promise<ObjectHead | null> {
     this.fail();
   }
-  read(): Promise<AsyncIterable<Uint8Array> | null> {
+  read(): Promise<ObjectRead | null> {
     this.fail();
   }
   put(): Promise<void> {
