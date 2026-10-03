@@ -254,7 +254,8 @@ try {
 async function assertFilerClosed() {
   let status = 0;
   try {
-    status = (await fetch('http://127.0.0.1:8888/buckets/', { signal: AbortSignal.timeout(3000) })).status;
+    status = (await fetch('http://127.0.0.1:8888/buckets/', { signal: AbortSignal.timeout(3000) }))
+      .status;
   } catch {
     return; // nothing listening: fine
   }

@@ -131,10 +131,14 @@ describe.skipIf(!enabled)('object storage (integration, ADR-017 §3)', () => {
 
   it('SEC-63: a copy that names the scanned ETag fails once the object was re-uploaded', async () => {
     const id = randomUUID();
-    expect((await post(`quarantine/${id}`, Buffer.alloc(200, 1), 'image/png')).status).toBeLessThan(300);
+    expect((await post(`quarantine/${id}`, Buffer.alloc(200, 1), 'image/png')).status).toBeLessThan(
+      300,
+    );
     const first = await storage.read('private', `quarantine/${id}`);
     for await (const _ of first!.body) void _;
-    expect((await post(`quarantine/${id}`, Buffer.alloc(200, 2), 'image/png')).status).toBeLessThan(300);
+    expect((await post(`quarantine/${id}`, Buffer.alloc(200, 2), 'image/png')).status).toBeLessThan(
+      300,
+    );
     await expect(
       storage.copy(
         { bucket: 'private', key: `quarantine/${id}`, ifMatch: first!.etag },

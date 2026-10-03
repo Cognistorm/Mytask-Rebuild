@@ -176,7 +176,8 @@ describe('server-rendered pages: each visitor has their own bucket (security rev
     await redis.flushall();
     const minute = Math.floor(Date.now() / 60_000);
     // Visitor A has used up the minute (both this and the next one, against a minute boundary).
-    for (const m of [minute, minute + 1]) await redis.set(`rl:read:198.51.100.1:${m}`, '600', 'EX', 120);
+    for (const m of [minute, minute + 1])
+      await redis.set(`rl:read:198.51.100.1:${m}`, '600', 'EX', 120);
     const viaWeb = (ip: string) =>
       request(app.getHttpServer())
         .get('/api/v1/users/sec65_nobody')

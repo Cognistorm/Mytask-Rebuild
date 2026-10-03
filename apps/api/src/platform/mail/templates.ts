@@ -243,7 +243,9 @@ export function renderEmail(i: TemplateInput): RenderedEmail {
           t('t_portfolio_rejected_email_body', {
             ...i.params,
             // The sentence has its own full stop after the reason (QA 4.1.26 BUG-04).
-            reason: String(i.params.reason ?? '').trim().replace(/\.$/, ''),
+            reason: String(i.params.reason ?? '')
+              .trim()
+              .replace(/\.$/, ''),
           }),
         ],
         { label: t('t_view_my_porfolio'), url: link(i.appUrl, i.locale, '/seller/portfolio') },

@@ -168,7 +168,9 @@ test('the 404 page is the localised legacy page with a link home, also for unkno
         ? 'გთხოვთ შეამოწმოთ ბმული მისამართის ველში და სცადოთ ხელახლა'
         : 'Please check the URL in the address bar and try again',
     );
-    await expect(page, path).toHaveTitle(ka ? 'გვერდი ვერ მოიძებნა | MyTask' : 'Page not found | MyTask');
+    await expect(page, path).toHaveTitle(
+      ka ? 'გვერდი ვერ მოიძებნა | MyTask' : 'Page not found | MyTask',
+    );
     await expect(page.locator('meta[name="robots"]'), path).toHaveAttribute('content', /noindex/);
     await expect(
       page.getByRole('link', { name: ka ? 'მთავარ გვერდზე დაბრუნება' : 'Back to homepage' }),
