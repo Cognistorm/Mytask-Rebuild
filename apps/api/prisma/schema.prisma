@@ -147,6 +147,7 @@ model User {
   portfolioItems      PortfolioItem[]
   kycVerifications    KycVerification[]
   reportsMade         Report[]
+  gigs                Gig[]
 
   @@map("users")
 }
@@ -834,4 +835,278 @@ model Report {
   @@index([targetType, targetId])
   @@index([status, createdAt])
   @@map("reports")
+}
+
+// ---------------------------------------------------------------- 3.C Catalog (spec 03, ROADMAP 4.2.2b)
+
+/// Provenance of a translation row (data-model §1 "TM"): machine translation later fills rows with `machine`.
+enum TranslationSource {
+  human
+  machine
+
+  @@map("translation_source")
+}
+
+enum CategoryLegacySource {
+  categories
+  subcategories
+  childcategories
+
+  @@map("category_legacy_source")
+}
+
+/// The three legacy category tables merged into one tree. `depth` follows the parent (trigger), slugs are unique
+/// per level, delete is refused while children, gigs or project categories use the row (FKs `ON DELETE RESTRICT`).
+/// FKs to `files` (icon, image) are in the migration SQL.
+model GigCategory {
+  id                String                   @id @default(uuid(7)) @db.Uuid
+  parentId          String?                  @map("parent_id") @db.Uuid
+  depth             Int                      @db.SmallInt
+  slug              String                   @db.VarChar(160)
+  position          Int                      @default(0)
+  isVisible         Boolean                  @default(true) @map("is_visible")
+  iconFileId        String?                  @map("icon_file_id") @db.Uuid
+  imageFileId       String?                  @map("image_file_id") @db.Uuid
+  legacySource      CategoryLegacySource?    @map("legacy_source")
+  legacyId          BigInt?                  @map("legacy_id")
+  createdAt         DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(6)
+  parent            GigCategory?             @relation("GigCategoryTree", fields: [parentId], references: [id], onDelete: Restrict)
+  children          GigCategory[]            @relation("GigCategoryTree")
+  translations      GigCategoryTranslation[]
+  projectCategories ProjectCategory[]
+  gigsAsCategory    Gig[]                    @relation("GigCategory")
+  gigsAsSub         Gig[]                    @relation("GigSubcategory")
+  gigsAsChild       Gig[]                    @relation("GigChildcategory")
+
+  @@unique([depth, slug])
+  @@unique([legacySource, legacyId])
+  @@index([parentId])
+  @@map("gig_categories")
+}
+
+model GigCategoryTranslation {
+  categoryId       String            @map("category_id") @db.Uuid
+  locale           Locale
+  name             String            @db.VarChar(100)
+  /// SEO description (spec 16 AC-60, ≤ 300 per language; legacy single value → `ka`).
+  description      String?           @db.VarChar(300)
+  contentTop       String?           @map("content_top")
+  contentBottom    String?           @map("content_bottom")
+  source           TranslationSource @default(human)
+  sourceLocale     Locale?           @map("source_locale")
+  sourceHash       Bytes?            @map("source_hash")
+  updatedAt        DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedByUserId  String?           @map("updated_by_user_id") @db.Uuid
+  updatedByStaffId String?           @map("updated_by_staff_id") @db.Uuid
+  category         GigCategory       @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([categoryId, locale])
+  @@map("gig_category_translations")
+}
+
+/// Project categories (own list, P-31), each linked by staff to one top-level gig category (trigger checks
+/// depth 1) for "notify freelancers in the category" (BR-053, spec 10).
+model ProjectCategory {
+  id            String                       @id @default(uuid(7)) @db.Uuid
+  legacyId      BigInt?                      @unique @map("legacy_id")
+  slug          String                       @unique @db.VarChar(160)
+  gigCategoryId String?                      @map("gig_category_id") @db.Uuid
+  imageFileId   String?                      @map("image_file_id") @db.Uuid
+  position      Int                          @default(0)
+  isActive      Boolean                      @default(true) @map("is_active")
+  createdAt     DateTime                     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime                     @updatedAt @map("updated_at") @db.Timestamptz(6)
+  gigCategory   GigCategory?                 @relation(fields: [gigCategoryId], references: [id], onDelete: Restrict)
+  translations  ProjectCategoryTranslation[]
+  skills        Skill[]
+
+  @@map("project_categories")
+}
+
+model ProjectCategoryTranslation {
+  projectCategoryId String            @map("project_category_id") @db.Uuid
+  locale            Locale
+  name              String            @db.VarChar(100)
+  seoDescription    String?           @map("seo_description")
+  source            TranslationSource @default(human)
+  sourceLocale      Locale?           @map("source_locale")
+  sourceHash        Bytes?            @map("source_hash")
+  updatedAt         DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedByUserId   String?           @map("updated_by_user_id") @db.Uuid
+  updatedByStaffId  String?           @map("updated_by_staff_id") @db.Uuid
+  projectCategory   ProjectCategory   @relation(fields: [projectCategoryId], references: [id], onDelete: Cascade)
+
+  @@id([projectCategoryId, locale])
+  @@map("project_category_translations")
+}
+
+/// Project skills (P-31): each belongs to one project category. Not the users' own skills (`user_skills`).
+model Skill {
+  id                String             @id @default(uuid(7)) @db.Uuid
+  legacyId          BigInt?            @unique @map("legacy_id")
+  projectCategoryId String             @map("project_category_id") @db.Uuid
+  slug              String             @db.VarChar(100)
+  isActive          Boolean            @default(true) @map("is_active")
+  createdAt         DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+  projectCategory   ProjectCategory    @relation(fields: [projectCategoryId], references: [id], onDelete: Restrict)
+  translations      SkillTranslation[]
+
+  @@unique([projectCategoryId, slug])
+  @@map("skills")
+}
+
+model SkillTranslation {
+  skillId          String            @map("skill_id") @db.Uuid
+  locale           Locale
+  name             String            @db.VarChar(100)
+  source           TranslationSource @default(human)
+  sourceLocale     Locale?           @map("source_locale")
+  sourceHash       Bytes?            @map("source_hash")
+  updatedAt        DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedByUserId  String?           @map("updated_by_user_id") @db.Uuid
+  updatedByStaffId String?           @map("updated_by_staff_id") @db.Uuid
+  skill            Skill             @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@id([skillId, locale])
+  @@map("skill_translations")
+}
+
+// ---------------------------------------------------------------- 3.R Old slugs (spec 17 AC-10, ROADMAP 4.2.2a)
+
+enum SlugEntityType {
+  gig_category
+  page
+  blog_article
+
+  @@map("slug_entity_type")
+}
+
+/// Old slugs that answer 301 to the item's current URL (data-model §3.R rules 1–4). `scope` = category depth
+/// (slugs are unique per level), 0 for pages and articles (CK in SQL). `entity_id` has no FK (three parent
+/// tables): each item's service deletes its rows in the same transaction as the item.
+model SlugRedirect {
+  entityType SlugEntityType @map("entity_type")
+  scope      Int            @db.SmallInt
+  oldSlug    String         @map("old_slug") @db.VarChar(160)
+  entityId   String         @map("entity_id") @db.Uuid
+  createdAt  DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@id([entityType, scope, oldSlug])
+  @@index([entityType, entityId])
+  @@map("slug_redirects")
+}
+
+// ---------------------------------------------------------------- 3.D Gigs, core only (ROADMAP 4.2.2b; the rest of §3.D is slice 3)
+
+enum GigStatus {
+  pending
+  active
+  rejected
+  deleted
+
+  @@map("gig_status")
+}
+
+/// Gig core (data-model §3.D). Created here because search, home rows, `/sellers` and `listGigs` need it
+/// (4.2.1 handoff §C); upgrades, FAQs, images, documents, favourites, reports and views come with slice 3.
+/// In SQL: checks (price, delivery list, revisions, counters, SEO pair, deleted pair), the category chain
+/// trigger, the FK to `files` and the partial/ordered indexes.
+model Gig {
+  id               String           @id @default(uuid(7)) @db.Uuid
+  legacyId         BigInt?          @unique @map("legacy_id")
+  uid              String           @unique @db.VarChar(20)
+  slug             String           @db.VarChar(160)
+  ownerId          String           @map("owner_id") @db.Uuid
+  categoryId       String           @map("category_id") @db.Uuid
+  subcategoryId    String           @map("subcategory_id") @db.Uuid
+  childcategoryId  String           @map("childcategory_id") @db.Uuid
+  priceTetri       BigInt           @map("price_tetri")
+  deliveryDays     Int              @map("delivery_days") @db.SmallInt
+  /// Null only for migrated gigs (`legacy_id` set), CK in SQL.
+  revisionsAllowed Int?             @map("revisions_allowed") @db.SmallInt
+  status           GigStatus        @default(pending)
+  rejectionReason  String?          @map("rejection_reason")
+  thumbnailFileId  String           @map("thumbnail_file_id") @db.Uuid
+  seoTitle         String?          @map("seo_title") @db.VarChar(100)
+  seoDescription   String?          @map("seo_description") @db.VarChar(150)
+  videoUrl         String?          @map("video_url")
+  visitsCount      BigInt           @default(0) @map("visits_count")
+  impressionsCount BigInt           @default(0) @map("impressions_count")
+  salesCount       Int              @default(0) @map("sales_count")
+  ordersInQueue    Int              @default(0) @map("orders_in_queue")
+  ratingCount      Int              @default(0) @map("rating_count")
+  ratingSum        Int              @default(0) @map("rating_sum")
+  publishedAt      DateTime?        @map("published_at") @db.Timestamptz(6)
+  createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt        DateTime?        @map("deleted_at") @db.Timestamptz(6)
+  owner            User             @relation(fields: [ownerId], references: [id])
+  category         GigCategory      @relation("GigCategory", fields: [categoryId], references: [id], onDelete: Restrict)
+  subcategory      GigCategory      @relation("GigSubcategory", fields: [subcategoryId], references: [id], onDelete: Restrict)
+  childcategory    GigCategory      @relation("GigChildcategory", fields: [childcategoryId], references: [id], onDelete: Restrict)
+  translations     GigTranslation[]
+
+  @@index([categoryId])
+  @@index([subcategoryId])
+  @@index([childcategoryId])
+  @@map("gigs")
+}
+
+/// The `ka` row is required (spec 04; checked by the gig service in slice 3).
+model GigTranslation {
+  gigId            String            @map("gig_id") @db.Uuid
+  locale           Locale
+  title            String            @db.VarChar(100)
+  /// Sanitised HTML (CONVENTIONS §19).
+  description      String
+  source           TranslationSource @default(human)
+  sourceLocale     Locale?           @map("source_locale")
+  sourceHash       Bytes?            @map("source_hash")
+  updatedAt        DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedByUserId  String?           @map("updated_by_user_id") @db.Uuid
+  updatedByStaffId String?           @map("updated_by_staff_id") @db.Uuid
+  gig              Gig               @relation(fields: [gigId], references: [id], onDelete: Cascade)
+
+  @@id([gigId, locale])
+  @@map("gig_translations")
+}
+
+// ---------------------------------------------------------------- 3.S Search documents (ADR-011)
+
+enum SearchEntityType {
+  gig
+  project
+  user
+
+  @@map("search_entity_type")
+}
+
+/// Denormalised search rows (data-model §3.S), written only by the search index service (typed raw SQL,
+/// ADR-001). `search_text` is the normalised text (separators → spaces, P-28) for the trigram index; `status`
+/// is the entity's own status as text (gig and project statuses differ). Indexes are in the migration SQL.
+model SearchDocument {
+  entityType        SearchEntityType        @map("entity_type")
+  entityId          String                  @map("entity_id") @db.Uuid
+  tsv               Unsupported("tsvector") @default(dbgenerated("''::tsvector"))
+  searchText        String                  @default("") @map("search_text")
+  categoryId        String?                 @map("category_id") @db.Uuid
+  subcategoryId     String?                 @map("subcategory_id") @db.Uuid
+  childcategoryId   String?                 @map("childcategory_id") @db.Uuid
+  projectCategoryId String?                 @map("project_category_id") @db.Uuid
+  priceTetri        BigInt?                 @map("price_tetri")
+  deliveryDays      Int?                    @map("delivery_days") @db.SmallInt
+  ratingCount       Int                     @default(0) @map("rating_count")
+  ratingSum         Int                     @default(0) @map("rating_sum")
+  salesCount        Int                     @default(0) @map("sales_count")
+  visitsCount       BigInt                  @default(0) @map("visits_count")
+  ownerIsPremium    Boolean                 @default(false) @map("owner_is_premium")
+  ownerListable     Boolean                 @default(true) @map("owner_listable")
+  status            String
+  publishedAt       DateTime?               @map("published_at") @db.Timestamptz(6)
+  updatedAt         DateTime                @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@id([entityType, entityId])
+  @@map("search_documents")
 }
