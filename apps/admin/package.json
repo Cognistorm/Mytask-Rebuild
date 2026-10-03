@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "assets": "node ../../packages/assets/copy-web-assets.mjs public",
-    "dev": "pnpm assets && next dev --port 3200",
+    "dev": "pnpm assets && next dev --port 3200 --hostname 127.0.0.1",
     "build": "pnpm assets && next build",
     "start": "next start --port 3200",
     "typecheck": "next typegen && tsc --noEmit",

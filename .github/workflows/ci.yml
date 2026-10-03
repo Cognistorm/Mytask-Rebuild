@@ -179,6 +179,8 @@ jobs:
           echo "--- a server-rendered profile page through Caddy (visitor IP forwarded, SEC-65): localised 404"
           test "$(curl -s -o /tmp/p404.html -w '%{http_code}' http://localhost:8080/profile/ci_nobody_here)" = 404
           grep -q 'data-testid="not-found"' /tmp/p404.html
+          echo "--- that page's API call arrived with the visitor IP (review 07 I-41: ipSource in the API request log)"
+          docker compose logs --no-color api | grep '/api/v1/users/ci_nobody_here' | grep -q '"ipSource":"ssr-visitor"'
           echo "--- staff endpoints are not served on the public host"
           test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/api/v1/admin/system/health)" = 404
           echo "--- admin host is noindex"

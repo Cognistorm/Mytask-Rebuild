@@ -24,6 +24,12 @@ export const envSchema = z
     LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
     /** HTTP port of the public API process. */
     PORT: z.coerce.number().int().positive().default(3000),
+    /**
+     * Interface the public API binds to. Loopback by default, so `pnpm local` / `pnpm dev` are not reachable
+     * from the Wi-Fi (security review 06 SEC-71); containers set 0.0.0.0, and so does phone testing
+     * (SETUP-LOCAL §4).
+     */
+    HOST: z.string().min(1).default('127.0.0.1'),
     /** Internal readiness port (DB, Redis) — never routed by Caddy (architecture §7.11). */
     READINESS_PORT: z.coerce.number().int().positive().default(3001),
     /** Internal readiness port of the worker process. */

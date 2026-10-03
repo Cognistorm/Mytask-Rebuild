@@ -72,7 +72,8 @@ export class ClientIpResolver {
     this.serviceToken = Buffer.from(env.INTERNAL_SERVICE_TOKEN);
   }
 
-  resolve(req: Pick<Request, 'headers' | 'socket'>): ClientInfo {
+  /** `quiet`: no warnings (the request log resolves every request a second time, review 07 I-41). */
+  resolve(req: Pick<Request, 'headers' | 'socket'>, quiet = false): ClientInfo {
     const peer = normalizeIp(req.socket?.remoteAddress) ?? '0.0.0.0';
     const header = (name: string) => {
       const v = req.headers[name];
@@ -84,7 +85,7 @@ export class ClientIpResolver {
     if (this.trusted.has(peer)) {
       const edgeIp = normalizeIp(header(HEADER_CLIENT_IP));
       if (header(HEADER_VISITOR_IP) || header(HEADER_SERVICE_AUTH))
-        this.warn('visitor headers via edge ignored');
+        if (!quiet) this.warn('visitor headers via edge ignored');
       return edgeIp
         ? { ip: edgeIp, userAgent: ua, source: 'edge' }
         : { ip: peer, userAgent: ua, source: 'peer' };
@@ -96,7 +97,7 @@ export class ClientIpResolver {
       if (this.credentialOk(header(HEADER_SERVICE_AUTH))) {
         return { ip: visitor, userAgent: header(HEADER_VISITOR_UA) ?? ua, source: 'ssr-visitor' };
       }
-      this.warn('visitor IP without a valid service credential ignored');
+      if (!quiet) this.warn('visitor IP without a valid service credential ignored');
     }
     return { ip: peer, userAgent: ua, source: 'peer' };
   }

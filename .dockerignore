@@ -16,6 +16,9 @@ legacy
 docs/**
 !docs/04-api/openapi.yaml
 apps/api/src/generated
+# Local data of `pnpm local` and test runs: KYC uploads, Redis sessions, mail with codes (SEC-54)
+.local
+apps/api/.pglite
 apps/web/public/fonts
 apps/web/public/brand
 apps/admin/public/fonts

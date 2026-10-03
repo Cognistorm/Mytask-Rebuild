@@ -79,6 +79,10 @@ Your phone and computer must be on the **same Wi-Fi**.
    - macOS: System Settings → Wi-Fi → Details → IP address
 2. Open `.env` in a text editor and set:
    `EXPO_PUBLIC_API_URL=http://192.168.1.20:3000/api/v1` (your address)
+   and also `HOST=0.0.0.0`, then restart `pnpm local`. By default the API listens only on this computer
+   (`127.0.0.1`), so the phone could not reach it. With `HOST=0.0.0.0` everyone on the same Wi-Fi can reach your
+   local API: use it only on your home network and remove the line when you are done (security review SEC-71).
+   The website and admin always stay on this computer only.
 3. Keep `pnpm dev` running in one window. In a **second** window run:
    ```
    pnpm dev:mobile

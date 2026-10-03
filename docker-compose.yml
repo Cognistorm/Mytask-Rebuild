@@ -161,6 +161,9 @@ services:
       <<: *app-env-vars
       # Caddy's fixed edge address: the only peer whose X-MyTask-Client-IP is trusted (ADR-013 §16).
       TRUSTED_PROXY_IPS: 172.30.0.10
+      # All interfaces inside the container (the default 127.0.0.1 is for `pnpm local`, SEC-71); a `HOST` line in
+      # .env must not override it.
+      HOST: 0.0.0.0
     depends_on:
       migrate: { condition: service_completed_successfully }
       redis: { condition: service_healthy }

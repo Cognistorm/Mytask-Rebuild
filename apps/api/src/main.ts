@@ -24,7 +24,7 @@ async function bootstrap(): Promise<void> {
   ]);
   app.getHttpServer().on('close', () => readiness.close());
 
-  await app.listen(env.PORT, '0.0.0.0');
+  await app.listen(env.PORT, env.HOST);
 }
 
 void bootstrap();
