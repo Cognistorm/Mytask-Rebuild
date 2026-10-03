@@ -8,16 +8,23 @@
 // the order: group A (owner with active Premium, PremiumStatus) before group B for every sort but the two price
 // sorts (R-S3, AC-14…AC-16); ties newest first.
 //
-// Paging: the web sends `page` (numbered pages + `totalCount`), the app sends the opaque `cursor`; both are an
-// offset into the same order. The "Recommended" mix is fixed for a Tbilisi day, so pages stay stable (EC-8).
+// Paging (`list-rules.ts`): `page` or the opaque `cursor`, both an offset into the same order. The "Recommended" mix
+// is fixed for a Tbilisi day, so pages stay stable (EC-8).
 import { Injectable } from '@nestjs/common';
 import type { Locale, Schema } from '@mytask/types';
 import { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../../platform/db/prisma.service';
 import { ApiException } from '../../platform/errors/api-exception';
-import { translate } from '../../platform/errors/messages';
 import { PremiumStatus } from '../subscriptions/premium-status';
 import { GigCards } from './gig-cards';
+import {
+  dailyMix,
+  encodeOffset,
+  fieldError,
+  LISTABLE_OWNER,
+  offsetPaging,
+  pageTail,
+} from './list-rules';
 import { containsPattern, keywordWords } from './search-text';
 
 type Sort = Schema<'SearchGigSort'>;
@@ -35,38 +42,13 @@ export interface GigSearchQuery {
   page?: number;
 }
 
-const DEFAULT_LIMIT = 20;
-const MAX_OFFSET = 100_000;
 const CATEGORY_COLUMN = {
   1: Prisma.sql`g."category_id"`,
   2: Prisma.sql`g."subcategory_id"`,
   3: Prisma.sql`g."childcategory_id"`,
 } as const;
 
-/** Owner may be listed (R-S1, P-29); `u` = users. */
-const LISTABLE_OWNER = Prisma.sql`u."status" IN ('active', 'verified') AND u."deleted_at" IS NULL AND NOT u."is_restricted"`;
 const NEWEST = Prisma.sql`g."published_at" DESC NULLS LAST, g."created_at" DESC, g."id" DESC`;
-
-/** Tbilisi calendar date (UTC+4, no daylight saving) as YYYY-MM-DD: the key of the daily mix. */
-export function tbilisiDay(now: Date): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tbilisi' }).format(now);
-}
-
-const encodeOffset = (offset: number) => Buffer.from(`o:${offset}`).toString('base64url');
-
-function fieldError(locale: Locale, field: string, code: string, messageKey: string) {
-  return new ApiException(400, 'VALIDATION_FAILED', messageKey, {
-    fields: [{ field, code, message: translate(messageKey, locale), messageKey }],
-  });
-}
-
-function decodeOffset(cursor: string, locale: Locale): number {
-  const m = /^o:(\d{1,6})$/.exec(Buffer.from(cursor, 'base64url').toString('utf8'));
-  const offset = m ? Number(m[1]) : NaN;
-  if (!(offset >= 0 && offset <= MAX_OFFSET))
-    throw fieldError(locale, 'cursor', 'format', 't_validator_regex');
-  return offset;
-}
 
 @Injectable()
 export class GigSearchService {
@@ -82,7 +64,7 @@ export class GigSearchService {
     viewerId: string | null,
     now = new Date(),
   ): Promise<Schema<'GigCardPage'>> {
-    const { limit, offset } = this.paging(query, locale);
+    const { limit, offset } = offsetPaging(query, locale);
     if (
       query.minPrice !== undefined &&
       query.maxPrice !== undefined &&
@@ -141,8 +123,7 @@ export class GigSearchService {
         locale,
         viewerId,
       ),
-      nextCursor: offset + limit < total ? encodeOffset(offset + limit) : null,
-      totalCount: total,
+      ...pageTail(offset, limit, total),
     };
   }
 
@@ -153,7 +134,7 @@ export class GigSearchService {
     locale: Locale,
     viewerId: string | null,
   ): Promise<Schema<'GigCardPage'>> {
-    const { limit, offset } = this.paging(query, locale);
+    const { limit, offset } = offsetPaging(query, locale);
     const rows = await this.prisma.$queryRaw<{ id: string }[]>`
       SELECT g."id" FROM "gigs" g JOIN "users" u ON u."id" = g."owner_id"
       WHERE u."username" = ${sellerUsername} AND g."status" = 'active' AND ${LISTABLE_OWNER}
@@ -164,19 +145,6 @@ export class GigSearchService {
       data: await this.cards.cards(ids, locale, viewerId),
       nextCursor: rows.length > limit ? encodeOffset(offset + limit) : null,
     };
-  }
-
-  private paging(query: Pick<GigSearchQuery, 'cursor' | 'limit' | 'page'>, locale: Locale) {
-    const limit = query.limit ?? DEFAULT_LIMIT;
-    // A client error only (the web sends `page`, the app `cursor`), so the generic format text is enough.
-    if (query.cursor !== undefined && query.page !== undefined) {
-      throw fieldError(locale, 'page', 'conflict', 't_validator_regex');
-    }
-    const offset =
-      query.cursor !== undefined
-        ? decodeOffset(query.cursor, locale)
-        : ((query.page ?? 1) - 1) * limit;
-    return { limit, offset };
   }
 
   /** R-S3: group A (active Premium owner) first except for the price sorts; then the sort; ties newest first. */
@@ -197,7 +165,7 @@ export class GigSearchService {
         return Prisma.sql`${groupA}, ${NEWEST}`;
       case 'recommended':
         // Daily mix (data-model §3.S): the same for everyone on a Tbilisi day.
-        return Prisma.sql`${groupA}, md5(g."id"::text || ${tbilisiDay(now)}), ${NEWEST}`;
+        return Prisma.sql`${groupA}, ${dailyMix(Prisma.sql`g."id"`, now)}, ${NEWEST}`;
     }
   }
 }
