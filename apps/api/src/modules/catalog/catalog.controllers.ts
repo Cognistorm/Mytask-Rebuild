@@ -1,7 +1,7 @@
 // Contract: listCategories, lookupCategory, getCategory (D2 `/categories`), listProjectCategories,
 // lookupProjectCategory (D2 `/project-categories`), searchGigs (`/search/gigs`), listGigs (`GET /gigs`, the profile list;
 // the gig writes of slice 3 join the `/gigs` path in their own module), searchProjects (`/search/projects`),
-// listSellers (`/sellers`), listHireSellers (`/hire/{keyword}`). Public reads of spec 03; the staff CRUD comes in
+// listSellers (`/sellers`), listHireSellers (`/hire/{keyword}`), getHome (`/home`). Public reads of spec 03; the staff CRUD comes in
 // 4.2.7/4.2.8.
 import { Controller, Get, Param, Query, Req } from '@nestjs/common';
 import type { Schema } from '@mytask/types';
@@ -10,6 +10,7 @@ import { resolveLocale } from '../../platform/errors/messages';
 import { OptionalAuth, OptionalUser, Public, type AuthState } from '../auth/auth.guard';
 import { CategoriesService } from './categories.service';
 import { GigSearchService, type GigSearchQuery } from './gig-search.service';
+import { HomeService } from './home.service';
 import { ProjectCategoriesService } from './project-categories.service';
 import { ProjectSearchService } from './project-search.service';
 import { SellerListsService } from './seller-lists.service';
@@ -145,5 +146,17 @@ export class ProjectAndSellerListsController {
     @Query() q: RawQuery,
   ): Promise<Schema<'HireSellerPage'>> {
     return this.sellers.hire(keyword, pageQuery(q), localeOf(req));
+  }
+}
+
+@Controller('home')
+export class HomeController {
+  constructor(private readonly home: HomeService) {}
+
+  /** A signed-in caller only changes `isFavorite` on the cards. */
+  @OptionalUser()
+  @Get()
+  getHome(@Req() req: Request, @OptionalAuth() viewer: AuthState | null): Promise<Schema<'Home'>> {
+    return this.home.home(localeOf(req), viewer?.userId ?? null);
   }
 }
