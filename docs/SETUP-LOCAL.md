@@ -48,7 +48,7 @@ This one command starts everything in this window (stop it with `Ctrl + C`):
 | Payments | a fake Bank of Georgia (no real payments) | — |
 | API, worker, website, admin | `pnpm dev` | — |
 
-The **first** run downloads Redis, SeaweedFS and Mailpit (about 70 MB, checked against fixed fingerprints) into `.local/tools`. It also prepares the database and prints the first Super-admin login once — copy it somewhere safe. Later starts take about a minute.
+The **first** run downloads Redis, SeaweedFS and Mailpit (about 70 MB, checked against fixed fingerprints) into `.local/tools`. It also prepares the database and prints the first Super-admin login once — copy it somewhere safe. Later starts take about a minute. While the database has no categories, a start also loads the live site's public category tree (7 categories, 49 sub-categories, 189 child categories in Georgian and English) and its 7 project categories; categories you edit later are never overwritten.
 
 Windows may ask whether to allow `redis-server`, `weed` or `mailpit` through the firewall: everything listens only on this computer, so **"Cancel"** is fine. (For the mobile app on your phone, allow **Node.js**, see section 4.)
 
