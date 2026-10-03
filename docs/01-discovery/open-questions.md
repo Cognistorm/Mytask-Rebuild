@@ -791,3 +791,24 @@ Options: (a) the legacy types without SVG (ADR-009 §5, script risk), at most 5 
 ### Q-162
 **Country field in account settings.** Spec 02 AC-29 had an optional country; legacy had it commented out; only Georgia is active.
 **Answer (Owner, 2026-10-02): remove it** ("the platform operates specifically for Georgia"). There is no country field in account settings, and the edit-profile card shows no country. `Me.countryCode` / `MeUpdateRequest.countryCode` are deprecated in contract 1.3.1. They are not removed, because ADR-014 §5 allows no breaking change in v1 (ADR-021).
+
+## Slice 02 security review 06 (orchestrator, ROADMAP 4.1.28, 2026-10-03) — open
+
+### Q-163
+**What does "Delete account" remove? (security review 06 SEC-66, with Q-147.)** Today "Delete account" behaves like legacy: the profile disappears (404) and the user is logged out everywhere. But the user's photo (avatar) and portfolio images stay downloadable by anyone who has their link, without time limit, and ID documents (KYC photos and selfie, also of declined checks) are kept with no end date. Under the Georgian personal-data law (keep data only as long as needed, delete on request), that is a risk for the platform.
+Options:
+- (a) On deletion, the avatar and portfolio images stop being public at once; the records stay for staff. KYC photos are deleted 90 days after the staff decision and at account deletion, unless there is a legal hold (as Q-147 proposes). Profile texts are pseudonymised after the retention period.
+- (b) Like (a), but KYC photos are kept until the account is deleted.
+- (c) Keep today's legacy behaviour and decide again before launch.
+
+Recommendation: (a).
+When: before Phase 5 (first real users / KYC import). Nothing in slice 02 waits on it.
+
+### Q-164
+**Should "Delete account" ask for the password? (security review 06 SEC-67.)** Changing the password or the email needs the current password, but deleting the whole account needs only the legacy confirmation dialog. So anyone with a few seconds at a signed-in computer or an unlocked phone can delete the account, and it cannot be undone.
+Options:
+- (a) Ask for the current password. Accounts that use only Google/Facebook login get an emailed 6-digit code instead (the same method as an email change). Send a "your account was deleted" email.
+- (b) Keep the confirmation dialog only (legacy).
+
+Recommendation: (a). It needs a small contract change through the architect.
+When: before Phase 5.
