@@ -133,7 +133,11 @@ describe('seed catalogue (live public tree, local only)', () => {
           expect(await loadCatalog(tx, catalog)).toBe(245);
           const byDepth = await tx.gigCategory.groupBy({
             by: ['depth'],
-            where: { legacyId: null, slug: { not: { startsWith: 't-' } } },
+            // Only the seed's own slugs: other test files leave their categories behind (c-…, gs-…).
+            where: {
+              legacyId: null,
+              slug: { in: levels(catalog.gigCategories).map(([, s]) => s) },
+            },
             _count: true,
             orderBy: { depth: 'asc' },
           });
