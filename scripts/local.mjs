@@ -192,6 +192,9 @@ try {
       '-s3',
       `-s3.port=${s3Port}`,
       `-s3.config=${s3Config}`,
+      // Security review 06 SEC-62: the filer's own HTTP API (:8888) would serve, list and accept writes to
+      // every bucket (KYC included) without the S3 identities above. Only the S3 gateway is used.
+      '-filer.disableHttp',
       '-master.volumeSizeLimitMB=128',
       '-master.telemetry=false',
       '-volume.max=0',
@@ -217,6 +220,7 @@ try {
   await waitFor('Mailpit', smtpPort);
   await waitFor('BOG mock', bogPort);
   await waitFor('SeaweedFS S3', s3Port, 120);
+  await assertFilerClosed();
   await createBuckets();
   console.log(
     `local: infrastructure up — PostgreSQL :${dbPort} · Redis :${redisPort} · S3 :${s3Port} · ` +
@@ -246,6 +250,22 @@ try {
 }
 
 /** The three buckets of ADR-009; the S3 gateway can still be warming up, so each is retried. */
+/** SEC-62: refuse to run when the filer HTTP API answers with content (it must be off or 404). */
+async function assertFilerClosed() {
+  let status = 0;
+  try {
+    status = (await fetch('http://127.0.0.1:8888/buckets/', { signal: AbortSignal.timeout(3000) })).status;
+  } catch {
+    return; // nothing listening: fine
+  }
+  if (status >= 200 && status < 400) {
+    console.error(
+      'local: the SeaweedFS filer on :8888 serves the buckets without authentication (SEC-62). Stopping.',
+    );
+    stop(1);
+  }
+}
+
 async function createBuckets() {
   const { S3Client, CreateBucketCommand, HeadBucketCommand } = createRequire(
     join(api, 'package.json'),
