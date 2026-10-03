@@ -3,13 +3,14 @@
 // (legacy `Account/Verification/VerificationComponent.php:129-393`). `getMyKyc` decides the view:
 // - no verification (or "Send files again" after a decline): document type, document photos (front + back, passport
 //   front only), selfie with the document (front camera) — then `createKycVerification`;
-// - a verification: status, date, decline reason, and the documents with Download (owner-only signed link, opened
-//   in the browser).
+// - a verification: status, date, decline reason, and the documents with View (owner-only signed link, shown in a
+//   full-screen viewer inside the app, never saved to the phone's Downloads: security review 06 SEC-70 (b)).
 // Photos use the shared upload protocol (purpose `kyc_document`, JPG/JPEG/PNG ≤ 5 MB, fixed rule AC-36). All steps
 // stay mounted (hidden) so going Back keeps the uploads. Signed-in only; a restricted account goes to its notice.
 import { Redirect } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useCallback, useEffect, useState } from 'react';
-import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Image, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { ApiClient } from '@mytask/api-client';
 import { lightTheme as theme } from '@mytask/tokens/native';
 import type { components } from '@mytask/types';
@@ -122,10 +123,12 @@ export default function VerificationScreen() {
 function Status(props: { verification: Verification; onSendAgain?: () => void }) {
   const { verification: v } = props;
   const [err, setErr] = useState<string>();
+  const [viewing, setViewing] = useState<{ url: string; label: string }>();
   const labels = SIDE_LABEL[v.documentType];
 
-  // The owner's own photo through a 2-minute signed link, opened in the browser (AC-39).
-  async function download(file: Attachment) {
+  // The owner's own photo through a 2-minute signed link (AC-39), shown inside the app. The browser would save
+  // the `attachment` answer to Downloads, possibly a synced cloud folder (SEC-70 (b)).
+  async function view(file: Attachment, label: string) {
     setErr(undefined);
     const res = await api
       .GET('/files/{fileId}/download', {
@@ -137,7 +140,7 @@ function Status(props: { verification: Verification; onSendAgain?: () => void })
         (res?.error as ApiError | undefined)?.message ?? t('t_toast_something_went_wrong'),
       );
     }
-    void Linking.openURL((res.data as components['schemas']['SignedUrl']).url);
+    setViewing({ url: (res.data as components['schemas']['SignedUrl']).url, label });
   }
 
   const status =
@@ -177,15 +180,23 @@ function Status(props: { verification: Verification; onSendAgain?: () => void })
             <Text style={s.fileLabel}>{label}</Text> – {formatBytes(file.sizeBytes)}
           </Text>
           <Pressable
-            onPress={() => void download(file)}
+            onPress={() => void view(file, label)}
             accessibilityRole="button"
-            accessibilityLabel={`${t('t_download')}: ${label}`}
+            accessibilityLabel={`${t('t_view')}: ${label}`}
             hitSlop={theme.space[2]}
+            testID={`kyc-view-${file.fileId}`}
           >
-            <Text style={s.link}>{t('t_download')}</Text>
+            <Text style={s.link}>{t('t_view')}</Text>
           </Pressable>
         </View>
       ))}
+      {viewing ? (
+        <DocumentViewer
+          url={viewing.url}
+          label={viewing.label}
+          onClose={() => setViewing(undefined)}
+        />
+      ) : null}
       {props.onSendAgain ? (
         <Button label={t('t_send_files_again')} onPress={props.onSendAgain} />
       ) : null}
@@ -363,6 +374,49 @@ function KycForm(props: {
   );
 }
 
+/** Full-screen view of one document photo; nothing is written to the phone's shared storage. */
+function DocumentViewer(props: { url: string; label: string; onClose: () => void }) {
+  const [state, setState] = useState<'loading' | 'shown' | 'failed'>('loading');
+  return (
+    <Modal visible animationType="fade" onRequestClose={props.onClose}>
+      <SafeAreaView style={s.viewer} accessibilityViewIsModal testID="kyc-viewer">
+        <View style={s.viewerHead}>
+          <Text style={s.viewerTitle} accessibilityRole="header" numberOfLines={1}>
+            {props.label}
+          </Text>
+          <Pressable
+            onPress={props.onClose}
+            accessibilityRole="button"
+            accessibilityLabel={t('t_close')}
+            hitSlop={theme.space[3]}
+            testID="kyc-viewer-close"
+          >
+            <Text style={s.viewerClose}>{t('t_close')}</Text>
+          </Pressable>
+        </View>
+        <View style={s.viewerBody}>
+          {state === 'failed' ? (
+            <Notice kind="error" text={t('t_toast_something_went_wrong')} />
+          ) : (
+            <Image
+              source={{ uri: props.url }}
+              style={s.viewerImage}
+              resizeMode="contain"
+              accessibilityLabel={props.label}
+              accessibilityIgnoresInvertColors
+              onLoad={() => setState('shown')}
+              onError={() => setState('failed')}
+            />
+          )}
+          {state === 'loading' ? (
+            <ActivityIndicator style={s.viewerSpinner} color={theme.colors.text.inverse} />
+          ) : null}
+        </View>
+      </SafeAreaView>
+    </Modal>
+  );
+}
+
 const s = StyleSheet.create({
   step: { gap: theme.space[4] },
   hidden: { display: 'none' },
@@ -380,4 +434,17 @@ const s = StyleSheet.create({
   fileText: { ...theme.text.bodySm, color: theme.colors.text.primary, flex: 1 },
   fileLabel: { ...theme.text.label },
   link: { ...theme.text.label, color: theme.colors.text.link, textDecorationLine: 'underline' },
+  viewer: { flex: 1, backgroundColor: theme.colors.bg.inverse },
+  viewerHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: theme.space[3],
+    padding: theme.space[4],
+  },
+  viewerTitle: { ...theme.text.title, color: theme.colors.text.inverse, flex: 1 },
+  viewerClose: { ...theme.text.label, color: theme.colors.text.inverse },
+  viewerBody: { flex: 1, justifyContent: 'center', padding: theme.space[4] },
+  viewerImage: { flex: 1, width: '100%' },
+  viewerSpinner: { ...StyleSheet.absoluteFill },
 });
