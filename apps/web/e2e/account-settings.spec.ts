@@ -108,6 +108,28 @@ async function fillCode(page: Page, code: string) {
   for (let i = 0; i < code.length; i += 1) await boxes.nth(i).fill(code[i]!);
 }
 
+test('phones: the form comes before the account card, which stays below it with the theme switch (QA 4.1.26 BUG-03)', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await fakeApi(page);
+  await page.goto('/en/account/settings');
+  const form = page.getByTestId('settings-form');
+  const nav = page.getByRole('navigation', { name: 'Account settings' });
+  await expect(form).toBeVisible();
+  await expect(nav).toBeAttached();
+  const formBox = await form.boundingBox();
+  const navBox = await nav.boundingBox();
+  expect(formBox!.y).toBeLessThan(navBox!.y);
+  expect(formBox!.y).toBeLessThan(844);
+
+  // Desktop keeps the legacy side card on the left.
+  await page.setViewportSize({ width: 1280, height: 900 });
+  const wideForm = await form.boundingBox();
+  const wideNav = await nav.boundingBox();
+  expect(wideNav!.x).toBeLessThan(wideForm!.x);
+});
+
 test('opens from the account menu; fields prefilled; account links with the current page marked (AC-29, AC-35)', async ({
   page,
 }) => {

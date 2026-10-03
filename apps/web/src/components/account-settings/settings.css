@@ -36,3 +36,12 @@
   padding-block-start: var(--mt-space-4);
   border-block-start: var(--mt-border-width-hairline) solid var(--mt-border-subtle);
 }
+
+/* Phones and tablets (below lg): the page content comes first and the account card follows it (QA 4.1.26
+   BUG-03). Legacy hides the account sidebar below lg; the dashboard menu has the same links, and the theme
+   switch stays reachable under the content. */
+@media (max-width: 1023.98px) {
+  .mt-account-side {
+    order: 1;
+  }
+}

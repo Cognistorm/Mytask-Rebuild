@@ -132,7 +132,7 @@ export function AccountSettings() {
     <div className="mt-edit" data-testid="account-settings">
       <h1 className="mt-edit-title">{t('t_account_settings')}</h1>
       <div className="mt-edit-layout">
-        <div className="mt-edit-side">
+        <div className="mt-edit-side mt-account-side">
           <AccountNav t={t} locale={locale} me={me} current="settings" />
         </div>
         <div className="mt-edit-main">

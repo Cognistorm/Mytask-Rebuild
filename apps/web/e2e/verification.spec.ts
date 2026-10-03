@@ -327,6 +327,11 @@ test('Georgian is the default; phone (360 px) has no horizontal scroll', async (
   await page.goto('/account/verification');
   await expect(page.getByRole('heading', { level: 1, name: 'ვერიფიკაცია' })).toBeVisible();
   await expect(page.getByLabel('პირადობის დამადასტურებელი მოწმობა')).toBeVisible();
+  // The form is on the first screen; the account card follows it (QA 4.1.26 BUG-03).
+  const formBox = await page.getByTestId('kyc-form').boundingBox();
+  const navBox = await page.locator('.mt-account-nav').boundingBox();
+  expect(formBox!.y).toBeLessThan(780);
+  expect(formBox!.y).toBeLessThan(navBox!.y);
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
   );

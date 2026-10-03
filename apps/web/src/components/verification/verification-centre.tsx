@@ -87,7 +87,7 @@ export function VerificationCentre() {
         <p className="mt-edit-block-hint">{t('t_verification_center_subtitle')}</p>
       </div>
       <div className="mt-edit-layout">
-        <div className="mt-edit-side">
+        <div className="mt-edit-side mt-account-side">
           <AccountNav t={t} locale={locale} me={me} current="verification" />
         </div>
         <div className="mt-edit-main">
