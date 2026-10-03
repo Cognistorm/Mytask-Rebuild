@@ -141,12 +141,23 @@ Remaining:
 - [x] 4.1.26 QA parity report for slice 1 → `docs/06-qa/reports/` (split 2026-10-03 into a/b, as 3.15):
   - [x] 4.1.26a Test plan `docs/06-qa/plans/02-profiles.md` (spec 02 AC → test case → evidence) + run every automated suite (lint, typecheck, API, web/admin E2E incl. the full-stack `profiles-main-flow` on a throw-away DB, mobile export) + API-level checks of the ACs on the running local stack; report part 1. Done 2026-10-03: interim result no blocker/major; all suites PASS (lint+typecheck 19/19, API 395 + 19 new QA probes `qa-slice02.test.ts`, web E2E 108/108 + 3 skipped, admin E2E 17/17 on the stack incl. `profiles-main-flow`, expo export, S3 integration 5/5), 33/33 stack checks (local images load; no anonymous listing, root, `private/`, `kyc/`); 3 minor findings F-01…F-03 (test/local env), 5 notes for 4.1.27/4.1.26b; see `docs/06-qa/reports/02-profiles-2026-10-03.md` (part 1 of 2).
   - [x] 4.1.26b Screen parity vs live site and `/legacy/` (web + app + admin queues; every image screen now that local public images load), i18n check, cross-client check (web ↔ app), bugs + verdict; report complete. Done 2026-10-03: verdict **FAIL** (1 major: BUG-01 default English Next.js 404 page on the web, incl. the AC-9 profile 404; 5 minor BUG-02…06, F-04 spec text; DEV-P1 for the Owner; DEV-M1 still recommend approve); screens, image audit (0 broken, non-square avatars cropped square), i18n 534 keys en+ka, cross-client 9/9 and emails PASS; see `docs/06-qa/reports/02-profiles-2026-10-03.md` §7–§15.
-- [ ] 4.1.27 Security review (personal data, uploads, KYC).
-- [ ] 4.1.28 Fix findings (QA 4.1.26 §14: BUG-01 major, BUG-03, BUG-04, BUG-05, F-04; security 4.1.27), then QA re-check §15. BUG-02 and BUG-06 closed: Owner approved DEV-P1 on 2026-10-03 (4 share targets + Copy link, no QR; no breadcrumbs on dashboard pages).
-- [ ] 4.1.29 PR + CI + STATUS.
-- [ ] 4.1.30 Owner click-through.
+- [x] 4.1.27 Security review (personal data, uploads, KYC). Done 2026-10-03: review 06 `docs/06-qa/security/06-slice-02-profiles-2026-10-03.md` **PASS with conditions** (0 Critical/High; Medium SEC-62…66, Low SEC-67…71, Info I-30…37; 4 before-merge items); QA notes N-1, N-2 accepted (I-30, I-31), N-4 → SEC-66 (Owner Q-163).
+- [x] 4.1.28 Fix findings (QA 4.1.26 §14: BUG-01 major, BUG-03, BUG-04, BUG-05, F-04; security 4.1.27), then QA re-check §15. BUG-02 and BUG-06 closed: Owner approved DEV-P1 on 2026-10-03 (4 share targets + Copy link, no QR; no breadcrumbs on dashboard pages). Done 2026-10-03: QA fixes BUG-01 (localised 404 for both root layouts + catch-all, `x-mt-locale` from the proxy), BUG-03 (account card below the content under lg), BUG-04 (`inSentence` in `@mytask/i18n`, EV-126 trims the final "."), BUG-05, F-04, then BUG-08 from the re-check; security before-merge SEC-62 (SeaweedFS `-filer.disableHttp` + start-up check), SEC-63 (copy only the scanned ETag, late quarantine cleanup, POST 10 min), SEC-64 stop-gap (unattached public images deleted after 24 h), SEC-65 (client IP on the web/admin upstreams + CI step), SEC-70a (`no-store` signed links), SEC-73 + I-38 from re-check 07; QA re-check §16 **PASS with notes** (BUG-08 fixed, F-05 → 4.2.0), security re-check 07 **PASS, merge allowed**; Owner questions Q-163/Q-164 (SEC-66/67); carry-over in 4.2.0, 5.0, 6.12; handoffs `docs/handoffs/2026-10-03-qa-engineer-to-orchestrator-4-1-28-recheck.md`, `…-security-reviewer-to-orchestrator-4-1-28-security-recheck.md`.
+- [x] 4.1.29 PR + CI + STATUS. Done 2026-10-03 **locally** (Owner rule 2026-10-02: no push/PR until Phase 4 is complete): every CI step run on this computer and green (gen, tokens, i18n, format, lint+typecheck+test 22/22, build, web E2E 110 + admin E2E 12; Docker job waits for the push); PR text ready in `docs/handoffs/2026-10-03-orchestrator-to-owner-4-1-29-pr-feat-profiles.md`.
+- [ ] 4.1.30 Owner click-through: checklist `docs/06-qa/plans/02-profiles-owner-click-through.md` (web + admin + app, ~30–40 min); the Owner ticks it and approves slice 1.
 
 ### 4.2 Slice 2 — spec 03 Categories and search (branch `feat/catalog-search`)
+- [ ] 4.2.0 Slice 1 carry-over from security reviews 06 §6.2 and 07 §6, none blocking (added 2026-10-03):
+  - backend: SEC-75 (after the copy of an as-uploaded file, compare its SHA-256 with the scan's checksum; must be done before slice 05/07, when users first download each other's files);
+  - backend: SEC-74 (portfolio save marks its files inside the transaction so the unattached cleanup cannot delete them; `views()` degrades instead of throwing);
+  - devops: QA N-13 (parallel `turbo` tasks race on `prisma generate`, `EEXIST … generated/prisma/models`: generate once before the parallel tasks);
+  - web: QA F-05 ("Contact us" button on the 404 page once the spec 17 contact page exists; or the Owner drops it);
+  - devops: I-41 (prove in CI that SSR calls carry the visitor IP, not only the 404 page);
+  - backend: SEC-69 (EV-14 only when an item enters `pending`) — the architect adds a per-user portfolio-save `x-rate-limit` to the contract first;
+  - backend: I-33 (lower pixel limit for avatar/portfolio images, cap on files in `scanning` per user);
+  - mobile: SEC-70 (b) (KYC document shown inside the app, not saved to Downloads);
+  - architect: I-31 contract text ("every attempt counts" on `createUserReport`), I-30 ADR-002 §2 sentence;
+  - devops: SEC-71 (`pnpm local` servers on 127.0.0.1); SEC-54 (`.local/` and `apps/api/.pglite` in `.dockerignore`).
 - [ ] 4.2.1 Spec check.
 - [ ] 4.2.2 Data model: gig categories (3 levels), project categories, skills + seed.
 - [ ] 4.2.3 API: `listCategories`, `lookupCategory`, `getCategory`, `listProjectCategories`, `lookupProjectCategory`.
@@ -499,6 +510,7 @@ Remaining:
 ---
 
 ## Phase 5 — Data migration (data-migration-engineer; mapping in `data-model.md`; nothing touches production)
+- [ ] 5.0 Before any real data (security reviews 06 §6.2 and 07 §6): SEC-72 (SeaweedFS master/volume ports of `pnpm local` reachable from any browser page: random ports or a credential, import on a stack nobody browses from, back up `.local/data/s3`); SEC-64 publish-on-approval for public images (architect ADR-009 amendment + backend); SEC-66 / SEC-67 per the Owner's answers to Q-163 / Q-164; SEC-68 (`updateMe` email enumeration, with SEC-38); I-32 (the ETL drops non-`http(s)` legacy links); KYC retention (Q-147) before the KYC import.
 - [!] 5.1 Owner provides a local copy of the production database (Q-049 risk; needed before 5.3).
 - [ ] 5.2 `tools/migrate-legacy` skeleton: MySQL reader, PostgreSQL writer, run report.
 - [ ] 5.3 Users, profiles, social accounts (`provider_name`/`provider_id`), legacy password hashes.
@@ -533,7 +545,7 @@ Remaining:
 - [ ] 6.9 Full migration rehearsal on staging.
 - [ ] 6.10 301 redirects + SEO check on staging.
 - [ ] 6.11 Load test.
-- [ ] 6.12 Final security review + pre-launch checklist (incl. ADR-019 §5 Clarity "Strict" masking and §7 re-entering GA4/Clarity with their S-127 hosts).
+- [ ] 6.12 Final security review + pre-launch checklist (incl. ADR-019 §5 Clarity "Strict" masking and §7 re-entering GA4/Clarity with their S-127 hosts; from review 06 §6.2: SEC-70 (c) encryption at rest for `kyc`, SEC-71 Next.js only behind Caddy, I-35 admin CSP with the storage origin in `img-src`, I-36 `pnpm audit --prod` re-run, SEC-49 per-user rate-limit keys; from review 07: I-39 storage lifecycle rule expiring `quarantine/` + Redis without eviction, I-42 CDN purge when public images are deleted).
 - [ ] 6.12a Mobile E2E harness (Maestro on an emulator/simulator with a dev build, not Expo Go) + main-flow tests for every app screen built in Phase 3–4 (Owner decision 2026-10-03: automation waits for Phase 6; until then the manual SETUP-LOCAL §4 steps).
 - [ ] 6.13 Mobile: EAS production builds.
 - [ ] 6.14 Mobile: store listings + submission for iOS and Android (ADR-016).
