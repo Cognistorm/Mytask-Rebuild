@@ -638,7 +638,7 @@
     x-covers: ['04 AC-37', '04 AC-38']
     x-settings: [S-100]
     x-notifications: [EV-22]
-    x-rate-limit: 10 reports per user per hour, shared by createUserReport, createGigReport, createProjectReport and createProposalReport (SEC-23)
+    x-rate-limit: 10 reports per user per hour, shared by createUserReport, createGigReport, createProjectReport and createProposalReport; every attempt counts, before the target check, also one refused with 400, 403 or 404 (SEC-23, I-31)
     requestBody:
       required: true
       content:

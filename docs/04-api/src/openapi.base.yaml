@@ -5,7 +5,7 @@
 openapi: 3.1.0
 info:
   title: MyTask.ge API
-  version: 1.3.1
+  version: 1.3.2
   summary: One API for the MyTask.ge website, mobile apps (iOS, Android) and admin panel.
   description: |
     **Status: approved by the Owner 2026-09-30 as the contract** (Phase 2 gate, version 1.0.0, including
@@ -20,7 +20,9 @@ info:
     switch and hourly cap (Q-159); **1.2.4** (descriptions only) reCAPTCHA action and host per form (SEC-47); **1.3.0** new error
     `422 CUSTOM_CODE_HOST_DENIED` on `adminUpdateSetting` / `adminRestoreSettingVersion` (built-in
     tag-manager deny list, ADR-019 §3, Q-158 (a)); **1.3.1** `Me.countryCode` and `MeUpdateRequest.countryCode`
-    marked deprecated (no country field in account settings, ADR-021, Owner 2026-10-02).
+    marked deprecated (no country field in account settings, ADR-021, Owner 2026-10-02); **1.3.2** `x-rate-limit`
+    30 saves per user per hour on `createPortfolioItem` / `updatePortfolioItem` with `429` (ADR-022, SEC-69), and
+    "every attempt counts" on the shared report limit (I-31).
 
     **The contract is the law** (CLAUDE.md). Web (`apps/web`), mobile (`apps/mobile`) and admin
     (`apps/admin`) use only this API through the generated `packages/types` + `packages/api-client`

@@ -825,3 +825,14 @@ Options:
 - (c) Keep the original direction.
 
 **Answer (Owner, 2026-10-03): (c) keep the original direction.** The design rules and layout stay as in CLAUDE.md → Mission ("modernise, don't reinvent"); tokens, components and screens are unchanged. Priority is a solid rebuild with web and mobile working seamlessly together. The roadmap continues as planned (next: 4.1.30).
+
+## Slice 02 carry-over (architect, ROADMAP 4.2.0c, 2026-10-03)
+
+### Q-166
+**Should a portfolio item that is already waiting for approval send the admin email again when it is saved? (security review 06 SEC-69.)** With "auto-approve portfolio" OFF (S-071, the default), every save of a portfolio item emails every admin address (EV-14 "New portfolio pending approval"). Legacy does the same, and the contract says so ("EV-14 is sent again"). A user who edits an item that is already waiting therefore sends the admins a new email each time. A new limit of 30 saves per user per hour (ADR-022) now caps this in any case.
+Options:
+- (a) Email the admins only when an item **enters** "waiting for approval": a new item, or an edit of a published or rejected item. Edits of an item that is already waiting send no new email; the item stays in the queue with its latest content.
+- (b) Keep legacy: email on every save (capped at 30 per user per hour by ADR-022).
+
+Recommendation: (a). The admins get one email per item to review, not one per edit.
+When: before 4.2.0d (backend). The rate limit in 4.2.0d does not wait on it.
