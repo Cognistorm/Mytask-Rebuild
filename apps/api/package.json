@@ -23,6 +23,7 @@
     "@aws-sdk/s3-presigned-post": "3.1144.0",
     "@aws-sdk/s3-request-presigner": "3.1144.0",
     "@mytask/i18n": "workspace:*",
+    "@mytask/rich-text": "workspace:*",
     "@nestjs/common": "11.2.7",
     "@nestjs/core": "11.2.7",
     "@nestjs/platform-express": "11.2.7",
@@ -41,6 +42,7 @@
     "pino-http": "11.0.0",
     "reflect-metadata": "0.2.2",
     "rxjs": "7.8.2",
+    "sanitize-html": "2.17.5",
     "sharp": "0.35.5",
     "ua-parser-js": "1.0.41",
     "zod": "4.6.5"
@@ -59,6 +61,7 @@
     "@types/node": "24.19.0",
     "@types/nodemailer": "8.0.2",
     "@types/pg": "8.23.1",
+    "@types/sanitize-html": "2.16.2",
     "@types/supertest": "7.2.1",
     "@types/ua-parser-js": "^0.7.39",
     "concurrently": "10.0.5",

@@ -17,6 +17,7 @@ import { LoggingModule } from './platform/logging/logging.module';
 import { PublicConfigModule } from './platform/public-config/public-config.module';
 import { OutboxModule } from './platform/outbox/outbox.module';
 import { RedisModule } from './platform/redis/redis.module';
+import { RichTextModule } from './platform/rich-text/rich-text';
 import { SettingsModule } from './platform/settings/settings.module';
 import { StorageModule } from './platform/storage/storage';
 
@@ -32,6 +33,7 @@ import { StorageModule } from './platform/storage/storage';
     ClientIpModule,
     OutboxModule,
     AuditModule,
+    RichTextModule,
     PremiumModule,
     IdempotencyModule,
     AuthModule,
