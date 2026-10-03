@@ -144,7 +144,7 @@ Accessibility: switcher items have `aria-current` and text labels on all sizes (
 | `YouBecameSeller` / `t_u_became_a_seller` | – | – | dropped (Q-013, X-06) | removed |
 
 ## Texts (i18n key | en | ka)
-Legacy keys reused (values unchanged). The Owner may want to refine `t_basic` (ka value is a joke: "გაქცეულს მოვაბრუნებ") and `t_verifications` (ka value is English).
+Legacy keys reused (values unchanged). The Owner may want to refine `t_basic` (ka value is a joke: "გაქცეულს მოვაბრუნებ") and `t_verifications` (the legacy ka value was English; now "ვერიფიკაციები", design §7.4; QA 4.1.26 F-04).
 | Key | en | ka |
 |---|---|---|
 | `t_switch_to_selling` | Switch to selling | ფრილანსერის პროფილი |
@@ -173,7 +173,7 @@ Legacy keys reused (values unchanged). The Owner may want to refine `t_basic` (k
 | `t_local_time` | Local time | ლოკალური დრო |
 | `t_last_delivery` | Last delivery | ბოლოს მიწოდებული ნამუშევარი |
 | `t_member_since` | Member since | შემოუერთდა |
-| `t_verifications` | Verifications | Verifications |
+| `t_verifications` | Verifications | ვერიფიკაციები |
 | `t_verified` | Verified | ვერიფიცირებული |
 | `t_account_verified` | Account verified | პროფილი ვერიფიცირებულია |
 | `t_email_address` | E-mail address | ელ-ფოსტა |
@@ -237,7 +237,7 @@ NEW keys (English first, Georgian alongside, Q-058):
 | `t_no_reviews_yet` | No reviews yet | შეფასებები ჯერ არ არის |
 | `t_id_verified` | ID verified | პირადობა დადასტურებულია |
 | `t_request_an_offer` | Request an offer | შეთავაზების მოთხოვნა |
-| `t_total_reach` | Total reach | ჯამური ნახვები |
+| `t_total_reach` | Total reach | მთლიანად მიაღწია — not new: a legacy key (`legacy/APP/lang/ka/messages.php:4350`), value kept (QA 4.1.26 F-04) |
 | `t_orders_in_progress` | Orders in progress | მიმდინარე შეკვეთები |
 | `t_create_new_gig` | Create a new gig | ახალი განცხადების შექმნა |
 | `t_dashboard_empty_selling` | You have no sales yet. Create your first gig to start selling. | გაყიდვები ჯერ არ გაქვთ. გაყიდვის დასაწყებად შექმენით პირველი განცხადება. |
