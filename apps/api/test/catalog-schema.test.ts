@@ -171,7 +171,6 @@ describe('gig category tree', () => {
   it('sets the depth from the parent and refuses a fourth level', async () => {
     const { top, sub, child } = await branch();
     expect([top.depth, sub.depth, child.depth]).toEqual([1, 2, 3]);
-    // Expected failures run without nested rows (no transaction), see ROADMAP 4.2.0g.
     await expect(
       prisma.gigCategory.create({ data: { parentId: child.id, depth: 1, slug: slug('fourth') } }),
     ).rejects.toThrow();
@@ -247,8 +246,6 @@ describe('project categories and skills', () => {
       translations: { create: [{ locale: 'ka' as const, name: 'Laravel' }] },
     };
     await prisma.skill.create({ data: { ...s, projectCategoryId: a.id } });
-    // Without nested rows (no transaction): local PGlite answers the next query wrongly after an error inside a
-    // transaction (ROADMAP 4.2.0g).
     await expect(
       prisma.skill.create({ data: { slug: s.slug, projectCategoryId: a.id } }),
     ).rejects.toThrow();
