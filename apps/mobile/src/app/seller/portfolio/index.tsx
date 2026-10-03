@@ -17,6 +17,7 @@ import { loadSession, mobileApi } from '../../../lib/api';
 import { takeFlash } from '../../../lib/flash';
 import { createT } from '../../../lib/i18n';
 import { PORTFOLIO_PAGE_SIZE, type PortfolioItemCard } from '../../../lib/profile';
+import { inSentence } from '@mytask/i18n';
 
 const locale = 'ka' as const;
 const t = createT(locale);
@@ -181,7 +182,7 @@ export default function MyPortfolioScreen() {
                 </Pressable>
                 {reasons[card.id] ? (
                   <Text style={s.reason} testID="rejection-reason">
-                    {t('t_portfolio_rejected_reason', { reason: reasons[card.id] })}
+                    {t('t_portfolio_rejected_reason', { reason: inSentence(reasons[card.id]) })}
                   </Text>
                 ) : null}
                 <View style={s.actions}>

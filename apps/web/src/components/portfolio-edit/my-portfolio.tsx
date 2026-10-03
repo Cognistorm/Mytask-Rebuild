@@ -12,6 +12,7 @@ import { Alert, Dialog, Pill, Skeleton } from '@mytask/ui/web';
 import { href, useApi, useLocale, useT, type ApiErrorBody } from '../../lib/client';
 import { useDashboard } from '../dashboard/shell';
 import './portfolio.css';
+import { inSentence } from '@mytask/i18n';
 
 type Card = components['schemas']['PortfolioItemCard'];
 
@@ -187,7 +188,7 @@ export function MyPortfolio() {
                 </div>
                 {reasons[card.id] && (
                   <p className="mt-pf-reason" data-testid="rejection-reason">
-                    {t('t_portfolio_rejected_reason', { reason: reasons[card.id] })}
+                    {t('t_portfolio_rejected_reason', { reason: inSentence(reasons[card.id]) })}
                   </p>
                 )}
               </li>

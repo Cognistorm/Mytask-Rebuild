@@ -147,7 +147,7 @@ function item(c, viewer) {
     thumbnail: c.thumbnail,
     images: [image(`${c.uid}-1`), image(`${c.uid}-2`)],
     status: c.status,
-    rejectionReason: c.status === 'rejected' ? 'Images are blurry' : null,
+    rejectionReason: c.status === 'rejected' ? 'Images are blurry.' : null,
     rejectedAt: c.status === 'rejected' ? '2026-10-01T10:00:00Z' : null,
     owner: SUMMARY,
     isOwn: viewer === 'owner',

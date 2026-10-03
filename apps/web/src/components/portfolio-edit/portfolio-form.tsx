@@ -13,6 +13,7 @@ import { href, splitErrors, useApi, useLocale, useT, type ApiErrorBody } from '.
 import { useDashboard } from '../dashboard/shell';
 import { ImageUploader } from './image-uploader';
 import './portfolio.css';
+import { inSentence } from '@mytask/i18n';
 
 type Item = components['schemas']['PortfolioItem'];
 
@@ -109,7 +110,7 @@ export function PortfolioForm({ item }: { item?: Item }) {
           <Pill tone="danger">{t('t_portfolio_status_rejected')}</Pill>
           {item.rejectionReason && (
             <Alert kind="error">
-              {t('t_portfolio_rejected_reason', { reason: item.rejectionReason })}
+              {t('t_portfolio_rejected_reason', { reason: inSentence(item.rejectionReason) })}
             </Alert>
           )}
         </div>

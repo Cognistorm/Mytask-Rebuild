@@ -17,6 +17,7 @@ import { lightTheme as theme } from '@mytask/tokens/native';
 import type { components } from '@mytask/types';
 import type { PortfolioItemCard, UserSummary } from '../lib/profile';
 import { Avatar, OutlineButton, Pill, PortfolioCard, VerifiedMark } from './profile';
+import { inSentence } from '@mytask/i18n';
 
 type ImageVariants = components['schemas']['ImageVariants'];
 type T = (key: string, vars?: Record<string, string | number>) => string;
@@ -59,7 +60,7 @@ export function StatusNote(props: { status: 'pending' | 'rejected'; reason: stri
         <>
           <Pill tone="danger" label={t('t_portfolio_status_rejected')} />
           <Text style={s.noteText}>
-            {t('t_portfolio_rejected_reason', { reason: props.reason ?? '' })}
+            {t('t_portfolio_rejected_reason', { reason: inSentence(props.reason) })}
           </Text>
         </>
       )}

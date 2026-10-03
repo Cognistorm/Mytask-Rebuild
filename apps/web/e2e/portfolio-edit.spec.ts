@@ -68,7 +68,8 @@ function item(n: number, status: Status, extra: Record<string, unknown> = {}) {
     thumbnail: image(`thumb-${n}`),
     images: [image(`img-${n}-a`), image(`img-${n}-b`)],
     status,
-    rejectionReason: status === 'rejected' ? 'Images are blurry' : null,
+    // Ends with a full stop: the text must not show ".." (QA 4.1.26 BUG-04).
+    rejectionReason: status === 'rejected' ? 'Images are blurry.' : null,
     rejectedAt: status === 'rejected' ? '2026-10-01T10:00:00Z' : null,
     owner: OWNER,
     isOwn: true,

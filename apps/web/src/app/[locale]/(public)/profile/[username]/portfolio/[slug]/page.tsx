@@ -15,6 +15,7 @@ import { OwnerBox } from '../../../../../../../components/profile/parts';
 import { href } from '../../../../../../../lib/href';
 import { getT, toLocale } from '../../../../../../../lib/i18n';
 import { pageTitle } from '../../../../../../../lib/page-title';
+import { inSentence } from '@mytask/i18n';
 
 type Params = { params: Promise<{ locale: string; username: string; slug: string }> };
 
@@ -71,7 +72,7 @@ export default async function PortfolioItemPage({ params }: Params) {
         <div className="mt-profile-notice" role="note" data-testid="rejected-note">
           <Pill tone="danger">{t('t_portfolio_status_rejected')}</Pill>
           <p className="mt-profile-notice-text">
-            {t('t_portfolio_rejected_reason', { reason: item.rejectionReason ?? '' })}
+            {t('t_portfolio_rejected_reason', { reason: inSentence(item.rejectionReason) })}
           </p>
         </div>
       )}

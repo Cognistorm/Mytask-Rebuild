@@ -69,6 +69,19 @@ describe('spec 02 emails (EV-11…EV-18, EV-126)', () => {
     expect(notice.text).toContain('new@example.com');
   });
 
+  it('EV-126: a reason that ends with a full stop is not followed by a second one (QA 4.1.26 BUG-04)', () => {
+    for (const locale of ['ka', 'en'] as const) {
+      const mail = renderEmail({
+        ...base,
+        locale,
+        event: 'EV-126',
+        params: { title: 'Logo', reason: ' Images are too dark. ' },
+      });
+      expect(mail.text).toContain('Images are too dark.');
+      expect(mail.text).not.toContain('dark..');
+    }
+  });
+
   it('escapes user text in the HTML part (EV-126 title and reason)', () => {
     const mail = renderEmail({
       ...base,
