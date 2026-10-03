@@ -154,21 +154,25 @@ Remaining:
   - [x] 4.2.0d backend: SEC-69 (the ADR-022 rate limit; EV-14 only when an item enters `pending` **only if the Owner answers Q-166 (a)**); I-33 (lower pixel limit for avatar/portfolio images, cap on files in `scanning` per user). Done 2026-10-03 (Owner Q-166 (a)): 30 portfolio saves per user per hour shared by create/update (`hitHourly`, also used by `ReportLimiter` now), 429 + Retry-After; EV-14 only when an item enters `pending`; spec 02 AC-25 + Texts row, spec 15 EV-14, ADR-022 §4 and the `updatePortfolioItem` description (contract 1.3.2) updated. I-33: public image variants from **one** decode (was three) + `sequentialRead`; at most 2 files of one owner per sweeper pass; pixel limit kept at 100 MP (40 MP would refuse 48–50 MP phone photos; reason in `file-scan.service.ts`). 4 new tests, 1 adjusted; API 432 passed / 6 skipped; repo lint + typecheck green; verify:final 0/0.
   - [x] 4.2.0e devops: QA N-13 (parallel `turbo` tasks race on `prisma generate`, `EEXIST … generated/prisma/models`: generate once before the parallel tasks); I-41 (prove in CI that SSR calls carry the visitor IP, not only the 404 page); SEC-71 (`pnpm local` servers on 127.0.0.1); SEC-54 (`.local/` and `apps/api/.pglite` in `.dockerignore`). Done 2026-10-03: N-13 turbo task `generate` (api `prisma generate`, cached on schema/config/package.json) that `lint`/`typecheck`/`test` depend on, removed from the api `typecheck`/`test` scripts (`build` keeps it for the Dockerfile); `turbo run lint typecheck test --force` 23/23 in parallel, generate once. I-41: `ipSource` (`peer`/`edge`/`ssr-visitor`) on every API request log line (`ipSourceProps`, unit test) + CI step: the `/profile/ci_nobody_here` SSR call is logged `ssr-visitor` (runs in the Docker CI job only, not locally). SEC-71: API `HOST` (default `127.0.0.1`; Dockerfile and compose `0.0.0.0`; phone testing sets `HOST=0.0.0.0`, SETUP-LOCAL §4 + `.env.example`), web/admin `next dev --hostname 127.0.0.1`. SEC-54: `.local` and `apps/api/.pglite` in `.dockerignore`. API 433 passed / 6 skipped.
   - [x] 4.2.0f mobile: SEC-70 (b) (KYC document shown inside the app, not saved to Downloads). Done 2026-10-03: the verification status card's "Download" is now "ნახვა" (View, existing key `t_view`) and opens the photo in a full-screen in-app viewer (React Native `Image` from the 2-minute signed link, loading spinner, error notice, Close `t_close`); no browser, nothing in Downloads (the Android image cache stays inside the app's private storage; iOS honours the `no-store` of SEC-70 (a)); the website keeps "Download"; SETUP-LOCAL §4 step 16 updated; mobile lint + typecheck green, `expo export` iOS 1315 / Android 1450 modules. No new i18n key. **4.2.0 complete.**
-- [ ] 4.2.1 Spec check.
-- [ ] 4.2.2 Data model: gig categories (3 levels), project categories, skills + seed.
-- [ ] 4.2.3 API: `listCategories`, `lookupCategory`, `getCategory`, `listProjectCategories`, `lookupProjectCategory`.
-- [ ] 4.2.4 API: `searchGigs`, `listGigs` (ranking, Premium "Featured").
-- [ ] 4.2.5 API: `searchProjects`, `listSellers`, `listHireSellers`.
-- [ ] 4.2.6 API: `getHome`.
-- [ ] 4.2.7 API admin: gig category CRUD (`adminListCategories`… 5 ops).
-- [ ] 4.2.8 API admin: project categories + skills CRUD.
-- [ ] 4.2.9 Web: header category menu + category page.
-- [ ] 4.2.10 Web: search results + gig card.
-- [ ] 4.2.11 Web: `/sellers`, `/hire/{keyword}`, explore projects.
-- [ ] 4.2.12 Web: home gig rows.
-- [ ] 4.2.13 Admin: catalog screens.
-- [ ] 4.2.14 Mobile: browse + search.
-- [ ] 4.2.15 Mobile: category pages.
+- [x] 4.2.1 Spec check. Done 2026-10-03: contract 1.3.2 complete (33 API ACs all covered, 4 NOT-API correct), no contract change, no new Owner question; 2 data-model gaps for the architect (category `description` per language; old-slug store for spec 16 AC-60 / spec 17 AC-10); the `gigs` core table moves from 4.3.2 to 4.2.2b (search cannot be built without it); no public header/footer/home exists yet (new 4.2.9a); 9 missing i18n keys; neutral values for later slices (Premium = slice 8, ratings 6, sales 5, visits/favourites/thumbnails 3, projects 9, logos/articles 16); task gaps added to 4.2.2–4.2.15 below; see `docs/handoffs/2026-10-03-orchestrator-to-architect-backend-web-mobile-4-2-1-spec-03-check.md`.
+- [ ] 4.2.2 Data model (split 2026-10-03 into a/b):
+  - [ ] 4.2.2a Architect: data-model §3.C `gig_category_translations.description` (≤ 300, per language; legacy single `description` → `ka` row in §12.2) and a store of old slugs for gig categories (`AdminCategory.previousSlugs`, spec 16 AC-60, spec 17 AC-10/EC-3), designed once so CMS pages and blog articles reuse it in slice 16. No contract change expected (if needed: ADR first). 4.2.1 handoff §B.
+  - [ ] 4.2.2b Backend: migration for `gig_categories` (+ translations, depth trigger), `project_categories` (+ translations, link to a top-level gig category), `skills` (+ translations), the old-slug store of 4.2.2a, the **gigs core** (`gigs` + `gig_translations` exactly as §3.D; the rest of §3.D stays in 4.3.2) and `search_documents` (§3.S, GIN `gin_trgm_ops`); local seed = the live site's public category tree, project categories and skills (ka + en names, slugs; source in the seed file; Phase 5 replaces it); the 9 missing i18n keys (7 NEW of spec 03 + `t_content_shown_in_georgian`, `t_feature_disabled` of spec 00; en + ka from the spec Texts tables). 4.2.1 handoff §C, §E, §F.7.
+- [ ] 4.2.3 API: `listCategories` (cached ≤ 60 s), `lookupCategory`, `getCategory`, `listProjectCategories`, `lookupProjectCategory` (S-075 → 403); `contentLocale` Georgian fallback, `hasEnglish`, breadcrumb, 404 on a wrong parent.
+- [ ] 4.2.4 API: `searchGigs`, `listGigs` (ranking, Premium "Featured") + `SearchIndex` (`indexGig`/`removeGig`, ADR-011 §3, called by slice 3 gig writes) + one `PremiumStatus` seam (always false until slice 8; replaces the hard-coded `isPremium: false` / `premiumEndsAt: null`); keyword = every word as a substring (no fuzzy-only matches); listable owner exact on every request (join, or refresh from every path); AC-16 worked example as a test with a Premium test double; neutral values per 4.2.1 handoff §D (no impressions until slice 3).
+- [ ] 4.2.5 API: `searchProjects` (empty page until slice 9; S-075, category/skill 404 real), `listSellers` (daily mix, 40), `listHireSellers` (exact `user_skills.slug` or 404; daily mix, 42).
+- [ ] 4.2.6 API: `getHome`: top gigs, category rows (visible top-level categories), featured categories (S-107) real; best sellers `[]` while S-108 is ON until slice 5; logos and recent articles `[]`/`null` until slice 16.
+- [ ] 4.2.7 API admin: gig category CRUD (`adminListCategories`… 5 ops): 3 levels, ka/en, description, SEO text (sanitised), icon + image (`category_image`), visibility, position; slug change records the old slug (4.2.2a); delete in use → `t_category_in_use`; audited.
+- [ ] 4.2.8 API admin: project categories + skills CRUD (10 ops, spec 16 AC-61): linked top-level gig category, skills inside one project category, in use → `t_category_in_use`; audited.
+- [ ] 4.2.9 Web header + category pages (split 2026-10-03 into a/b):
+  - [ ] 4.2.9a Public site header + footer shell on the `(public)` layout (design `01-home.md`): logo, pill search with the category menu, category bar with "More ▾", mega-menu by click/Enter (AC-2), phone search icon → full-width search (AC-22), slide-over drawer with the category accordion and its search box, Explore menu, Login/Register or the account menu, language switch, theme toggle; cart, bell, Subscription and invite banner hidden until their slices; proxy 301 for `?locale=` / `?theme=` (AC-36, url-map §2).
+  - [ ] 4.2.9b Category pages at 3 levels (`lookupCategory` + `searchGigs?categoryId=`): title, breadcrumb, SEO text top/bottom with the Georgian fallback note (AC-4), filters + sort, 404; canonical + hreflang (AC-37).
+- [ ] 4.2.10 Web: search results + gig card (Featured frame + badge with text, quiet `t_no_reviews_yet`); filters in the URL with the legacy names and `sort_by` values (GEL → tetri), min > max refused, page numbers + `totalCount`, empty state with Reset filter, canonical/hreflang.
+- [ ] 4.2.11 Web: `/sellers`, `/hire/{keyword}` (API 404 → 302 to `/search?q=`), explore projects (chips, empty "Latest projects" until slice 9, S-075 OFF → feature-disabled state).
+- [ ] 4.2.12 Web: real home page (hero, featured categories S-107, Top gigs, category rows with "See more" on every size, best sellers S-108; projects row hidden until slice 9) replacing the Phase 3 placeholder; profile gigs block via `listGigs` (spec 02 AC-8, EC-10).
+- [ ] 4.2.13 Admin: catalog screens (spec 16 AC-60, AC-61): gig category tree, project categories, skills.
+- [ ] 4.2.14 Mobile: Home tab (getHome rows, pull to refresh) + Explore tab with search, full-screen filter sheet with sticky "Show results", sort bottom sheet, infinite scroll (42).
+- [ ] 4.2.15 Mobile: category pages (menu accordion with search), `/sellers`, `/hire/{keyword}`, explore projects; profile skill chips open `/hire`; profile gigs block via `listGigs`.
 - [ ] 4.2.16 E2E.
 - [ ] 4.2.17 QA.
 - [ ] 4.2.18 Fix findings.
@@ -177,7 +181,7 @@ Remaining:
 
 ### 4.3 Slice 3 — spec 04 Gigs (branch `feat/gigs`)
 - [ ] 4.3.1 Spec check.
-- [ ] 4.3.2 Data model: gigs, packages, upgrades, gallery, favourites, reports, views.
+- [ ] 4.3.2 Data model: the rest of §3.D (the `gigs` + `gig_translations` core and `search_documents` exist since 4.2.2b): packages, upgrades, FAQs, gallery, documents, favourites, reports, views; gig writes call `SearchIndex` (4.2.4).
 - [ ] 4.3.3 API: `createGig`, `getGigCreationEligibility`, `updateGig`, `deleteGig`.
 - [ ] 4.3.4 API: `getGig`, `lookupGig`, `getGigOwnerView`, `listMyGigs`.
 - [ ] 4.3.5 API: `listRelatedGigs` (P-137), `recordGigView`, `getGigAnalytics`.
