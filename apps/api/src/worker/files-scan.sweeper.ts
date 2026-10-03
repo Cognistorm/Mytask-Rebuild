@@ -146,29 +146,39 @@ export class FilesScanSweeper implements OnApplicationBootstrap, OnApplicationSh
    * "not attached" in the same statement, so an attach that commits first keeps its file. Public for tests.
    */
   async cleanupUnattachedPublic(now = new Date()): Promise<number> {
+    const cutoff = new Date(now.getTime() - UNATTACHED_TTL_HOURS * 3600 * 1000);
+    let total = 0;
     try {
-      const cutoff = new Date(now.getTime() - UNATTACHED_TTL_HOURS * 3600 * 1000);
-      const rows = await this.prisma.$queryRaw<FileRow[]>`
-        UPDATE files f SET status = 'deleted', deleted_at = ${now}
-        WHERE f.id IN (
-          SELECT c.id FROM files c
-          WHERE c.status = 'ready' AND c.purpose IN ('avatar', 'portfolio_image') AND c.ready_at < ${cutoff}
-          ORDER BY c.ready_at LIMIT 500
-        )
-          AND f.status = 'ready'
-          AND NOT EXISTS (SELECT 1 FROM user_profiles p WHERE p.avatar_file_id = f.id)
-          AND NOT EXISTS (SELECT 1 FROM portfolio_items i WHERE i.thumbnail_file_id = f.id)
-          AND NOT EXISTS (SELECT 1 FROM portfolio_images g WHERE g.file_id = f.id)
-        RETURNING f.bucket, f.object_key AS "objectKey", f.variants`;
-      for (const file of rows) {
-        await this.storage.delete(file.bucket, file.objectKey);
-        for (const key of variantKeys(file)) await this.storage.delete('public_media', key);
+      // Batches of 500 until fewer come back. "Not attached" is in the inner SELECT too, so attached images
+      // (never deleted, hence always the oldest) cannot fill every batch (review 07 SEC-73).
+      for (;;) {
+        const rows = await this.prisma.$queryRaw<FileRow[]>`
+          UPDATE files f SET status = 'deleted', deleted_at = ${now}
+          WHERE f.id IN (
+            SELECT c.id FROM files c
+            WHERE c.status = 'ready' AND c.purpose IN ('avatar', 'portfolio_image') AND c.ready_at < ${cutoff}
+              AND NOT EXISTS (SELECT 1 FROM user_profiles p WHERE p.avatar_file_id = c.id)
+              AND NOT EXISTS (SELECT 1 FROM portfolio_items i WHERE i.thumbnail_file_id = c.id)
+              AND NOT EXISTS (SELECT 1 FROM portfolio_images g WHERE g.file_id = c.id)
+            ORDER BY c.ready_at LIMIT 500
+          )
+            AND f.status = 'ready'
+            AND NOT EXISTS (SELECT 1 FROM user_profiles p WHERE p.avatar_file_id = f.id)
+            AND NOT EXISTS (SELECT 1 FROM portfolio_items i WHERE i.thumbnail_file_id = f.id)
+            AND NOT EXISTS (SELECT 1 FROM portfolio_images g WHERE g.file_id = f.id)
+          RETURNING f.bucket, f.object_key AS "objectKey", f.variants`;
+        for (const file of rows) {
+          await this.storage.delete(file.bucket, file.objectKey);
+          for (const key of variantKeys(file)) await this.storage.delete('public_media', key);
+        }
+        total += rows.length;
+        if (rows.length < 500) break;
       }
-      if (rows.length) this.logger.log({ removed: rows.length }, 'unattached public images deleted');
-      return rows.length;
+      if (total) this.logger.log({ removed: total }, 'unattached public images deleted');
+      return total;
     } catch (err) {
       this.logger.error({ err }, 'unattached public image cleanup failed');
-      return 0;
+      return total;
     }
   }
 

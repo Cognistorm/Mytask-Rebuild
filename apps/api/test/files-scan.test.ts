@@ -377,7 +377,8 @@ describe('files-scan: stored-as-uploaded files (security review 06 SEC-63)', () 
     storage.upload(row.bucket, row.objectKey, body.length, row.declaredType, body);
     return row;
   }
-  const pdf = (text: string) => Buffer.from(`%PDF-1.4
+  const pdf = (text: string) =>
+    Buffer.from(`%PDF-1.4
 % ${text}
 %%EOF
 `);
@@ -420,7 +421,9 @@ describe('files-scan: stored-as-uploaded files (security review 06 SEC-63)', () 
     expect(storage.has(row.bucket, row.objectKey)).toBe(false);
     // Still `scanning` (e.g. waiting for a retry): its object is kept and the entry stays queued.
     expect(storage.has(waiting.bucket, waiting.objectKey)).toBe(true);
-    expect(await redis.client.zscore(LATE_QUARANTINE_KEY, `${waiting.bucket}${waiting.objectKey}`)).toBe('0');
+    expect(
+      await redis.client.zscore(LATE_QUARANTINE_KEY, `${waiting.bucket}${waiting.objectKey}`),
+    ).toBe('0');
   });
 });
 
@@ -431,18 +434,79 @@ describe('files-scan: unattached public images (security review 06 SEC-64 stop-g
     const avatar = await upload(auth, await photo());
     const fresh = await upload(auth, await photo(), { purpose: 'portfolio_image' });
     expect(await sweeper.tick()).toBe(3);
-    expect((await http().put('/api/v1/me/avatar').set(auth).send({ fileId: avatar.id })).status).toBe(200);
+    expect(
+      (await http().put('/api/v1/me/avatar').set(auth).send({ fileId: avatar.id })).status,
+    ).toBe(200);
     const old = new Date(Date.now() - 25 * 3600 * 1000);
-    await prisma.file.updateMany({ where: { id: { in: [stray.id, avatar.id] } }, data: { readyAt: old } });
+    await prisma.file.updateMany({
+      where: { id: { in: [stray.id, avatar.id] } },
+      data: { readyAt: old },
+    });
     const strayReady = await prisma.file.findUniqueOrThrow({ where: { id: stray.id } });
     const strayKeys = Object.values(strayReady.variants as Record<string, string>);
     expect(strayKeys.every((k) => storage.has('public_media', k))).toBe(true);
 
     expect(await sweeper.cleanupUnattachedPublic()).toBe(1);
-    expect((await prisma.file.findUniqueOrThrow({ where: { id: stray.id } })).status).toBe('deleted');
+    expect((await prisma.file.findUniqueOrThrow({ where: { id: stray.id } })).status).toBe(
+      'deleted',
+    );
     expect(strayKeys.some((k) => storage.has('public_media', k))).toBe(false);
     // The current avatar and a fresh upload (its form may still be open) are kept.
-    expect((await prisma.file.findUniqueOrThrow({ where: { id: avatar.id } })).status).toBe('ready');
+    expect((await prisma.file.findUniqueOrThrow({ where: { id: avatar.id } })).status).toBe(
+      'ready',
+    );
     expect((await prisma.file.findUniqueOrThrow({ where: { id: fresh.id } })).status).toBe('ready');
+  });
+});
+
+describe('files-scan: unattached cleanup is not blocked by old attached images (review 07 SEC-73)', () => {
+  it('more than 500 old attached images: the stray one is still deleted; thumbnail and gallery are kept', async () => {
+    const auth = await register();
+    const me = await http().get('/api/v1/me').set(auth);
+    const userId = me.body.id as string;
+    const old = new Date(Date.now() - 48 * 3600 * 1000);
+    const row = (n: number) => ({
+      purpose: 'portfolio_image' as const,
+      ownerUserId: userId,
+      bucket: 'public_media' as const,
+      objectKey: `images/sec73-${seq}-${n}/large.webp`,
+      originalName: 'p.jpg',
+      declaredType: 'image/jpeg',
+      sizeBytes: 10n,
+      status: 'ready' as const,
+      readyAt: old,
+    });
+    const attached = await prisma.file.createManyAndReturn({
+      data: Array.from({ length: 502 }, (_, i) => row(i)),
+      select: { id: true },
+    });
+    // Newer than every attached one, so a batch that ignored attachment would never reach it.
+    const stray = await prisma.file.create({
+      data: { ...row(9999), readyAt: new Date(old.getTime() + 1000) },
+    });
+    const [thumb, ...gallery] = attached;
+    const item = await prisma.portfolioItem.create({
+      data: {
+        uid: `sec73${seq}`.slice(0, 20),
+        userId,
+        slug: `sec73-${seq}`,
+        title: 'SEC-73',
+        description: 'probe',
+        thumbnailFileId: thumb!.id,
+      },
+    });
+    await prisma.portfolioImage.createMany({
+      data: gallery.map((f, i) => ({ portfolioItemId: item.id, fileId: f.id, position: i })),
+    });
+
+    expect(await sweeper.cleanupUnattachedPublic()).toBe(1);
+    expect((await prisma.file.findUniqueOrThrow({ where: { id: stray.id } })).status).toBe(
+      'deleted',
+    );
+    expect(
+      await prisma.file.count({
+        where: { id: { in: attached.map((f) => f.id) }, status: 'ready' },
+      }),
+    ).toBe(502);
   });
 });

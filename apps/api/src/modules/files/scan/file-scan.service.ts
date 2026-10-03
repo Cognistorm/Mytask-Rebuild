@@ -102,6 +102,9 @@ export class FileScanService {
       return this.reject(file, REJECT_REASONS.unreadable, detected);
     }
     for (const put of placement.puts) await this.storage.put(put);
+    // Without an ETag the copy below could not insist on the scanned version (review 07 I-38): retry later.
+    if (placement.copy && !source.etag)
+      throw new Error('storage returned no ETag for a scanned upload');
     if (placement.copy) {
       // Only the version that was scanned: the presigned POST stays usable until it expires, and a re-upload
       // landing between the scan and this copy must not become `ready` unscanned (security review 06 SEC-63).
