@@ -5,6 +5,8 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  /* Wrapped on phones: keep "404" and the text together in the middle (QA 4.1.28 BUG-08). */
+  align-content: center;
   justify-content: center;
   gap: var(--mt-space-4) var(--mt-space-6);
   padding: var(--mt-space-16) var(--mt-space-4);

@@ -172,6 +172,14 @@ test('the 404 page is the localised legacy page with a link home, also for unkno
       ka ? 'გვერდი ვერ მოიძებნა | MyTask' : 'Page not found | MyTask',
     );
     await expect(page.locator('meta[name="robots"]'), path).toHaveAttribute('content', /noindex/);
+    if (path === '/no/such/page') {
+      // Phones: "404" sits right above the text, not a screen apart (QA 4.1.28 BUG-08).
+      await page.setViewportSize({ width: 390, height: 844 });
+      const code = await page.getByText('404', { exact: true }).boundingBox();
+      const title = await page.getByRole('heading', { level: 1 }).boundingBox();
+      expect(title!.y - (code!.y + code!.height)).toBeLessThan(64);
+      await page.setViewportSize({ width: 1280, height: 720 });
+    }
     await expect(
       page.getByRole('link', { name: ka ? 'მთავარ გვერდზე დაბრუნება' : 'Back to homepage' }),
       path,

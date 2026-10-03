@@ -52,7 +52,7 @@ The **first** run downloads Redis, SeaweedFS and Mailpit (about 70 MB, checked a
 
 Windows may ask whether to allow `redis-server`, `weed` or `mailpit` through the firewall: everything listens only on this computer, so **"Cancel"** is fine. (For the mobile app on your phone, allow **Node.js**, see section 4.)
 
-File storage is reached only through its S3 port (8333), which checks the keys: SeaweedFS's own file browser (port 8888) is switched off, and `pnpm local` stops if it ever answers. Its internal ports 9333 and 8334 listen on this computer only; never open them in the firewall or forward them (security review 06, SEC-62).
+File storage is reached only through its S3 port (8333), which checks the keys: SeaweedFS's own file browser (port 8888) still listens but answers "not found" to everything, and `pnpm local` stops if it ever serves files. Its internal ports (9333, 8334, 18888, 19333) listen on this computer only; never open them in the firewall or forward them (security review 06, SEC-62).
 
 Virus scanning of uploads is off on this computer (ClamAV is not installed): uploads are still checked for their real file type, and are marked "scan skipped". Scanning is on in staging and production.
 
