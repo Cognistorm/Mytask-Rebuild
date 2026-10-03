@@ -792,7 +792,7 @@ Options: (a) the legacy types without SVG (ADR-009 §5, script risk), at most 5 
 **Country field in account settings.** Spec 02 AC-29 had an optional country; legacy had it commented out; only Georgia is active.
 **Answer (Owner, 2026-10-02): remove it** ("the platform operates specifically for Georgia"). There is no country field in account settings, and the edit-profile card shows no country. `Me.countryCode` / `MeUpdateRequest.countryCode` are deprecated in contract 1.3.1. They are not removed, because ADR-014 §5 allows no breaking change in v1 (ADR-021).
 
-## Slice 02 security review 06 (orchestrator, ROADMAP 4.1.28, 2026-10-03) — open
+## Slice 02 security review 06 (orchestrator, ROADMAP 4.1.28, 2026-10-03) — answered by Owner 2026-10-03
 
 ### Q-163
 **What does "Delete account" remove? (security review 06 SEC-66, with Q-147.)** Today "Delete account" behaves like legacy: the profile disappears (404) and the user is logged out everywhere. But the user's photo (avatar) and portfolio images stay downloadable by anyone who has their link, without time limit, and ID documents (KYC photos and selfie, also of declined checks) are kept with no end date. Under the Georgian personal-data law (keep data only as long as needed, delete on request), that is a risk for the platform.
@@ -803,6 +803,7 @@ Options:
 
 Recommendation: (a).
 When: before Phase 5 (first real users / KYC import). Nothing in slice 02 waits on it.
+**Answer (Owner, 2026-10-03): (a), as recommended.** On deletion the avatar and portfolio images stop being public at once (the records stay for staff); KYC photos are deleted 90 days after the staff decision and at account deletion unless a legal hold applies; profile texts are pseudonymised after the retention period. This also answers the KYC part of Q-147. Built in ROADMAP 5.0 (spec 02 AC-34 and data-model notes updated by the analyst/architect first).
 
 ### Q-164
 **Should "Delete account" ask for the password? (security review 06 SEC-67.)** Changing the password or the email needs the current password, but deleting the whole account needs only the legacy confirmation dialog. So anyone with a few seconds at a signed-in computer or an unlocked phone can delete the account, and it cannot be undone.
@@ -812,3 +813,4 @@ Options:
 
 Recommendation: (a). It needs a small contract change through the architect.
 When: before Phase 5.
+**Answer (Owner, 2026-10-03): (a), as recommended.** "Delete account" asks for the current password (an emailed 6-digit code for Google/Facebook-only accounts) and sends a "your account was deleted" email (NEW notification, listed in spec 15). Built in ROADMAP 5.0 after the architect's contract change and the analyst's spec 02 AC-34 update.

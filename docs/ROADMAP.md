@@ -151,7 +151,6 @@ Remaining:
   - backend: SEC-75 (after the copy of an as-uploaded file, compare its SHA-256 with the scan's checksum; must be done before slice 05/07, when users first download each other's files);
   - backend: SEC-74 (portfolio save marks its files inside the transaction so the unattached cleanup cannot delete them; `views()` degrades instead of throwing);
   - devops: QA N-13 (parallel `turbo` tasks race on `prisma generate`, `EEXIST … generated/prisma/models`: generate once before the parallel tasks);
-  - web: QA F-05 ("Contact us" button on the 404 page once the spec 17 contact page exists; or the Owner drops it);
   - devops: I-41 (prove in CI that SSR calls carry the visitor IP, not only the 404 page);
   - backend: SEC-69 (EV-14 only when an item enters `pending`) — the architect adds a per-user portfolio-save `x-rate-limit` to the contract first;
   - backend: I-33 (lower pixel limit for avatar/portfolio images, cap on files in `scanning` per user);
@@ -491,7 +490,7 @@ Remaining:
 - [ ] 4.16.7 API admin content part 1: pages + home content/logos.
 - [ ] 4.16.8 API admin content part 2: blog articles + comments.
 - [ ] 4.16.9 API admin content part 3: support messages + newsletter.
-- [ ] 4.16.10 Web: CMS page + contact + `/gita`.
+- [ ] 4.16.10 Web: CMS page + contact + `/gita`; add the legacy "Contact us" button (`t_contact_us` → contact page) to the 404 page (QA 4.1.28 F-05, Owner 2026-10-03).
 - [ ] 4.16.11 Web: blog list + article + comments.
 - [ ] 4.16.12 Web: newsletter box + verify/unsubscribe + redirect interstitial.
 - [ ] 4.16.13 Web: home blocks, announcement, footer.
@@ -510,7 +509,7 @@ Remaining:
 ---
 
 ## Phase 5 — Data migration (data-migration-engineer; mapping in `data-model.md`; nothing touches production)
-- [ ] 5.0 Before any real data (security reviews 06 §6.2 and 07 §6): SEC-72 (SeaweedFS master/volume ports of `pnpm local` reachable from any browser page: random ports or a credential, import on a stack nobody browses from, back up `.local/data/s3`); SEC-64 publish-on-approval for public images (architect ADR-009 amendment + backend); SEC-66 / SEC-67 per the Owner's answers to Q-163 / Q-164; SEC-68 (`updateMe` email enumeration, with SEC-38); I-32 (the ETL drops non-`http(s)` legacy links); KYC retention (Q-147) before the KYC import.
+- [ ] 5.0 Before any real data (security reviews 06 §6.2 and 07 §6): SEC-72 (SeaweedFS master/volume ports of `pnpm local` reachable from any browser page: random ports or a credential, import on a stack nobody browses from, back up `.local/data/s3`); SEC-64 publish-on-approval for public images (architect ADR-009 amendment + backend); SEC-66 / SEC-67 as the Owner answered Q-163 (a) and Q-164 (a) on 2026-10-03 (analyst updates spec 02 AC-34 + spec 15 for the NEW "account deleted" email, architect the `deleteMe` contract + KYC retention, then backend/web/mobile); SEC-68 (`updateMe` email enumeration, with SEC-38); I-32 (the ETL drops non-`http(s)` legacy links); KYC retention (Q-147) before the KYC import.
 - [!] 5.1 Owner provides a local copy of the production database (Q-049 risk; needed before 5.3).
 - [ ] 5.2 `tools/migrate-legacy` skeleton: MySQL reader, PostgreSQL writer, run report.
 - [ ] 5.3 Users, profiles, social accounts (`provider_name`/`provider_id`), legacy password hashes.
