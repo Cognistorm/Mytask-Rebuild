@@ -143,7 +143,10 @@ export class FilesScanSweeper implements OnApplicationBootstrap, OnApplicationSh
    * Security review 06 SEC-64 (stop-gap until images are published only on attach/approval, ADR-009): avatar
    * and portfolio images are public as soon as they are `ready`, so one that is still not the avatar of anyone
    * and not on any portfolio item after 24 h is deleted with its public variants. The compare-and-set re-checks
-   * "not attached" in the same statement, so an attach that commits first keeps its file. Public for tests.
+   * "not attached" in the same statement, so an attach that commits first keeps its file. A portfolio save
+   * also sets `attached_at` on the file row in its transaction (review 07 SEC-74): the outer UPDATE then waits
+   * for that row and re-checks `attached_at` on the committed version, which the NOT EXISTS checks (read with
+   * this statement's snapshot) cannot do. Public for tests.
    */
   async cleanupUnattachedPublic(now = new Date()): Promise<number> {
     const cutoff = new Date(now.getTime() - UNATTACHED_TTL_HOURS * 3600 * 1000);
@@ -157,12 +160,14 @@ export class FilesScanSweeper implements OnApplicationBootstrap, OnApplicationSh
           WHERE f.id IN (
             SELECT c.id FROM files c
             WHERE c.status = 'ready' AND c.purpose IN ('avatar', 'portfolio_image') AND c.ready_at < ${cutoff}
+              AND c.attached_at IS NULL
               AND NOT EXISTS (SELECT 1 FROM user_profiles p WHERE p.avatar_file_id = c.id)
               AND NOT EXISTS (SELECT 1 FROM portfolio_items i WHERE i.thumbnail_file_id = c.id)
               AND NOT EXISTS (SELECT 1 FROM portfolio_images g WHERE g.file_id = c.id)
             ORDER BY c.ready_at LIMIT 500
           )
             AND f.status = 'ready'
+            AND f.attached_at IS NULL
             AND NOT EXISTS (SELECT 1 FROM user_profiles p WHERE p.avatar_file_id = f.id)
             AND NOT EXISTS (SELECT 1 FROM portfolio_items i WHERE i.thumbnail_file_id = f.id)
             AND NOT EXISTS (SELECT 1 FROM portfolio_images g WHERE g.file_id = f.id)

@@ -110,6 +110,7 @@ export class PortfolioService {
     const uid = newUid();
     const now = new Date();
     const item = await this.prisma.$transaction(async (tx) => {
+      await this.markAttached(tx, [data.thumbnailFileId!, ...data.imageFileIds!]);
       const created = await tx.portfolioItem.create({
         data: {
           uid,
@@ -151,6 +152,10 @@ export class PortfolioService {
     const admins = await this.settings.get('S-100');
     const title = data.title ?? before.title;
     const item = await this.prisma.$transaction(async (tx) => {
+      await this.markAttached(tx, [
+        ...(data.thumbnailFileId ? [data.thumbnailFileId] : []),
+        ...(data.imageFileIds ?? []),
+      ]);
       if (data.imageFileIds) {
         await tx.portfolioImage.deleteMany({ where: { portfolioItemId: before.id } });
       }
@@ -192,6 +197,22 @@ export class PortfolioService {
     const item = await this.ownItem(userId, itemId);
     await this.prisma.portfolioItem.delete({ where: { id: item.id } });
     await this.purge(fileIdsOf(item));
+  }
+
+  /**
+   * Security review 07 SEC-74: marks the files on their own rows inside the save transaction and refuses unless
+   * every one is still `ready`. The unattached cleanup updates the same rows, so whichever runs second waits
+   * and then sees the other's result: the cleanup skips a marked file, the save fails on a deleted one.
+   */
+  private async markAttached(tx: Tx, fileIds: string[]): Promise<void> {
+    const ids = [...new Set(fileIds)];
+    if (!ids.length) return;
+    const done = await tx.file.updateMany({
+      where: { id: { in: ids }, status: 'ready' },
+      data: { attachedAt: new Date() },
+    });
+    if (done.count !== ids.length)
+      throw new ApiException(422, 'FILE_NOT_READY', 't_file_not_ready');
   }
 
   private async ownItem(userId: string, itemId: string): Promise<Item> {
@@ -419,7 +440,7 @@ export class PortfolioService {
       include: WITH_IMAGES,
     });
     if (!item) throw notFound();
-    return (await this.adminViews([item]))[0]!;
+    return this.adminView(item);
   }
 
   /** AC-26: pending → active; EV-15 to the owner. */
@@ -435,7 +456,7 @@ export class PortfolioService {
       reason: note?.trim() || null,
       data: (before, now) => ({ status: 'active', publishedAt: before.publishedAt ?? now }),
     });
-    return (await this.adminViews([item]))[0]!;
+    return this.adminView(item);
   }
 
   /** AC-42: pending → rejected with the reason shown to the owner; EV-126 to the owner. */
@@ -453,7 +474,7 @@ export class PortfolioService {
       reason,
       data: (_, now) => ({ status: 'rejected', rejectionReason: reason, rejectedAt: now }),
     });
-    return (await this.adminViews([item]))[0]!;
+    return this.adminView(item);
   }
 
   /** First decision wins: compare-and-set on `pending` (409 `t_item_already_decided` otherwise). */
@@ -564,12 +585,15 @@ export class PortfolioService {
     return f ? imageVariants(f, this.env.PUBLIC_MEDIA_BASE_URL) : null;
   }
 
-  /** `rejectionReason`/`rejectedAt` only for the owner (`viewerId`) and staff (`null` + `staff`). */
+  /**
+   * `rejectionReason`/`rejectedAt` only for the owner (`viewerId`) and staff (`null` + `staff`). An item whose
+   * thumbnail cannot be shown is `null` (logged), so one bad row never breaks a whole list (review 07 SEC-74).
+   */
   private async views(
     items: Item[],
     viewerId: string | null,
     staff = false,
-  ): Promise<S['PortfolioItem'][]> {
+  ): Promise<(S['PortfolioItem'] | null)[]> {
     const [files, owners] = await Promise.all([
       this.fileMap(items.flatMap(fileIdsOf)),
       this.summaries.many(items.map((i) => i.userId)),
@@ -578,8 +602,12 @@ export class PortfolioService {
       const isOwn = i.userId === viewerId;
       const thumbnail = this.image(files, i.thumbnailFileId);
       if (!thumbnail) {
-        // Never expected: files are checked `ready` on save. Fail loudly rather than break the contract.
-        throw new Error(`portfolio item ${i.id}: thumbnail ${i.thumbnailFileId} has no variants`);
+        // Never expected: files are marked attached on save. Leave the item out rather than break the contract.
+        this.logger.error(
+          { itemId: i.id, fileId: i.thumbnailFileId },
+          'portfolio item left out: thumbnail has no variants',
+        );
+        return null;
       }
       return {
         id: i.id,
@@ -604,11 +632,16 @@ export class PortfolioService {
   }
 
   private async view(item: Item, viewerId: string | null): Promise<S['PortfolioItem']> {
-    return (await this.views([item], viewerId))[0]!;
+    const [view] = await this.views([item], viewerId);
+    if (!view) throw notFound();
+    return view;
   }
 
-  private async adminViews(items: Item[]): Promise<S['AdminPortfolioItem'][]> {
-    const views = await this.views(items, null, true);
+  /** Leaves out items `views()` cannot show; the single-item callers use `adminView`. */
+  private async adminViews(all: Item[]): Promise<S['AdminPortfolioItem'][]> {
+    const shown = await this.views(all, null, true);
+    const items = all.filter((_, n) => shown[n]);
+    const views = shown.filter((v) => v !== null);
     const staffIds = [...new Set(items.flatMap((i) => i.reviewedByStaffId ?? []))];
     const staff = staffIds.length
       ? await this.prisma.staff.findMany({ where: { id: { in: staffIds } } })
@@ -626,6 +659,12 @@ export class PortfolioService {
         decidedAt: i.reviewedAt?.toISOString() ?? null,
       };
     });
+  }
+
+  private async adminView(item: Item): Promise<S['AdminPortfolioItem']> {
+    const [view] = await this.adminViews([item]);
+    if (!view) throw notFound();
+    return view;
   }
 
   /** Staff rejections of this user's portfolio items so far (the audit log keeps them after an edit). */

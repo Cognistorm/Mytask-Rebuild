@@ -3,7 +3,7 @@
 // (EV-15), reject with a reason (EV-126) and remove. Object storage is MemoryStorage.
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import request from 'supertest';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { File as FileRow } from '../src/generated/prisma/client';
 import { PrismaService } from '../src/platform/db/prisma.service';
 import { renderEmail } from '../src/platform/mail/templates';
@@ -544,5 +544,72 @@ describe('portfolio emails (EV-14, EV-15, EV-126)', () => {
     expect(rejected.subject).toBe('Your portfolio work was not approved');
     expect(rejected.text).toContain('Your work Logo <b> was not approved. Reason: Not your work.');
     expect(rejected.html).toContain('Logo &lt;b&gt;');
+  });
+});
+
+describe('attach vs unattached cleanup (security review 07 SEC-74)', () => {
+  it('a save marks its thumbnail and gallery files attached, also new files on an update', async () => {
+    const { auth } = await member();
+    const body = await itemBody(auth, 1);
+    const item = (await create(auth, body)).body;
+    const ids = [body.thumbnailFileId, ...body.imageFileIds];
+    const marked = await prisma.file.findMany({ where: { id: { in: ids } } });
+    expect(marked.every((f) => f.attachedAt !== null)).toBe(true);
+
+    const added = await image(auth);
+    const res = await http()
+      .patch(`/api/v1/portfolio-items/${item.id as string}`)
+      .set(auth)
+      .send({ imageFileIds: [added.id] });
+    expect(res.status).toBe(200);
+    expect((await prisma.file.findUniqueOrThrow({ where: { id: added.id } })).attachedAt).not.toBe(
+      null,
+    );
+  });
+
+  it('a save whose file was deleted after the input check fails and creates nothing', async () => {
+    const { auth, userId } = await member();
+    const body = await itemBody(auth, 1);
+    const ready = await prisma.file.findMany({
+      where: { id: { in: [body.thumbnailFileId, ...body.imageFileIds] } },
+    });
+    // The cleanup wins between the input check and the save transaction.
+    await prisma.file.update({
+      where: { id: body.thumbnailFileId },
+      data: { status: 'deleted', deletedAt: new Date() },
+    });
+    const spy = vi.spyOn(prisma.file, 'findMany').mockResolvedValueOnce(ready as never);
+    try {
+      const res = await create(auth, body);
+      expect(res.status).toBe(422);
+      expect(res.body.code).toBe('FILE_NOT_READY');
+    } finally {
+      spy.mockRestore();
+    }
+    expect(await prisma.portfolioItem.count({ where: { userId } })).toBe(0);
+    expect(
+      (await prisma.file.findUniqueOrThrow({ where: { id: body.imageFileIds[0]! } })).attachedAt,
+    ).toBeNull();
+  });
+
+  it('an item whose thumbnail is gone is left out of the staff queue; its page is 404, not 500', async () => {
+    const { auth, userId } = await member();
+    const good = (await create(auth, await itemBody(auth, 1))).body;
+    const bodyBad = await itemBody(auth, 1);
+    const bad = (await create(auth, bodyBad)).body;
+    await prisma.file.update({
+      where: { id: bodyBad.thumbnailFileId },
+      data: { status: 'deleted', deletedAt: new Date() },
+    });
+
+    const queue = await http().get(`/api/v1/admin/portfolio-items?userId=${userId}`).set(moderator);
+    expect(queue.status).toBe(200);
+    expect(queue.body.data.map((d: { item: { id: string } }) => d.item.id)).toEqual([good.id]);
+    const one = await http()
+      .get(`/api/v1/admin/portfolio-items/${bad.id as string}`)
+      .set(moderator);
+    expect(one.status).toBe(404);
+    expect((await get(bad.id as string, auth)).status).toBe(404);
+    expect((await get(good.id as string, auth)).status).toBe(200);
   });
 });

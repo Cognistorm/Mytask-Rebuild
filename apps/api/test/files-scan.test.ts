@@ -510,3 +510,27 @@ describe('files-scan: unattached cleanup is not blocked by old attached images (
     ).toBe(502);
   });
 });
+
+describe('files-scan: a file marked attached is never cleaned up (review 07 SEC-74)', () => {
+  it('keeps an old image with attached_at set even when no reference is visible to the cleanup', async () => {
+    const auth = await register();
+    const marked = await upload(auth, await photo(), { purpose: 'portfolio_image' });
+    const stray = await upload(auth, await photo(), { purpose: 'portfolio_image' });
+    expect(await sweeper.tick()).toBe(2);
+    const old = new Date(Date.now() - 25 * 3600 * 1000);
+    await prisma.file.updateMany({
+      where: { id: { in: [marked.id, stray.id] } },
+      data: { readyAt: old },
+    });
+    // What a save commits on the file row while its item row is not yet visible to the cleanup.
+    await prisma.file.update({ where: { id: marked.id }, data: { attachedAt: new Date() } });
+
+    expect(await sweeper.cleanupUnattachedPublic()).toBe(1);
+    expect((await prisma.file.findUniqueOrThrow({ where: { id: marked.id } })).status).toBe(
+      'ready',
+    );
+    expect((await prisma.file.findUniqueOrThrow({ where: { id: stray.id } })).status).toBe(
+      'deleted',
+    );
+  });
+});

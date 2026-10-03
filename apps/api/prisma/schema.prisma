@@ -614,6 +614,8 @@ model File {
   legacyPath     String?     @map("legacy_path")
   createdAt      DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
   readyAt        DateTime?   @map("ready_at") @db.Timestamptz(6)
+  /// Set when a portfolio item takes the file (SEC-74): the unattached cleanup skips it.
+  attachedAt     DateTime?   @map("attached_at") @db.Timestamptz(6)
   deletedAt      DateTime?   @map("deleted_at") @db.Timestamptz(6)
 
   @@unique([bucket, objectKey])
