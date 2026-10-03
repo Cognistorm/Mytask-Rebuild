@@ -814,3 +814,14 @@ Options:
 Recommendation: (a). It needs a small contract change through the architect.
 When: before Phase 5.
 **Answer (Owner, 2026-10-03): (a), as recommended.** "Delete account" asks for the current password (an emailed 6-digit code for Google/Facebook-only accounts) and sends a "your account was deleted" email (NEW notification, listed in spec 15). Built in ROADMAP 5.0 after the architect's contract change and the analyst's spec 02 AC-34 update.
+
+## Design direction (Owner, 2026-10-03) — answered by Owner 2026-10-03
+
+### Q-165
+**Should the design rule change from "modernise, don't reinvent" to a fresh redesign?** The Owner considered a fully fresh, modern, colorful UI (keep the user flows, drop the old layout and structure). Measured cost: 16–23 micro-tasks to redo the tokens, components, preview page and screen layouts, and to restyle the slice 01–02 web, mobile and admin screens. API, contract, data model, logic and i18n keys would not change.
+Options:
+- (a) Redesign now, before the slice 1 click-through (4.1.30).
+- (b) Approve slice 1 first, redesign before slice 2.
+- (c) Keep the original direction.
+
+**Answer (Owner, 2026-10-03): (c) keep the original direction.** The design rules and layout stay as in CLAUDE.md → Mission ("modernise, don't reinvent"); tokens, components and screens are unchanged. Priority is a solid rebuild with web and mobile working seamlessly together. The roadmap continues as planned (next: 4.1.30).
