@@ -51,7 +51,11 @@ http://localhost:8080 {
 		import to_api
 	}
 	handle {
-		reverse_proxy web:3100
+		# The web server forwards the visitor IP of its server-side API calls (ADR-013 §17, SEC-49);
+		# without this every SSR call shares the web container's rate-limit bucket (review 06 SEC-65).
+		reverse_proxy web:3100 {
+			header_up X-MyTask-Client-IP {client_ip}
+		}
 	}
 }
 
@@ -62,6 +66,8 @@ http://admin.localhost:8080 {
 		import to_api
 	}
 	handle {
-		reverse_proxy admin:3200
+		reverse_proxy admin:3200 {
+			header_up X-MyTask-Client-IP {client_ip}
+		}
 	}
 }

@@ -176,6 +176,9 @@ jobs:
           echo "--- web SSR reaches the API through the generated client"
           for i in $(seq 1 30); do curl -fsS http://localhost:8080/ >/tmp/home.html 2>/dev/null && break; sleep 5; done
           grep -q 'data-up="true"' /tmp/home.html
+          echo "--- a server-rendered profile page through Caddy (visitor IP forwarded, SEC-65): localised 404"
+          test "$(curl -s -o /tmp/p404.html -w '%{http_code}' http://localhost:8080/profile/ci_nobody_here)" = 404
+          grep -q 'data-testid="not-found"' /tmp/p404.html
           echo "--- staff endpoints are not served on the public host"
           test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/api/v1/admin/system/health)" = 404
           echo "--- admin host is noindex"

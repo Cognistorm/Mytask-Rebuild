@@ -170,6 +170,27 @@ describe('per-operation limits by IP (SEC-35 register, SEC-42 /64)', () => {
   });
 });
 
+describe('server-rendered pages: each visitor has their own bucket (security review 06 SEC-65, ADR-013 §17)', () => {
+  it('the web server forwarding two visitors with the service credential uses two read buckets', async () => {
+    const redis = app.get(RedisService).client;
+    await redis.flushall();
+    const minute = Math.floor(Date.now() / 60_000);
+    // Visitor A has used up the minute (both this and the next one, against a minute boundary).
+    for (const m of [minute, minute + 1]) await redis.set(`rl:read:198.51.100.1:${m}`, '600', 'EX', 120);
+    const viaWeb = (ip: string) =>
+      request(app.getHttpServer())
+        .get('/api/v1/users/sec65_nobody')
+        .set({
+          'X-MyTask-Client': 'web',
+          'x-mytask-visitor-ip': ip,
+          'x-mytask-service-auth': app.get<Env>(ENV).INTERNAL_SERVICE_TOKEN,
+        });
+    expect((await viaWeb('198.51.100.1')).status).toBe(429);
+    expect((await viaWeb('198.51.100.2')).status).toBe(404);
+    await redis.flushall();
+  });
+});
+
 describe('EV-02 "new registration waiting for approval" email (Q-159: S-131 switch, S-132 hourly cap)', () => {
   const set = async (registerId: string, key: string, value: unknown) => {
     const prisma = app.get(PrismaService);
