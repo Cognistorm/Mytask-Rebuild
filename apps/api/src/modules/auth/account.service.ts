@@ -8,6 +8,7 @@ import { PrismaService } from '../../platform/db/prisma.service';
 import { ApiException } from '../../platform/errors/api-exception';
 import { OutboxService } from '../../platform/outbox/outbox.service';
 import { SettingsService } from '../../platform/settings/settings.service';
+import { PremiumStatus } from '../subscriptions/premium-status';
 import { AvatarReader } from './avatar.reader';
 import { toMe } from './me.mapper';
 import { PasswordService } from './password.service';
@@ -30,6 +31,7 @@ export class AccountService {
     private readonly twoFactor: TwoFactorService,
     private readonly outbox: OutboxService,
     private readonly avatars: AvatarReader,
+    private readonly premium: PremiumStatus,
   ) {}
 
   async me(userId: string): Promise<S['Me']> {
@@ -51,6 +53,7 @@ export class AccountService {
       await this.settings.get('S-056'),
       await this.avatars.get(user.profile?.avatarFileId),
       pending?.newEmail ?? null,
+      await this.premium.state(userId),
     );
   }
 

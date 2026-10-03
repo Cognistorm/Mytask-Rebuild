@@ -10,12 +10,14 @@ import { OutboxService } from '../../platform/outbox/outbox.service';
 import { ReferralService } from '../auth/referral.service';
 import type { RequestContext } from '../auth/request-context';
 import { SessionsService } from '../auth/sessions.service';
+import { PremiumStatus, type PremiumState } from '../subscriptions/premium-status';
 
 type S = components['schemas'];
 
 export function toAdminUser(
   u: User & { profile: UserProfile | null },
   activeRestrictions = 0,
+  premium: PremiumState = { isActive: false, endsAt: null },
 ): S['AdminUser'] {
   return {
     id: u.id,
@@ -36,8 +38,8 @@ export function toAdminUser(
     deletedAt: u.deletedAt?.toISOString() ?? null,
     restorableUntil: null,
     bannedAt: u.bannedAt?.toISOString() ?? null,
-    plan: 'standard',
-    premiumEndsAt: null,
+    plan: premium.isActive ? 'premium' : 'standard',
+    premiumEndsAt: premium.endsAt?.toISOString() ?? null,
     kycStatus: 'none',
     locale: u.locale,
     countryCode: null,
@@ -61,6 +63,7 @@ export class AdminUsersService {
     private readonly referrals: ReferralService,
     private readonly outbox: OutboxService,
     private readonly audit: AuditService,
+    private readonly premium: PremiumStatus,
   ) {}
 
   async activate(
@@ -136,6 +139,6 @@ export class AdminUsersService {
       where: { id: userId },
       include: { profile: true },
     });
-    return { user: toAdminUser(user) };
+    return { user: toAdminUser(user, 0, await this.premium.state(userId)) };
   }
 }

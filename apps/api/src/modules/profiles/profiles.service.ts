@@ -11,6 +11,7 @@ import { ApiException } from '../../platform/errors/api-exception';
 import { OutboxService } from '../../platform/outbox/outbox.service';
 import { SettingsService } from '../../platform/settings/settings.service';
 import { AccountService } from '../auth/account.service';
+import { PremiumStatus } from '../subscriptions/premium-status';
 import { AvatarReader } from '../auth/avatar.reader';
 import { PresenceService } from '../auth/presence.service';
 import type { RequestContext } from '../auth/request-context';
@@ -71,6 +72,7 @@ export class ProfilesService {
     private readonly presence: PresenceService,
     private readonly outbox: OutboxService,
     private readonly reportLimiter: ReportLimiter,
+    private readonly premium: PremiumStatus,
     attachmentChecks: FileAttachments,
   ) {
     // The current avatar cannot be deleted through deleteFile (409); deleteMyAvatar removes it.
@@ -236,13 +238,15 @@ export class ProfilesService {
     });
     if (!user) throw notFound();
     const now = new Date();
-    const [portfolioCount, idVerified, linkedEnabled, avatar, isOnline] = await Promise.all([
-      this.prisma.portfolioItem.count({ where: { userId: user.id, status: 'active' } }),
-      this.prisma.kycVerification.count({ where: { userId: user.id, status: 'verified' } }),
-      this.settings.get('S-123'),
-      this.avatars.get(user.profile?.avatarFileId),
-      this.presence.isOnline(user),
-    ]);
+    const [portfolioCount, idVerified, linkedEnabled, avatar, isOnline, isPremium] =
+      await Promise.all([
+        this.prisma.portfolioItem.count({ where: { userId: user.id, status: 'active' } }),
+        this.prisma.kycVerification.count({ where: { userId: user.id, status: 'verified' } }),
+        this.settings.get('S-123'),
+        this.avatars.get(user.profile?.avatarFileId),
+        this.presence.isOnline(user),
+        this.premium.isActive(user.id),
+      ]);
     const isOwnProfile = viewerId === user.id;
     return {
       id: user.id,
@@ -259,8 +263,7 @@ export class ProfilesService {
       createdAt: user.createdAt.toISOString(),
       isEmailVerified: user.emailVerifiedAt !== null,
       isIdVerified: idVerified > 0,
-      // Premium: slice 9 (spec 10).
-      isPremium: false,
+      isPremium,
       languages: user.languages.map(languageView),
       skills: user.skills.map(skillView),
       linkedAccounts: linkedEnabled ? linkedView(user.linkedAccounts) : null,

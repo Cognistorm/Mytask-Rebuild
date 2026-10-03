@@ -1,6 +1,6 @@
 // `UserSummary` (embedded wherever a user appears) and `ModerationOwnerSummary` (next to every staff queue item,
 // spec 16 AC-19), filled from this slice's data: avatar, KYC approved, online (R-P4), country. Premium and the
-// plan wait for slice 9 (spec 10): `false` / `standard`. Reports count user reports only until gigs, projects
+// plan come from PremiumStatus (nobody until slice 8, spec 09). Reports count user reports only until gigs, projects
 // and proposals exist.
 import { Inject, Injectable } from '@nestjs/common';
 import type { components } from '@mytask/types';
@@ -8,6 +8,7 @@ import { ENV, type Env } from '../../platform/config/env';
 import { PrismaService } from '../../platform/db/prisma.service';
 import { PresenceService } from '../auth/presence.service';
 import { imageVariants } from '../files/image-variants';
+import { PremiumStatus } from '../subscriptions/premium-status';
 
 type S = components['schemas'];
 
@@ -17,6 +18,7 @@ export class UserSummaries {
     @Inject(ENV) private readonly env: Env,
     private readonly prisma: PrismaService,
     private readonly presence: PresenceService,
+    private readonly premium: PremiumStatus,
   ) {}
 
   /** Summaries by user id; unknown ids are left out. */
@@ -28,7 +30,7 @@ export class UserSummaries {
       include: { profile: { include: { country: true } } },
     });
     const avatarIds = users.flatMap((u) => u.profile?.avatarFileId ?? []);
-    const [avatars, verified, online] = await Promise.all([
+    const [avatars, verified, online, premium] = await Promise.all([
       avatarIds.length
         ? this.prisma.file.findMany({ where: { id: { in: avatarIds } } })
         : Promise.resolve([]),
@@ -37,6 +39,7 @@ export class UserSummaries {
         select: { userId: true },
       }),
       this.presence.online(users),
+      this.premium.activeAmong(unique),
     ]);
     const verifiedIds = new Set(verified.map((v) => v.userId));
     return new Map(
@@ -48,7 +51,7 @@ export class UserSummaries {
             id: u.id,
             username: u.username,
             avatar: file ? imageVariants(file, this.env.PUBLIC_MEDIA_BASE_URL) : null,
-            isPremium: false,
+            isPremium: premium.has(u.id),
             isIdVerified: verifiedIds.has(u.id),
             isOnline: online.has(u.id),
             countryCode: u.profile?.country?.iso2 ?? null,
@@ -84,7 +87,7 @@ export class UserSummaries {
       status: user.status,
       isRestricted: user.isRestricted,
       isDeleted: user.deletedAt !== null,
-      plan: 'standard',
+      plan: summary.isPremium ? 'premium' : 'standard',
       kycStatus: kyc?.status ?? 'none',
       reportCount,
       earlierRejectionCount,

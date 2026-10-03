@@ -5,6 +5,7 @@ import { FilesModule } from './modules/files/files.module';
 import { ProfilesModule } from './modules/profiles/profiles.module';
 import { RestrictionsModule } from './modules/restrictions/restrictions.module';
 import { StaffModule } from './modules/staff/staff.module';
+import { PremiumModule } from './modules/subscriptions/premium-status';
 import { AuditModule } from './platform/audit/audit.service';
 import { IdempotencyModule } from './platform/idempotency/idempotency.service';
 import { AppVersionMiddleware } from './platform/app-version/app-version.middleware';
@@ -31,6 +32,7 @@ import { StorageModule } from './platform/storage/storage';
     ClientIpModule,
     OutboxModule,
     AuditModule,
+    PremiumModule,
     IdempotencyModule,
     AuthModule,
     StaffModule,

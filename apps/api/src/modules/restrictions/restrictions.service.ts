@@ -20,6 +20,7 @@ import { OutboxService } from '../../platform/outbox/outbox.service';
 import { SettingsService } from '../../platform/settings/settings.service';
 import type { RequestContext } from '../auth/request-context';
 import { FileAttachments, FilesService } from '../files/files.service';
+import { PremiumStatus } from '../subscriptions/premium-status';
 
 type S = components['schemas'];
 type Tx = Prisma.TransactionClient;
@@ -58,11 +59,11 @@ const appealView = (a: Appeal | null, files: Files): S['RestrictionAppeal'] | nu
 
 const notFound = () => new ApiException(404, 'NOT_FOUND', 't_page_not_fount');
 
-const userSummary = (u: User): S['UserSummary'] => ({
+const userSummary = (u: User, premium: ReadonlySet<string>): S['UserSummary'] => ({
   id: u.id,
   username: u.username,
   avatar: null,
-  isPremium: false,
+  isPremium: premium.has(u.id),
   isIdVerified: false,
   isOnline: false,
   countryCode: null,
@@ -77,6 +78,7 @@ export class RestrictionsService {
     private readonly outbox: OutboxService,
     private readonly audit: AuditService,
     private readonly files: FilesService,
+    private readonly premium: PremiumStatus,
     attachmentChecks: FileAttachments,
   ) {
     // An appeal file stays as long as its appeal: deleteFile answers 409 for it.
@@ -418,13 +420,17 @@ export class RestrictionsService {
     const staff = staffIds.length
       ? await this.prisma.staff.findMany({ where: { id: { in: staffIds } } })
       : [];
+    const premium = await this.premium.activeAmong(users.map((u) => u.id));
     const staffSummary = (id: string | null) => {
       const s = id ? staff.find((x) => x.id === id) : undefined;
       return s ? { id: s.id, username: s.username, fullName: s.fullName } : null;
     };
     return rows.map((r) => ({
       id: r.id,
-      user: userSummary(users.find((u) => u.id === r.userId)!),
+      user: userSummary(
+        users.find((u) => u.id === r.userId)!,
+        premium,
+      ),
       message: r.message,
       filesRequired: r.filesRequired,
       status: r.status,
@@ -442,12 +448,13 @@ export class RestrictionsService {
     const earlier = await this.prisma.userRestriction.count({
       where: { userId, status: 'rejected' },
     });
+    const premium = await this.premium.activeAmong([userId]);
     return {
-      user: userSummary(u),
+      user: userSummary(u, premium),
       status: u.status,
       isRestricted: u.isRestricted,
       isDeleted: u.deletedAt !== null,
-      plan: 'standard',
+      plan: premium.has(u.id) ? 'premium' : 'standard',
       kycStatus: 'none',
       reportCount: 0,
       earlierRejectionCount: earlier,
