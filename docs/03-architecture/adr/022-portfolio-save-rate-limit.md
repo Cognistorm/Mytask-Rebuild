@@ -10,7 +10,7 @@ Date: 2026-10-03 | Status: **accepted** (architect, ROADMAP 4.2.0c; security rev
 1. `createPortfolioItem` and `updatePortfolioItem` share one limit: **30 saves per user per hour**. Every attempt counts, also one refused with 400, 404 or 422, so probing costs the same as saving. Over the limit: `429 RATE_LIMITED` with `Retry-After` (CONVENTIONS §14). The key is the user id (the operations need a signed-in user). 30 per hour is far above what a person editing a portfolio needs, and caps EV-14 at 30 per user per hour.
 2. `deletePortfolioItem` is not limited beyond the global limiter: it sends no email.
 3. The shared report limit text now says "every attempt counts, before the target check" on all four report operations (I-31). Behaviour is unchanged.
-4. Whether EV-14 is sent again when an item that is already `pending` is saved (the other half of SEC-69) is a business rule: the contract and legacy send it on every save. It is not changed here. It is Owner question Q-166.
+4. Whether EV-14 is sent again when an item that is already `pending` is saved (the other half of SEC-69) is a business rule: legacy sends it on every save. **Owner answer 2026-10-03, Q-166 (a):** EV-14 only when the item enters `pending` (a new item, or an edit of an `active` or `rejected` item); the `updatePortfolioItem` description says so (contract 1.3.2).
 
 ## Alternatives
 - Per-IP limit only: does not stop a user with several IPs, and punishes users behind a shared IP.
@@ -19,5 +19,6 @@ Date: 2026-10-03 | Status: **accepted** (architect, ROADMAP 4.2.0c; security rev
 
 ## Consequences
 - Backend (ROADMAP 4.2.0d): a Redis counter per user shared by both operations, checked first in the handlers; tests for the 31st save and for the shared key.
+- A request refused by the contract validator (malformed body) never reaches the handler, so it is not counted here; the global limiter covers it (the same holds for the report limit).
 - Web and mobile: the existing `429` handling (toast with `Retry-After`) covers it; no new i18n key.
 - `x-covers` and coverage tables are unchanged (no new AC).

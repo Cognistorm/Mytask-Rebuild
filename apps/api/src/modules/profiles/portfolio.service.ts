@@ -19,6 +19,7 @@ import { AuditService } from '../../platform/audit/audit.service';
 import { ENV, type Env } from '../../platform/config/env';
 import { PrismaService } from '../../platform/db/prisma.service';
 import { ApiException } from '../../platform/errors/api-exception';
+import { RedisService } from '../../platform/redis/redis.module';
 import { OutboxService } from '../../platform/outbox/outbox.service';
 import { afterCursor, decodeCursor, page } from '../../platform/pagination';
 import { SettingsService } from '../../platform/settings/settings.service';
@@ -26,6 +27,7 @@ import { slugify } from '../../platform/slug';
 import type { RequestContext } from '../auth/request-context';
 import { imageVariants } from '../files/image-variants';
 import { FileAttachments, FilesService } from '../files/files.service';
+import { hitHourly } from './hourly-limit';
 import { UserSummaries } from './user-summaries';
 
 type S = components['schemas'];
@@ -54,6 +56,9 @@ const invalid = (
       { field, code, message: t(key, params), messageKey: key, ...(params ? { params } : {}) },
     ],
   });
+
+/** Contract `x-rate-limit` (ADR-022, SEC-69): createPortfolioItem + updatePortfolioItem, every attempt. */
+export const PORTFOLIO_SAVES_PER_HOUR = 30;
 
 const newUid = () => randomBytes(10).toString('hex').toUpperCase();
 const slugOf = (title: string, uid: string) => `${slugify(title).slice(0, 138)}-${uid}`;
@@ -84,6 +89,7 @@ export class PortfolioService {
     private readonly outbox: OutboxService,
     private readonly audit: AuditService,
     private readonly summaries: UserSummaries,
+    private readonly redis: RedisService,
     attachmentChecks: FileAttachments,
   ) {
     // A thumbnail or gallery image cannot be deleted through deleteFile (409) while its item exists.
@@ -104,6 +110,7 @@ export class PortfolioService {
   // ------------------------------------------------------------------ owner (AC-24, AC-25, AC-27, AC-42)
 
   async create(userId: string, input: S['PortfolioItemCreateRequest'], ctx: RequestContext) {
+    await this.hitSaveLimit(userId);
     const data = await this.checkInput(userId, input, ctx.t, null);
     const autoApprove = await this.settings.get('S-071');
     const admins = await this.settings.get('S-100');
@@ -146,6 +153,7 @@ export class PortfolioService {
     input: S['PortfolioItemUpdateRequest'],
     ctx: RequestContext,
   ): Promise<S['PortfolioItem']> {
+    await this.hitSaveLimit(userId);
     const before = await this.ownItem(userId, itemId);
     const data = await this.checkInput(userId, input, ctx.t, before.id);
     const autoApprove = await this.settings.get('S-071');
@@ -184,7 +192,8 @@ export class PortfolioService {
         },
         include: WITH_IMAGES,
       });
-      if (!autoApprove) await this.notifyPending(saved, admins, tx);
+      // EV-14 only when the item enters review; an edit while it waits sends nothing new (Owner Q-166 (a)).
+      if (!autoApprove && before.status !== 'pending') await this.notifyPending(saved, admins, tx);
       return saved;
     });
     const kept = new Set(fileIdsOf(item));
@@ -197,6 +206,10 @@ export class PortfolioService {
     const item = await this.ownItem(userId, itemId);
     await this.prisma.portfolioItem.delete({ where: { id: item.id } });
     await this.purge(fileIdsOf(item));
+  }
+
+  private hitSaveLimit(userId: string): Promise<void> {
+    return hitHourly(this.redis, 'portfolio-saves', userId, PORTFOLIO_SAVES_PER_HOUR);
   }
 
   /**

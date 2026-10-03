@@ -12,6 +12,7 @@ import { SettingsService } from '../src/platform/settings/settings.service';
 import { ObjectStorage } from '../src/platform/storage/storage';
 import { createTestApp } from './app';
 import { MemoryStorage } from './memory-storage';
+import { PORTFOLIO_SAVES_PER_HOUR } from '../src/modules/profiles/portfolio.service';
 import { makeStaff } from './test-staff';
 
 let app: NestExpressApplication;
@@ -611,5 +612,40 @@ describe('attach vs unattached cleanup (security review 07 SEC-74)', () => {
     expect(one.status).toBe(404);
     expect((await get(bad.id as string, auth)).status).toBe(404);
     expect((await get(good.id as string, auth)).status).toBe(200);
+  });
+});
+
+describe('portfolio saves: limit and admin email (ADR-022, SEC-69, Owner Q-166 (a))', () => {
+  it('an edit of an item that is already pending sends no new EV-14', async () => {
+    const { auth } = await member();
+    const item = (await create(auth, await itemBody(auth, 1))).body;
+    expect(item.status).toBe('pending');
+    const res = await http()
+      .patch(`/api/v1/portfolio-items/${item.id as string}`)
+      .set(auth)
+      .send({ title: 'Edited while waiting' });
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('pending');
+    expect(await events(item.id as string, 'EV-14')).toHaveLength(1);
+  });
+
+  it('30 saves per user per hour shared by create and update; the next one is 429', async () => {
+    const { auth, userId } = await member();
+    const item = (await create(auth, await itemBody(auth, 1))).body;
+    const hour = Math.floor(Date.now() / 1000 / 3600);
+    // One save used; 28 more counted directly, so the next save is the 30th.
+    await app.get(RedisService).client.incrby(`portfolio-saves:${userId}:${hour}`, 28);
+    const path = `/api/v1/portfolio-items/${item.id as string}`;
+    expect((await http().patch(path).set(auth).send({ title: 'Save 30' })).status).toBe(200);
+    const over = await http().patch(path).set(auth).send({ title: 'Save 31' });
+    expect(over.status).toBe(429);
+    expect(over.body.code).toBe('RATE_LIMITED');
+    expect(Number(over.headers['retry-after'])).toBeGreaterThan(0);
+    // Shared key: a create is refused too.
+    expect((await create(auth, await itemBody(auth, 1))).status).toBe(429);
+    expect(PORTFOLIO_SAVES_PER_HOUR).toBe(30);
+    // Another user is not affected.
+    const other = await member();
+    expect((await create(other.auth, await itemBody(other.auth, 1))).status).toBe(201);
   });
 });

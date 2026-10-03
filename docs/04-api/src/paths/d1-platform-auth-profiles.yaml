@@ -1526,7 +1526,7 @@
   patch:
     operationId: updatePortfolioItem
     summary: Edit a portfolio item
-    description: New data replaces the old; `imageFileIds` replaces the whole gallery (old files deleted); with S-071 OFF the item goes back to `pending` and EV-14 is sent again (spec 02 AC-25, AC-27). Editing a `rejected` item follows the same rule (`pending`, or `active` at once with S-071 ON) and clears `rejectionReason`/`rejectedAt` for the owner; the old reason stays in the audit log (spec 02 AC-42).
+    description: New data replaces the old; `imageFileIds` replaces the whole gallery (old files deleted); with S-071 OFF the item goes back to `pending` and EV-14 is sent when it enters `pending` (an edit of an item that is already `pending` sends no new EV-14, Owner Q-166 (a)) (spec 02 AC-25, AC-27). Editing a `rejected` item follows the same rule (`pending`, or `active` at once with S-071 ON) and clears `rejectionReason`/`rejectedAt` for the owner; the old reason stays in the audit log (spec 02 AC-42).
     tags: [Portfolio]
     x-permission: {audience: user, ownership: owner of the item; others 404}
     x-covers: ['02 AC-25', '02 AC-27', '02 AC-42']

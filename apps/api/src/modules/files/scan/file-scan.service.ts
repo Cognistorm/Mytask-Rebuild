@@ -32,8 +32,17 @@ export const REJECT_REASONS = {
 export const VARIANT_SIZES = { thumb: 320, medium: 800, large: 1600 } as const;
 type VariantName = keyof typeof VARIANT_SIZES;
 
-/** Decompression-bomb guard: a 100-megapixel photo is far beyond any phone camera's default. */
-const SHARP_INPUT = { limitInputPixels: 100_000_000, failOn: 'error', autoOrient: true } as const;
+/**
+ * Decompression-bomb guard: a 100-megapixel photo is far beyond any phone camera's default. Kept at 100 MP
+ * (review 06 I-33 suggested 40 MP, which would refuse full-resolution 48–50 MP phone photos); the cost is
+ * bounded instead by decoding each upload once (`publicVariants`) and reading it sequentially.
+ */
+const SHARP_INPUT = {
+  limitInputPixels: 100_000_000,
+  failOn: 'error',
+  autoOrient: true,
+  sequentialRead: true,
+} as const;
 const IMMUTABLE = 'public, max-age=31536000, immutable';
 
 export type ScanOutcome = 'ready' | 'rejected' | 'skipped';
@@ -266,13 +275,7 @@ export class FileScanService {
 
     const variants = {} as Record<VariantName, string>;
     const puts: PutObjectInput[] = [];
-    for (const [name, size] of Object.entries(VARIANT_SIZES) as [VariantName, number][]) {
-      const out = await image(input, (s) =>
-        s
-          .resize({ width: size, height: size, fit: 'inside', withoutEnlargement: true })
-          .webp({ quality: 82 })
-          .toBuffer(),
-      );
+    for (const [name, out] of await publicVariants(input)) {
       variants[name] = `images/${file.id}/${name}.webp`;
       puts.push({
         bucket: policy.finalBucket,
@@ -318,4 +321,28 @@ async function image<T>(input: Buffer, op: (s: sharp.Sharp) => Promise<T>): Prom
   } catch (err) {
     throw new Unreadable((err as Error).message);
   }
+}
+
+/**
+ * The three WebP variants from one decode of the upload (review 06 I-33): the upload is decoded and shrunk
+ * once to the largest variant size as raw pixels, and every variant is made from those pixels.
+ */
+async function publicVariants(input: Buffer): Promise<[VariantName, Buffer][]> {
+  const largest = Math.max(...Object.values(VARIANT_SIZES));
+  const fit = (size: number) =>
+    ({ width: size, height: size, fit: 'inside', withoutEnlargement: true }) as const;
+  const base = await image(input, (s) =>
+    s.resize(fit(largest)).raw().toBuffer({ resolveWithObject: true }),
+  );
+  const { width, height, channels } = base.info;
+  const out: [VariantName, Buffer][] = [];
+  for (const [name, size] of Object.entries(VARIANT_SIZES) as [VariantName, number][]) {
+    // Already-decoded pixels: an error here is not the upload's fault, so it is not `Unreadable`.
+    const webp = await sharp(base.data, { raw: { width, height, channels } })
+      .resize(fit(size))
+      .webp({ quality: 82 })
+      .toBuffer();
+    out.push([name, webp]);
+  }
+  return out;
 }

@@ -836,3 +836,4 @@ Options:
 
 Recommendation: (a). The admins get one email per item to review, not one per edit.
 When: before 4.2.0d (backend). The rate limit in 4.2.0d does not wait on it.
+**Answer (Owner, 2026-10-03): (a), as recommended.** EV-14 is sent only when an item enters "waiting for approval"; edits while it waits send no new email. Spec 02 AC-25, spec 15 EV-14, ADR-022 §4 and the `updatePortfolioItem` description updated; built in ROADMAP 4.2.0d.

@@ -470,7 +470,9 @@ describe('files-scan: unattached public images (security review 06 SEC-64 stop-g
     const stray = await upload(auth, await photo());
     const avatar = await upload(auth, await photo());
     const fresh = await upload(auth, await photo(), { purpose: 'portfolio_image' });
-    expect(await sweeper.tick()).toBe(3);
+    // One owner: at most PER_OWNER_PER_PASS (2) per pass (I-33).
+    expect(await sweeper.tick()).toBe(2);
+    expect(await sweeper.tick()).toBe(1);
     expect(
       (await http().put('/api/v1/me/avatar').set(auth).send({ fileId: avatar.id })).status,
     ).toBe(200);
@@ -569,5 +571,35 @@ describe('files-scan: a file marked attached is never cleaned up (review 07 SEC-
     expect((await prisma.file.findUniqueOrThrow({ where: { id: stray.id } })).status).toBe(
       'deleted',
     );
+  });
+});
+
+describe('files-scan: one owner cannot fill a whole pass (review 06 I-33)', () => {
+  it('scans at most 2 files of one owner per pass; another owner is not held up', async () => {
+    const busy = await register();
+    const other = await register();
+    for (let i = 0; i < 4; i += 1) await upload(busy, await photo());
+    const waiting = await upload(other, await photo());
+    expect(await sweeper.tick()).toBe(3);
+    expect((await prisma.file.findUniqueOrThrow({ where: { id: waiting.id } })).status).toBe(
+      'ready',
+    );
+    expect(await sweeper.tick()).toBe(2);
+  });
+
+  it('makes all three variants from one decode, with the right sizes', async () => {
+    const auth = await register();
+    const row = await upload(auth, await photo());
+    expect(await sweeper.tick()).toBe(1);
+    const file = await prisma.file.findUniqueOrThrow({ where: { id: row.id } });
+    const v = file.variants as Record<'thumb' | 'medium' | 'large', string>;
+    // 1200×800 rotated by EXIF → 800×1200; each variant fits its box, never enlarged.
+    const size = async (key: string) => {
+      const m = await sharp(storage.get('public_media', key)!.body).metadata();
+      return [m.width, m.height, m.format];
+    };
+    expect(await size(v.thumb)).toEqual([213, 320, 'webp']);
+    expect(await size(v.medium)).toEqual([533, 800, 'webp']);
+    expect(await size(v.large)).toEqual([800, 1200, 'webp']);
   });
 });

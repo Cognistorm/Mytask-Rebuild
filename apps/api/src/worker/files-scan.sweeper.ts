@@ -23,6 +23,8 @@ const POLL_MS = 2_000;
 /** Files scanned per pass; more candidates are read so files waiting for a retry do not block newer ones. */
 const BATCH = 10;
 const CANDIDATES = 100;
+/** At most this many files of one owner per pass, so one user's queue cannot hold up everyone else's (I-33). */
+export const PER_OWNER_PER_PASS = 2;
 /** Longer than any scan; a crashed worker's file is picked up again after this. */
 export const LEASE_SECONDS = 10 * 60;
 /** Retry after an infrastructure error: 30 s, 1 min, 2 min … at most 30 min. */
@@ -70,15 +72,19 @@ export class FilesScanSweeper implements OnApplicationBootstrap, OnApplicationSh
         where: { status: 'scanning' },
         orderBy: { createdAt: 'asc' },
         take: CANDIDATES,
-        select: { id: true, bucket: true, objectKey: true, createdAt: true },
+        select: { id: true, bucket: true, objectKey: true, createdAt: true, ownerUserId: true },
       });
       let finished = 0;
       let claimedCount = 0;
-      for (const { id, bucket, objectKey, createdAt } of rows) {
+      const perOwner = new Map<string, number>();
+      for (const { id, bucket, objectKey, createdAt, ownerUserId } of rows) {
         if (claimedCount === BATCH) break;
+        const owned = ownerUserId ? (perOwner.get(ownerUserId) ?? 0) : 0;
+        if (owned === PER_OWNER_PER_PASS) continue; // the rest waits for the next pass
         const claimed = await this.redis.client.set(leaseKey(id), '1', 'EX', LEASE_SECONDS, 'NX');
         if (claimed !== 'OK') continue; // another worker has it, or it waits for its retry
         claimedCount++;
+        if (ownerUserId) perOwner.set(ownerUserId, owned + 1);
         // Remember the quarantine key before the scan moves the row to its final key.
         const expired = createdAt.getTime() + (UPLOAD_EXPIRES_SECONDS + 60) * 1000;
         await this.redis.client.zadd(LATE_QUARANTINE_KEY, expired, `${bucket}${SEP}${objectKey}`);
