@@ -33,9 +33,12 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   const headers = new Headers(request.headers);
   headers.set('content-security-policy', csp);
   headers.set('x-nonce', nonce);
+  // The 404 page gets no params, so it reads the page language from here (components/not-found).
+  const english = pathname === '/en' || pathname.startsWith('/en/');
+  headers.set('x-mt-locale', english ? 'en' : 'ka');
 
   let response: NextResponse;
-  if (pathname === '/en' || pathname.startsWith('/en/')) {
+  if (english) {
     response = NextResponse.next({ request: { headers } });
   } else {
     const url = request.nextUrl.clone();

@@ -1,0 +1,60 @@
+/* 404 page after legacy errors/404.blade.php: big code, then title, hint and the home button. Tokens only. */
+.mt-not-found {
+  box-sizing: border-box;
+  min-height: 100vh;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--mt-space-4) var(--mt-space-6);
+  padding: var(--mt-space-16) var(--mt-space-4);
+}
+
+.mt-not-found-code {
+  margin: 0;
+  color: var(--mt-text-brand);
+  font-size: var(--mt-font-size-5xl);
+  font-weight: var(--mt-font-weight-bold);
+}
+
+.mt-not-found-body {
+  display: grid;
+  justify-items: start;
+  gap: var(--mt-space-2);
+  max-width: var(--mt-size-layout-prose);
+}
+
+@media (min-width: 640px) {
+  .mt-not-found-body {
+    padding-left: var(--mt-space-6);
+    border-left: var(--mt-border-width-hairline) solid var(--mt-border-default);
+  }
+}
+
+.mt-not-found-title {
+  margin: 0;
+  font-size: var(--mt-font-size-3xl);
+  font-weight: var(--mt-font-weight-bold);
+}
+
+.mt-not-found-text {
+  margin: 0 0 var(--mt-space-6);
+  color: var(--mt-text-secondary);
+}
+
+.mt-not-found-home {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--mt-size-control-md);
+  padding: 0 var(--mt-space-4);
+  border-radius: var(--mt-radius-control);
+  background: var(--mt-action-primary);
+  color: var(--mt-action-on-primary);
+  font-weight: var(--mt-font-weight-medium);
+  text-decoration: none;
+}
+
+.mt-not-found-home:hover {
+  background: var(--mt-action-primary-hover);
+  color: var(--mt-action-on-primary);
+}

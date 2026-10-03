@@ -142,6 +142,38 @@ test('an unknown, hidden or renamed user answers 404 (AC-9, EC-4)', async ({ pag
   ]) {
     const res = await page.goto(path);
     expect(res?.status(), path).toBe(404);
+    await expect(page.getByRole('heading', { level: 1 }), path).toHaveText('Page not found');
+  }
+});
+
+test('the 404 page is the localised legacy page with a link home, also for unknown URLs (QA 4.1.26 BUG-01)', async ({
+  page,
+}) => {
+  for (const [path, locale] of [
+    ['/profile/ghost', 'ka'],
+    [`/profile/nino_b/portfolio/work-31-${UID(31)}`, 'ka'],
+    ['/no/such/page', 'ka'],
+    ['/en/no/such/page', 'en'],
+    ['/en/account/no-such-page', 'en'],
+  ] as const) {
+    const res = await page.goto(path);
+    expect(res?.status(), path).toBe(404);
+    const ka = locale === 'ka';
+    await expect(page.locator('html'), path).toHaveAttribute('lang', locale);
+    await expect(page.getByRole('heading', { level: 1 }), path).toHaveText(
+      ka ? 'გვერდი ვერ მოიძებნა' : 'Page not found',
+    );
+    await expect(page.getByTestId('not-found'), path).toContainText(
+      ka
+        ? 'გთხოვთ შეამოწმოთ ბმული მისამართის ველში და სცადოთ ხელახლა'
+        : 'Please check the URL in the address bar and try again',
+    );
+    await expect(page, path).toHaveTitle(ka ? 'გვერდი ვერ მოიძებნა | MyTask' : 'Page not found | MyTask');
+    await expect(page.locator('meta[name="robots"]'), path).toHaveAttribute('content', /noindex/);
+    await expect(
+      page.getByRole('link', { name: ka ? 'მთავარ გვერდზე დაბრუნება' : 'Back to homepage' }),
+      path,
+    ).toHaveAttribute('href', ka ? '/' : '/en');
   }
 });
 
