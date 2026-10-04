@@ -10,7 +10,7 @@
   - Not yet (their slices): projects row (9), invite banner (9, referrals), logo cloud and recent articles (16), announcement bar (17, S-112).
 - **Profile gigs block** (spec 02 AC-8, EC-10): `listGigs?sellerUsername=` 6 at a time with "Load more" (cursor) as gig cards; without gigs the owner keeps the empty state with "Create a new gig", visitors see no block.
 - `@mytask/ui/web` `Carousel` (+ category tile styles).
-- Tests: `e2e/home.spec.ts` (3); `shell.spec.ts` (h1 is now the hero title) and `custom-code.spec.ts` (second public → private check uses the header's Join instead of the placeholder's account link) updated. Full web E2E **136 passed / 3 skipped** (before the last fix round: all failures fixed and rerun).
+- Tests: `e2e/home.spec.ts` (3); `shell.spec.ts` (h1 is now the hero title) and `custom-code.spec.ts` (second public → private check uses the header's Join instead of the placeholder's account link) updated. Full web E2E **137 passed / 3 skipped**.
 - No new i18n keys.
 
 ## Files created/changed
