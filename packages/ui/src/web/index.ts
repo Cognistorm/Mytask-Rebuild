@@ -40,10 +40,12 @@ export {
 } from './site';
 export {
   Breadcrumb,
+  FreelancerCard,
   GigCard,
   GigGrid,
   pageWindow,
   Pagination,
+  type FreelancerCardData,
   type GigCardData,
   type GigCardLabels,
 } from './catalog';

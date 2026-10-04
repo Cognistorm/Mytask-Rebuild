@@ -189,8 +189,97 @@ function searchGigs(url) {
   ];
 }
 
+const seller = (n, skills, verified = false) => ({
+  user: {
+    id: `01900000-0000-7000-8000-0000005${String(n).padStart(5, '0')}`,
+    username: `seller_${n}`,
+    avatar: null,
+    isPremium: false,
+    isIdVerified: verified,
+    isOnline: n % 2 === 0,
+    countryCode: null,
+    isDeleted: false,
+  },
+  skills,
+});
+const SKILLS = [
+  { name: 'Logo design', slug: 'logo-design' },
+  { name: 'Branding', slug: 'branding' },
+  { name: 'Illustration', slug: 'illustration' },
+];
+const SELLERS = Array.from({ length: 45 }, (_, i) =>
+  seller(i + 1, SKILLS.slice(0, (i % 3) + 1), i === 0),
+);
+
+const paged = (all, url) => {
+  const limit = Number(url.searchParams.get('limit') ?? 20);
+  const page = Number(url.searchParams.get('page') ?? 1);
+  return {
+    data: all.slice((page - 1) * limit, page * limit),
+    nextCursor: null,
+    totalCount: all.length,
+  };
+};
+
+const PROJECT_CATEGORIES = [
+  {
+    id: '01900000-0000-7000-8000-0000000d0001',
+    slug: 'web-development',
+    name: 'Web development',
+    seoDescription: null,
+    contentLocale: 'en',
+    hasEnglish: true,
+    image: null,
+    position: 0,
+    skills: [
+      {
+        id: '01900000-0000-7000-8000-0000000e0001',
+        slug: 'react',
+        name: 'React',
+        contentLocale: 'en',
+      },
+    ],
+  },
+  {
+    id: '01900000-0000-7000-8000-0000000d0002',
+    slug: 'design',
+    name: 'Design',
+    seoDescription: null,
+    contentLocale: 'en',
+    hasEnglish: true,
+    image: null,
+    position: 1,
+    skills: [],
+  },
+];
+
 /** [status, body] for the catalogue routes, or null. */
 export function catalogRoute(url, req) {
+  if (url.pathname === '/api/v1/sellers') return [200, paged(SELLERS, url)];
+  const hire = url.pathname.match(/^\/api\/v1\/hire\/([^/]+)$/);
+  if (hire) {
+    const keyword = decodeURIComponent(hire[1]);
+    const skill = SKILLS.find((x) => x.slug === keyword);
+    if (!skill) return [404, { code: 'NOT_FOUND' }];
+    return [200, { skill, ...paged(SELLERS.slice(0, 3), url) }];
+  }
+  if (url.pathname === '/api/v1/project-categories') {
+    return [200, { projectCategories: PROJECT_CATEGORIES }];
+  }
+  if (url.pathname === '/api/v1/project-categories/lookup') {
+    const category = PROJECT_CATEGORIES.find((c) => c.slug === url.searchParams.get('slug'));
+    const skillSlug = url.searchParams.get('skillSlug');
+    const skill = skillSlug ? category?.skills.find((x) => x.slug === skillSlug) : null;
+    if (!category || skill === undefined) return [404, { code: 'NOT_FOUND' }];
+    return [200, { projectCategory: category, skill }];
+  }
+  if (url.pathname === '/api/v1/search/projects') {
+    // `q=feature-off` stands for S-075 OFF (the stand-in has no settings).
+    if (url.searchParams.get('q') === 'feature-off') {
+      return [403, { code: 'FEATURE_DISABLED', message: 'off' }];
+    }
+    return [200, { data: [], nextCursor: null, totalCount: 0 }];
+  }
   if (url.pathname === '/__last-search') {
     return [200, { search: lastSearch.get(url.searchParams.get('categoryId') ?? '') ?? '' }];
   }

@@ -13,7 +13,7 @@ import Link from 'next/link';
 import { GigList } from '../../../../../components/catalog/gig-list';
 import { viewerApi } from '../../../../../lib/api';
 import { categoryHref } from '../../../../../lib/category-nav';
-import { href } from '../../../../../lib/href';
+import { decodeSegment, href } from '../../../../../lib/href';
 import { getT, toLocale } from '../../../../../lib/i18n';
 import { parseListQuery, searchGigsQuery } from '../../../../../lib/list-query';
 import { pageTitle } from '../../../../../lib/page-title';
@@ -40,7 +40,7 @@ export async function generateMetadata({ params, searchParams }: Params): Promis
   const { locale: raw, path } = await params;
   const locale = toLocale(raw);
   const [category, query] = await Promise.all([
-    loadCategory(locale, path.map(decodeURIComponent)),
+    loadCategory(locale, path.map(decodeSegment)),
     searchParams.then(parseListQuery),
   ]);
   return {
@@ -55,7 +55,7 @@ export default async function CategoryPage({ params, searchParams }: Params) {
   const locale = toLocale(raw);
   const [t, category, query] = await Promise.all([
     getT(locale),
-    loadCategory(locale, path.map(decodeURIComponent)),
+    loadCategory(locale, path.map(decodeSegment)),
     searchParams.then(parseListQuery),
   ]);
   const { api } = await viewerApi(locale);

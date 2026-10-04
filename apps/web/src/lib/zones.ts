@@ -13,6 +13,10 @@ const PUBLIC_PATTERNS: readonly RegExp[] = [
   /^\/categories(\/[^/]+){1,3}$/,
   // Search results (spec 03 AC-19).
   /^\/search$/,
+  // Freelancers, hire by skill and explore projects (spec 03 AC-27…AC-34).
+  /^\/sellers$/,
+  /^\/hire\/[^/]+$/,
+  /^\/explore\/projects(\/[^/]+){0,2}$/,
 ];
 
 /** `pathname` as the browser sent it (`/`, `/en/...`; the proxy has already removed `/ka` and trailing slashes). */

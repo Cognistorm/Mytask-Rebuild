@@ -4,6 +4,8 @@
 import type { ReactNode } from 'react';
 import type { LinkComponent } from './dashboard';
 import { Avatar, RatingStars, type AvatarImage } from './profile';
+// Buttons (.mt-button) and chips come from the dashboard and profile styles.
+import './dashboard.css';
 import './catalog.css';
 
 const PlainLink: LinkComponent = ({ children, ...props }) => <a {...props}>{children}</a>;
@@ -26,8 +28,7 @@ function VerifiedIcon({ label }: { label: string }) {
       height={16}
       viewBox="0 0 256 256"
       fill="currentColor"
-      role="img"
-      aria-label={label}
+      {...(label ? { role: 'img', 'aria-label': label } : { 'aria-hidden': true })}
     >
       <path d="M225.86 102.82c-3.77-3.94-7.67-8-9.14-11.57-1.36-3.27-1.44-8.69-1.52-13.94-.15-9.76-.31-20.82-8-28.51s-18.75-7.85-28.51-8c-5.25-.08-10.67-.16-13.94-1.52-3.56-1.47-7.63-5.37-11.57-9.14C146.28 23.51 138.44 16 128 16s-18.27 7.51-25.18 14.14c-3.94 3.77-8 7.67-11.57 9.14-3.25 1.36-8.69 1.44-13.94 1.52-9.76.15-20.82.31-28.51 8s-7.8 18.75-8 28.51c-.08 5.25-.16 10.67-1.52 13.94-1.47 3.56-5.37 7.63-9.14 11.57C23.51 109.72 16 117.56 16 128s7.51 18.27 14.14 25.18c3.77 3.94 7.67 8 9.14 11.57 1.36 3.27 1.44 8.69 1.52 13.94.15 9.76.31 20.82 8 28.51s18.75 7.85 28.51 8c5.25.08 10.67.16 13.94 1.52 3.56 1.47 7.63 5.37 11.57 9.14 6.9 6.63 14.74 14.14 25.18 14.14s18.27-7.51 25.18-14.14c3.94-3.77 8-7.67 11.57-9.14 3.27-1.36 8.69-1.44 13.94-1.52 9.76-.15 20.82-.31 28.51-8s7.85-18.75 8-28.51c.08-5.25.16-10.67 1.52-13.94 1.47-3.56 5.37-7.63 9.14-11.57 6.63-6.9 14.14-14.74 14.14-25.18s-7.51-18.27-14.14-25.18Zm-52.2 6.84-56 56a8 8 0 0 1-11.32 0l-24-24a8 8 0 0 1 11.32-11.32L112 148.69l50.34-50.35a8 8 0 0 1 11.32 11.32Z" />
     </svg>
@@ -219,5 +220,62 @@ export function Pagination(props: {
         </Link>
       )}
     </nav>
+  );
+}
+
+export interface FreelancerCardData {
+  username: string;
+  href: string;
+  avatar: AvatarImage | null;
+  isOnline: boolean;
+  isIdVerified: boolean;
+  skills: { name: string; href: string }[];
+  contactHref: string;
+}
+
+/**
+ * One freelancer on `/sellers` and `/hire/{keyword}` (spec 03 AC-27, AC-28; components.md FreelancerCard): avatar,
+ * username, "Account verified" when KYC is approved, up to 3 skill chips (each opens `/hire/{slug}`, AC-30),
+ * "Contact me" and "View profile". Links into the private zone (chat, login) are plain anchors.
+ */
+export function FreelancerCard(props: {
+  seller: FreelancerCardData;
+  labels: { verified: string; contact: string; view: string };
+  Link?: LinkComponent;
+}) {
+  const { seller, labels } = props;
+  const Link = props.Link ?? PlainLink;
+  return (
+    <article className="mt-freelancer-card" data-testid="freelancer-card">
+      <Avatar image={seller.avatar} name={seller.username} size="lg" online={seller.isOnline} />
+      <h3 className="mt-freelancer-card-name">
+        <Link href={seller.href}>{seller.username}</Link>
+      </h3>
+      {seller.isIdVerified && (
+        <p className="mt-freelancer-card-verified">
+          <VerifiedIcon label="" />
+          {labels.verified}
+        </p>
+      )}
+      {seller.skills.length > 0 && (
+        <ul className="mt-freelancer-card-skills">
+          {seller.skills.map((s) => (
+            <li key={s.href}>
+              <Link href={s.href} className="mt-chip">
+                {s.name}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="mt-freelancer-card-actions">
+        <a className="mt-button mt-button-primary" href={seller.contactHref}>
+          {labels.contact}
+        </a>
+        <Link href={seller.href} className="mt-button mt-button-secondary">
+          {labels.view}
+        </Link>
+      </div>
+    </article>
   );
 }
