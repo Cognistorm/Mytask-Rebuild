@@ -266,3 +266,42 @@
   border-radius: var(--mt-radius-control);
   border: var(--mt-border-width-hairline) solid var(--mt-border-subtle);
 }
+
+/* Catalogue screens (4.2.13). */
+.admin-form-wide {
+  max-width: none;
+}
+
+.admin-lang-pair {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(calc(var(--mt-space-24) * 3), 1fr));
+  gap: var(--mt-space-4);
+}
+
+.admin-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mt-space-2);
+  min-height: var(--mt-size-touch-target-min);
+}
+
+.admin-checkbox input {
+  inline-size: var(--mt-size-checkbox);
+  block-size: var(--mt-size-checkbox);
+}
+
+.admin-image img {
+  display: block;
+  max-inline-size: calc(var(--mt-space-24) * 2);
+  max-block-size: var(--mt-space-24);
+  border-radius: var(--mt-radius-md);
+  object-fit: cover;
+}
+
+.admin-depth-2 {
+  padding-inline-start: var(--mt-space-6);
+}
+
+.admin-depth-3 {
+  padding-inline-start: var(--mt-space-12);
+}

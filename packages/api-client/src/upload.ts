@@ -28,6 +28,8 @@ export interface UploadOptions {
   fetch?: typeof globalThis.fetch;
   /** Stops polling (e.g. the user removed the file or left the screen). */
   signal?: AbortSignal;
+  /** Staff upload (admin app): the same flow on `/admin/files` (adminCreateFileUpload, …Complete, adminGetFile). */
+  staff?: boolean;
 }
 
 /** API errors as the API sends them; `UPLOAD_FAILED` / `UPLOAD_TIMEOUT` are this helper's own. */
@@ -58,7 +60,10 @@ export async function uploadFile(
   options: UploadOptions = {},
 ): Promise<UploadResult> {
   const { body, ...request } = input;
-  const slot = await api.POST('/files', { body: request });
+  const staff = options.staff === true;
+  const slot = staff
+    ? await api.POST('/admin/files', { body: request })
+    : await api.POST('/files', { body: request });
   if (slot.error) return { error: slot.error as UploadError };
   const fileId = slot.data.file.id;
 
@@ -80,7 +85,9 @@ export async function uploadFile(
   if (!stored) return { error: { code: 'UPLOAD_FAILED', fileId } };
 
   const path = { params: { path: { fileId } } };
-  const done = await api.POST('/files/{fileId}/complete', path);
+  const done = staff
+    ? await api.POST('/admin/files/{fileId}/complete', path)
+    : await api.POST('/files/{fileId}/complete', path);
   if (done.error) return { error: { ...(done.error as UploadError), fileId } };
   let file = done.data;
   if (file.status === 'scanning') options.onScanning?.(file);
@@ -91,7 +98,9 @@ export async function uploadFile(
       return { error: { code: 'UPLOAD_TIMEOUT', fileId } };
     }
     await sleep(options.pollMs ?? 1500, options.signal);
-    const next = await api.GET('/files/{fileId}', path);
+    const next = staff
+      ? await api.GET('/admin/files/{fileId}', path)
+      : await api.GET('/files/{fileId}', path);
     if (next.error) return { error: { ...(next.error as UploadError), fileId } };
     file = next.data;
   }
