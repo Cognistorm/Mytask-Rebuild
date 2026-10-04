@@ -1,9 +1,8 @@
 'use client';
-// Browser parts of the public profile pages: share dialog, report dialog, local clock, the session refresh and the
-// portfolio "Load more" grid (spec 02 AC-8, AC-14, AC-28).
+// Browser parts of the public profile pages: share dialog, report dialog, local clock and the portfolio
+// "Load more" grid (spec 02 AC-8, AC-14, AC-28).
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { components } from '@mytask/types';
 import { Alert, Dialog, Pill, TextArea } from '@mytask/ui/web';
 import { href, splitErrors, useApi, useLocale, useT, type ApiErrorBody } from '../../lib/client';
@@ -212,29 +211,6 @@ export function LocalTime({ timezone }: { timezone: string }) {
     return () => clearInterval(timer);
   }, [timezone]);
   return <span data-testid="local-time">{now ?? '—'}</span>;
-}
-
-/**
- * The page was rendered without an access cookie, but this browser has signed in before: the access token may
- * just have expired. One `getMe` lets the API client refresh the session; when that works, the server renders
- * the page again as the signed-in visitor (owner buttons, own pending work). Guests cost one 401.
- */
-export function SessionRefresh() {
-  const locale = useLocale();
-  const api = useApi(locale);
-  const router = useRouter();
-  const tried = useRef(false);
-  useEffect(() => {
-    if (tried.current) return;
-    tried.current = true;
-    void api.GET('/me').then(
-      (res) => {
-        if (res.data) router.refresh();
-      },
-      () => undefined,
-    );
-  }, [api, router]);
-  return null;
 }
 
 const STATUS_PILL = {

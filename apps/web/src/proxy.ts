@@ -3,17 +3,34 @@
 // A request for `/ka/...` is not a public URL: it is redirected (301) to the unprefixed form.
 // Trailing slashes are removed here too (Next's own 308 is off, `skipTrailingSlashRedirect`), so
 // `/ka/` reaches its final URL in one 301 hop (url-map §1 rules 3 and 5, QA P3 BUG-11).
+// Legacy `?locale=` and `?theme=` answer one 301 to the same page without them (url-map §2, spec 03 AC-36): `en`
+// moves the path under /en, anything else to the unprefixed Georgian path; `theme=dark|light` also sets the
+// theme cookie on the redirect.
 // Every page gets a Content-Security-Policy with a fresh nonce (ADR-013 §5): the strict one, plus the S-127
 // custom-code hosts on public pages only (spec 16 AC-73/AC-74, ADR-019 §2).
 import { type NextRequest, NextResponse } from 'next/server';
 import { buildCsp, createNonce, mediaOrigin, storageOrigin } from './lib/csp';
 import { getWebCustomCode } from './lib/custom-code';
+import { THEME_COOKIE } from './lib/theme';
 import { isPublicPath } from './lib/zones';
 
 export async function proxy(request: NextRequest): Promise<NextResponse> {
   const { pathname, search } = request.nextUrl;
   let target = pathname.length > 1 ? pathname.replace(/\/+$/, '') || '/' : pathname;
   if (target === '/ka' || target.startsWith('/ka/')) target = target.slice(3) || '/';
+  const legacy = legacyParams(target, search);
+  if (legacy) {
+    const response = NextResponse.redirect(new URL(legacy.url, request.url), 301);
+    if (legacy.theme) {
+      // Read by the browser's theme switch too (lib/theme-client.ts), so not HttpOnly.
+      response.cookies.set(THEME_COOKIE, legacy.theme, {
+        path: '/',
+        maxAge: 365 * 24 * 3600,
+        sameSite: 'lax',
+      });
+    }
+    return response;
+  }
   if (target !== pathname) {
     // A plain URL: NextURL would put the request's trailing slash back on.
     return NextResponse.redirect(new URL(`${target}${search}`, request.url), 301);
@@ -48,6 +65,26 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   }
   response.headers.set('content-security-policy', csp);
   return response;
+}
+
+/** The redirect target when `locale` or `theme` is in the query (other parameters kept, in their order). */
+export function legacyParams(
+  path: string,
+  search: string,
+): { url: string; theme: 'dark' | 'light' | null } | null {
+  const query = new URLSearchParams(search);
+  if (!query.has('locale') && !query.has('theme')) return null;
+  let target = path;
+  if (query.has('locale')) {
+    const bare = path === '/en' ? '/' : path.startsWith('/en/') ? path.slice(3) : path;
+    target = query.get('locale') === 'en' ? (bare === '/' ? '/en' : `/en${bare}`) : bare;
+    query.delete('locale');
+  }
+  const value = query.get('theme');
+  const theme = value === 'dark' || value === 'light' ? value : null;
+  query.delete('theme');
+  const rest = query.toString();
+  return { url: `${target}${rest ? `?${rest}` : ''}`, theme };
 }
 
 export const config = {

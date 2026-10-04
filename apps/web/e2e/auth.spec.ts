@@ -3,6 +3,7 @@
 // that receives its output, so the test can read the emailed 6-digit code.
 import { readFileSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
+import { BASE } from './base';
 
 const mailLog = process.env.AUTH_E2E_MAIL_LOG;
 test.skip(!mailLog, 'needs the full stack (AUTH_E2E_MAIL_LOG)');
@@ -95,5 +96,5 @@ test('login ignores an off-site ?next= (SEC-33)', async ({ page }) => {
   await page.getByLabel('E-mail address').fill(`nx_${n}@example.com`);
   await page.getByLabel('Password', { exact: true }).fill('Secret123');
   await page.getByRole('button', { name: 'Login' }).click();
-  await expect(page).toHaveURL(/localhost:3100\/en\/account$/);
+  await expect(page).toHaveURL(`${BASE}/en/account`);
 });

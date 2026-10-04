@@ -1,4 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
+import { BASE, PORT } from './e2e/base';
 
 // Main-flow smoke test of the web shell (CLAUDE.md: every screen has an E2E test).
 // Starts the production build against e2e/fake-api.mjs for the server's own API calls (custom code, health);
@@ -7,7 +8,7 @@ const reuse = process.env.PW_REUSE === '1';
 
 export default defineConfig({
   testDir: 'e2e',
-  use: { baseURL: 'http://localhost:3100' },
+  use: { baseURL: BASE },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: [
     {
@@ -17,8 +18,8 @@ export default defineConfig({
       timeout: 30_000,
     },
     {
-      command: 'pnpm start',
-      url: 'http://localhost:3100',
+      command: `pnpm exec next start --port ${PORT}`,
+      url: BASE,
       // Reusing a running server is opt-in (PW_REUSE=1, e.g. against `pnpm preview`): otherwise a busy port
       // fails loudly instead of silently testing another checkout's build (QA BUG-07).
       reuseExistingServer: reuse,

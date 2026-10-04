@@ -3,11 +3,10 @@
 // visitor is chosen by the access cookie the test sets. Browser calls ("Load more", session refresh) and the
 // media CDN are routed here.
 import { expect, test, type BrowserContext, type Page } from '@playwright/test';
+import { BASE, COOKIE_URL } from './base';
 import { PORTFOLIO_PAGE_2, UID } from './fake-profiles.mjs';
 
-const BASE = 'http://localhost:3100';
 // CDP accepts a Secure (__Host-) cookie only for an https URL; Chromium sends it to http://localhost too.
-const COOKIE_URL = 'https://localhost:3100';
 // 1×1 transparent PNG for every CDN image.
 const PNG = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HgAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=',

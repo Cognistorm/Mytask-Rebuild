@@ -2,9 +2,9 @@
 // e2e/fake-profiles.mjs (via e2e/fake-api.mjs) as the visitor of the access cookie; the report itself is a
 // browser call, routed here. Replace-on-second-report, EV-13 and the SEC-23 limit are covered by the API tests.
 import { expect, test, type BrowserContext, type Page, type Route } from '@playwright/test';
+import { COOKIE_URL } from './base';
 
 // CDP accepts a Secure (__Host-) cookie only for an https URL; Chromium sends it to http://localhost too.
-const COOKIE_URL = 'https://localhost:3100';
 
 const json = (route: Route, status: number, body: unknown) =>
   route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });

@@ -3,8 +3,8 @@
 // Here the browser runs the real pages against a fake provider and a routed API, so the flow needs no stack:
 // buttons from getPublicConfig → startSocialLogin → provider page → callback page → completeSocialLogin.
 import { expect, test, type Page, type Route } from '@playwright/test';
+import { BASE } from './base';
 
-const ORIGIN = 'http://localhost:3100';
 const PROVIDER = 'https://fake-provider.test';
 
 interface Api {
@@ -114,7 +114,7 @@ test('Google round trip (ka): callback sends code + state once with the binding 
     {
       provider: 'google',
       body: {
-        redirectUri: `${ORIGIN}/auth/google/callback`,
+        redirectUri: `${BASE}/auth/google/callback`,
         referralCode: null,
         codeChallenge: null,
         codeChallengeMethod: null,
@@ -139,7 +139,7 @@ test('register carries the referral code and the English callback path (AC-38)',
   await page.getByRole('button', { name: 'Continue with Github' }).click();
   await expect(page).toHaveURL(/\/en\/account$/);
   expect(api.authorize[0]!.body).toMatchObject({
-    redirectUri: `${ORIGIN}/en/auth/github/callback`,
+    redirectUri: `${BASE}/en/auth/github/callback`,
     referralCode: 'ABCD1234',
   });
 });
@@ -197,7 +197,7 @@ test('API refusal is shown with a way back to login (AC-41)', async ({ page }) =
   await page.getByRole('button', { name: 'Continue with Facebook' }).click();
   await expect(page.locator('.auth-alert-error')).toHaveText(message);
   // The one-time code does not stay in the address bar.
-  await expect(page).toHaveURL(`${ORIGIN}/en/auth/facebook/callback`);
+  await expect(page).toHaveURL(`${BASE}/en/auth/facebook/callback`);
   await page.getByRole('link', { name: 'Login' }).click();
   await expect(page).toHaveURL(/\/en\/auth\/login$/);
 });

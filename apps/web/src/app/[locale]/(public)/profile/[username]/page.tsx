@@ -19,7 +19,6 @@ import {
   LocalTime,
   PortfolioCardView,
   ReportButton,
-  SessionRefresh,
   ShareButton,
 } from '../../../../../components/profile/client';
 import {
@@ -51,7 +50,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
 export default async function ProfilePage({ params }: Params) {
   const { locale: raw, username } = await params;
   const locale = toLocale(raw);
-  const [t, { profile: p, mayHaveSession }, portfolio] = await Promise.all([
+  const [t, { profile: p }, portfolio] = await Promise.all([
     getT(locale),
     loadProfile(locale, username),
     loadPortfolio(locale, username, PREVIEW_SIZE),
@@ -84,7 +83,6 @@ export default async function ProfilePage({ params }: Params) {
 
   return (
     <main className="mt-profile">
-      {mayHaveSession && guest && <SessionRefresh />}
       <div className="mt-profile-layout">
         <aside className="mt-profile-card" data-testid="profile-card">
           <Avatar image={p.avatar} name={p.username} size="xl" online={p.isOnline} />

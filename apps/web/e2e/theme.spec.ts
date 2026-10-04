@@ -2,8 +2,7 @@
 // `<html data-theme>` from the `mt_theme` cookie; the stand-in API (e2e/fake-api.mjs) has no getPublicConfig, so
 // server pages use the fallback (switch on, light default). The account pages' browser calls are routed here.
 import { expect, test, type BrowserContext, type Page, type Route } from '@playwright/test';
-
-const BASE = 'http://localhost:3100';
+import { BASE } from './base';
 
 const json = (route: Route, status: number, body: unknown) =>
   route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });

@@ -3,7 +3,7 @@
 // "Load more". The owner also sees their pending and rejected works, marked. Empty: "No work added yet."
 import type { Metadata } from 'next';
 import { EmptyState } from '@mytask/ui/web';
-import { PortfolioGrid, SessionRefresh } from '../../../../../../components/profile/client';
+import { PortfolioGrid } from '../../../../../../components/profile/client';
 import {
   isGuestView,
   loadPortfolio,
@@ -28,7 +28,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
 export default async function PortfolioPage({ params }: Params) {
   const { locale: raw, username } = await params;
   const locale = toLocale(raw);
-  const [t, { profile: p, mayHaveSession }, first] = await Promise.all([
+  const [t, { profile: p }, first] = await Promise.all([
     getT(locale),
     loadProfile(locale, username),
     loadPortfolio(locale, username, PORTFOLIO_PAGE_SIZE),
@@ -37,7 +37,6 @@ export default async function PortfolioPage({ params }: Params) {
 
   return (
     <main className="mt-profile">
-      {mayHaveSession && guest && <SessionRefresh />}
       <OwnerBox
         t={t}
         locale={locale}

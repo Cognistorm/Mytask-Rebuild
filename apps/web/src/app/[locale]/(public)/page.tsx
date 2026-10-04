@@ -29,9 +29,9 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
       <p data-testid="api-status" data-up={apiUp} className={apiUp ? 'ok' : 'down'}>
         {t(apiUp ? 't_platform_api_status_ok' : 't_platform_api_status_unreachable')}
       </p>
-      {/* Until the real header (slice 02): ways into the private pages (a full page load, ADR-019 §2). */}
+      {/* Until the real home page (4.2.12): a way into the private pages besides the header (a full page load,
+          ADR-019 §2; e2e/custom-code.spec.ts). Login and Join are in the site header since 4.2.9a. */}
       <nav aria-label={t('t_account_settings')}>
-        <Link href={`${prefix}/auth/login`}>{t('t_login')}</Link> ·{' '}
         <Link href={`${prefix}/account`}>{t('t_account_settings')}</Link>
       </nav>
       {/* Legacy language-switcher keys `ka` / `en` (IMPORT-REPORT.md, non-t_* legacy keys). */}

@@ -6,7 +6,7 @@
 import type { Metadata } from 'next';
 import { notFound, permanentRedirect } from 'next/navigation';
 import { Pill } from '@mytask/ui/web';
-import { SessionRefresh, ShareButton } from '../../../../../../../components/profile/client';
+import { ShareButton } from '../../../../../../../components/profile/client';
 import {
   loadPortfolioItem,
   type PortfolioItem,
@@ -55,13 +55,12 @@ function Image({ image, alt }: { image: PortfolioItem['thumbnail']; alt: string 
 }
 
 export default async function PortfolioItemPage({ params }: Params) {
-  const { locale, item, mayHaveSession, hasSession } = await resolve(params);
+  const { locale, item, hasSession } = await resolve(params);
   const t = await getT(locale);
   const external = { target: '_blank', rel: 'noopener noreferrer nofollow ugc' } as const;
 
   return (
     <main className="mt-profile mt-profile-narrow">
-      {mayHaveSession && !item.isOwn && <SessionRefresh />}
       {item.status === 'pending' && (
         <div className="mt-profile-notice" role="note" data-testid="pending-note">
           <Pill tone="warning">{t('t_pending')}</Pill>
