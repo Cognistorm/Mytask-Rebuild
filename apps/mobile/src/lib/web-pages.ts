@@ -19,3 +19,6 @@ export const profileUrl = (username: string) => `${appUrl}/profile/${encodeURICo
 /** The public web address of a portfolio item (url-map §4.3), shared through the native share sheet. */
 export const portfolioItemUrl = (username: string, slug: string) =>
   `${profileUrl(username)}/portfolio/${encodeURIComponent(slug)}`;
+
+/** The website's gig page (url-map §4.1); the app opens it until the gig screen exists (slice 3). */
+export const gigUrl = (slug: string) => `${appUrl}/service/${encodeURIComponent(slug)}`;

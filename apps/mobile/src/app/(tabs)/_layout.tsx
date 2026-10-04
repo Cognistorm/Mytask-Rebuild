@@ -1,5 +1,5 @@
-// App tab bar (components.md §6.9; design 07 "Native app"; audit §4.11). Slice 1 has the Dashboard and Account
-// tabs; Home, Explore and Messages join with their slices (02, 03, 08). The layout is the session gate:
+// App tab bar (components.md §6.9; design 07 "Native app"; audit §4.11): Home and Explore (slice 2, 4.2.14),
+// Dashboard and Account; Messages joins with slice 08. The layout is the session gate:
 // signed out → login, restricted → the restrictions removal center (spec 01 AC-19).
 import { Redirect } from 'expo-router';
 import { Tabs } from 'expo-router/js-tabs';
@@ -58,6 +58,24 @@ export default function TabLayout() {
           sceneStyle: { backgroundColor: theme.colors.bg.canvas },
         }}
       >
+        <Tabs.Screen
+          name="home"
+          options={{
+            title: t('t_home'),
+            tabBarIcon: ({ focused, color }) => (
+              <Icon name={focused ? 'homeFill' : 'home'} color={color} />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="explore"
+          options={{
+            title: t('t_explore'),
+            tabBarIcon: ({ focused, color }) => (
+              <Icon name={focused ? 'exploreFill' : 'explore'} color={color} />
+            ),
+          }}
+        />
         <Tabs.Screen
           name="dashboard"
           options={{
