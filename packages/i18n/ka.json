@@ -1945,6 +1945,7 @@
   "t_project": "პროექტი",
   "t_project_budget": "პროექტის ბიუჯეტი",
   "t_project_cat_trans_lang_key_exists_error": "როგორც ჩანს, თქვენ უკვე დაამატეთ თარგმანი ამ ენაზე",
+  "t_project_category_top_level_only": "დაკავშირებული კატეგორია მთავარი კატეგორია უნდა იყოს.",
   "t_project_completed": "პროექტი დასრულებულია",
   "t_project_completed_no_more_messages": "პროექტი დასრულებულია, შეტყობინებების გაგზავნა შეუძლებელია",
   "t_project_conversation": "პროექტის ჩათი",

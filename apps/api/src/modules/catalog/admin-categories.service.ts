@@ -19,6 +19,7 @@ import type { RequestContext } from '../auth/request-context';
 import { imageVariants } from '../files/image-variants';
 import { FileAttachments, FilesService } from '../files/files.service';
 import { CategoriesService } from './categories.service';
+import { categoryImageInUse } from './category-images';
 
 type Tx = Prisma.TransactionClient;
 type Row = GigCategory & { translations: GigCategoryTranslation[] };
@@ -439,14 +440,9 @@ export class AdminCategoriesService {
 
   // ------------------------------------------------------------------ helpers
 
-  private async isUsed(fileId: string, exceptCategoryId?: string): Promise<boolean> {
-    const count = await this.prisma.gigCategory.count({
-      where: {
-        OR: [{ iconFileId: fileId }, { imageFileId: fileId }],
-        ...(exceptCategoryId ? { id: { not: exceptCategoryId } } : {}),
-      },
-    });
-    return count > 0;
+  /** Shown by another gig category or by any project category (4.2.8). */
+  private isUsed(fileId: string, exceptCategoryId?: string): Promise<boolean> {
+    return categoryImageInUse(this.prisma, fileId, { gigCategoryId: exceptCategoryId });
   }
 
   /** Best effort after the commit: a replaced or orphaned icon/image is only storage, never shown again. */

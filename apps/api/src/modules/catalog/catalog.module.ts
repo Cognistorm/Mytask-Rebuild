@@ -2,8 +2,13 @@ import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
 import { FilesModule } from '../files/files.module';
 import { ProfilesModule } from '../profiles/profiles.module';
-import { AdminCategoriesController } from './admin-catalog.controllers';
+import {
+  AdminCategoriesController,
+  AdminProjectCategoriesController,
+  AdminSkillsController,
+} from './admin-catalog.controllers';
 import { AdminCategoriesService } from './admin-categories.service';
+import { AdminProjectCatalogService } from './admin-project-catalog.service';
 import {
   CategoriesController,
   GigListsController,
@@ -20,7 +25,7 @@ import { ProjectSearchService } from './project-search.service';
 import { SearchIndex } from './search-index';
 import { SellerListsService } from './seller-lists.service';
 
-// Spec 03 categories and search (slice 2) and the home blocks (4.2.6); staff gig category CRUD (4.2.7b); project categories and skills in 4.2.8.
+// Spec 03 categories and search (slice 2) and the home blocks (4.2.6); staff gig category CRUD (4.2.7b), project categories and skills (4.2.8).
 // `SearchIndex` is exported for the gig writes of slice 3 (ADR-011 §3), `GigCards` for every other gig list.
 @Module({
   imports: [AuthModule, FilesModule, ProfilesModule],
@@ -31,9 +36,12 @@ import { SellerListsService } from './seller-lists.service';
     ProjectAndSellerListsController,
     HomeController,
     AdminCategoriesController,
+    AdminProjectCategoriesController,
+    AdminSkillsController,
   ],
   providers: [
     AdminCategoriesService,
+    AdminProjectCatalogService,
     CategoriesService,
     ProjectCategoriesService,
     GigCards,

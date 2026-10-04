@@ -1941,6 +1941,7 @@
   "t_project": "Project",
   "t_project_budget": "Project budget",
   "t_project_cat_trans_lang_key_exists_error": "Looks like you already added translation in this language",
+  "t_project_category_top_level_only": "The linked gig category must be a top-level category.",
   "t_project_completed": "Project completed",
   "t_project_completed_no_more_messages": "Project completed, no more messages can be sent",
   "t_project_conversation": "Project Conversation",
