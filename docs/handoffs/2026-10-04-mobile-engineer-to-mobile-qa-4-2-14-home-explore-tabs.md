@@ -19,5 +19,5 @@
 - 4.2.15: category screen (and point Home's category taps at it), `/sellers`, `/hire/{keyword}`, explore projects; Projects shortcut on Home.
 
 ## Open questions / risks
-- **Guests**: the tab layout is still the slice 1 session gate, so Home and Explore need a signed-in user. Opening them to guests (as the website is) changes the app's start flow: **Owner question** (recorded in the 4.2.14 STATUS line; proposed: open Home/Explore/profile to guests, keep Dashboard/Account behind login).
+- **Guests**: the tab layout is still the slice 1 session gate, so Home and Explore need a signed-in user. Opening them to guests (as the website is) changes the app's start flow: **Owner question Q-167** (`docs/01-discovery/open-questions.md`; proposed: open Home/Explore/profile to guests, keep Dashboard/Account behind login).
 - No device test was run in this session (bundles build; QA should click through on a phone).

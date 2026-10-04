@@ -58,7 +58,7 @@ Phase: 4 — Features **NEXT** | Phase 3 gate: APPROVED by Owner 2026-10-02 | Ph
 
 ## Micro-task workflow (Owner rule 2026-09-30)
 The plan lives in **docs/ROADMAP.md** (checkbox per micro-task). One micro-task at a time; when it is done and tests pass, tick it there and add one line below.
-**Next micro-task: 4.2.15** (slice 2, branch `feat/catalog-search`, mobile): category screen, `/sellers`, `/hire/{keyword}`, explore projects; profile skill chips → hire; profile gigs via `listGigs`. Owner rule 2026-10-02: no push or PR until Phase 4 is complete. **Owner decisions still open:** DEV-M1; Q-160; mobile guest access (4.2.14).
+**Next micro-task: 4.2.15** (slice 2, branch `feat/catalog-search`, mobile): category screen, `/sellers`, `/hire/{keyword}`, explore projects; profile skill chips → hire; profile gigs via `listGigs`. Owner rule 2026-10-02: no push or PR until Phase 4 is complete. **Owner decisions still open:** DEV-M1; Q-160; **Q-167** (mobile guests may browse Home/Explore? recommended yes).
 
 ### Micro-task log
 - 2026-10-02 3.18 + 3.19 done: PR #1 `feat/auth` merged into `main`, CI 10/10 green; Phase 3 gate approved by Owner. **Phase 3 closed.**

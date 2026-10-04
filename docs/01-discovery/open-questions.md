@@ -837,3 +837,14 @@ Options:
 Recommendation: (a). The admins get one email per item to review, not one per edit.
 When: before 4.2.0d (backend). The rate limit in 4.2.0d does not wait on it.
 **Answer (Owner, 2026-10-03): (a), as recommended.** EV-14 is sent only when an item enters "waiting for approval"; edits while it waits send no new email. Spec 02 AC-25, spec 15 EV-14, ADR-022 §4 and the `updatePortfolioItem` description updated; built in ROADMAP 4.2.0d.
+
+## Slice 02 mobile (mobile, ROADMAP 4.2.14, 2026-10-04)
+
+### Q-167
+**May guests (not signed in) browse the app's Home and Explore tabs?** Since slice 1 the app's tab layout is a session gate: a visitor without a session goes straight to the login screen. Slice 2 adds the Home and Explore tabs (gigs, categories, freelancers), which the website shows to everyone. The public profile screen is already open to guests.
+Options:
+- (a) Open Home, Explore and the catalogue screens (categories, sellers, hire, explore projects) to guests; Dashboard and Account (and every action that needs an account, e.g. "Contact me") ask for login. Same as the website.
+- (b) Keep the app login-only (today's behaviour).
+
+Recommendation: (a). Browsing before signing up is how people find a freelancer; the website already allows it, and the API reads are public.
+When: before the mobile part of slice 2 is approved (4.2.20). Building (a) is a small change to `(tabs)/_layout.tsx` (gate only the Dashboard and Account tabs).
