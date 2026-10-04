@@ -70,6 +70,16 @@ export function SiteHeaderClient(props: HeaderProps) {
     if (phoneSearch) phoneInput.current?.focus();
   }, [phoneSearch]);
 
+  // On the results page the header field shows the keyword searched for.
+  const pathname = usePathname();
+  const desktopInput = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    const q = /\/search$/.test(pathname ?? '')
+      ? (new URLSearchParams(window.location.search).get('q') ?? '')
+      : '';
+    for (const input of [desktopInput.current, phoneInput.current]) if (input) input.value = q;
+  }, [pathname, phoneSearch]);
+
   async function logout() {
     await api.POST('/auth/logout', { body: {} });
     window.location.reload();
@@ -153,7 +163,7 @@ export function SiteHeaderClient(props: HeaderProps) {
               }
             </MenuButton>
           )}
-          {searchField('site-search')}
+          {searchField('site-search', desktopInput)}
         </form>
 
         <div className="mt-site-actions">
