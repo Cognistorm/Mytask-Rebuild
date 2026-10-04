@@ -1,8 +1,8 @@
 // Home tab (ROADMAP 4.2.14; design 01-home.md "Native app"; spec 03 AC-24…AC-26): logo bar, a compact teal hero
 // (search field that opens the Explore search, Gigs shortcut), then the getHome rows as horizontal lists: featured
 // categories (S-107), Top gigs, one row per visible category with "See more", best sellers (S-108). Rows the API
-// returns null or empty are hidden; pull to refresh. Bell and cart join with their slices (14, 5); the Projects
-// shortcut with the explore-projects screen (4.2.15); the invite banner with slice 9.
+// returns null or empty are hidden; pull to refresh. Bell and cart join with their slices (14, 5); the invite banner
+// with slice 9. A category opens its screen, "See more" of best sellers opens `/sellers` (4.2.15).
 import { router } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
@@ -19,7 +19,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { lightTheme as theme } from '@mytask/tokens/native';
 import type { components } from '@mytask/types';
-import { GigCardView, SellerMini } from '../../components/catalog';
+import { GigCardView, openCategoryPath, SellerMini } from '../../components/catalog';
 import { Notice } from '../../components/form';
 import { mobileApi } from '../../lib/api';
 import { createT } from '../../lib/i18n';
@@ -33,9 +33,8 @@ type Home = components['schemas']['Home'];
 type GigCard = components['schemas']['GigCard'];
 type CategoryRef = components['schemas']['CategoryRef'];
 
-/** Until the category screen exists (4.2.15) a category opens Explore filtered to it. */
-const openCategory = (c: CategoryRef) =>
-  router.push({ pathname: '/explore', params: { categoryId: c.id, title: c.name } });
+/** Featured tiles and home rows are top-level categories, so the slug is the whole path. */
+const openCategory = (c: CategoryRef) => openCategoryPath(c.slug);
 
 export default function HomeScreen() {
   const config = usePublicConfig(locale);
@@ -124,6 +123,17 @@ export default function HomeScreen() {
             >
               <Text style={s.shortcutText}>{t('t_gigs')}</Text>
             </Pressable>
+            {config?.projects.enabled ? (
+              <Pressable
+                style={s.shortcut}
+                onPress={() =>
+                  router.push({ pathname: '/explore-projects/[[...path]]', params: { path: [] } })
+                }
+                accessibilityRole="button"
+              >
+                <Text style={s.shortcutText}>{t('t_projects')}</Text>
+              </Pressable>
+            ) : null}
           </View>
         </View>
 
@@ -180,6 +190,13 @@ export default function HomeScreen() {
               <Text style={s.rowTitle} accessibilityRole="header">
                 {t('t_top_sellers')}
               </Text>
+              <Pressable
+                onPress={() => router.push('/sellers')}
+                accessibilityRole="link"
+                hitSlop={theme.space[2]}
+              >
+                <Text style={s.more}>{t('t_see_more')}</Text>
+              </Pressable>
             </View>
             <FlatList
               horizontal

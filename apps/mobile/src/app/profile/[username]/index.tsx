@@ -2,11 +2,11 @@
 // left card stacks on top, share opens the native share sheet"; design components.md §7.4), the same data, order
 // and keys as the web `/profile/{username}`. Open to guests (no session gate): the API answers as the visitor.
 // "Edit profile" for the owner since 4.1.23b. Not yet in the app (no screen to open, so no dead end, as 4.1.22):
-// "Contact me" (chat, slice 08), skill pages `/hire/{slug}` (slice 03), the gigs list (slice 03), "Request an offer"
-// (slice 11; the API sends `canRequestOffer: false`). Since 4.1.24a a work opens the item viewer and "View my portfolio"
+// "Contact me" (chat, slice 08), "Request an offer" (slice 11; the API sends `canRequestOffer: false`). Since 4.2.15
+// the gigs block (listGigs, 6 + "Load more") and skill chips opening `/hire/{slug}` (spec 03 AC-30). Since 4.1.24a a work opens the item viewer and "View my portfolio"
 // opens the portfolio screen when there are more than the preview shows.
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   Linking,
   Platform,
@@ -19,6 +19,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { lightTheme as theme } from '@mytask/tokens/native';
+import type { components } from '@mytask/types';
 import { EmptyState, Section, SecondaryButton, Skeleton } from '../../../components/dashboard';
 import { Button, Notice } from '../../../components/form';
 import {
@@ -31,6 +32,7 @@ import {
   RatingSummary,
   VerifiedMark,
 } from '../../../components/profile';
+import { GigCardView } from '../../../components/catalog';
 import { PortfolioGrid } from '../../../components/portfolio';
 import { ReportUser } from '../../../components/report-user';
 import { loadSession, mobileApi } from '../../../lib/api';
@@ -55,12 +57,26 @@ type State =
   | { kind: 'loading' }
   | { kind: 'not-found' }
   | { kind: 'error' }
-  | { kind: 'ready'; profile: UserProfile; portfolio: PortfolioItemCard[]; hasMore: boolean };
+  | {
+      kind: 'ready';
+      profile: UserProfile;
+      portfolio: PortfolioItemCard[];
+      hasMore: boolean;
+      gigs: GigCard[];
+      gigsCursor: string | null;
+    };
+
+type GigCard = components['schemas']['GigCard'];
+/** Spec 02 AC-8: 6 gigs at a time. */
+const GIGS_PAGE = 6;
 
 async function fetchProfile(username: string): Promise<State> {
-  const [profile, portfolio] = await Promise.all([
+  const [profile, portfolio, gigs] = await Promise.all([
     api.GET('/users/{username}', { params: { path: { username } } }),
     api.GET('/portfolio-items', { params: { query: { username, limit: PREVIEW_SIZE } } }),
+    api
+      .GET('/gigs', { params: { query: { sellerUsername: username, limit: GIGS_PAGE } } })
+      .catch(() => undefined),
   ]);
   // Pending, banned, deleted and unknown users (AC-9, EC-4).
   if (profile.response.status === 404) return { kind: 'not-found' };
@@ -70,6 +86,8 @@ async function fetchProfile(username: string): Promise<State> {
     profile: profile.data,
     portfolio: portfolio.data?.data ?? [],
     hasMore: !!portfolio.data?.nextCursor,
+    gigs: (gigs?.data?.data ?? []) as GigCard[],
+    gigsCursor: gigs?.data?.nextCursor ?? null,
   };
 }
 
@@ -119,7 +137,13 @@ export default function ProfileScreen() {
           </View>
         ) : null}
         {state.kind === 'ready' ? (
-          <Profile profile={state.profile} portfolio={state.portfolio} hasMore={state.hasMore} />
+          <Profile
+            profile={state.profile}
+            portfolio={state.portfolio}
+            hasMore={state.hasMore}
+            gigs={state.gigs}
+            gigsCursor={state.gigsCursor}
+          />
         ) : null}
       </ScrollView>
     </SafeAreaView>
@@ -130,12 +154,36 @@ function Profile({
   profile: p,
   portfolio,
   hasMore,
+  gigs: firstGigs,
+  gigsCursor,
 }: {
   profile: UserProfile;
   portfolio: PortfolioItemCard[];
   hasMore: boolean;
+  gigs: GigCard[];
+  gigsCursor: string | null;
 }) {
   const name = p.fullName || p.username;
+  const [gigs, setGigs] = useState(firstGigs);
+  const [cursor, setCursor] = useState(gigsCursor);
+  const [gigsBusy, setGigsBusy] = useState(false);
+  useEffect(() => {
+    setGigs(firstGigs);
+    setCursor(gigsCursor);
+  }, [firstGigs, gigsCursor]);
+
+  async function moreGigs() {
+    if (!cursor) return;
+    setGigsBusy(true);
+    const res = await api
+      .GET('/gigs', { params: { query: { sellerUsername: p.username, cursor, limit: GIGS_PAGE } } })
+      .catch(() => undefined);
+    setGigsBusy(false);
+    if (!res?.data) return;
+    const next = (res.data.data as GigCard[]).filter((g) => !gigs.some((x) => x.id === g.id));
+    setGigs([...gigs, ...next]);
+    setCursor(res.data.nextCursor);
+  }
 
   const ratingLabels = (block: UserProfile['ratings']['asClient']) => ({
     empty: t('t_no_reviews_yet'),
@@ -296,8 +344,19 @@ function Profile({
         </Section>
       ) : null}
 
-      {/* Gigs arrive with slice 3; until then only the owner sees the empty block (EC-10). */}
-      {p.isOwnProfile ? (
+      {/* Active gigs, newest first, 6 at a time (AC-8); without gigs only the owner sees the empty block (EC-10). */}
+      {gigs.length > 0 ? (
+        <Section title={t('t_gigs')} testID="profile-gigs">
+          <View style={s.gap}>
+            {gigs.map((g) => (
+              <GigCardView key={g.id} gig={g} t={t} />
+            ))}
+            {cursor ? (
+              <Button label={t('t_load_more')} busy={gigsBusy} onPress={() => void moreGigs()} />
+            ) : null}
+          </View>
+        </Section>
+      ) : p.isOwnProfile ? (
         <Section title={t('t_gigs')}>
           <EmptyState title={t('t_profile_no_gigs_yet')} />
         </Section>
@@ -339,11 +398,18 @@ function Profile({
         <Section title={t('t_skills')}>
           <View style={s.chips}>
             {p.skills.map((skill) => (
-              <Chip
+              <Pressable
                 key={skill.id}
-                label={skill.name}
-                accessibilityLabel={`${skill.name}, ${t(SKILL_LEVEL[skill.experience])}`}
-              />
+                onPress={() =>
+                  router.push({ pathname: '/hire/[keyword]', params: { keyword: skill.slug } })
+                }
+                accessibilityRole="link"
+              >
+                <Chip
+                  label={skill.name}
+                  accessibilityLabel={`${skill.name}, ${t(SKILL_LEVEL[skill.experience])}`}
+                />
+              </Pressable>
             ))}
           </View>
         </Section>

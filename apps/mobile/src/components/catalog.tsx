@@ -46,6 +46,10 @@ type SellerCard = components['schemas']['SellerCard'];
 export const openProfile = (username: string) =>
   router.push({ pathname: '/profile/[username]', params: { username } });
 
+/** A gig category screen by its slug path (`design/logo-design`). */
+export const openCategoryPath = (path: string) =>
+  router.push({ pathname: '/categories/[...path]', params: { path: path.split('/') } });
+
 /**
  * One gig (§7.2): image 3:2, Featured frame + badge for Premium owners (AC-18, text + icon, never colour only),
  * seller row, 2-line title, rating or a quiet "No reviews yet", starting price. The gig page is slice 3 (the
@@ -465,6 +469,93 @@ export function GigResults(props: {
         }}
       />
     </>
+  );
+}
+
+/**
+ * Freelancer list of `/sellers` (40 per load) and `/hire/{keyword}` (42 per load) with infinite scroll and pull to
+ * refresh (spec 03 AC-27, AC-28, R-S6). `fetchPage` answers one page (`null` = failed).
+ */
+export function SellerResults(props: {
+  t: TFunction;
+  fetchPage: (
+    cursor: string | null,
+  ) => Promise<{ data: SellerCard[]; nextCursor: string | null } | null>;
+  header?: ReactElement;
+  testID?: string;
+}) {
+  const { t, fetchPage } = props;
+  const [sellers, setSellers] = useState<SellerCard[]>([]);
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [state, setState] = useState<Load>({ kind: 'loading' });
+  const [more, setMore] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const load = useCallback(
+    async (after: string | null) => {
+      const page = await fetchPage(after);
+      if (!page) return setState({ kind: 'error' });
+      setSellers((prev) =>
+        after
+          ? [...prev, ...page.data.filter((x) => !prev.some((p) => p.user.id === x.user.id))]
+          : page.data,
+      );
+      setCursor(page.nextCursor);
+      setState({ kind: 'ready' });
+    },
+    [fetchPage],
+  );
+
+  useEffect(() => {
+    void load(null);
+  }, [load]);
+
+  return (
+    <FlatList
+      testID={props.testID}
+      data={state.kind === 'ready' ? sellers : []}
+      keyExtractor={(x) => x.user.id}
+      renderItem={({ item }) => (
+        <SellerMini
+          seller={item}
+          t={t}
+          onSkill={(slug) =>
+            router.push({ pathname: '/hire/[keyword]', params: { keyword: slug } })
+          }
+        />
+      )}
+      contentContainerStyle={s.list}
+      ItemSeparatorComponent={() => <View style={{ height: theme.space[4] }} />}
+      ListHeaderComponent={props.header}
+      ListEmptyComponent={
+        state.kind === 'loading' ? (
+          <ActivityIndicator accessibilityLabel={t('t_ui_loading')} />
+        ) : state.kind === 'error' ? (
+          <View style={s.errorBox}>
+            <Notice kind="error" text={t('t_toast_something_went_wrong')} />
+            <Button label={t('t_retry')} onPress={() => void load(null)} />
+          </View>
+        ) : (
+          <EmptyState title={t('no_results_found')} />
+        )
+      }
+      ListFooterComponent={more ? <ActivityIndicator /> : null}
+      onEndReachedThreshold={0.5}
+      onEndReached={() => {
+        if (!cursor || more || state.kind !== 'ready') return;
+        setMore(true);
+        void load(cursor).finally(() => setMore(false));
+      }}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={() => {
+            setRefreshing(true);
+            void load(null).finally(() => setRefreshing(false));
+          }}
+        />
+      }
+    />
   );
 }
 
