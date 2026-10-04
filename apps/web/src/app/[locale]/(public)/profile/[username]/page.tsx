@@ -5,6 +5,7 @@
 // "Report user" (AC-14) since 4.1.20c. Not yet: the gigs list (slice 3, D2), "Request an offer" (slice 11: the API
 // sends `canRequestOffer: false` until then).
 import type { Metadata } from 'next';
+import type { components } from '@mytask/types';
 import Link from 'next/link';
 import {
   Avatar,
@@ -18,11 +19,13 @@ import {
 import {
   LocalTime,
   PortfolioCardView,
+  ProfileGigs,
   ReportButton,
   ShareButton,
 } from '../../../../../components/profile/client';
 import {
   isGuestView,
+  loadGigs,
   loadPortfolio,
   loadProfile,
   PREVIEW_SIZE,
@@ -35,6 +38,10 @@ import { getT, toLocale } from '../../../../../lib/i18n';
 import { pageTitle } from '../../../../../lib/page-title';
 
 type Params = { params: Promise<{ locale: string; username: string }> };
+type GigCardItem = components['schemas']['GigCard'];
+
+/** Spec 02 AC-8: the profile lists 6 gigs at a time. */
+const GIGS_PAGE_SIZE = 6;
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { locale: raw, username } = await params;
@@ -50,10 +57,11 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
 export default async function ProfilePage({ params }: Params) {
   const { locale: raw, username } = await params;
   const locale = toLocale(raw);
-  const [t, { profile: p }, portfolio] = await Promise.all([
+  const [t, { profile: p }, portfolio, gigs] = await Promise.all([
     getT(locale),
     loadProfile(locale, username),
     loadPortfolio(locale, username, PREVIEW_SIZE),
+    loadGigs(locale, username, GIGS_PAGE_SIZE),
   ]);
   const guest = isGuestView(p);
   const name = p.fullName || p.username;
@@ -232,22 +240,40 @@ export default async function ProfilePage({ params }: Params) {
             </section>
           )}
 
-          {/* Gigs (D2 `listGigs?sellerUsername=`) arrive with slice 3; until then only the owner sees the
-              empty block (EC-10), visitors see none. */}
-          {p.isOwnProfile && (
-            <section className="mt-profile-section" aria-labelledby="profile-gigs">
+          {/* Active gigs, newest first, 6 at a time (AC-8); without gigs only the owner sees the empty block with
+              "Create a new gig" (EC-10), visitors see none. */}
+          {gigs && gigs.data.length > 0 ? (
+            <section
+              className="mt-profile-section"
+              aria-labelledby="profile-gigs"
+              data-testid="profile-gigs"
+            >
               <h2 id="profile-gigs" className="mt-profile-section-title">
                 {t('t_gigs')}
               </h2>
-              <EmptyState
-                title={t('t_profile_no_gigs_yet')}
-                action={
-                  <a className="mt-button mt-button-primary" href={href(locale, '/create')}>
-                    {t('t_create_a_new_gig')}
-                  </a>
-                }
+              <ProfileGigs
+                username={p.username}
+                initial={gigs.data as GigCardItem[]}
+                nextCursor={gigs.nextCursor}
+                pageSize={GIGS_PAGE_SIZE}
               />
             </section>
+          ) : (
+            p.isOwnProfile && (
+              <section className="mt-profile-section" aria-labelledby="profile-gigs">
+                <h2 id="profile-gigs" className="mt-profile-section-title">
+                  {t('t_gigs')}
+                </h2>
+                <EmptyState
+                  title={t('t_profile_no_gigs_yet')}
+                  action={
+                    <a className="mt-button mt-button-primary" href={href(locale, '/create')}>
+                      {t('t_create_a_new_gig')}
+                    </a>
+                  }
+                />
+              </section>
+            )
           )}
 
           {(portfolio.data.length > 0 || p.isOwnProfile) && (

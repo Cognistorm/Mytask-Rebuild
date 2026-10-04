@@ -50,3 +50,4 @@ export {
   type GigCardLabels,
 } from './catalog';
 export { formatMoney } from './money';
+export { Carousel } from './carousel';

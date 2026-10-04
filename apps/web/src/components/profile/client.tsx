@@ -4,10 +4,12 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import type { components } from '@mytask/types';
-import { Alert, Dialog, Pill, TextArea } from '@mytask/ui/web';
+import { Alert, Dialog, GigCard, GigGrid, Pill, TextArea } from '@mytask/ui/web';
+import { gigCardLabels, toGigCardData } from '../../lib/gig-card';
 import { href, splitErrors, useApi, useLocale, useT, type ApiErrorBody } from '../../lib/client';
 
 type PortfolioCard = components['schemas']['PortfolioItemCard'];
+type GigCardItem = components['schemas']['GigCard'];
 
 /**
  * "Share profile" / "Share this project" (design §7.4: one button opening a dialog with Facebook, X, LinkedIn,
@@ -280,6 +282,64 @@ export function PortfolioGrid(props: {
           <PortfolioCardView key={item.id} item={item} username={props.username} />
         ))}
       </ul>
+      {failed && (
+        <p role="alert" className="mt-profile-error">
+          {t('t_toast_something_went_wrong')}
+        </p>
+      )}
+      {cursor && (
+        <div className="mt-profile-more">
+          <button type="button" className="mt-button" disabled={busy} onClick={() => void more()}>
+            {t('t_load_more')}
+          </button>
+        </div>
+      )}
+    </>
+  );
+}
+
+/** The profile's gigs (spec 02 AC-8): newest first, 6 at a time with "Load more" (listGigs cursor). */
+export function ProfileGigs(props: {
+  username: string;
+  initial: GigCardItem[];
+  nextCursor: string | null;
+  pageSize: number;
+}) {
+  const locale = useLocale();
+  const t = useT(locale);
+  const api = useApi(locale);
+  const [items, setItems] = useState(props.initial);
+  const [cursor, setCursor] = useState(props.nextCursor);
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  const more = async () => {
+    if (!cursor) return;
+    setBusy(true);
+    setFailed(false);
+    const res = await api
+      .GET('/gigs', {
+        params: { query: { sellerUsername: props.username, cursor, limit: props.pageSize } },
+      })
+      .catch(() => undefined);
+    setBusy(false);
+    if (!res?.data) return setFailed(true);
+    const seen = new Set(items.map((i) => i.id));
+    const next = (res.data.data as GigCardItem[]).filter((i) => !seen.has(i.id));
+    setItems([...items, ...next]);
+    setCursor(res.data.nextCursor);
+  };
+
+  const labels = gigCardLabels(t);
+  return (
+    <>
+      <GigGrid label={t('t_gigs')}>
+        {items.map((g) => (
+          <li key={g.id}>
+            <GigCard gig={toGigCardData(locale, g)} labels={labels} Link={Link} />
+          </li>
+        ))}
+      </GigGrid>
       {failed && (
         <p role="alert" className="mt-profile-error">
           {t('t_toast_something_went_wrong')}

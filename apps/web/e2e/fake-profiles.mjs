@@ -96,6 +96,13 @@ const EMPTY = {
   isIndexable: false,
 };
 
+/** A seller with gigs (the gigs block, ROADMAP 4.2.12; listGigs answers from e2e/fake-catalog.mjs). */
+const GIG_SELLER = {
+  ...EMPTY,
+  id: '01900000-0000-7000-8000-000000000003',
+  username: 'gig_seller',
+};
+
 const SUMMARY = {
   id: NINO.id,
   username: NINO.username,
@@ -160,7 +167,11 @@ function item(c, viewer) {
 /** Answers the profile operations; `undefined` for any other path. */
 export function profileRoute(url, req) {
   const viewer = viewerOf(req);
-  const users = { [NINO.username]: NINO, [EMPTY.username]: EMPTY };
+  const users = {
+    [NINO.username]: NINO,
+    [EMPTY.username]: EMPTY,
+    [GIG_SELLER.username]: GIG_SELLER,
+  };
 
   const user = url.pathname.match(/^\/api\/v1\/users\/([^/]+)$/);
   if (user) {

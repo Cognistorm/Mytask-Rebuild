@@ -3,14 +3,13 @@ import { expect, test } from '@playwright/test';
 test('Georgian is the unprefixed default', async ({ page }) => {
   await page.goto('/');
   await expect(page.locator('html')).toHaveAttribute('lang', 'ka');
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('მთავარი');
-  await expect(page.getByTestId('api-status')).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('იპოვე საუკეთესო ფრილანსერი');
 });
 
 test('English lives under /en', async ({ page }) => {
   await page.goto('/en');
   await expect(page.locator('html')).toHaveAttribute('lang', 'en');
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Home');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Find the best Freelancer');
 });
 
 test('/ka is not a public URL: 301 to the unprefixed page', async ({ request }) => {

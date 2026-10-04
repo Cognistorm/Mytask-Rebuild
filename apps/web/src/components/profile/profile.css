@@ -381,3 +381,11 @@
   justify-content: flex-end;
   gap: var(--mt-space-2);
 }
+
+/* The gigs block sits in the narrower main column: fewer, wider cards than a full-width list. */
+.mt-profile-section .mt-gig-grid {
+  grid-template-columns: repeat(
+    auto-fill,
+    minmax(calc(var(--mt-size-layout-sidebar-width) - var(--mt-space-4)), 1fr)
+  );
+}

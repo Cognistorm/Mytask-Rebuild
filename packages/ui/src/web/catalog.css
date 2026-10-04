@@ -304,3 +304,89 @@
     grid-template-columns: repeat(4, 1fr);
   }
 }
+
+/* ---- Carousel ---- */
+.mt-carousel {
+  position: relative;
+}
+
+.mt-carousel-buttons {
+  position: absolute;
+  inset-block-start: calc(-1 * var(--mt-space-12));
+  inset-inline-end: 0;
+  display: flex;
+  gap: var(--mt-space-1);
+}
+
+.mt-carousel-prev svg {
+  transform: rotate(90deg);
+}
+
+.mt-carousel-next svg {
+  transform: rotate(-90deg);
+}
+
+.mt-carousel-list {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 80%;
+  gap: var(--mt-space-4);
+  margin: 0;
+  padding: 0 0 var(--mt-space-2);
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  list-style: none;
+  scrollbar-width: thin;
+}
+
+.mt-carousel-list > li {
+  scroll-snap-align: start;
+}
+
+/* Category tile: admin artwork with a gradient and a white title (contrast by the gradient token, Q-077). */
+.mt-category-tile {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  aspect-ratio: var(--mt-size-layout-card-image-ratio);
+  border-radius: var(--mt-radius-card);
+  background: var(--mt-bg-hero);
+  color: var(--mt-text-on-image);
+  text-decoration: none;
+}
+
+.mt-category-tile img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.mt-category-tile span {
+  position: absolute;
+  inset: auto 0 0;
+  padding: var(--mt-space-6) var(--mt-space-3) var(--mt-space-3);
+  background: linear-gradient(
+    to top,
+    var(--mt-color-alpha-image-gradient-end),
+    var(--mt-color-alpha-image-gradient-start)
+  );
+  font-weight: var(--mt-font-weight-semibold);
+}
+
+.mt-category-tile:focus-visible {
+  outline: var(--mt-focus-ring-width) solid var(--mt-focus-ring);
+  outline-offset: var(--mt-focus-ring-offset);
+}
+
+@media (min-width: 640px) {
+  .mt-carousel-list {
+    grid-auto-columns: calc((100% - 2 * var(--mt-space-4)) / 3);
+  }
+}
+
+@media (min-width: 1024px) {
+  .mt-carousel-list {
+    grid-auto-columns: calc((100% - 6 * var(--mt-space-4)) / 7);
+  }
+}

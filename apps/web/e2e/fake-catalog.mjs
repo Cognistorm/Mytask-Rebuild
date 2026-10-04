@@ -253,8 +253,39 @@ const PROJECT_CATEGORIES = [
   },
 ];
 
+/** getHome: 4 top gigs, two category rows (the second empty: hidden), featured tiles, best sellers. */
+function home(locale) {
+  const tree = categoryTree(locale);
+  const ref = (n) => ({ id: n.id, slug: n.slug, name: n.name, contentLocale: locale });
+  return {
+    topGigs: GIGS.slice(0, 4),
+    categoryRows: [
+      { category: ref(tree[0]), gigs: GIGS.slice(4, 8) },
+      { category: ref(tree[1]), gigs: [] },
+    ],
+    featuredCategories: tree.slice(0, 3).map((n) => ({ category: ref(n), image: null })),
+    bestSellers: SELLERS.slice(0, 2).map((s) => ({
+      ...s,
+      rating: { count: 3, averageTenths: 50 },
+      salesCount: 7,
+    })),
+    logos: null,
+    recentArticles: null,
+  };
+}
+
 /** [status, body] for the catalogue routes, or null. */
 export function catalogRoute(url, req) {
+  const lang = String(req.headers['accept-language'] ?? 'ka').startsWith('en') ? 'en' : 'ka';
+  if (url.pathname === '/api/v1/home') return [200, home(lang)];
+  if (url.pathname === '/api/v1/gigs') {
+    // listGigs: 8 gigs for `gig_seller` (6 + "Load more"), none for anyone else (cursor = offset).
+    const all = url.searchParams.get('sellerUsername') === 'gig_seller' ? GIGS.slice(10, 18) : [];
+    const start = Number(url.searchParams.get('cursor') ?? 0);
+    const limit = Number(url.searchParams.get('limit') ?? 20);
+    const next = start + limit < all.length ? String(start + limit) : null;
+    return [200, { data: all.slice(start, start + limit), nextCursor: next }];
+  }
   if (url.pathname === '/api/v1/sellers') return [200, paged(SELLERS, url)];
   const hire = url.pathname.match(/^\/api\/v1\/hire\/([^/]+)$/);
   if (hire) {

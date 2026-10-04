@@ -54,7 +54,7 @@ test('ka public page: custom code runs with the nonce, CSP lists the S-127 host'
   expect(violations).toEqual([]);
 });
 
-test('ka: public → /auth/login and public → /account are full page loads; marker and S-127 host gone', async ({
+test('ka: public → /auth/login and public → /auth/register are full page loads; marker and S-127 host gone', async ({
   page,
 }) => {
   await page.goto('/');
@@ -68,13 +68,12 @@ test('ka: public → /auth/login and public → /account are full page loads; ma
   expect(await headMarker(page)).toBeUndefined();
   expect(await page.locator('[data-custom-code]').count()).toBe(0);
 
+  // The header's "Join" (public → /auth/register) is a full page load too.
   await page.goto('/');
   expect(await headMarker(page)).toBe(1);
-  const account = await clickThrough(page, 'პროფილის მონაცემები');
-  expect(new URL(account.url()).pathname).toBe('/account');
-  expect(csp(account)).not.toContain(HOST);
-  // Signed out, /account sends the visitor on to login inside the private layout (client-side).
-  await expect(page).toHaveURL(/\/auth\/login\?next=%2Faccount|\/auth\/login\?next=\/account/);
+  const register = await clickThrough(page, 'შეუერთდი');
+  expect(new URL(register.url()).pathname).toBe('/auth/register');
+  expect(csp(register)).not.toContain(HOST);
   expect(await headMarker(page)).toBeUndefined();
 });
 

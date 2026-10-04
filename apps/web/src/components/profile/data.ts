@@ -38,6 +38,17 @@ export const loadPortfolio = cache(async (locale: Locale, username: string, limi
   return res.data;
 });
 
+/** The seller's active gigs, newest first (listGigs, spec 02 AC-8: 6 at a time); a failure shows no block. */
+export const loadGigs = cache(async (locale: Locale, username: string, limit: number) => {
+  try {
+    const { api } = await viewerApi(locale);
+    const res = await api.GET('/gigs', { params: { query: { sellerUsername: username, limit } } });
+    return res.data ?? null;
+  } catch {
+    return null;
+  }
+});
+
 /** A portfolio item by its slug (the uid is its suffix); others' pending/rejected items are 404. */
 export const loadPortfolioItem = cache(async (locale: Locale, slug: string) => {
   const { api, mayHaveSession, hasSession } = await viewerApi(locale);
