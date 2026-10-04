@@ -5,7 +5,7 @@
 // `/ka/` reaches its final URL in one 301 hop (url-map §1 rules 3 and 5, QA P3 BUG-11).
 // Legacy `?locale=` and `?theme=` answer one 301 to the same page without them (url-map §2, spec 03 AC-36): `en`
 // moves the path under /en, anything else to the unprefixed Georgian path; `theme=dark|light` also sets the
-// theme cookie on the redirect.
+// theme cookie on the redirect. `?page=1` is the clean list (url-map §2) and goes in the same hop.
 // Every page gets a Content-Security-Policy with a fresh nonce (ADR-013 §5): the strict one, plus the S-127
 // custom-code hosts on public pages only (spec 16 AC-73/AC-74, ADR-019 §2).
 import { type NextRequest, NextResponse } from 'next/server';
@@ -73,7 +73,7 @@ export function legacyParams(
   search: string,
 ): { url: string; theme: 'dark' | 'light' | null } | null {
   const query = new URLSearchParams(search);
-  if (!query.has('locale') && !query.has('theme')) return null;
+  if (!query.has('locale') && !query.has('theme') && query.get('page') !== '1') return null;
   let target = path;
   if (query.has('locale')) {
     const bare = path === '/en' ? '/' : path.startsWith('/en/') ? path.slice(3) : path;
@@ -83,6 +83,7 @@ export function legacyParams(
   const value = query.get('theme');
   const theme = value === 'dark' || value === 'light' ? value : null;
   query.delete('theme');
+  if (query.get('page') === '1') query.delete('page');
   const rest = query.toString();
   return { url: `${target}${rest ? `?${rest}` : ''}`, theme };
 }

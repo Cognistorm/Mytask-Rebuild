@@ -4,7 +4,6 @@ export {
   AccountMenu,
   DashboardLayout,
   EmptyState,
-  formatMoney,
   InfoButton,
   Panel,
   Price,
@@ -39,3 +38,13 @@ export {
   type NavNode,
   type SiteIconName,
 } from './site';
+export {
+  Breadcrumb,
+  GigCard,
+  GigGrid,
+  pageWindow,
+  Pagination,
+  type GigCardData,
+  type GigCardLabels,
+} from './catalog';
+export { formatMoney } from './money';

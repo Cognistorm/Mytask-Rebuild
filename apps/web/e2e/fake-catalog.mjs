@@ -98,8 +98,110 @@ export const HEADER_ME = {
   createdAt: '2024-01-10T08:00:00Z',
 };
 
+/** lookupCategory: the node of each slug must sit under the previous one (spec 03 AC-3), else 404. */
+function categoryDetail(locale, path) {
+  const slugs = path.split('/');
+  if (slugs.length > 3 || slugs.some((x) => x === '')) return null;
+  let level = categoryTree(locale);
+  const trail = [];
+  for (const slug of slugs) {
+    const found = level.find((n) => n.slug === slug);
+    if (!found) return null;
+    trail.push(found);
+    level = found.children;
+  }
+  const node = trail[trail.length - 1];
+  // "web-design" has no English: /en shows the Georgian name and texts (AC-4).
+  const georgianOnly = locale === 'en' && node.slug === 'web-design';
+  const ref = (n) => ({
+    id: n.id,
+    slug: n.slug,
+    name: n.slug === 'web-design' && georgianOnly ? 'ვებ დიზაინი' : n.name,
+    contentLocale: n.slug === 'web-design' && georgianOnly ? 'ka' : locale,
+  });
+  return {
+    id: node.id,
+    slug: node.slug,
+    path: node.path,
+    depth: node.depth,
+    name: ref(node).name,
+    description: null,
+    contentTop: georgianOnly
+      ? '<p>ვებ დიზაინის აღწერა</p>'
+      : node.slug === 'design'
+        ? `<h2>${locale === 'en' ? 'About design' : 'დიზაინის შესახებ'}</h2>`
+        : null,
+    contentBottom: node.slug === 'design' ? '<p>bottom text</p>' : null,
+    contentLocale: georgianOnly ? 'ka' : locale,
+    hasEnglish: !georgianOnly,
+    icon: null,
+    image: null,
+    breadcrumb: trail.map(ref),
+    children: node.children.map(ref),
+    updatedAt: '2026-10-01T00:00:00Z',
+  };
+}
+
+const DESIGN_ID = '01900000-0000-7000-8000-0000000c0001';
+const GIGS = Array.from({ length: 50 }, (_, i) => ({
+  id: `01900000-0000-7000-8000-0000000g${String(i + 1).padStart(4, '0')}`,
+  uid: `GIG${String(i + 1).padStart(17, '0')}`,
+  slug: `logo-design-${i + 1}`,
+  title: i === 0 ? 'Premium logo design' : `Logo design ${i + 1}`,
+  contentLocale: 'en',
+  thumbnail: null,
+  price: { amount: 2500 + i * 100, currency: 'GEL' },
+  deliveryDays: 3,
+  rating: i === 1 ? { count: 0, averageTenths: null } : { count: 12, averageTenths: 48 },
+  seller: {
+    id: '01900000-0000-7000-8000-000000000501',
+    username: 'designer_one',
+    avatar: null,
+    isPremium: i === 0,
+    isIdVerified: true,
+    isOnline: false,
+    countryCode: null,
+    isDeleted: false,
+  },
+  isFeatured: i === 0,
+  isFavorite: null,
+}));
+
+/**
+ * The last searchGigs query string the web server sent, per `categoryId` ('' = no category): e2e assertions read
+ * it from `/__last-search?categoryId=…`, so spec files running in parallel do not see each other's calls.
+ */
+const lastSearch = new Map();
+
+function searchGigs(url) {
+  const q = url.searchParams;
+  lastSearch.set(q.get('categoryId') ?? '', url.search);
+  if (q.get('categoryId') && q.get('categoryId') !== DESIGN_ID) {
+    return [200, { data: [], nextCursor: null, totalCount: 0 }];
+  }
+  const words = (q.get('q') ?? '').toLowerCase().split(/\s+/).filter(Boolean);
+  const all = GIGS.filter((g) => words.every((w) => g.title.toLowerCase().includes(w)));
+  const limit = Number(q.get('limit') ?? 20);
+  const page = Number(q.get('page') ?? 1);
+  return [
+    200,
+    { data: all.slice((page - 1) * limit, page * limit), nextCursor: null, totalCount: all.length },
+  ];
+}
+
 /** [status, body] for the catalogue routes, or null. */
 export function catalogRoute(url, req) {
+  if (url.pathname === '/__last-search') {
+    return [200, { search: lastSearch.get(url.searchParams.get('categoryId') ?? '') ?? '' }];
+  }
+  if (url.pathname === '/api/v1/search/gigs') return searchGigs(url);
+  if (url.pathname === '/api/v1/categories/lookup') {
+    const detail = categoryDetail(
+      String(req.headers['accept-language'] ?? 'ka').startsWith('en') ? 'en' : 'ka',
+      url.searchParams.get('path') ?? '',
+    );
+    return detail ? [200, detail] : [404, { code: 'NOT_FOUND' }];
+  }
   const locale = String(req.headers['accept-language'] ?? 'ka').startsWith('en') ? 'en' : 'ka';
   if (url.pathname === '/api/v1/categories') return [200, { categories: categoryTree(locale) }];
   if (url.pathname === '/api/v1/me') {

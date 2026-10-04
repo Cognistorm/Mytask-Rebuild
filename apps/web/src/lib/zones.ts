@@ -9,6 +9,8 @@ const PUBLIC_PATTERNS: readonly RegExp[] = [
   /^\/$/,
   // Profile, portfolio list and item (spec 02 AC-8, AC-28; url-map §3).
   /^\/profile\/[^/]+(\/portfolio(\/[^/]+)?)?$/,
+  // Category pages at 3 levels (spec 03 AC-3; url-map §3).
+  /^\/categories(\/[^/]+){1,3}$/,
 ];
 
 /** `pathname` as the browser sent it (`/`, `/en/...`; the proxy has already removed `/ka` and trailing slashes). */
