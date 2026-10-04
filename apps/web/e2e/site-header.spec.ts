@@ -2,7 +2,7 @@
 // and the signed-in visitor come from the stand-in API (e2e/fake-catalog.mjs); getPublicConfig is absent there,
 // so the shell uses its defaults (theme and language switches on, projects off).
 import { expect, test } from '@playwright/test';
-import { BASE, COOKIE_URL } from './base';
+import { BASE, COOKIE_URL, PORT } from './base';
 
 test('desktop: logo, search, category bar with a keyboard mega-menu, Login + Join', async ({
   page,
@@ -161,4 +161,24 @@ test('legacy ?locale= and ?theme= answer one 301 (url-map §2, spec 03 AC-36)', 
   }
   const themed = await request.get('/?theme=dark', { maxRedirects: 0 });
   expect(themed.headers()['set-cookie']).toContain('mt_theme=dark');
+});
+
+test('a path starting with // never redirects to another host', async () => {
+  // A raw request: an HTTP client would read `//evil.example` as another host before sending it.
+  const { request: raw } = await import('node:http');
+  for (const path of [
+    '//evil.example/?locale=ka',
+    '//evil.example/',
+    '//evil.example?theme=dark',
+  ]) {
+    const location = await new Promise<string | undefined>((resolve, reject) => {
+      raw({ host: '127.0.0.1', port: PORT, path, method: 'GET' }, (res) => {
+        res.resume();
+        resolve(res.headers.location);
+      })
+        .on('error', reject)
+        .end();
+    });
+    if (location) expect(new URL(location, 'http://localhost').host, path).toBe('localhost');
+  }
 });

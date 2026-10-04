@@ -17,6 +17,9 @@ import { isPublicPath } from './lib/zones';
 export async function proxy(request: NextRequest): Promise<NextResponse> {
   const { pathname, search } = request.nextUrl;
   let target = pathname.length > 1 ? pathname.replace(/\/+$/, '') || '/' : pathname;
+  // Defence in depth: `//host/...` must never become a protocol-relative redirect target (Next.js already
+  // normalises such paths; e2e "a path starting with //" guards both).
+  target = target.replace(/^\/{2,}/, '/');
   if (target === '/ka' || target.startsWith('/ka/')) target = target.slice(3) || '/';
   const legacy = legacyParams(target, search);
   if (legacy) {
