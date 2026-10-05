@@ -848,6 +848,7 @@ Options:
 
 Recommendation: (a). Browsing before signing up is how people find a freelancer; the website already allows it, and the API reads are public.
 When: before the mobile part of slice 2 is approved (4.2.20). Building (a) is a small change to `(tabs)/_layout.tsx` (gate only the Dashboard and Account tabs).
+**Answer (Owner, 2026-10-06): (a), as recommended.** Guests may browse Home, Explore and the catalogue screens in the app without logging in; Dashboard, Account and every action that needs an account ask for login. Built in ROADMAP 4.2.18d.
 
 ## Slice 02 QA (qa-engineer, ROADMAP 4.2.17c, 2026-10-05)
 
@@ -859,3 +860,4 @@ Options:
 
 Recommendation: (a). The live site is what visitors see today, and the block is part of the current layout the Owner wants kept.
 When: before Phase 5 (settings migration). Not blocking slice 2.
+**Answer (Owner, 2026-10-06): (a), as recommended.** Keep the "Featured categories" block ON, matching the live site. Spec 00 register and the S-107 default updated in ROADMAP 4.2.18a/b.

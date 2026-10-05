@@ -2,9 +2,12 @@
 Date: 2026-10-05 | QA: ROADMAP 4.2.17b + 4.2.17c (independent; did not write slice 2 code) | Branch: `feat/catalog-search` @ `8bb9e651` (part 1) and `817750ed` (part 2; no product change in between)
 Plan: `docs/06-qa/plans/03-categories-and-search.md`. Judged against spec 03 (37 ACs, R-S1…R-S9, EC-1…EC-10), spec 16 AC-60/AC-61, contract 1.3.2, the slice handoffs 4.2.1–4.2.16 and the old platform. Security review (4.2.17a): `docs/06-qa/security/08-slice-03-catalog-search-2026-10-04.md`.
 
-**Status of this report: complete** (part 1 = 4.2.17b, §1–§6; part 2 = 4.2.17c, §7–§14).
+**Status of this report: complete** (part 1 = 4.2.17b, §1–§6; part 2 = 4.2.17c, §7–§14; fixes and re-check = 4.2.18, §15).
 
-## Verdict (4.2.17c): **FAIL** — 1 major bug (BUG-01); 2 minor bugs, 2 minor parity findings; 1 Owner question (Q-168)
+## Final verdict (after the 4.2.18 re-check, §15): **PASS with notes**
+F-01, F-02, BUG-02, SEC-76, SEC-77, I-44, SEC-78, Q-167 and Q-168 are fixed and checked; BUG-03 is closed by the Owner (kept). BUG-01 (major, local `pnpm local` only) is **deferred by the Owner** (DEV-S1, 2026-10-06): testing moves to a staging subdomain. The app on a phone is part of the Owner click-through (4.2.20).
+
+### Verdict before the fixes (4.2.17c, kept for the record): **FAIL** — 1 major bug (BUG-01); 2 minor bugs, 2 minor parity findings; 1 Owner question (Q-168)
 - The product behaviour of spec 03 is sound. It works on the real stack with sample gigs:
   - category pages at 3 levels, search, filters, sort, pages, `/sellers`, `/hire`, explore projects, home rows and the admin catalogue all behave like the old platform or as the spec changes them;
   - filters and sort give the same results through the website URL (legacy parameter names) and the API, and the API answers byte-identically to web, iOS and Android;
@@ -207,3 +210,47 @@ Plan: `docs/06-qa/plans/03-categories-and-search.md`. Judged against spec 03 (37
 - BUG-02 (web), F-01 (backend), F-02 (web); BUG-03 if the Owner picks a text.
 - Security review 08 items for 4.2.18 (SEC-76, SEC-77, I-44; contract maxima by the architect).
 - Then the Owner click-through 4.2.20 with `docs/06-qa/plans/03-categories-search-owner-click-through.md`, plus Q-167 and Q-168.
+
+## 15. Fixes and re-check (ROADMAP 4.2.18, 2026-10-06)
+**Independence note:** the fixes (4.2.18b–d) and this re-check (4.2.18e) were done in the same session as the QA report. The re-check uses the automated suites, the real stack and screenshots. The Owner click-through (4.2.20) is the independent look.
+
+### 15.1 Owner decisions (2026-10-06)
+| Item | Decision |
+|---|---|
+| Q-167 | (a) Guests browse Home, Explore and the catalogue screens in the app; Dashboard and Account ask for login |
+| Q-168 | (a) S-107 "Featured categories" ON, as on the live site |
+| BUG-03 | Keep the legacy "5 ⭐" label. **Closed, no change** |
+| BUG-01 | **Deferred by the Owner (DEV-S1):** the `pnpm local` website loop is ignored for now; testing moves to a dedicated staging subdomain. Still open as a devops item. Until it is fixed, the local Georgian website pages loop. The web dev server started with `--hostname localhost` instead of `127.0.0.1` works and stays loopback-only (used for this re-check) |
+
+### 15.2 What changed
+| ID | Fix | Evidence |
+|---|---|---|
+| F-01 | `listHireSellers` finds the slug whatever its case (`mode: 'insensitive'`, like legacy MySQL `_ci`) | seller-lists "finds the slug whatever its case…" (new); QA-HIRE-1 now expects 200; stack: `/hire/LOGO-DESIGN` → 200 `logo-design`, website page 200 |
+| SEC-76 | `searchGigs` refuses a `minPrice`/`maxPrice` outside the safe integer range: 400 `VALIDATION_FAILED`, field code `range`, `t_validator_integer` (the contract `maximum` stays for the architect's next bump) | gig-search "price above the safe integer range → 400…" (new); stack: `minPrice=99999999999999999999` → 400 |
+| SEC-77 | sanitize-html 2.17.5 → **2.17.7**; `pnpm audit --prod` 7 → 5 advisories, none in sanitize-html. The two advisory payloads are regression cases for every profile. One behaviour change: `<plaintext>` now drops everything after it, as a browser would (test updated) | rich-text (4 new cases); `catalog-main-flow` on the stack (SEO text with `<script>`) PASS |
+| I-44 | The 24 h unattached-image cleanup also covers `category_image`, and never deletes an image a gig or project category shows | files-scan "deletes a ready category_image no category shows…" (new) |
+| Q-168 | S-107 default `true`; spec 00 register "prod → ON" | settings-registry test; stack: `getHome` `featuredCategories` = 8 tiles |
+| BUG-02 | Home hero: at ≥ 1024 px the shortcuts are 128 px white round tiles with an icon (Phosphor "images" / "briefcase", added to `SiteIcon`) above the label, shadow `elevation-md`; phones keep the 2-button row | web:home asserts the icon and that every label lies inside its tile (ka + en); screenshots ka, en, phone: labels inside, icons shown |
+| F-02 | `/sellers` browser title `t_sellers` ("ფრილანსერები \| MyTask") as legacy; h1 unchanged | stack: title checked |
+| SEC-78 | `data-clarity-mask="true"` on the header account trigger and the drawer's account block (ADR-019 §5) | web:site-header asserts the attribute |
+| Q-167 | App: the tab layout no longer sends guests to login; for guests, Dashboard and Account open the login screen on tap (Back returns to browsing), and their screens redirect to login when opened by link (`RequireMe`). SETUP-LOCAL §4 step 17 updated | app typecheck + lint, `expo export` iOS 1328 / Android 1460 modules. **On a phone: Owner click-through** |
+
+### 15.3 Suites after the fixes
+| Command | Result |
+|---|---|
+| `pnpm turbo run lint typecheck test --force` | **PASS** 25/25, 0 cached; API **615 passed** + 6 skipped (7 new tests) |
+| `pnpm gen:check`, `pnpm format:check`, i18n check | **PASS** (no contract change, no new key) |
+| Web E2E (production build) | **PASS** 138 passed, 3 skipped |
+| Admin E2E on the stack (throw-away DB, web dev with `--hostname localhost`) | **PASS 22/22**, incl. `catalog-main-flow` and `profiles-main-flow` |
+| Stack checks | 27/28: S-API-1 expects an empty gig list, but this throw-away DB still holds the 56 sample gigs of §7 (expected) |
+| `expo export --platform all` | **PASS** |
+
+### 15.4 Verdict after the re-check: **PASS with notes**
+- No blocker or major bug is open in slice 2's product behaviour.
+- BUG-01 is a local development-environment defect. It is deferred by the Owner (DEV-S1) and stays on the devops list.
+- Open notes: N-1 (`getWebCustomCode` noise until 4.15.14), N-4 (titles/brand from the slice 16 SEO settings).
+- Security items left for later, as review 08 planned:
+  - SEC-79, with SEC-73/SEC-74;
+  - the SEC-76/I-45 contract maxima (architect);
+  - I-46, I-48 (Phase 6).
+- App screens on a phone, incl. Q-167 guest browsing: Owner click-through 4.2.20.
