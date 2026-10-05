@@ -1,5 +1,7 @@
-// The signed-in account for the tab screens: loaded once by the tab layout (session gate), shared by the tabs.
-import { createContext, useCallback, useContext } from 'react';
+// The signed-in account for the tab screens: loaded once by the tab layout, shared by the tabs. Guests (Owner Q-167)
+// browse Home and Explore without it; the Dashboard and Account tabs need it (`RequireMe`).
+import { Redirect } from 'expo-router';
+import { createContext, useCallback, useContext, type ReactNode } from 'react';
 import type { ApiClient } from '@mytask/api-client';
 import type { components } from '@mytask/types';
 import { setDashboardSide, type DashboardSide } from './dashboard';
@@ -12,6 +14,11 @@ export function useMe() {
   const ctx = useContext(MeContext);
   if (!ctx) throw new Error('useMe outside the tab layout');
   return ctx;
+}
+
+/** Account-only screens: a guest goes to the login screen (Q-167); after login the app starts at Home. */
+export function RequireMe({ children }: { children: ReactNode }) {
+  return useContext(MeContext) ? children : <Redirect href="/login" />;
 }
 
 /**

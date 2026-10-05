@@ -13,13 +13,22 @@ import { Button, LinkButton, Screen } from '../../components/form';
 import { clearSession, mobileApi } from '../../lib/api';
 import { useDashboardSide } from '../../lib/dashboard';
 import { createT } from '../../lib/i18n';
-import { useMe, useSwitchDashboard } from '../../lib/me';
+import { RequireMe, useMe, useSwitchDashboard } from '../../lib/me';
 
 const locale = 'ka' as const;
 const t = createT(locale);
 const api = mobileApi(locale);
 
+/** Guests go to login (Owner Q-167): this tab needs the signed-in account. */
 export default function AccountTab() {
+  return (
+    <RequireMe>
+      <AccountTabScreen />
+    </RequireMe>
+  );
+}
+
+function AccountTabScreen() {
   const { me, setMe } = useMe();
   const side = useDashboardSide();
   const switchTo = useSwitchDashboard(api);

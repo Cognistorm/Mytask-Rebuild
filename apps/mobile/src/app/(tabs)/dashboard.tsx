@@ -26,7 +26,7 @@ import { mobileApi } from '../../lib/api';
 import { navItems, useDashboardSide } from '../../lib/dashboard';
 import { formatCount, formatDate, formatMoney } from '../../lib/format';
 import { createT } from '../../lib/i18n';
-import { useSwitchDashboard } from '../../lib/me';
+import { RequireMe, useSwitchDashboard } from '../../lib/me';
 import { usePublicConfig } from '../../lib/public-config';
 
 const locale = 'ka' as const;
@@ -47,7 +47,16 @@ const ORDER_STATUS_KEY: Record<OrderRow['status'], string> = {
   refunded: 't_refunded',
 };
 
+/** Guests go to login (Owner Q-167): this tab needs the signed-in account. */
 export default function DashboardTab() {
+  return (
+    <RequireMe>
+      <DashboardTabScreen />
+    </RequireMe>
+  );
+}
+
+function DashboardTabScreen() {
   const side = useDashboardSide() ?? 'buying';
   const config = usePublicConfig(locale);
   const switchTo = useSwitchDashboard(api);
