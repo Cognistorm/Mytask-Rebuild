@@ -1,18 +1,13 @@
 # Slice 2 (spec 03 Categories and search): Owner click-through, ROADMAP 4.2.20
 
-About 30 minutes. Restart the platform first so it runs the new code (`pnpm local`, SETUP-LOCAL §3).
-Web: http://localhost:3100 · Admin: http://localhost:3200 · App: Expo Go (SETUP-LOCAL §4).
+About 30 minutes. Web and admin on staging (addresses from devops when it is deployed) · App: Expo Go pointed at staging (SETUP-LOCAL §4).
 
-Gigs can only be created from slice 3 on, so the gig lists on your computer are **empty** for now. You will see
+Gigs can only be created from slice 3 on, so the gig lists on staging are **empty** for now. You will see
 the empty states ("გთხოვთ სცადეთ ხელახლა") and the empty home rows are hidden. The lists with gig cards were
 tested with sample data in the browser tests.
 
-**Georgian website pages and BUG-01 (deferred by you on 2026-10-06):** with a plain `pnpm local` the Georgian
-website pages (`/`, `/categories/…`, `/search`, …) stop with "too many redirects". English pages (`/en`, `/en/categories/…`),
-the admin and the app work. Choose one for the "Web" part below:
-- do the web lines on the **English pages** (`http://localhost:3100/en`; Georgian texts were checked by QA with screenshots, report §8), or
-- do the web part later on the **staging subdomain**, or
-- ask for the small BUG-01 fix (the website's dev server listens on `localhost` instead of `127.0.0.1`; QA checked that this works and stays private to your computer).
+**Where:** on the staging subdomain **https://mytask.1kk.ge** (Owner 2026-10-06), once this branch is deployed there.
+BUG-01 (the `pnpm local` loop of the Georgian pages) does not apply to staging, which runs the production build.
 
 Tick each line. Anything that looks wrong: write one line under "Notes" at the bottom (what, where, what you expected).
 
@@ -27,7 +22,7 @@ Tick each line. Anything that looks wrong: write one line under "Notes" at the b
 - [ ] Try to delete the test category: refused, "ეს ელემენტი ჯერ კიდევ გამოიყენება და ვერ წაიშლება." (it has a sub-category and a project category).
 
 ## Web: header, menus and the new pages
-- [ ] Home `/`: the teal hero "იპოვე საუკეთესო ფრილანსერი" with the search; on a wide window "განცხადებები" / "პროექტები" are white round tiles with an icon (as on the live site; QA BUG-02 fixed), on a phone two buttons; the "გამორჩეული კატეგორიები" (Featured categories) tiles under the hero (ON since your Q-168 answer); the footer with the logo, © and the language switch.
+- [ ] Home `/`: the header sits over the teal hero in the same colour (white links, white "შეუერთდი"), and turns white with a line once you scroll (your 2026-10-06 decision); the teal hero "იპოვე საუკეთესო ფრილანსერი" with the search; on a wide window "განცხადებები" / "პროექტები" are white round tiles with an icon (as on the live site; QA BUG-02 fixed), on a phone two buttons; the "გამორჩეული კატეგორიები" (Featured categories) tiles under the hero (ON since your Q-168 answer); the footer with the logo, © and the language switch.
 - [ ] Header: logo, the search with "სარჩევი", the moon/sun theme button, "აღმოაჩინე" (Explore), Login + "შეუერთდი" (Join).
 - [ ] Second row: the categories. Click one with sub-categories: the panel shows sub- and child categories and "დაათვალიერე …". Esc closes it. Narrow the window: the last categories move into "მეტი ▾".
 - [ ] Your test category from the admin is there at once (no waiting). Its page shows the title, the breadcrumb, your SEO text above the list, the filters on the left and the sort menu.
@@ -44,9 +39,9 @@ Tick each line. Anything that looks wrong: write one line under "Notes" at the b
 - [ ] Signed in: the app opens **Home**; the Explore tab, Filter and Sort sheets work; "მიმართულებები" opens the category tree with its search; a category opens its page.
 - [ ] Your profile's skill chip opens "Hire the best … experts".
 
-## Decisions for you
-- [ ] Header over the home hero: keep it white (as now), or make it transparent over the teal hero (needs the white logo)?
-- [ ] `/hire/<unknown>` sends visitors to the search with a temporary redirect 307 instead of the old 302 (same effect for visitors): OK?
+## Decided on 2026-10-06 (no action)
+- Header over the home hero: transparent (built, see the first Web line).
+- `/hire/<unknown>` → search with a 307 (temporary) redirect instead of the old 302: accepted.
 
 ## Clean up
 - [ ] Delete the test skill, project category, child, sub-category and category in the admin (bottom-up).
