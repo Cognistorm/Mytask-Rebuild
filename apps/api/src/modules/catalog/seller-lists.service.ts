@@ -2,7 +2,8 @@
 // AC-28, AC-29, EC-7).
 //
 // `/sellers`: listable users (AC-27 status rules, joined live like the gig lists) with at least one active gig.
-// `/hire/{keyword}`: only when some user skill has exactly this slug (else 404, the web answers 302 to `/search?q=`);
+// `/hire/{keyword}`: only when some user skill has this slug, ignoring case like the legacy MySQL `_ci` collation
+// (QA 4.2.17 F-01; else 404, the web answers 302 to `/search?q=`);
 // then listable users, gig not required, with a skill whose slug or name contains the keyword (LEGACY `LIKE`, which is
 // case-insensitive in MySQL → `ILIKE`). Both lists use the daily mix, no Premium boost (R-S3.7, R-S7).
 // Cards: `UserSummary` + the user's first 3 skills (LEGACY `skills()->limit(3)`, oldest first as on the profile).
@@ -42,7 +43,7 @@ export class SellerListsService {
   ): Promise<Schema<'HireSellerPage'>> {
     // EC-7: several users may have a skill with this slug; the title uses the oldest (LEGACY `first()`).
     const skill = await this.prisma.userSkill.findFirst({
-      where: { slug: keyword },
+      where: { slug: { equals: keyword, mode: 'insensitive' } },
       orderBy: { id: 'asc' },
       select: { name: true, slug: true },
     });

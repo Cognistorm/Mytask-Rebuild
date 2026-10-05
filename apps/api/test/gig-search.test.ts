@@ -355,6 +355,19 @@ describe('filters (AC-9…AC-11, R-S2, P-27)', () => {
     ]);
   });
 
+  it('price above the safe integer range → 400, never 500 (security review 08 SEC-76)', async () => {
+    for (const [field, value] of [
+      ['minPrice', '99999999999999999999'],
+      ['maxPrice', '1e30'],
+    ] as const) {
+      const res = await http()
+        .get('/api/v1/search/gigs')
+        .query({ [field]: value });
+      expect(res.status, `${field}=${value}`).toBe(400);
+      expect(res.body.details.fields[0]).toMatchObject({ field, code: 'range' });
+    }
+  });
+
   it('delivery time: at most N days, "None" (0 days) included', async () => {
     const u = await owner();
     const at = await branch();

@@ -204,7 +204,7 @@ describe('QA-LIST paging and hidden categories (AC-5, AC-8, R-S6)', () => {
 });
 
 describe('QA-HIRE /hire/{keyword} (AC-28, AC-29, EC-7)', () => {
-  it('QA-HIRE-1: the exact-slug check is case-sensitive; the list match is not (records the behaviour)', async () => {
+  it('QA-HIRE-1: the slug check ignores case, like legacy (F-01, fixed in 4.2.18b)', async () => {
     const u = await owner();
     const slug = `qa3php${tag}`;
     await prisma.userSkill.create({
@@ -214,7 +214,8 @@ describe('QA-HIRE /hire/{keyword} (AC-28, AC-29, EC-7)', () => {
     expect(exact.status).toBe(200);
     expect(exact.body.data.map((c: { user: { id: string } }) => c.user.id)).toContain(u.id);
     const upper = await http().get(`/api/v1/hire/${slug.toUpperCase()}`);
-    expect(upper.status).toBe(404);
+    expect(upper.status).toBe(200);
+    expect(upper.body.skill.slug).toBe(slug);
   });
 
   it('QA-HIRE-2: a Georgian skill slug in the path (percent-encoded) works', async () => {

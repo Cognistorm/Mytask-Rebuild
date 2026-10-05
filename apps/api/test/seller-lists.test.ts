@@ -256,6 +256,18 @@ describe('listHireSellers (AC-28, AC-29, EC-7)', () => {
     expect(res.body.code).toBe('NOT_FOUND');
   });
 
+  it('finds the slug whatever its case, like the legacy MySQL collation (QA 4.2.17 F-01)', async () => {
+    const k = `hc${next()}`;
+    const u = await user();
+    await skills(u.id, ['Adobe Illustrator', `${k}-adobe-illustrator`]);
+    for (const asked of [`${k}-ADOBE-ILLUSTRATOR`, `${k}-Adobe-Illustrator`]) {
+      const res = await http().get(`/api/v1/hire/${asked}`);
+      expect(res.status, asked).toBe(200);
+      expect(res.body.skill.slug).toBe(`${k}-adobe-illustrator`);
+      expect(res.body.data.map((c: { user: { id: string } }) => c.user.id)).toContain(u.id);
+    }
+  });
+
   it('returns the skill and users with a skill whose slug or name contains the keyword, no gig needed', async () => {
     const k = `hk${next()}`;
     const exact = await user();

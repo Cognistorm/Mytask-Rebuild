@@ -65,6 +65,12 @@ export class GigSearchService {
     now = new Date(),
   ): Promise<Schema<'GigCardPage'>> {
     const { limit, offset } = offsetPaging(query, locale);
+    // Security review 08 SEC-76: a price above the safe integer range would overflow the bigint bind (500).
+    for (const field of ['minPrice', 'maxPrice'] as const) {
+      const value = query[field];
+      if (value !== undefined && !Number.isSafeInteger(value))
+        throw fieldError(locale, field, 'range', 't_validator_integer');
+    }
     if (
       query.minPrice !== undefined &&
       query.maxPrice !== undefined &&
