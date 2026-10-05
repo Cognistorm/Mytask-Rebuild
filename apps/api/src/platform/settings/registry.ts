@@ -1307,14 +1307,15 @@ export const settingsRegistry = {
   }),
   'S-107': row({
     key: 'appearance.home.featured_categories',
-    default: false,
+    // ON as on the live site (Owner Q-168, 2026-10-06).
+    default: true,
     area: 'content',
     type: 'boolean',
     meaning: {
       en: 'Featured-categories block on home',
       ka: 'რჩეული კატეგორიების ბლოკი მთავარ გვერდზე',
     },
-    source: 'settings_appearance, Q-068',
+    source: 'settings_appearance, Q-068, Q-168',
     tag: 'LEGACY',
     public: true,
     writePermission: 'settings.content.write',

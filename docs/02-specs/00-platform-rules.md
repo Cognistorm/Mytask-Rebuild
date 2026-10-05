@@ -324,7 +324,7 @@ Admin chat visibility (Q-015) is a staff permission (spec 16), not a toggle.
 | S-104 | `i18n.language_switcher.enabled` | Show language switcher | boolean | prod → ON | `settings_general.is_language_switcher` | LEGACY |
 | S-105 | `appearance.theme_switcher.enabled` | Users can switch light/dark (web and mobile) | boolean | ON | Q-059, `settings_appearance.is_theme_switcher` | LEGACY, mobile NEW |
 | S-106 | `appearance.default_theme` | Theme for users who have not chosen | enum light / dark | light | Q-059 | LEGACY |
-| S-107 | `appearance.home.featured_categories` | Featured-categories block on home | boolean | prod → OFF | `settings_appearance` | LEGACY |
+| S-107 | `appearance.home.featured_categories` | Featured-categories block on home | boolean | prod → ON (live site; Owner Q-168, 2026-10-06) | `settings_appearance` | LEGACY |
 | S-108 | `appearance.home.best_sellers` | Best-sellers block on home | boolean | prod → OFF | same | LEGACY |
 | S-109 | `appearance.home.logo_cloud` | Logo-cloud block on home | boolean | prod | `2023_09_14_115452_...` | LEGACY |
 | S-110 | `appearance.custom_code` | Custom HTML/JS for head and footer per layout (e.g. tracking tags). Super-admin only; security review required | text per slot | prod | `settings_appearance` custom codes | LEGACY |
