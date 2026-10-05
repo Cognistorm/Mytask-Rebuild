@@ -848,3 +848,14 @@ Options:
 
 Recommendation: (a). Browsing before signing up is how people find a freelancer; the website already allows it, and the API reads are public.
 When: before the mobile part of slice 2 is approved (4.2.20). Building (a) is a small change to `(tabs)/_layout.tsx` (gate only the Dashboard and Account tabs).
+
+## Slice 02 QA (qa-engineer, ROADMAP 4.2.17c, 2026-10-05)
+
+### Q-168
+**Is the home "Featured categories" block (S-107) ON or OFF in production?** The settings register in spec 00 (line 327) says S-107 `appearance.home.featured_categories` is OFF in production. The live home page (fetched 2026-10-05) shows the block "გამორჩეული კატეგორიები" with 5 image tiles (ბიზნესი, დიზაინი, მუსიკა და ხმა, ფოტოგრაფია, პროგრამირება და ტექნოლოგიები). The new code works both ways (ON → tiles, OFF → no block); only the starting value is in question.
+Options:
+- (a) The live site is right: S-107 is ON. Correct the register and keep the live value at migration (Phase 5 copies the setting).
+- (b) Turn it OFF on the new platform, as the register says.
+
+Recommendation: (a). The live site is what visitors see today, and the block is part of the current layout the Owner wants kept.
+When: before Phase 5 (settings migration). Not blocking slice 2.
