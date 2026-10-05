@@ -58,10 +58,35 @@ describe('rich text: profiles', () => {
   it('drops comments and the dangerous elements together with their content', () => {
     const VOID = ['embed', 'input', 'base', 'meta', 'link'];
     for (const tag of allowList.dropWithContent) {
-      // A void element has no content: the text after it is ordinary text.
-      expect(staff(`a<${tag}>secret</${tag}>b`), tag).toBe(VOID.includes(tag) ? 'asecretb' : 'ab');
+      // A void element has no content: the text after it is ordinary text. `plaintext` has no end tag in HTML, so
+      // since sanitize-html 2.17.7 (SEC-77) everything after it is dropped, as a browser would swallow it.
+      const expected = VOID.includes(tag) ? 'asecretb' : tag === 'plaintext' ? 'a' : 'ab';
+      expect(staff(`a<${tag}>secret</${tag}>b`), tag).toBe(expected);
     }
     expect(staff('a<!-- <img src=x onerror=alert(1)> -->b')).toBe('ab');
+  });
+
+  // Security review 08 SEC-77: the two published sanitize-html advisories, as regression cases for every profile.
+  it.each([
+    [
+      'GHSA-jxwj-j7wr-gfrw textarea mutation',
+      '<textarea></textarea><img src=x onerror=alert(1)>ok',
+    ],
+    ['GHSA-jxwj-j7wr-gfrw textarea content', '<textarea><img src=x onerror=alert(1)></textarea>ok'],
+    [
+      'GHSA-g8qq-57p8-ggw5 SVG SMIL scheme',
+      '<svg><a><animate attributeName="href" values="javascript:alert(1)"/><text y="20">x</text></a></svg>ok',
+    ],
+    [
+      'GHSA-g8qq-57p8-ggw5 SVG set',
+      '<svg><set attributeName="href" to="javascript:alert(1)"/></svg>ok',
+    ],
+  ])('%s: no script, event handler or script URL survives', (_name, payload) => {
+    for (const profile of PROFILES) {
+      const out = sanitizeRichText(payload, profile, MEDIA);
+      expect(out, profile).not.toMatch(/javascript:|onerror|<svg|<textarea|<animate|<set|<img/i);
+      expect(out, profile).toContain('ok');
+    }
   });
 });
 
