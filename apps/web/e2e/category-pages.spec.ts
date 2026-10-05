@@ -14,6 +14,8 @@ test('level 1: title, breadcrumb, SEO texts, 42 cards with the Featured badge, n
 }) => {
   await page.goto('/categories/design');
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('დიზაინი');
+  // Only the home page has the header over the hero.
+  await expect(page.getByTestId('site-header')).not.toHaveAttribute('data-over-hero');
   const crumbs = page.getByRole('navigation', { name: 'ნავიგაციის ზოლი' });
   await expect(crumbs.getByRole('link', { name: 'მთავარი' })).toHaveAttribute('href', '/');
   await expect(crumbs.getByText('დიზაინი')).toHaveAttribute('aria-current', 'page');

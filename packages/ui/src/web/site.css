@@ -624,3 +624,52 @@
     padding: var(--mt-space-16) var(--mt-size-layout-gutter-desktop) var(--mt-space-6);
   }
 }
+
+/* ---- Header over the home hero (design 01-home.md; Owner 2026-10-06) ----
+   While the home page is at the top, the header takes the hero colour so it reads as transparent over the hero
+   (live site: the same coloured logo, white links, a white "Join"); once the page scrolls it is the white header. */
+.mt-site-header {
+  transition:
+    background-color var(--mt-motion-duration-base) var(--mt-motion-easing-standard),
+    border-color var(--mt-motion-duration-base) var(--mt-motion-easing-standard);
+}
+
+.mt-site-header[data-over-hero] {
+  border-block-end-color: transparent;
+  background: var(--mt-bg-hero);
+  color: var(--mt-text-on-hero);
+}
+
+.mt-site-header[data-over-hero] :is(.mt-site-link, .mt-category-bar-item),
+.mt-site-header[data-over-hero] :is(.mt-site-actions, .mt-category-bar) .mt-menu-button,
+.mt-site-header[data-over-hero] .mt-site-header-row > .mt-icon-button,
+.mt-site-header[data-over-hero] .mt-site-actions .mt-icon-button {
+  color: var(--mt-text-on-hero);
+}
+
+.mt-site-header[data-over-hero] .mt-category-bar-item:hover,
+.mt-site-header[data-over-hero] .mt-category-bar-item[aria-expanded='true'] {
+  border-block-end-color: var(--mt-text-on-hero);
+  color: var(--mt-text-on-hero);
+}
+
+.mt-site-header[data-over-hero] .mt-site-actions :is(.mt-menu-button, .mt-icon-button):hover,
+.mt-site-header[data-over-hero] .mt-category-bar .mt-menu-button:hover,
+.mt-site-header[data-over-hero] .mt-site-header-row > .mt-icon-button:hover {
+  background: var(--mt-color-alpha-white12);
+}
+
+.mt-site-header[data-over-hero] .mt-site-join,
+.mt-site-header[data-over-hero] .mt-site-join:hover {
+  background: var(--mt-bg-surface);
+  color: var(--mt-text-brand);
+}
+
+.mt-site-header[data-over-hero] :is(a, button, input, summary):focus-visible {
+  outline-color: var(--mt-text-on-hero);
+}
+
+/* Menus and the search pill keep their own surfaces, so their texts stay dark. */
+.mt-site-header[data-over-hero] :is(.mt-menu-panel, .mt-mega-menu, .mt-site-search) {
+  color: var(--mt-text-primary);
+}

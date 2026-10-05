@@ -72,6 +72,18 @@ export function SiteHeaderClient(props: HeaderProps) {
 
   // On the results page the header field shows the keyword searched for.
   const pathname = usePathname();
+
+  // Home page at the top: the header sits over the hero in the hero colour (design 01-home.md, Owner 2026-10-06);
+  // it turns white once the page scrolls. Rendered "at the top" on the server, so the first paint is right.
+  const home = /^\/(?:ka|en)?\/?$/.test(pathname ?? '');
+  const [atTop, setAtTop] = useState(true);
+  useEffect(() => {
+    if (!home) return;
+    const update = () => setAtTop(window.scrollY < 1);
+    update();
+    window.addEventListener('scroll', update, { passive: true });
+    return () => window.removeEventListener('scroll', update);
+  }, [home]);
   const desktopInput = useRef<HTMLInputElement>(null);
   useEffect(() => {
     const q = /\/search$/.test(pathname ?? '')
@@ -134,7 +146,11 @@ export function SiteHeaderClient(props: HeaderProps) {
     : [];
 
   return (
-    <header className="mt-site-header" data-testid="site-header">
+    <header
+      className="mt-site-header"
+      data-testid="site-header"
+      data-over-hero={home && atTop && !phoneSearch ? '' : undefined}
+    >
       <div className="mt-site-header-row">
         <button
           type="button"

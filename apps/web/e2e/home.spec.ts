@@ -25,6 +25,19 @@ test('home: hero with search and shortcuts, featured categories, Top gigs, categ
   }
   await page.goto('/en');
 
+  // Owner 2026-10-06: the header sits over the hero in the hero colour, and turns white once the page scrolls.
+  const header = page.getByTestId('site-header');
+  const heroColour = await page
+    .locator('.mt-home-hero')
+    .evaluate((el) => getComputedStyle(el).backgroundColor);
+  await expect(header).toHaveAttribute('data-over-hero', '');
+  await expect(header).toHaveCSS('background-color', heroColour);
+  await page.mouse.wheel(0, 600);
+  await expect(header).not.toHaveAttribute('data-over-hero');
+  await expect(header).not.toHaveCSS('background-color', heroColour);
+  await page.mouse.wheel(0, -2000);
+  await expect(header).toHaveAttribute('data-over-hero', '');
+
   const featured = page.getByTestId('featured-categories');
   await expect(featured.getByRole('link', { name: 'Design' })).toHaveAttribute(
     'href',
