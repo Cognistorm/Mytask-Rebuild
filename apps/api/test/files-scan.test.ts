@@ -498,6 +498,42 @@ describe('files-scan: unattached public images (security review 06 SEC-64 stop-g
   });
 });
 
+describe('files-scan: abandoned staff category images (security review 08 I-44)', () => {
+  it('deletes a ready category_image no category shows after 24 h, keeps the one a category shows', async () => {
+    const old = new Date(Date.now() - 25 * 3600 * 1000);
+    const n = Date.now().toString(36);
+    const image = (name: string) =>
+      prisma.file.create({
+        data: {
+          purpose: 'category_image',
+          bucket: 'public_media',
+          objectKey: `images/${n}-${name}/large.webp`,
+          originalName: `${name}.png`,
+          declaredType: 'image/png',
+          sizeBytes: 100n,
+          status: 'ready',
+          readyAt: old,
+        },
+      });
+    const stray = await image('stray');
+    const shown = await image('shown');
+    // `attached_at` left empty on purpose: the category reference alone must keep the file.
+    await prisma.gigCategory.create({
+      data: {
+        slug: `i44-${n}`,
+        depth: 1,
+        iconFileId: shown.id,
+        translations: { create: [{ locale: 'ka', name: 'I-44' }] },
+      },
+    });
+    await sweeper.cleanupUnattachedPublic();
+    expect((await prisma.file.findUniqueOrThrow({ where: { id: stray.id } })).status).toBe(
+      'deleted',
+    );
+    expect((await prisma.file.findUniqueOrThrow({ where: { id: shown.id } })).status).toBe('ready');
+  });
+});
+
 describe('files-scan: unattached cleanup is not blocked by old attached images (review 07 SEC-73)', () => {
   it('more than 500 old attached images: the stray one is still deleted; thumbnail and gallery are kept', async () => {
     const auth = await register();
