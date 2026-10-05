@@ -20,7 +20,8 @@ export async function generateMetadata({ params, searchParams }: Params): Promis
   const locale = toLocale((await params).locale);
   const [t, page] = await Promise.all([getT(locale), searchParams.then(pageParam)]);
   return {
-    title: await pageTitle(locale, t('t_top_sellers')),
+    // Browser title as legacy `SellersComponent.php:32` (`t_sellers`); the h1 stays `t_top_sellers` (QA 4.2.17 F-02).
+    title: await pageTitle(locale, t('t_sellers')),
     alternates: alternates(locale, '/sellers', page),
   };
 }

@@ -193,7 +193,12 @@ export function SiteHeaderClient(props: HeaderProps) {
             <AccountMenu
               label={t('t_account_menu')}
               trigger={
-                <span className="mt-site-account-trigger" data-testid="header-account">
+                // ADR-019 §5 (security review 08 SEC-78): session-recording code (S-110) never sees who is signed in.
+                <span
+                  className="mt-site-account-trigger"
+                  data-testid="header-account"
+                  data-clarity-mask="true"
+                >
                   <Avatar image={viewer.avatar} name={viewer.username} size="md" />
                   <span className="mt-site-desktop">{viewer.username}</span>
                 </span>
@@ -252,7 +257,7 @@ export function SiteHeaderClient(props: HeaderProps) {
         <div className="mt-drawer-section">
           {viewer ? (
             <>
-              <p className="mt-site-account-trigger">
+              <p className="mt-site-account-trigger" data-clarity-mask="true">
                 <Avatar image={viewer.avatar} name={viewer.username} size="md" />
                 <strong>{viewer.username}</strong>
               </p>

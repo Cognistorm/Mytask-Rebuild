@@ -100,6 +100,8 @@ test('signed in: the account menu replaces Login/Join and links to the dashboard
   await page.goto('/en');
   const header = page.getByTestId('site-header');
   await expect(header.getByRole('link', { name: 'Login' })).toHaveCount(0);
+  // ADR-019 §5 / security review 08 SEC-78: the username and avatar are masked for session recording.
+  await expect(header.getByTestId('header-account')).toHaveAttribute('data-clarity-mask', 'true');
   await header.getByRole('button', { name: 'Account menu' }).click();
   await expect(header.getByRole('link', { name: 'Dashboard' })).toHaveAttribute(
     'href',

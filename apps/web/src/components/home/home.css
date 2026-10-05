@@ -50,7 +50,7 @@
   min-height: var(--mt-size-control-lg);
 }
 
-/* Gigs / Projects shortcuts: kept on phones as a compact 2-button row (audit §3.2). */
+/* Gigs / Projects shortcuts: kept on phones as a compact 2-button row (audit §3.2); the icon shows from lg on. */
 .mt-home-shortcuts {
   display: grid;
   grid-auto-flow: column;
@@ -62,6 +62,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: var(--mt-space-2);
   min-height: var(--mt-size-touch-target-comfortable);
   border: var(--mt-border-width-strong) solid var(--mt-text-on-hero);
   border-radius: var(--mt-radius-pill);
@@ -72,6 +73,10 @@
 
 .mt-home-shortcuts a:hover {
   background: var(--mt-color-alpha-white12);
+}
+
+.mt-home-shortcuts svg {
+  display: none;
 }
 
 .mt-home-shortcuts a:focus-visible {
@@ -160,13 +165,36 @@
     line-height: var(--mt-font-line-height-5xl);
   }
 
+  /* Round white tiles with the icon above the label (design 01-home.md, live site; QA 4.2.17 BUG-02). */
   .mt-home-shortcuts {
-    grid-auto-columns: var(--mt-space-24);
+    grid-auto-columns: calc(var(--mt-space-24) + var(--mt-space-8));
+    gap: var(--mt-space-6);
   }
 
   .mt-home-shortcuts a {
+    flex-direction: column;
     aspect-ratio: 1;
+    padding: var(--mt-space-3);
+    border: 0;
     border-radius: var(--mt-radius-full);
+    background: var(--mt-bg-surface);
+    box-shadow: var(--mt-elevation-md);
+    color: var(--mt-text-brand);
+    font-size: var(--mt-font-size-sm);
+    text-align: center;
+  }
+
+  .mt-home-shortcuts svg {
+    display: block;
+  }
+
+  .mt-home-shortcuts a span {
+    color: var(--mt-text-primary);
+  }
+
+  .mt-home-shortcuts a:hover {
+    background: var(--mt-bg-surface);
+    box-shadow: var(--mt-elevation-lg);
   }
 
   .mt-home-rows {

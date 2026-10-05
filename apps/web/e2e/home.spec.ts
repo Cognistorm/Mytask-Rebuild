@@ -10,6 +10,20 @@ test('home: hero with search and shortcuts, featured categories, Top gigs, categ
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Find the best Freelancer');
   const shortcuts = page.getByRole('navigation', { name: 'Explore' }).last();
   await expect(shortcuts.getByRole('link', { name: 'Gigs' })).toHaveAttribute('href', '/en/search');
+  // QA 4.2.17 BUG-02: round tiles with an icon; every label fits inside its tile (also the long Georgian ones).
+  for (const path of ['/en', '/']) {
+    await page.goto(path);
+    for (const tile of await page.locator('.mt-home-shortcuts a').all()) {
+      await expect(tile.locator('svg')).toBeVisible();
+      const [box, label] = await Promise.all([
+        tile.boundingBox(),
+        tile.locator('span').boundingBox(),
+      ]);
+      expect(label!.x).toBeGreaterThanOrEqual(box!.x);
+      expect(label!.x + label!.width).toBeLessThanOrEqual(box!.x + box!.width);
+    }
+  }
+  await page.goto('/en');
 
   const featured = page.getByTestId('featured-categories');
   await expect(featured.getByRole('link', { name: 'Design' })).toHaveAttribute(

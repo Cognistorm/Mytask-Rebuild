@@ -7,7 +7,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import type { components } from '@mytask/types';
 import type { Locale } from '@mytask/i18n';
-import { Carousel, FreelancerCard, GigCard, GigGrid } from '@mytask/ui/web';
+import { Carousel, FreelancerCard, GigCard, GigGrid, SiteIcon } from '@mytask/ui/web';
 import { viewerApi } from '../../../lib/api';
 import { categoryHref } from '../../../lib/category-nav';
 import { gigCardLabels, toGigCardData } from '../../../lib/gig-card';
@@ -100,8 +100,16 @@ export default async function HomePage({ params }: Params) {
             </form>
           </div>
           <nav className="mt-home-shortcuts" aria-label={t('t_explore')}>
-            <a href={href(locale, '/search')}>{t('t_gigs')}</a>
-            {projectsOn && <a href={href(locale, '/explore/projects')}>{t('t_projects')}</a>}
+            <a href={href(locale, '/search')}>
+              <SiteIcon name="images" size={32} />
+              <span>{t('t_gigs')}</span>
+            </a>
+            {projectsOn && (
+              <a href={href(locale, '/explore/projects')}>
+                <SiteIcon name="briefcase" size={32} />
+                <span>{t('t_projects')}</span>
+              </a>
+            )}
           </nav>
         </div>
       </section>
