@@ -187,8 +187,8 @@ Remaining:
   - [x] 4.2.18c web: BUG-02 (home hero shortcut tiles with icons, labels inside, design `01-home.md`); F-02 (`/sellers` title `t_sellers`); SEC-78 (`data-clarity-mask="true"` on the header account areas, ADR-019 §5). Done 2026-10-06: 128 px white round tiles with Phosphor icons (new `SiteIcon` `images`/`briefcase`) from lg; `/sellers` title `t_sellers`; `data-clarity-mask` on the header account trigger and drawer block; E2E assertions in `home.spec.ts` and `site-header.spec.ts`.
   - [x] 4.2.18d mobile: Q-167 (a): guests browse Home, Explore and the catalogue screens; Dashboard/Account and account actions ask for login. Done 2026-10-06: tab layout no longer redirects guests; Dashboard/Account tab press → login (Back returns), `RequireMe` guard on both screens; SETUP-LOCAL §4 step 17.
   - [x] 4.2.18e re-check of 4.2.18b–d (suites + screens); report §15. Done 2026-10-06 (same session as the fixes, see report §15 note): lint+typecheck+test 25/25 forced (API 615 + 6 skipped), gen/format/i18n PASS, web E2E 138 + 3 skipped, admin E2E 22/22 on the stack incl. both main flows, `expo export`; fixes confirmed on the stack and in screenshots; verdict **PASS with notes**.
-- [ ] 4.2.19 PR + STATUS.
-- [ ] 4.2.20 Owner click-through.
+- [x] 4.2.19 PR + STATUS. Done 2026-10-06 **locally** (Owner rule 2026-10-02: no push/PR until Phase 4 is complete): every CI step run on this computer and green at `0398f2ee` (contract verify:final 715/715, gen, tokens, i18n, format, lint+typecheck+test 25/25 with API 615, build 4/4, web E2E 138 + admin E2E 16 routed / 22 full stack, expo export; Docker job, gitleaks and oasdiff wait for the push); PR text ready in `docs/handoffs/2026-10-06-orchestrator-to-owner-4-2-19-pr-feat-catalog-search.md`.
+- [ ] 4.2.20 Owner click-through. Checklist `docs/06-qa/plans/03-categories-search-owner-click-through.md` (updated 2026-10-06 for Q-167, Q-168, BUG-02 and the deferred BUG-01: web part on `/en` pages, on staging, or after the small BUG-01 fix).
 
 ### 4.3 Slice 3 — spec 04 Gigs (branch `feat/gigs`)
 - [ ] 4.3.1 Spec check.
