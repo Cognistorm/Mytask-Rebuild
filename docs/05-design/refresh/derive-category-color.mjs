@@ -64,7 +64,7 @@ export function deriveCategoryColor(baseHex) {
     const tint = mode === 'light' ? oklch(0.965, Math.min(C, 0.035), H) : oklch(0.3, Math.min(C, 0.06), H);
     const tintStrong = mode === 'light' ? oklch(0.92, Math.min(C, 0.07), H) : oklch(0.36, Math.min(C, 0.08), H);
     const dir = mode === 'light' ? -1 : 1;
-    const ink = walk(mode === 'light' ? Math.min(L, 0.6) : Math.max(L, 0.7), C, H, dir, (h) => [t.surface, t.canvas, tint].every((bg) => contrast(h, bg) >= 4.5));
+    const ink = walk(mode === 'light' ? Math.min(L, 0.6) : Math.max(L, 0.7), C, H, dir, (h) => [t.surface, t.canvas, tint, tintStrong].every((bg) => contrast(h, bg) >= 4.5));
     const indicator = walk(L, C, H, dir, (h) => [t.surface, t.canvas].every((bg) => contrast(h, bg) >= 3));
     out[mode] = { ...s, tint, tintStrong, ink, indicator, glow: s.solid + (mode === 'light' ? '59' : '73') };
   }

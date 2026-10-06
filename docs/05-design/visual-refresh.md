@@ -1,5 +1,5 @@
 # Visual refresh — visual language (Phase 3X)
-Status: **proposed** (ui-ux-designer, ROADMAP 3X.2, 2026-10-06). The Owner approves the look in 3X.4 from the 3X.3 preview.
+Status: **proposed** (ui-ux-designer, ROADMAP 3X.2, 2026-10-06). The §13 look decisions were answered by the Owner on 2026-10-06 (Q-174…Q-178, all yes). The Owner approves the look as a whole in 3X.4 from the 3X.3 preview `docs/05-design/preview/refresh.html`.
 Brief: `docs/02-specs/3x-visual-refresh.md` (R-1…R-4, AC-1…AC-16; Owner answers Q-169…Q-173).
 Builds on: `tokens.md` (tokens stay the base; this document only **adds**), `components.md` (component behaviour unchanged), `audit.md`.
 Evidence scripts (run with `node`, no dependencies):
@@ -243,7 +243,7 @@ Distances (OKLab ΔE, `check-category-colors.mjs`):
 | `gradientStart`, `gradientEnd` | `--mt-cat-gradient-start/-end` | category gradients (`135deg`) | `onSolid` ≥ 4.5 on **both** |
 | `tint` | `--mt-cat-tint` | soft background (pill at rest, chips, page header band) | — |
 | `tintStrong` | `--mt-cat-tint-strong` | tint hover, pill border at rest | — |
-| `ink` | `--mt-cat-ink` | category-coloured text on surface, canvas or `tint` | ≥ 4.5 on all three |
+| `ink` | `--mt-cat-ink` | category-coloured text on surface, canvas, `tint` or `tintStrong` (the resting category pill is a tint → tintStrong gradient) | ≥ 4.5 on all four |
 | `indicator` | `--mt-cat-indicator` | dot, accent bar, borders, underline | ≥ 3 on surface + canvas |
 | `glow` | `--mt-cat-glow` | `glow.category` | — (alpha 0.35 light / 0.45 dark) |
 
@@ -254,7 +254,7 @@ Distances (OKLab ΔE, `check-category-colors.mjs`):
 4. **Tints.**
    - `tint`: light (0.965, min(C, 0.035), H); dark (0.30, min(C, 0.06), H).
    - `tintStrong`: light (0.92, min(C, 0.07), H); dark (0.36, min(C, 0.08), H).
-5. **Ink.** Start at the base L (light: at most 0.60; dark: at least 0.70) and move darker (light) or lighter (dark) until ≥ 4.5 on surface, canvas and `tint`.
+5. **Ink.** Start at the base L (light: at most 0.60; dark: at least 0.70) and move darker (light) or lighter (dark) until ≥ 4.5 on surface, canvas, `tint` and `tintStrong`. (`tintStrong` added in 3X.3: the preview's rendered-contrast check found the resting pill text at 3.8–4.5 on the gradient's darker end.)
 6. **Indicator.** Start at the base L and move until ≥ 3 on surface and canvas.
 
 **Proof.** The stress test runs every colour of a 16-step RGB grid (4,096 colours, including white, black, greys and pure hues) in both modes: **0 failures**. This is spec AC-5. 3X.6 turns it into a unit test of the ported function.
@@ -364,7 +364,7 @@ On sub-category and project category forms: a read-only line "Colour inherited f
 | 3X.16–17 | §10 |
 
 ## 13. Open points
-- **For the Owner (3X.4, decided by looking at the preview, not new business rules):**
+- **For the Owner — decided 2026-10-06, all accepted (Q-174…Q-178):**
   - the starter colour assignment (§8.1);
   - the card radius 12 → 16;
   - the translucent blurred header;

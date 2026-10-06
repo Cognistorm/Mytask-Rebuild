@@ -43,7 +43,7 @@ for (const r of steps) for (const g of steps) for (const b of steps) {
       ['solid/onSolid', contrast(x.solid, x.onSolid), 4.5],
       ['gradStart/onSolid', contrast(x.gradientStart, x.onSolid), 4.5],
       ['gradEnd/onSolid', contrast(x.gradientEnd, x.onSolid), 4.5],
-      ['ink/surface', contrast(x.ink, S[m][0]), 4.5], ['ink/canvas', contrast(x.ink, S[m][1]), 4.5], ['ink/tint', contrast(x.ink, x.tint), 4.5],
+      ['ink/surface', contrast(x.ink, S[m][0]), 4.5], ['ink/canvas', contrast(x.ink, S[m][1]), 4.5], ['ink/tint', contrast(x.ink, x.tint), 4.5], ['ink/tintStrong', contrast(x.ink, x.tintStrong), 4.5],
       ['indicator/surface', contrast(x.indicator, S[m][0]), 3], ['indicator/canvas', contrast(x.indicator, S[m][1]), 3],
     ];
     for (const [k, v, min] of checks) if (v < min - 1e-9) fails.push(`${hex} ${m} ${k} ${v.toFixed(2)}`);

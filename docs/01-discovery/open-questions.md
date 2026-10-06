@@ -883,3 +883,25 @@ When: before Phase 5 (settings migration). Not blocking slice 2.
 ### Q-173
 **Does dark mode get its own gradients?**
 **Answer (Owner, 2026-10-06):** yes, tailored dark-mode gradients, as polished as light mode (spec 3X R-1.4, R-3.1).
+
+## Phase 3X look decisions (designer, ROADMAP 3X.2 §13 → 3X.4, 2026-10-06) — answered by Owner 2026-10-06
+
+### Q-174
+**Starter category colours** (violet design, rose music, blue programming, gold marketing, sky video, navy business, leaf-green photography; 5 spares)?
+**Answer (Owner, 2026-10-06):** yes, as proposed (`docs/05-design/visual-refresh.md` §8.1).
+
+### Q-175
+**Card corner radius 12 → 16 px?**
+**Answer (Owner, 2026-10-06):** yes.
+
+### Q-176
+**Semi-transparent header with frosted-glass blur?**
+**Answer (Owner, 2026-10-06):** yes (§3.3; solid fallback where blur is unsupported; still transparent over the home hero).
+
+### Q-177
+**Slow hero background drift (M-12)?**
+**Answer (Owner, 2026-10-06):** yes (18 s, off with reduced motion).
+
+### Q-178
+**Admin warning when a category colour is close to error red, success green, Featured orange or brand teal?**
+**Answer (Owner, 2026-10-06):** yes — warning only, saving stays allowed (spec 3X R-1.3, OKLab ΔE < 0.06).
