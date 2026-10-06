@@ -211,7 +211,12 @@ Remaining:
       - Measured pass (`apps/web/e2e/contrast-measure.ts`) for everything axe leaves as "needs review": 14–298 nodes per screen, nearly all text on the 3X gradient surfaces, so axe alone checks little. The text colour is measured against every colour stop of the background painted under it (paint stack at its centre, including a covering `::before`/`::after` fill; a thin strip under 16 px or an avatar's border-box ring is not "under the text"). Pass: ≥ 4.5, or ≥ 3 for large text and for `aria-hidden` graphics (rating stars, avatar initials; WCAG 1.4.11). Text on photos is left out.
       - A control test injects low contrast on a solid colour and on a card gradient, and both passes catch it.
     Tightest values: the admin preview's light pills at 4.51 / 4.62. Web E2E now runs the screenshot + contrast specs as a second Playwright project `visual` after the flow tests (`dependencies`), so their load does not slow the flow tests' client navigations. The baselines are renamed `*-visual-win32.png`; run one visual spec alone with `--no-deps`. Web 204 passed / 3 skipped, admin 25 passed / 6 skipped.
-  - [ ] 3X.18d Lighthouse CLS/INP (TBT as the lab stand-in for INP) on home, category page and search: the commit before 3X vs now, no worse (spec 3X AC-14).
+  - [x] 3X.18d Lighthouse CLS/INP (TBT as the lab stand-in for INP) on home, category page and search: the commit before 3X vs now, no worse (spec 3X AC-14).
+    Done 2026-10-06: report `docs/06-qa/perf/3x-lighthouse-2026-10-06.md`, scripts `3x-lighthouse.mjs` + `3x-inp.mjs` in the same folder. Pre-3X `main` 61c4e777 vs 3X, same stand-in API, builds alternated, median of 5.
+      - Lighthouse 12.8.2, mobile + desktop: **CLS no worse** on home, category and search (all ≤ 0.007), **TBT 0 ms** on both builds.
+      - INP measured with Event Timing on real clicks, CPU 4× slower: category 24 → 32 and search 24 → 32 ms are OK. **Home is worse: 24 → 88 ms**, from the Dark-mode switch. That is still under 200 ms "good". Trace: style recalculation 11 → 70 ms, paint 5 → 53 ms; no single 3X feature is the cause.
+      - → **F-3X18-1** for 3X.21 (Owner/Designer choice: accept, one-frame transition suppression, or lighter surface styles).
+      - Note outside AC-14: mobile FCP/LCP about 150 ms later from the larger stylesheet.
 - [ ] 3X.19 QA report `docs/06-qa/reports/3x-visual-refresh-<date>.md`: structure parity against the screens before 3X (nothing moved), R-1…R-4 met, accessibility, dark mode, reduced motion, web ↔ app consistency.
 - [ ] 3X.20 Security check (short): the admin colour input (enum/validation, no CSS injection), CSP unchanged (no `unsafe-inline` styles), audit entry.
 - [ ] 3X.21 Fix findings from 3X.19/3X.20, then re-check (split into a/b/… when needed).
