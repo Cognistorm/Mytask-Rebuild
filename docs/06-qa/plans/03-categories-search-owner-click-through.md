@@ -47,8 +47,8 @@ Tick each line. Anything that looks wrong: write one line under "Notes" at the b
 - [ ] Delete the test skill, project category, child, sub-category and category in the admin (bottom-up).
 
 ## Decision
-- [ ] **Slice 2 approved** (ROADMAP 4.2.20 ticked; next: 4.3 Gigs), or
+- [x] **Slice 2 approved** (ROADMAP 4.2.20 ticked; next: 4.3 Gigs), or
 - [ ] **Not yet**: the notes below become fixes.
 
 Notes:
--
+- 2026-10-06: approved by the Owner. Before that, Claude checked staging over HTTP: `/`, `/en`, `/search`, `/sellers`, `/explore/projects` and `/categories/graphics-design` (ka + en) all answer 200; `/hire/<unknown>` gives a 307 to search; `/?locale=en` and `/?theme=dark` give 301s; `/admin` opens the admin; API health is ok; `/__mail/` keeps its password.

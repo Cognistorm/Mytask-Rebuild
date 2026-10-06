@@ -1,4 +1,4 @@
-# Status — updated 2026-10-04
+# Status — updated 2026-10-06
 Phase: 4 — Features **NEXT** | Phase 3 gate: APPROVED by Owner 2026-10-02 | Phase 2 gate: APPROVED by Owner 2026-09-30 | Phase 1 gate: APPROVED by Owner 2026-09-28
 
 ## Done
@@ -58,9 +58,10 @@ Phase: 4 — Features **NEXT** | Phase 3 gate: APPROVED by Owner 2026-10-02 | Ph
 
 ## Micro-task workflow (Owner rule 2026-09-30)
 The plan lives in **docs/ROADMAP.md** (checkbox per micro-task). One micro-task at a time; when it is done and tests pass, tick it there and add one line below.
-**Next micro-task: 4.2.20** (slice 2, Owner): the click-through **on staging https://mytask.1kk.ge** (deployed 2026-10-06, `infra/staging/README.md`) (checklist `docs/06-qa/plans/03-categories-search-owner-click-through.md`). BUG-01 (local `pnpm local` loop) stays deferred (DEV-S1). After approval: 4.3 Gigs (branch `feat/gigs`). Owner rule 2026-10-02: no push or PR until Phase 4 is complete. **Owner decisions still open:** DEV-M1; Q-160; Q-163; Q-164.
+**Next micro-task: 4.3.1** (slice 3 Gigs, branch `feat/gigs` cut from `feat/catalog-search`). Slice 2 approved by the Owner 2026-10-06; `feat/catalog-search` pushed and PR into `main` opened (Owner 2026-10-06; merge only with Owner approval). BUG-01 (local `pnpm local` loop) stays deferred (DEV-S1). **Owner decisions still open:** DEV-M1; Q-160; Q-163; Q-164.
 
 ### Micro-task log
+- 2026-10-06 4.2.20 done: Owner approved slice 2 after the staging click-through (HTTP smoke check of staging passed first). Owner lifted the no-push rule for this branch: `feat/catalog-search` pushed, PR into `main` opened. **4.2 (slice 2) closed.**
 - 2026-10-06 staging uploads (Owner added DNS `s3.1kk.ge`): Nginx site + Let's Encrypt for https://s3.1kk.ge → SeaweedFS, `S3_PUBLIC_ENDPOINT=https://s3.1kk.ge` (website CSP follows it). Tested from outside: CORS preflight OK, presigned POST 204, wrong type 403, presigned GET 200, unsigned 403. The admin category icon/image step of the 4.2.20 checklist can now be done.
 - 2026-10-06 staging update (Owner): droplet upgraded to 2 GB; admin app live at https://mytask.1kk.ge/admin (`ADMIN_BASE_PATH=/admin` build option in `apps/admin/next.config.ts`, `ADMIN_URL` with `/admin`; staff login + email code tested end to end, foreign Origin 403); **no general password** on the website, API and admin (Owner: the 1kk.ge space is only used by the Owner), the test inbox `/__mail/` keeps it (it holds reset links); n8n and Cognistorm deleted from the server (container, image, data, service, Nginx sites, certificates; ~2 GB freed; archives kept in `/root/backups`). DEV-S2/DEV-S3 closed.
 - 2026-10-06 staging deployed (devops, Owner go-ahead): https://mytask.1kk.ge on the shared droplet 161.35.198.132 (n8n and Cognistorm stopped by the Owner, backups in `/root/backups`; MyTrades untouched). Native PostgreSQL 16 + pgvector, Redis 7.0, SeaweedFS, Mailpit (inbox `/__mail/`), API + worker + web as systemd units, loopback only; Nginx with Let's Encrypt, basic auth, `noindex`. Web listens on `localhost` (::1) to avoid the BUG-01 rewrite loop (cause found: rewrite host `localhost` vs server host `127.0.0.1`). 1kk.ge dashboard now shows MyTrades + MyTask. One-command redeploy `bash scripts/deploy-staging.sh` (tested, about 4.5 min, rolls back on failure). Runbook `infra/staging/README.md`.
