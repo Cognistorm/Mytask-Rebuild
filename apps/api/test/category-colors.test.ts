@@ -8,10 +8,11 @@ import { join } from 'node:path';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import tokens from '@mytask/tokens/tokens.json';
 import request from 'supertest';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { CATEGORY_STARTER, firstUnusedStarter } from '../src/modules/catalog/category-colors';
 import { CategoriesService } from '../src/modules/catalog/categories.service';
 import { PrismaService } from '../src/platform/db/prisma.service';
+import { RedisService } from '../src/platform/redis/redis.module';
 import { SettingsService, settingsRegistry } from '../src/platform/settings/settings.service';
 import { createTestApp } from './app';
 import { makeStaff } from './test-staff';
@@ -121,6 +122,13 @@ beforeAll(async () => {
   prisma = app.get(PrismaService);
   staff = await makeStaff(app, ['catalog.write']);
   await clearColors();
+});
+// The general limiter allows 120 staff writes per IP and minute; this file alone sends more (the probe list is 46),
+// and on a fast runner they land in one minute window. Each test starts with a fresh window.
+beforeEach(async () => {
+  const redis = app.get(RedisService).client;
+  const keys = await redis.keys('rl:*');
+  if (keys.length) await redis.del(...keys);
 });
 afterAll(async () => {
   await prisma?.setting.deleteMany({ where: { registerId: { in: ['S-075', 'S-107'] } } });
