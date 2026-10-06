@@ -184,7 +184,11 @@ jobs:
           docker compose logs --no-color api | grep '"url":"/api/v1/home"' | grep -q '"statusCode":200'
           echo "--- a server-rendered profile page through Caddy (visitor IP forwarded, SEC-65): localised 404"
           test "$(curl -s -o /tmp/p404.html -w '%{http_code}' http://localhost:8080/profile/ci_nobody_here)" = 404
-          grep -q 'data-testid="not-found"' /tmp/p404.html
+          # Next.js 16.3 answers a notFound() page with its HTML error shell and ships the 404 view in the page's
+          # Flight data, which the browser renders (the same in a plain one-layout app; the web E2E cover the
+          # rendered page). So look for the localised 404 view (Georgian heading) in the response, in either form.
+          grep -qE 'data-testid="not-found"|\\"data-testid\\":\\"not-found\\"' /tmp/p404.html
+          grep -q 'გვერდი ვერ მოიძებნა' /tmp/p404.html
           echo "--- that page's API call arrived with the visitor IP (review 07 I-41: ipSource in the API request log)"
           docker compose logs --no-color api | grep '/api/v1/users/ci_nobody_here' | grep -q '"ipSource":"ssr-visitor"'
           echo "--- staff endpoints are not served on the public host"
