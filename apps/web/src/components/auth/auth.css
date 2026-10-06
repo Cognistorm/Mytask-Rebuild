@@ -140,12 +140,30 @@
   gap: var(--mt-space-3);
 }
 
+/* Restricted page (3X.14b): each restriction is a small card with a 4 px start bar in its status colour, as the alerts
+   have (§6.4). */
 .restriction-item {
+  --mt-restriction-bar: var(--mt-border-strong);
   border: var(--mt-border-width-hairline) solid var(--mt-border-default);
+  border-inline-start: var(--mt-space-1) solid var(--mt-restriction-bar);
   border-radius: var(--mt-radius-control);
   padding: var(--mt-space-3);
   display: grid;
   gap: var(--mt-space-2);
+  background: var(--mt-gradient-surface);
+  box-shadow: var(--mt-elevation-sm), var(--mt-highlight-surface);
+}
+
+.restriction-item:has([data-status='pending'], [data-status='submitted']) {
+  --mt-restriction-bar: var(--mt-feedback-warning-icon);
+}
+
+.restriction-item:has([data-status='approved']) {
+  --mt-restriction-bar: var(--mt-feedback-success-icon);
+}
+
+.restriction-item:has([data-status='rejected']) {
+  --mt-restriction-bar: var(--mt-feedback-danger-icon);
 }
 
 .restriction-status {
