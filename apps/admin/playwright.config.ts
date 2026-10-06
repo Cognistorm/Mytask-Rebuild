@@ -8,6 +8,8 @@ const BASE = `http://localhost:${PORT}`;
 // Starts the production build; the API is optional (the page shows "unreachable" without it).
 export default defineConfig({
   testDir: 'e2e',
+  // CI: failures as GitHub annotations (readable without the logs) + the HTML report the workflow uploads.
+  reporter: process.env.CI ? [['github'], ['list'], ['html', { open: 'never' }]] : 'list',
   // The full-stack tests share the seeded owner account, and the Docker-free preview's PGlite serves one
   // connection at a time (concurrent queries interleave: 08P01). One worker keeps them deterministic.
   workers: 1,

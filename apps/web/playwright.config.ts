@@ -9,6 +9,8 @@ const VISUAL = /(visual-screens|contrast)\.spec\.ts$/;
 
 export default defineConfig({
   testDir: 'e2e',
+  // CI: failures as GitHub annotations (readable without the logs) + the HTML report the workflow uploads.
+  reporter: process.env.CI ? [['github'], ['list'], ['html', { open: 'never' }]] : 'list',
   use: { baseURL: BASE },
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] }, testIgnore: VISUAL },
