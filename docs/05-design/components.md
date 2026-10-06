@@ -1,5 +1,6 @@
 # Component inventory: `packages/ui` (P2-C2)
 Status: **proposal, awaiting Owner approval** (visual check in the preview page, P2-C3) | Author: ui-ux-designer | Date: 2026-09-28
+**Updated 2026-10-06 (ROADMAP 3X.6):** §0.5 maps every component to the visual-refresh tokens. Behaviour, props, variants, sizes, placement and class names do not change; only the look does (spec 3X "Must not change").
 Inputs: [audit.md](audit.md) (§1.12 component systems, §3 screens, §4 principles), [tokens.md](tokens.md), approved specs [00](../02-specs/00-platform-rules.md)–[04](../02-specs/04-gigs.md), [architecture.md](../03-architecture/architecture.md) §4 and §8, ADR-001 (UI sharing), ADR-006 (i18n).
 Rule applied: **modernise, don't reinvent.** Each component keeps the placement and behaviour users know from the live site; it fixes looks, consistency, accessibility and mobile behaviour.
 
@@ -37,6 +38,34 @@ Every interactive component defines these states. Token names are from `theme.*`
 
 ### 0.4 Accessibility baseline (applies to every component)
 Zoom allowed (no `user-scalable=0`). Every interactive element ≥ 44×44 hit area and ≥ 8 px from the next target. Every icon-only control has an accessible name. Focus order follows the visual order. Nothing is hover-only. Motion respects reduced-motion settings. Georgian first: labels wrap instead of truncating; widths are tested with the longest Georgian string. `lang` is set on content that is in the other language (e.g. a Georgian-fallback gig on an English page, ADR-006 §6).
+
+### 0.5 Visual refresh (Phase 3X): which tokens each component uses
+Source: the approved [visual-refresh.md](visual-refresh.md) (§ numbers below) and [tokens.md](tokens.md) §6.8, §6.10, §6.11. This **adds** to the per-component tables below; where a table names a flat fill (`action.primary`), the refreshed look paints the matching gradient over it and keeps the flat colour as the fallback and the pressed/disabled colour. The restyle tasks 3X.9–3X.17 apply this; 3X.6 only provides the tokens.
+| Component | Rest | Hover / open / selected | Pressed / motion | § |
+|---|---|---|---|---|
+| Button `primary` / `secondary` / `danger` / `accent` | `gradient.action.<variant>`, 1 px `border.action.<variant>`, `elevation.control` + `highlight.filled` (secondary: `highlight.secondary`) | `::before` layer `gradient.action.<variant>Hover` fades in; secondary border → `border.action.secondaryHover`; `glow.brand` (`accent` → `glow.accent`, `danger` → `glow.danger`); lift `distance.liftControl` | flat `action.<variant>Pressed` + `highlight.pressed`, `scale.pressed`, `duration.press` in / `fast` out | 4 |
+| Button `ghost` / `outline` | transparent, 1 px `border.action.ghost` (outline keeps `border.brand`) | `gradient.action.ghostHover` | as above | 4.2 |
+| Button loading / success | label kept, `opacity` 0.85, spinner (static "…" under reduced motion) | success: one `glow.success` pulse, 400 ms | — | 4.3 |
+| IconButton | as Button `secondary`, round (`radius.full`) or square 8 | as secondary | as Button | 4.2 |
+| Input, Select, Textarea, PriceInput, SearchBar | `gradient.input`, **`border.strong`** (≥ 3:1, kept — the preview's lighter `neutral.300` rest border fails WCAG 1.4.11), inset `0 1px 2px` | hover border `neutral.450` (= `border.strong`); focus `border.brand` + `glow.brand` + focus ring | invalid: `border.danger` + `glow.danger` half | 6.3 |
+| Switch, Checkbox, Radio | track `gradient.track`; on/checked = `gradient.action.primary` | — | thumb slide `duration.fast` `emphasized`; check-mark draw 200 ms (shown at once under reduced motion) | 6.3 |
+| Chip (skills, filters) | white → `neutral.50`, 1 px `border.default` | border `brand.400`, `glow.brandSoft`, lift 1 | selected: `bg.selected` → `bg.brandSoft`, `border.brand`, `badge.brandText`; on a category page the category `tint`/`ink` replaces brand | 6.2 |
+| Badge / Pill / StatusBadge | own tint + soft top gradient + 1 px border a step darker; Featured = `gradient.action.accent` + `action.onAccent` | none (not interactive) | none | 6.2 |
+| Tabs | text `text.secondary` | active: `text.brand` + 3 px `gradient.indicator` | indicator slides (`transform`, `duration.base`) | 6.2 |
+| RoleSwitcher | track `gradient.track`, inset shadow | thumb = Button `primary` look | thumb slides `duration.base` `emphasized` | 6.2 |
+| Card, GigCard, FreelancerCard, ProfileCard, PortfolioCard, StatTile, Panel | `gradient.surface`, 1 px `border.default`, `elevation.sm` + `highlight.surface`, **`radius.card` 16** | interactive cards only (`@media (hover: hover)`): lift `distance.liftCard`, `elevation.md` + `glow.brandSoft`, border `border.cardHover`; media zoom `scale.hover` | `scale` 0.99 for `duration.press` | 3.2, 6.1 |
+| GigCard `featured` | keeps the orange 2 px frame (spec 03 AC-18) | `glow.accent` | — | 6.1 |
+| Header | `bg.translucent` + `backdrop-filter: saturate(1.4) blur(12px)` (fallback `bg.surface`), hairline `border.translucent` | over the home hero: transparent, fades to translucent on scroll | `duration.base` | 3.3 |
+| Category bar item (`.mt-category-bar-item`) | `.mt-cat` pill: `--mt-cat-tint` → `--mt-cat-tint-strong`, border `--mt-cat-tint-strong`, text `--mt-cat-ink` semibold, 8 px dot `--mt-cat-indicator`; over the hero `bg.overHero` + `border.overHero` + white | hover / `aria-expanded`: `--mt-gradient-category`, text + dot `--mt-cat-on-solid`, `--mt-glow-category`, lift 1 | current category: filled, no lift | 8.4 |
+| MegaMenu / Menu / Dropdown / Select popover | `bg.translucent` + blur, `elevation.lg`; mega-menu 3 px `--mt-gradient-category` strip, headings `--mt-cat-ink` | items: `--mt-cat-tint` + `--mt-cat-ink` (`duration.fast`) | open: opacity + `translateY(-6px)` + `scale` 0.98 → 1, `duration.base` `enter`; close `duration.fast` `exit` | 6.4, 8.4 |
+| NavDrawer | dot + 3 px `--mt-cat-indicator` start bar on expanded rows | sub-rows `--mt-cat-tint` | `translateX`, `duration.slow` `emphasized` | 6.4, 8.4 |
+| Dialog | panel + 4 px `gradient.brandStrip` on top | — | scrim fade `duration.base`; panel opacity + 12 px + 0.98 → 1, `duration.slow` `emphasized` | 6.4 |
+| Alert / Toast | feedback tint gradient + 4 px start bar in the feedback colour | — | fade + 4–8 px slide, `duration.base` `enter` | 6.4 |
+| Skeleton | `gradient.skeleton` | — | shimmer `duration.shimmer` (off under reduced motion) | 6.4 |
+| EmptyState | 64 px icon circle `bg.selected` → `bg.brandSoft` + static `glow.brandSoft` ring | — | — | 6.4 |
+| Category tile, category row heading, category page band, breadcrumb, explore chips | `.mt-cat` + `categoryStyle(color)`: tile label band `--mt-gradient-category` + `--mt-cat-on-solid`; row heading dot + 4 px `--mt-cat-indicator` bar; page band `--mt-gradient-category`; breadcrumb chips `--mt-cat-tint`/`--mt-cat-ink` | tile: `--mt-glow-category` + card hover | entrance stagger `stagger.step` × ≤ `stagger.max` | 8.5 |
+| Hero | `gradient.hero` | — | radial layer drift `duration.drift` (off under reduced motion) | 3.4 |
+| Native (all of the above) | same tokens from `@mytask/tokens/native`: `theme.gradient.*` as `expo-linear-gradient` props, `theme.glow.*` (iOS shadow; Android elevation + 1 px coloured border), `categoryTheme(color, scheme)` for category colours | — | Reanimated with `motion.spring.default`, `scale.pressed`, `FadeInDown` 300 ms + 40 ms stagger, `reduceMotion: ReduceMotion.System` | 10 |
 
 ---
 
@@ -151,6 +180,7 @@ Canonical icon names (one icon per meaning, so web and mobile match):
   | `danger` | `action.danger` / `action.onDanger` | destructive confirmation: delete gig, delete account, cancel order |
   | `accent` | `action.accent` / `action.onAccent` | **promotional only**: Premium "Buy", "Upgrade to Premium", "Invite and earn points" (replaces sky blue `#2EBFF6`, Q-078). Max one per screen |
 - **Sizes:** `sm` 36 (web dense only) · `md` 44 · `lg` 52. Padding x: 12 / 16 / 24. Radius `radius.control` (8) for all. Min width 88 (so short Georgian words such as "დიახ" still look like buttons).
+- **3X look:** gradient fill, always-visible border, lit top edge and glow on hover (§0.5). Sizes, padding and radius unchanged.
 - **Options:** `iconStart`, `iconEnd` (20 px), `fullWidth` (auth, sticky bars, mobile dialogs), `loading`, `href` (renders a link styled as a button: `<a>` on web, Link on native).
 - **States:** hover `*Hover`; focus-visible ring; pressed `*Pressed` (+ scale 0.98 native); disabled `action.disabled` / `action.onDisabled` for **all** variants; loading = spinner before the label, label kept (width stable), `aria-busy`, clicks ignored; there is no error state (errors show on the form or as a Toast).
 - **Text:** `text.buttonSm/Md`, weight 600, **wraps to two lines** rather than truncating (Georgian); never uppercase.

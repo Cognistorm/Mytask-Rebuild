@@ -2,21 +2,23 @@
   "name": "@mytask/tokens",
   "version": "0.1.0",
   "private": true,
-  "description": "MyTask.ge design tokens: tokens.json -> CSS variables (web/admin) and React Native theme objects (mobile). See docs/05-design/tokens.md.",
+  "description": "MyTask.ge design tokens: tokens.json -> CSS variables (web/admin) and React Native theme objects (mobile), plus the shared category colour function. See docs/05-design/tokens.md.",
   "type": "module",
-  "files": ["tokens.json", "dist"],
+  "files": ["tokens.json", "dist", "src"],
   "exports": {
     "./tokens.json": "./tokens.json",
     "./tokens.css": "./dist/tokens.css",
     "./fonts.css": "./dist/fonts.css",
     ".": { "types": "./dist/tokens.d.ts", "default": "./dist/tokens.mjs" },
     "./web": { "types": "./dist/web.d.ts", "default": "./dist/web.mjs" },
-    "./native": { "types": "./dist/native.d.ts", "default": "./dist/native.mjs" }
+    "./native": { "types": "./dist/native.d.ts", "default": "./dist/native.mjs" },
+    "./color": { "types": "./src/category-color.d.mts", "default": "./src/category-color.mjs" }
   },
   "scripts": {
     "build": "node build.mjs",
     "check": "node contrast.mjs",
-    "contrast:md": "node contrast.mjs --md"
+    "contrast:md": "node contrast.mjs --md",
+    "test": "node --test \"test/*.test.mjs\""
   },
-  "engines": { "node": ">=18" }
+  "engines": { "node": ">=22" }
 }

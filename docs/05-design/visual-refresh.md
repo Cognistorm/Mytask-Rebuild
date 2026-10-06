@@ -41,10 +41,10 @@ The canvas is painted on a fixed layer behind the page (`body::before`, `positio
 | | Light | Dark |
 |---|---|---|
 | Base | `linear-gradient(180deg, #F3F8F8 0%, #FAFAFA 35%, #F4F5F7 100%)` | `linear-gradient(180deg, #111214 0%, #161616 40%, #131416 100%)` |
-| Glow 1 (top-left, brand) | `radial-gradient(1100px 620px at 8% -8%, rgb(53 162 159 / 0.10), transparent 62%)` | `radial-gradient(1100px 620px at 8% -8%, rgb(53 162 159 / 0.12), transparent 62%)` |
-| Glow 2 (top-right, violet) | `radial-gradient(900px 520px at 100% 0%, rgb(124 58 237 / 0.05), transparent 60%)` | `radial-gradient(900px 520px at 100% 0%, rgb(124 58 237 / 0.08), transparent 60%)` |
+| Glow 1 (top-left, brand) | `radial-gradient(1100px 620px at 8% -8%, rgb(53 162 159 / 0.07), transparent 62%)` (**0.10 → 0.07 in 3X.6**) | `radial-gradient(1100px 620px at 8% -8%, rgb(53 162 159 / 0.12), transparent 62%)` |
+| Glow 2 (top-right, violet) | `radial-gradient(900px 520px at 100% 0%, rgb(124 58 237 / 0.04), transparent 60%)` (**0.05 → 0.04 in 3X.6**) | `radial-gradient(900px 520px at 100% 0%, rgb(124 58 237 / 0.08), transparent 60%)` |
 | Worst-case points checked | `#FAFAFA`, `#F3F8F8`, `#F5F3FA`, `#F4F5F7` | `#161616`, `#14201F`, `#1B1825`, `#111214` |
-| Contrast (lowest) | text.primary 15.1 · secondary 7.0 · **muted 4.79** · link 5.86 | primary 15.2 · **muted 6.52** · link 8.90 |
+| Contrast (lowest) | text.primary 14.3 · secondary 6.6 · **muted 4.53** · link 5.54 (3X.6 check: each glow at full strength over every base stop; at 0.10 / 0.05 muted was 4.41, so the glows were lowered) | primary 14.0 · **muted 6.01** · link 8.20 |
 
 Rule: nothing may be added to the canvas that makes a point darker (light) or lighter (dark) than the checked points. `text.muted` on light is the limiting pair.
 
@@ -147,7 +147,7 @@ A glow is a soft coloured light around an element that is responding (hover, foc
 - **`.admin-tabs` / other tabs:** the active tab gets a 3 px gradient indicator (brand.500 → brand.700) that slides between tabs (`transform`), and the tab text turns `text.brand`.
 
 ### 6.3 Form controls (`form.css`, shared by web + admin)
-- **Input/select/textarea:** border `neutral.300`, background `#FFFFFF` → `#FCFCFD`, inner top shadow `inset 0 1px 2px rgb(22 22 22 / 0.04)`.
+- **Input/select/textarea:** border `border.strong` (`neutral.450`; 3X.6: the `neutral.300` first proposed here is 1.5:1 and fails WCAG 1.4.11 for a form-control boundary), background `#FFFFFF` → `#FCFCFD`, inner top shadow `inset 0 1px 2px rgb(22 22 22 / 0.04)`.
   - hover: border `neutral.450`;
   - focus: border `brand.600` + `glow.brand` + the existing focus ring;
   - invalid: border `red.700` + `glow.danger` at half strength.
@@ -324,6 +324,8 @@ On sub-category and project category forms: a read-only line "Colour inherited f
 - **App screens.** The Home tab's teal hero uses the §3.4 gradient. The categories menu rows use the dot + `indicator` bar, and the category screen header uses the category gradient band.
 
 ## 11. Tokens to add in 3X.6 (proposal)
+**Done 2026-10-06 (3X.6).** The final names and values are in `packages/tokens/tokens.json` and `tokens.md` §6.8, §6.10, §6.11. The changes from this proposal: lower light canvas glows (§3.1); input border kept at `border.strong` (§6.3); the brand fallback category set uses brand-ramp colours that pass every check; `glow.brandSoft` and the `gradient.track`, `indicator`, `brandStrip` and `brandBanner` tokens were added from the preview.
+
 - **`gradient`** (per theme, CSS `--mt-gradient-*`; native = stop arrays):
   - `canvas` (3 layers, §3.1), `hero` (§3.4), `surface` (§3.2);
   - `action.primary`, `.primaryHover`, `.secondary`, `.secondaryHover`, `.accent`, `.accentHover`, `.danger`, `.dangerHover`, `.ghostHover` (§4.2);
