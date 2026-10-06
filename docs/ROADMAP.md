@@ -82,7 +82,75 @@ Remaining:
 
 ---
 
+## Phase 3X — Visual refresh (branch `feat/visual-refresh`, cut from `feat/catalog-search`) — Owner request 2026-10-06
+
+**Why.** The Owner, 2026-10-06: the structure and layout are right, but the look is too plain and dated (for example, the category bar is just white text with no boxes, buttons or bars). This replaces Q-165 (c) "design direction unchanged". The phase is inserted **before Phase 4 continues**: slices 4.1 and 4.2 are already built, so Phase 4 **pauses at 4.3.1** and resumes only after 3X is implemented, verified, merged and approved by the Owner. Task IDs use `3X.n` because `3.5` is already taken by a Phase 3 task.
+
+**Owner requirements (R-1…R-4):**
+- **R-1 Category colours:** every top-level category ("direction") has its own colour theme. Admin can pick a colour when creating or editing a category. This is a **NEW** feature, marked `NEW` in specs 03 and 16.
+- **R-2 Buttons and gradients:** buttons get a clear, crisp border and an inner gradient, never plain text. Backgrounds and interactive components use subtle gradients.
+- **R-3 Site background:** a modern gradient background instead of a flat colour.
+- **R-4 Motion:** smooth micro-animations, hover effects, transitions, glow states, soft motion on cards and buttons, and interactive feedback.
+
+**Rules for this phase (on top of the general rules above):**
+- **Same structure.** No page, flow, element order, placement, URL, text or API behaviour changes, except R-1. E2E selectors and `aria-*` stay the same, so the existing E2E suites prove the structure did not move.
+- **Tokens first.** Every colour, gradient, glow and motion value comes from `packages/tokens`. Components get them only through `packages/ui` (web) and the native theme (mobile).
+- **Accessibility kept.** WCAG AA contrast on **both** ends of every gradient, in light and dark mode (the `contrast.mjs` checks are extended). Focus stays visible.
+- **Reduced motion.** With `prefers-reduced-motion` on the web, or Reduce Motion on iOS/Android, there are no slides, scales or loops; only short fades.
+- **Performance.** Animate only `transform`, `opacity` and `filter`, with no layout shift. The web uses CSS only (no new animation library). Mobile uses the Reanimated already installed, plus `expo-linear-gradient`.
+- **CSP.** The website has a strict nonce CSP, so category colours are applied through classes or data attributes for a fixed set of themes, never as admin-supplied inline styles (decided in 3X.5).
+
+### 3X.A Brief and look (no product code)
+- [ ] 3X.1 Orchestrator + analyst: brief `docs/02-specs/3x-visual-refresh.md`. Contents: R-1…R-4 as acceptance criteria; a "must not change" list (structure, flows, placement, texts, URLs); an inventory of every screen built so far (web public + private, admin, mobile) with the components each one uses. Owner questions go to `open-questions.md`:
+  - category colour as a curated palette of contrast-checked themes (recommended) or a free colour picker;
+  - must each top-level colour be unique;
+  - do sub-categories and project categories inherit the colour of their top-level category;
+  - how strong the motion should be;
+  - does dark mode get its own gradients.
+- [ ] 3X.2 Designer: visual language `docs/05-design/visual-refresh.md`. It defines:
+  - the gradient system (page canvas, surfaces, hero, cards);
+  - buttons (primary / secondary / accent / danger / ghost / icon): border plus inner gradient, with hover, pressed, focus-glow, disabled and loading states;
+  - chips, tabs, inputs, switches;
+  - the glow states;
+  - the motion catalogue (hover lift, press, card entrance + stagger, skeleton shimmer, menu and dialog transitions, toast, success feedback), with durations and easings and the reduced-motion version of each;
+  - the category theme palette (base, soft background, gradient start and end, text-on colour; light + dark).
+- [ ] 3X.3 Designer: interactive preview `docs/05-design/preview/refresh.html`. Old vs new for the header + category bar + mega-menu, home (hero, featured categories, gig cards, category rows), category page, search, profile, dashboard, auth card and the admin category form with the colour choice. It also includes a light/dark switch, a reduced-motion switch and a phone-width view. Contrast and no-horizontal-scroll checks run in headless Chromium.
+- [ ] 3X.4 **Owner review of the look** (preview + answers to the 3X.1 questions). Adjust until approved. Nothing below starts before this approval.
+
+### 3X.B Foundations
+- [ ] 3X.5 Architect: ADR-023 "Category colour themes" + data model (top-level gig category colour; inheritance per 3X.1 answers) + additive contract **1.4.0**. The colour is added to `CategoryNode`, `CategoryDetail` (incl. breadcrumb), the `getHome` tiles and rows, `AdminCategory` and the create/update requests, project categories through their linked top-level category, plus a validation error for an invalid or non-top-level colour. Also: oasdiff note, coverage rows, NEW ACs in specs 03 + 16, and the list of new i18n keys.
+- [ ] 3X.6 Designer: tokens in `packages/tokens`: new `gradient`, `glow` and `categoryTheme` groups, motion additions (lift, stagger, spring for native), button and surface roles in `theme.light` / `theme.dark`, a CSS + React Native build, and contrast checks on both gradient ends and every category theme (0 failures). Update `tokens.md` and `components.md`.
+- [ ] 3X.7 Backend: migration (colour column, existing top-level categories get default themes in `position` order); public reads + `getHome` return the colour (60 s category cache invalidated on change); admin create/update validates it per ADR-023 and audits it; tests.
+- [ ] 3X.8 Web foundation (`packages/ui/web` + both apps' root layouts): gradient canvas background; motion utility classes with reduced-motion fallbacks; category theme classes (`data-category-theme` → `--mt-cat-*` variables); no other screen change yet. Web + admin E2E stay green.
+- [ ] 3X.9 Web shared components: Button family, IconButton, chips/pills, tabs, role switcher, inputs/select/switch/checkbox (`form.css`, shared with admin), cards, dialogs, toasts, skeletons and empty states, restyled per 3X.2 (borders, inner gradients, hover/press/focus glow, transitions).
+
+### 3X.C Web screens (restyle only; E2E unchanged and green)
+- [ ] 3X.10 Header + category bar + mega-menu + phone drawer: category bar items as distinct pill buttons in their category colour, a tinted mega-menu panel, an animated open/close, an active state. The transparent-over-hero header (4.2.20) is kept.
+- [ ] 3X.11 Home: hero gradient with subtle motion, featured category tiles in their colours, gig cards (hover lift, glow, image motion), carousels, category rows with a colour accent, best sellers, entrance stagger.
+- [ ] 3X.12 Catalog pages: category page header in the category gradient, breadcrumb, filters bar + sort, search results, pagination, `/sellers` + `/hire` freelancer cards, explore projects chips, empty and error states.
+- [ ] 3X.13 Public profile + portfolio list/item (card, ratings, chips, gallery, share/report dialogs).
+- [ ] 3X.14 Private pages: auth pages (login, register, 2FA, reset, verify), dashboard shell + Selling Home KPI tiles, account settings, password, sessions, verification centre, edit profile, portfolio create/edit, restricted, theme switch. Checked in dark mode.
+
+### 3X.D Admin
+- [ ] 3X.15 Admin: the shared look through `packages/ui`. Category form colour choice (theme swatches with a live preview chip, per ADR-023): the category tree shows a colour dot, and project categories show the inherited colour. E2E in `apps/admin/e2e/catalog.spec.ts` extended (pick colour → shown on the website header).
+
+### 3X.E Mobile
+- [ ] 3X.16 Mobile foundation: the new tokens in the native theme, `expo-linear-gradient` (pinned), shared Reanimated presets (press scale, fade/slide-in, stagger, skeleton) honouring Reduce Motion, plus shared native Button, Card and Chip in the new style.
+- [ ] 3X.17 Mobile screens: Home, Explore (filter/sort sheets), categories menu + category screen (category colours), sellers/hire, explore projects, public profile, Dashboard + Account tabs, auth and restricted screens; `expo export` iOS + Android OK.
+
+### 3X.F Verify, review, merge (standard tail)
+- [ ] 3X.18 E2E + visual checks: the full web + admin E2E unchanged and green; new Playwright screenshot checks of the key screens (light, dark, phone width) and a reduced-motion check; axe contrast check; Lighthouse CLS/INP no worse than before 3X.
+- [ ] 3X.19 QA report `docs/06-qa/reports/3x-visual-refresh-<date>.md`: structure parity against the screens before 3X (nothing moved), R-1…R-4 met, accessibility, dark mode, reduced motion, web ↔ app consistency.
+- [ ] 3X.20 Security check (short): the admin colour input (enum/validation, no CSS injection), CSP unchanged (no `unsafe-inline` styles), audit entry.
+- [ ] 3X.21 Fix findings from 3X.19/3X.20, then re-check (split into a/b/… when needed).
+- [ ] 3X.22 PR + CI green + STATUS. **Merge order:** PR #2 `feat/catalog-search` first, then this branch. Redeploy staging with `bash scripts/deploy-staging.sh`.
+- [ ] 3X.23 **Owner click-through on staging** (checklist `docs/06-qa/plans/3x-visual-refresh-owner-click-through.md`, web + admin + app). Approve → merge → **resume Phase 4 at 4.3.1** (`feat/gigs` is cut from `main` after the merge, so slice 3 is built in the new style from the start).
+
+---
+
 ## Phase 4 — Features (one slice at a time; order from `docs/02-specs/README.md`)
+
+> **Paused at 4.3.1 (Owner 2026-10-06)** until Phase 3X (visual refresh) is merged and approved.
 
 **Standard tail of every slice** (numbered at the end of each slice below):
 - E2E main flows;

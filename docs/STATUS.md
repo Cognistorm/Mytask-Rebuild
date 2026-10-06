@@ -1,5 +1,5 @@
 # Status — updated 2026-10-06
-Phase: 4 — Features **NEXT** | Phase 3 gate: APPROVED by Owner 2026-10-02 | Phase 2 gate: APPROVED by Owner 2026-09-30 | Phase 1 gate: APPROVED by Owner 2026-09-28
+Phase: **3X — Visual refresh** (inserted by the Owner 2026-10-06; Phase 4 paused at 4.3.1) | Phase 3 gate: APPROVED by Owner 2026-10-02 | Phase 2 gate: APPROVED by Owner 2026-09-30 | Phase 1 gate: APPROVED by Owner 2026-09-28
 
 ## Done
 - Kit copied; legacy code in /legacy/APP (confirmed = legacy `main`, production logic); vision filled
@@ -58,9 +58,10 @@ Phase: 4 — Features **NEXT** | Phase 3 gate: APPROVED by Owner 2026-10-02 | Ph
 
 ## Micro-task workflow (Owner rule 2026-09-30)
 The plan lives in **docs/ROADMAP.md** (checkbox per micro-task). One micro-task at a time; when it is done and tests pass, tick it there and add one line below.
-**Next micro-task: 4.3.1** (slice 3 Gigs, branch `feat/gigs` cut from `feat/catalog-search`). Slice 2 approved by the Owner 2026-10-06; `feat/catalog-search` pushed and PR into `main` opened (Owner 2026-10-06; merge only with Owner approval). BUG-01 (local `pnpm local` loop) stays deferred (DEV-S1). **Owner decisions still open:** DEV-M1; Q-160; Q-163; Q-164.
+**Next micro-task: 3X.1** (Phase 3X visual refresh, branch `feat/visual-refresh` cut from `feat/catalog-search`). Phase 4 resumes at **4.3.1** after 3X is merged and approved (`feat/gigs` will then be cut from `main`). PR #2 `feat/catalog-search` is open; merge it before the 3X PR (Owner approval). BUG-01 (local `pnpm local` loop) stays deferred (DEV-S1). **Owner decisions still open:** DEV-M1; Q-160; Q-163; Q-164.
 
 ### Micro-task log
+- 2026-10-06 Owner request: new **Phase 3X — Visual refresh** between Phase 3 and Phase 4 (R-1 category colours with an admin choice — NEW; R-2 bordered gradient buttons and subtle gradients; R-3 gradient site background; R-4 micro-animations, hover, glow, feedback). Structure, flows and placement unchanged. Replaces Q-165 (c). 23 micro-tasks 3X.1…3X.23 in ROADMAP.md (brief → Owner-approved preview → ADR-023 + contract 1.4.0 → tokens → web, admin, mobile → E2E/visual checks, QA, security, PR, staging click-through). Phase 4 paused at 4.3.1. Branch `feat/visual-refresh`.
 - 2026-10-06 PR #2 first GitHub CI run: fixed gitleaks (2 fake test tokens → `.gitleaksignore`), oasdiff (new enum values are additive, ADR-014 §5 → `docs/04-api/oasdiff-severity-levels.txt`) and the Docker smoke test (home check after 4.2.12; 404 check). Finding for the web engineer (not a blocker): with Next.js 16.3.7 every `notFound()` page answers 404 with the blank `__next_error__` HTML shell; the 404 view is drawn by the browser from the Flight data (same in a plain one-layout Next app; no newer stable Next). No-JS visitors see an empty 404 page, and with the two root layouts it has no site header. Revisit on the next Next.js upgrade or in slice 16 (SEO).
 - 2026-10-06 4.2.20 done: Owner approved slice 2 after the staging click-through (HTTP smoke check of staging passed first). Owner lifted the no-push rule for this branch: `feat/catalog-search` pushed, PR into `main` opened. **4.2 (slice 2) closed.**
 - 2026-10-06 staging uploads (Owner added DNS `s3.1kk.ge`): Nginx site + Let's Encrypt for https://s3.1kk.ge → SeaweedFS, `S3_PUBLIC_ENDPOINT=https://s3.1kk.ge` (website CSP follows it). Tested from outside: CORS preflight OK, presigned POST 204, wrong type 403, presigned GET 200, unsigned 403. The admin category icon/image step of the 4.2.20 checklist can now be done.
