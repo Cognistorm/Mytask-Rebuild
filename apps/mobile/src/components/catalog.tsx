@@ -2,6 +2,8 @@
 // spec 03 screens table, mobile column): gig card (full width in lists, fixed width in home rows), freelancer mini
 // card, the full-screen filter sheet with a sticky "Show results" bar, the sort bottom sheet, and the gig results
 // list with infinite scroll (42 per load) and pull to refresh. Same rules and keys as the web. Texts from i18n.
+// 3X look (3X.17a): cards on the native `Card`, skills as `Chip`s, the brand-gradient avatar ring, radios and price
+// fields in the §6.3 control look, a Secondary icon close, Secondary toolbar buttons, M-10 entrance on the first page.
 import type { TFunction } from 'i18next';
 import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react';
 import {
@@ -17,6 +19,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { lightTheme as theme } from '@mytask/tokens/native';
@@ -40,6 +43,16 @@ import { gigUrl, openWebPage } from '../lib/web-pages';
 import { EmptyState } from './dashboard';
 import { Button, Notice } from './form';
 import { Avatar, BottomSheet, RatingStars } from './profile';
+import {
+  Button as UiButton,
+  Card,
+  Chip,
+  enterAt,
+  Gradient,
+  IconButton,
+  InputFrame,
+  Radio,
+} from '../ui';
 
 type SellerCard = components['schemas']['SellerCard'];
 
@@ -68,19 +81,24 @@ export function GigCardView({
   const average =
     gig.rating.averageTenths === null ? null : (gig.rating.averageTenths / 10).toFixed(1);
   return (
-    <Pressable
-      style={({ pressed }) => [
-        s.card,
-        gig.isFeatured && s.cardFeatured,
-        width ? { width } : null,
-        pressed && s.pressed,
-      ]}
+    <Card
+      featured={gig.isFeatured}
+      style={width ? { width } : null}
       onPress={() => openWebPage(gigUrl(gig.slug))}
       accessibilityRole="link"
       accessibilityLabel={gig.isFeatured ? `${gig.title}, ${t('t_featured')}` : gig.title}
       testID="gig-card"
     >
-      <View style={s.media}>
+      <View
+        style={[
+          s.media,
+          // The image clips to the card's inner corners (inside the 1 px or Featured 2 px border).
+          {
+            borderTopLeftRadius: inner(gig.isFeatured),
+            borderTopRightRadius: inner(gig.isFeatured),
+          },
+        ]}
+      >
         {gig.thumbnail ? (
           <Image source={{ uri: gig.thumbnail.medium }} style={s.mediaImage} />
         ) : null}
@@ -129,9 +147,12 @@ export function GigCardView({
         <Text style={s.priceLabel}>{t('t_starting_at')}</Text>
         <Text style={s.price}>{formatMoney(gig.price)}</Text>
       </View>
-    </Pressable>
+    </Card>
   );
 }
+
+const inner = (featured: boolean) =>
+  theme.radius.card - (featured ? theme.borderWidth.strong : theme.borderWidth.hairline);
 
 /** A freelancer in home rows and lists (AC-27): avatar, username, "Account verified", up to 3 skills. */
 export function SellerMini({
@@ -147,29 +168,30 @@ export function SellerMini({
 }) {
   const { user, skills } = seller;
   return (
-    <View style={[s.seller_card, width ? { width } : null]} testID="freelancer-card">
+    <Card style={[s.sellerCard, width ? { width } : null]} testID="freelancer-card">
       <Pressable
         style={s.sellerHead}
         onPress={() => openProfile(user.username)}
         accessibilityRole="link"
       >
-        <Avatar image={user.avatar} name={user.username} size="lg" online={user.isOnline} />
+        {/* The avatar sits in a ring of the brand gradient (visual-refresh.md §12, as the web best sellers). */}
+        <Gradient token={theme.gradient.action.primary} style={s.avatarRing}>
+          <Avatar image={user.avatar} name={user.username} size="lg" online={user.isOnline} />
+        </Gradient>
         <Text style={s.title}>{user.username}</Text>
         {user.isIdVerified ? <Text style={s.verified}>{t('t_account_verified')}</Text> : null}
       </Pressable>
       <View style={s.skills}>
         {skills.map((k) => (
-          <Pressable
+          <Chip
             key={k.slug}
-            onPress={() => onSkill?.(k.slug)}
-            disabled={!onSkill}
-            accessibilityRole={onSkill ? 'link' : undefined}
-          >
-            <Text style={s.chip}>{k.name}</Text>
-          </Pressable>
+            label={k.name}
+            onPress={onSkill ? () => onSkill(k.slug) : undefined}
+            accessibilityRole="link"
+          />
         ))}
       </View>
-    </View>
+    </Card>
   );
 }
 
@@ -184,6 +206,7 @@ export function FilterSheet(props: {
   const { t } = props;
   const [draft, setDraft] = useState(props.value);
   const [error, setError] = useState(false);
+  const [focused, setFocused] = useState<'minPrice' | 'maxPrice' | null>(null);
   useEffect(() => {
     if (props.open) {
       setDraft(props.value);
@@ -199,7 +222,7 @@ export function FilterSheet(props: {
       accessibilityRole="radio"
       accessibilityState={{ checked: selected }}
     >
-      <View style={[s.radio, selected && s.radioOn]} />
+      <Radio checked={selected} />
       <Text style={s.optionText}>{label}</Text>
     </Pressable>
   );
@@ -211,14 +234,9 @@ export function FilterSheet(props: {
           <Text style={s.sheetTitle} accessibilityRole="header">
             {t('t_filter')}
           </Text>
-          <Pressable
-            onPress={props.onClose}
-            accessibilityRole="button"
-            accessibilityLabel={t('t_ui_close')}
-            hitSlop={theme.space[3]}
-          >
+          <IconButton onPress={props.onClose} accessibilityLabel={t('t_ui_close')}>
             <Text style={s.close}>{'✕'}</Text>
-          </Pressable>
+          </IconButton>
         </View>
         <ScrollView contentContainerStyle={s.sheetBody}>
           <Text style={s.legend}>{t('t_rating')}</Text>
@@ -237,16 +255,20 @@ export function FilterSheet(props: {
                 <Text style={s.priceFieldLabel}>
                   {t(k === 'minPrice' ? 't_min_price' : 't_max_price')}
                 </Text>
-                <TextInput
-                  style={[s.input, error && s.inputError]}
-                  value={draft[k]}
-                  onChangeText={(v) => {
-                    setError(false);
-                    setDraft({ ...draft, [k]: v });
-                  }}
-                  keyboardType="decimal-pad"
-                  accessibilityLabel={t(k === 'minPrice' ? 't_min_price' : 't_max_price')}
-                />
+                <InputFrame focused={focused === k} invalid={error}>
+                  <TextInput
+                    style={s.input}
+                    value={draft[k]}
+                    onChangeText={(v) => {
+                      setError(false);
+                      setDraft({ ...draft, [k]: v });
+                    }}
+                    onFocus={() => setFocused(k)}
+                    onBlur={() => setFocused((f) => (f === k ? null : f))}
+                    keyboardType="decimal-pad"
+                    accessibilityLabel={t(k === 'minPrice' ? 't_min_price' : 't_max_price')}
+                  />
+                </InputFrame>
               </View>
             ))}
           </View>
@@ -307,7 +329,7 @@ export function SortSheet(props: {
           accessibilityRole="radio"
           accessibilityState={{ checked: o.value === props.value }}
         >
-          <View style={[s.radio, o.value === props.value && s.radioOn]} />
+          <Radio checked={o.value === props.value} />
           <Text style={s.optionText}>{t(o.key)}</Text>
         </Pressable>
       ))}
@@ -316,6 +338,10 @@ export function SortSheet(props: {
 }
 
 type Load = { kind: 'loading' } | { kind: 'error' } | { kind: 'ready' };
+
+/** M-10 for the first items of a list (the first view); later pages appear without an entrance. */
+const firstView = (index: number) =>
+  index < theme.motion.stagger.max ? enterAt(index) : undefined;
 
 /**
  * Gig results with the toolbar (count, Filter, Sort), 42 per load with infinite scroll, pull to refresh, the empty
@@ -373,25 +399,18 @@ export function GigResults(props: {
         {state.kind === 'ready' ? t('t_n_results', { count: total }) : ''}
       </Text>
       <View style={s.toolbarButtons}>
-        <Pressable
-          style={s.toolButton}
+        <UiButton
+          variant="secondary"
+          label={count ? `${t('t_filter')} (${count})` : t('t_filter')}
           onPress={() => setSheet('filter')}
-          accessibilityRole="button"
           testID="open-filters"
-        >
-          <Text style={s.toolText}>
-            {t('t_filter')}
-            {count ? ` (${count})` : ''}
-          </Text>
-        </Pressable>
-        <Pressable
-          style={s.toolButton}
+        />
+        <UiButton
+          variant="secondary"
+          label={t(SORTS.find((o) => o.value === sort)!.key)}
           onPress={() => setSheet('sort')}
-          accessibilityRole="button"
           testID="open-sort"
-        >
-          <Text style={s.toolText}>{t(SORTS.find((o) => o.value === sort)!.key)}</Text>
-        </Pressable>
+        />
       </View>
     </View>
   );
@@ -402,7 +421,11 @@ export function GigResults(props: {
         testID={props.testID}
         data={state.kind === 'ready' ? gigs : []}
         keyExtractor={(g) => g.id}
-        renderItem={({ item }) => <GigCardView gig={item} t={t} />}
+        renderItem={({ item, index }) => (
+          <Animated.View entering={firstView(index)}>
+            <GigCardView gig={item} t={t} />
+          </Animated.View>
+        )}
         contentContainerStyle={s.list}
         ItemSeparatorComponent={() => <View style={{ height: theme.space[4] }} />}
         ListHeaderComponent={
@@ -515,14 +538,16 @@ export function SellerResults(props: {
       testID={props.testID}
       data={state.kind === 'ready' ? sellers : []}
       keyExtractor={(x) => x.user.id}
-      renderItem={({ item }) => (
-        <SellerMini
-          seller={item}
-          t={t}
-          onSkill={(slug) =>
-            router.push({ pathname: '/hire/[keyword]', params: { keyword: slug } })
-          }
-        />
+      renderItem={({ item, index }) => (
+        <Animated.View entering={firstView(index)}>
+          <SellerMini
+            seller={item}
+            t={t}
+            onSkill={(slug) =>
+              router.push({ pathname: '/hire/[keyword]', params: { keyword: slug } })
+            }
+          />
+        </Animated.View>
       )}
       contentContainerStyle={s.list}
       ItemSeparatorComponent={() => <View style={{ height: theme.space[4] }} />}
@@ -560,19 +585,11 @@ export function SellerResults(props: {
 }
 
 const s = StyleSheet.create({
-  card: {
+  media: {
     overflow: 'hidden',
-    borderWidth: theme.borderWidth.hairline,
-    borderColor: theme.colors.border.subtle,
-    borderRadius: theme.radius.card,
-    backgroundColor: theme.colors.bg.surface,
+    aspectRatio: theme.size.layout.cardImageRatio,
+    backgroundColor: theme.colors.bg.subtle,
   },
-  cardFeatured: {
-    borderWidth: theme.borderWidth.strong,
-    borderColor: theme.colors.border.featured,
-  },
-  pressed: { opacity: 0.85 },
-  media: { aspectRatio: theme.size.layout.cardImageRatio, backgroundColor: theme.colors.bg.subtle },
   mediaImage: { width: '100%', height: '100%' },
   featured: {
     position: 'absolute',
@@ -605,26 +622,11 @@ const s = StyleSheet.create({
   },
   priceLabel: { ...theme.text.caption, color: theme.colors.text.muted },
   price: { ...theme.text.price, color: theme.colors.text.primary },
-  seller_card: {
-    alignItems: 'center',
-    gap: theme.space[2],
-    padding: theme.space[4],
-    borderWidth: theme.borderWidth.hairline,
-    borderColor: theme.colors.border.subtle,
-    borderRadius: theme.radius.card,
-    backgroundColor: theme.colors.bg.surface,
-  },
+  sellerCard: { alignItems: 'center', gap: theme.space[2], padding: theme.space[4] },
   sellerHead: { alignItems: 'center', gap: theme.space[2] },
+  avatarRing: { padding: theme.borderWidth.strong, borderRadius: theme.radius.full },
   verified: { ...theme.text.caption, color: theme.colors.text.success },
   skills: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: theme.space[2] },
-  chip: {
-    ...theme.text.caption,
-    paddingHorizontal: theme.space[3],
-    paddingVertical: theme.space[1],
-    borderRadius: theme.radius.pill,
-    backgroundColor: theme.colors.bg.subtle,
-    color: theme.colors.text.secondary,
-  },
   sheetScreen: { flex: 1, backgroundColor: theme.colors.bg.surface },
   sheetHead: {
     flexDirection: 'row',
@@ -635,7 +637,7 @@ const s = StyleSheet.create({
     borderBottomColor: theme.colors.border.subtle,
   },
   sheetTitle: { ...theme.text.h3, color: theme.colors.text.primary },
-  close: { ...theme.text.h3, color: theme.colors.text.secondary },
+  close: { ...theme.text.label, color: theme.colors.text.primary },
   sheetBody: { padding: theme.space[4], gap: theme.space[1] },
   legend: {
     ...theme.text.label,
@@ -649,17 +651,6 @@ const s = StyleSheet.create({
     gap: theme.space[3],
     minHeight: theme.size.touchTarget.min,
   },
-  radio: {
-    width: theme.size.checkbox,
-    height: theme.size.checkbox,
-    borderRadius: theme.radius.full,
-    borderWidth: theme.borderWidth.strong,
-    borderColor: theme.colors.border.strong,
-  },
-  radioOn: {
-    borderColor: theme.colors.action.primary,
-    backgroundColor: theme.colors.action.primary,
-  },
   optionText: { ...theme.text.body, color: theme.colors.text.primary },
   prices: { flexDirection: 'row', gap: theme.space[3] },
   priceField: { flex: 1, gap: theme.space[1] },
@@ -668,12 +659,8 @@ const s = StyleSheet.create({
     ...theme.text.body,
     minHeight: theme.size.control.md,
     paddingHorizontal: theme.space[3],
-    borderWidth: theme.borderWidth.hairline,
-    borderColor: theme.colors.border.default,
-    borderRadius: theme.radius.control,
     color: theme.colors.text.primary,
   },
-  inputError: { borderColor: theme.colors.border.danger },
   stickyBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -696,16 +683,6 @@ const s = StyleSheet.create({
     marginBottom: theme.space[4],
   },
   toolbarButtons: { flexDirection: 'row', gap: theme.space[2] },
-  toolButton: {
-    minHeight: theme.size.touchTarget.min,
-    justifyContent: 'center',
-    paddingHorizontal: theme.space[3],
-    borderWidth: theme.borderWidth.hairline,
-    borderColor: theme.colors.border.default,
-    borderRadius: theme.radius.control,
-    backgroundColor: theme.colors.bg.surface,
-  },
-  toolText: { ...theme.text.label, color: theme.colors.text.primary },
   count: { ...theme.text.bodySm, color: theme.colors.text.secondary },
   errorBox: { gap: theme.space[3] },
 });

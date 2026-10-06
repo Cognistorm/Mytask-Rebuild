@@ -17,7 +17,7 @@ import { lightTheme as theme } from '@mytask/tokens/native';
 import type { components } from '@mytask/types';
 import { formatClock } from '../lib/format';
 import type { PortfolioItemCard } from '../lib/profile';
-import { Button, Chip as UiChip } from '../ui';
+import { Button, Gradient, IconButton, Chip as UiChip } from '../ui';
 
 type ImageVariants = components['schemas']['ImageVariants'];
 type RatingBlock = components['schemas']['RatingBlock'];
@@ -272,7 +272,8 @@ export function LocalTime({ timezone }: { timezone: string }) {
 
 /**
  * Bottom sheet (§8.1 Dialog on phones): slides up over a scrim; the scrim, the close button and the system back
- * gesture close it; screen readers stay inside it.
+ * gesture close it; screen readers stay inside it. 3X look (§6.4): the surface gradient, a hairline top border, the
+ * large shadow and a Secondary icon close.
  */
 export function BottomSheet(props: {
   open: boolean;
@@ -295,18 +296,14 @@ export function BottomSheet(props: {
           accessibilityLabel={props.closeLabel}
         />
         <View style={s.sheet} accessibilityViewIsModal testID={props.testID}>
+          <Gradient token={theme.gradient.surface} fill style={s.sheetFill} />
           <View style={s.sheetHead}>
             <Text style={s.sheetTitle} accessibilityRole="header">
               {props.title}
             </Text>
-            <Pressable
-              onPress={props.onClose}
-              accessibilityRole="button"
-              accessibilityLabel={props.closeLabel}
-              hitSlop={theme.space[3]}
-            >
+            <IconButton onPress={props.onClose} accessibilityLabel={props.closeLabel}>
               <Text style={s.sheetClose}>{'✕'}</Text>
-            </Pressable>
+            </IconButton>
           </View>
           {props.children}
         </View>
@@ -405,11 +402,19 @@ const s = StyleSheet.create({
     backgroundColor: theme.colors.bg.surface,
     borderTopLeftRadius: theme.radius.dialog,
     borderTopRightRadius: theme.radius.dialog,
+    borderWidth: theme.borderWidth.hairline,
+    borderBottomWidth: 0,
+    borderColor: theme.colors.border.default,
     padding: theme.space[4],
     paddingBottom: theme.space[8],
     gap: theme.space[4],
+    ...theme.shadow.lg,
+  },
+  sheetFill: {
+    borderTopLeftRadius: theme.radius.dialog - theme.borderWidth.hairline,
+    borderTopRightRadius: theme.radius.dialog - theme.borderWidth.hairline,
   },
   sheetHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   sheetTitle: { ...theme.text.h3, color: theme.colors.text.primary, flex: 1 },
-  sheetClose: { ...theme.text.h3, color: theme.colors.text.secondary },
+  sheetClose: { ...theme.text.label, color: theme.colors.text.primary },
 });

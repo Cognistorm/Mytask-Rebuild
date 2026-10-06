@@ -8,3 +8,7 @@ export type { ButtonVariant } from './button';
 export { Card } from './card';
 export { Chip } from './chip';
 export { SkeletonBlock } from './skeleton';
+export { Canvas, GradientLayers } from './layers';
+export { InputFrame, Radio } from './input';
+export { IconButton } from './icon-button';
+export { CategoryDot, CategoryHeading, CategoryLink, useCategoryTheme } from './category';
