@@ -1,0 +1,185 @@
+/* Form control looks (visual-refresh.md §6.3, R-2.3; ROADMAP 3X.9b). Imported once by the root layouts of apps/web
+   and apps/admin (after buttons.css), like the button looks, so web and admin share one look whatever component
+   CSS a route loads. Component stylesheets keep only layout (size, padding, width) for these controls; tokens only.
+
+   - Text fields: .auth-field input/select/textarea (Field, Select, TextArea), .auth-code input (CodeInput),
+     .admin-row-edit input/select (admin inline rows), .mt-list-prices input (catalog price filter).
+     The search pills (header, home, explore, drawer) keep their look until 3X.10–3X.12.
+   - Checkbox and radio: every native checkbox/radio (auth-check, admin-checkbox, RadioGroup, catalog filters).
+   - Switch: every checkbox with role="switch" (admin settings). */
+
+/* ---- Text fields ---- */
+:is(.auth-field, .admin-row-edit, .mt-list-prices)
+  :is(
+    input:not([type='checkbox'], [type='radio'], [type='file'], [type='color'], [type='hidden']),
+    textarea
+  ),
+.auth-code input {
+  border: var(--mt-border-width-hairline) solid var(--mt-border-strong);
+  background: var(--mt-gradient-input);
+  color: var(--mt-text-primary);
+  transition:
+    border-color var(--mt-motion-duration-fast) var(--mt-motion-easing-standard),
+    box-shadow var(--mt-motion-duration-fast) var(--mt-motion-easing-standard);
+}
+
+/* A native select keeps a flat fill: a background image can drop the platform arrow. */
+:is(.auth-field, .admin-row-edit) select {
+  border: var(--mt-border-width-hairline) solid var(--mt-border-strong);
+  background-color: var(--mt-bg-surface);
+  color: var(--mt-text-primary);
+  transition:
+    border-color var(--mt-motion-duration-fast) var(--mt-motion-easing-standard),
+    box-shadow var(--mt-motion-duration-fast) var(--mt-motion-easing-standard);
+}
+
+/* Focus: brand border and glow; each component's focus ring stays (WCAG 2.4.7). */
+:is(.auth-field, .admin-row-edit, .mt-list-prices)
+  :is(input, select, textarea):not([type='checkbox'], [type='radio']):focus-visible,
+.auth-code input:focus-visible {
+  border-color: var(--mt-border-brand);
+  box-shadow: var(--mt-glow-brand);
+}
+
+:is(.auth-field, .admin-row-edit, .mt-list-prices, .auth-code)
+  :is(input, select, textarea)[aria-invalid='true'] {
+  border-color: var(--mt-border-danger);
+}
+
+:is(.auth-field, .admin-row-edit, .mt-list-prices, .auth-code)
+  :is(input, select, textarea)[aria-invalid='true']:focus-visible {
+  box-shadow: var(--mt-glow-danger);
+}
+
+:is(.auth-field, .admin-row-edit, .mt-list-prices, .auth-code)
+  :is(input, select, textarea):disabled {
+  border-color: var(--mt-border-default);
+  background: var(--mt-action-disabled);
+  color: var(--mt-text-disabled);
+  cursor: not-allowed;
+}
+
+/* ---- Checkbox and radio ---- */
+input:is([type='checkbox'], [type='radio']) {
+  appearance: none;
+  display: inline-grid;
+  place-content: center;
+  flex: none;
+  box-sizing: border-box;
+  inline-size: var(--mt-size-checkbox);
+  block-size: var(--mt-size-checkbox);
+  padding: 0;
+  border: var(--mt-border-width-hairline) solid var(--mt-border-strong);
+  border-radius: var(--mt-radius-xs);
+  background: var(--mt-gradient-input);
+  color: var(--mt-action-on-primary);
+  cursor: pointer;
+  transition:
+    border-color var(--mt-motion-duration-fast) var(--mt-motion-easing-standard),
+    box-shadow var(--mt-motion-duration-fast) var(--mt-motion-easing-standard);
+}
+
+input[type='radio'] {
+  border-radius: var(--mt-radius-full);
+}
+
+/* The mark: a check for checkboxes, a dot for radios. It grows in when checked (M-16); a fade under reduced motion. */
+input:is([type='checkbox'], [type='radio'])::before {
+  content: '';
+  inline-size: calc(var(--mt-size-checkbox) * 0.6);
+  block-size: calc(var(--mt-size-checkbox) * 0.6);
+  background: currentColor;
+  clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+  transform: scale(0);
+  transition: transform var(--mt-motion-duration-base) var(--mt-motion-easing-emphasized);
+}
+
+input[type='radio']::before {
+  inline-size: calc(var(--mt-size-checkbox) * 0.4);
+  block-size: calc(var(--mt-size-checkbox) * 0.4);
+  border-radius: var(--mt-radius-full);
+  clip-path: none;
+}
+
+input:is([type='checkbox'], [type='radio']):checked {
+  border-color: var(--mt-border-action-primary);
+  background: var(--mt-gradient-action-primary);
+}
+
+input:is([type='checkbox'], [type='radio']):checked::before {
+  transform: scale(1);
+}
+
+@media (hover: hover) {
+  input:is([type='checkbox'], [type='radio']):hover:not(:disabled, :checked) {
+    border-color: var(--mt-border-action-secondary-hover);
+  }
+}
+
+input:is([type='checkbox'], [type='radio']):focus-visible {
+  outline: var(--mt-focus-ring-width) solid var(--mt-focus-ring);
+  outline-offset: var(--mt-focus-ring-offset);
+  box-shadow: var(--mt-glow-brand-soft);
+}
+
+input:is([type='checkbox'], [type='radio']):disabled {
+  border-color: var(--mt-border-default);
+  background: var(--mt-action-disabled);
+  color: var(--mt-action-on-disabled);
+  cursor: not-allowed;
+}
+
+/* ---- Switch (role="switch" on a checkbox) ---- */
+input[type='checkbox'][role='switch'] {
+  place-content: center start;
+  inline-size: var(--mt-size-switch-width);
+  block-size: var(--mt-size-switch-height);
+  padding-inline: var(--mt-space-0-5);
+  border-radius: var(--mt-radius-full);
+  background: var(--mt-gradient-track);
+}
+
+/* The thumb: grey when off, the on-primary colour on the Primary gradient when on; it slides (M-16). */
+input[type='checkbox'][role='switch']::before {
+  inline-size: calc(
+    var(--mt-size-switch-height) - var(--mt-space-1) - 2 * var(--mt-border-width-hairline)
+  );
+  block-size: calc(
+    var(--mt-size-switch-height) - var(--mt-space-1) - 2 * var(--mt-border-width-hairline)
+  );
+  border-radius: var(--mt-radius-full);
+  clip-path: none;
+  background: var(--mt-border-strong);
+  box-shadow: var(--mt-elevation-sm);
+  transform: none;
+  transition:
+    transform var(--mt-motion-duration-fast) var(--mt-motion-easing-emphasized),
+    background-color var(--mt-motion-duration-fast) var(--mt-motion-easing-standard);
+}
+
+input[type='checkbox'][role='switch']:checked::before {
+  background: var(--mt-action-on-primary);
+  transform: translateX(calc(var(--mt-size-switch-width) - var(--mt-size-switch-height)));
+}
+
+input[type='checkbox'][role='switch']:disabled::before {
+  background: var(--mt-action-on-disabled);
+}
+
+/* Reduced motion: the mark fades instead of growing, and the thumb jumps. */
+@media (prefers-reduced-motion: reduce) {
+  input:is([type='checkbox'], [type='radio'])::before {
+    opacity: 0;
+    transform: none;
+    transition: opacity var(--mt-motion-duration-fast) var(--mt-motion-easing-standard);
+  }
+
+  input:is([type='checkbox'], [type='radio']):checked::before {
+    opacity: 1;
+  }
+
+  input[type='checkbox'][role='switch']::before {
+    opacity: 1;
+    transition: background-color var(--mt-motion-duration-fast) var(--mt-motion-easing-standard);
+  }
+}

@@ -138,17 +138,12 @@
   align-items: center;
 }
 
+/* Size only; the look (and the switch) is in @mytask/ui controls.css (3X.9b). */
 .admin-row-edit input,
 .admin-row-edit select {
   font: inherit;
   padding: var(--mt-space-2);
-  border: var(--mt-border-width-hairline) solid var(--mt-border-strong);
   border-radius: var(--mt-radius-control);
-}
-
-.admin-row input[role='switch'] {
-  inline-size: var(--mt-space-6);
-  block-size: var(--mt-space-6);
 }
 
 .admin-nav {
@@ -273,11 +268,6 @@
   align-items: center;
   gap: var(--mt-space-2);
   min-height: var(--mt-size-touch-target-min);
-}
-
-.admin-checkbox input {
-  inline-size: var(--mt-size-checkbox);
-  block-size: var(--mt-size-checkbox);
 }
 
 .admin-image img {

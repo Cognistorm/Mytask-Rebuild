@@ -62,9 +62,6 @@
   font-weight: var(--mt-font-weight-regular);
 }
 .auth-field .auth-check input[type='checkbox'] {
-  width: auto;
-  flex: none;
-  padding: 0;
   margin-top: var(--mt-space-1);
 }
 

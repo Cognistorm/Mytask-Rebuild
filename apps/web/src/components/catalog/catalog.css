@@ -117,10 +117,7 @@
 }
 
 .mt-list-option input {
-  width: var(--mt-size-checkbox);
-  height: var(--mt-size-checkbox);
   margin: 0;
-  accent-color: var(--mt-action-primary);
 }
 
 .mt-list-stars {
@@ -145,15 +142,8 @@
   width: 100%;
   min-height: var(--mt-size-control-md);
   padding: 0 var(--mt-space-3);
-  border: var(--mt-border-width-hairline) solid var(--mt-border-default);
   border-radius: var(--mt-radius-control);
-  background: var(--mt-bg-surface);
-  color: var(--mt-text-primary);
   font: inherit;
-}
-
-.mt-list-prices input[aria-invalid='true'] {
-  border-color: var(--mt-border-danger);
 }
 
 .mt-list-filters-actions {
