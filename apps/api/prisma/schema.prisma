@@ -867,6 +867,8 @@ model GigCategory {
   isVisible         Boolean                  @default(true) @map("is_visible")
   iconFileId        String?                  @map("icon_file_id") @db.Uuid
   imageFileId       String?                  @map("image_file_id") @db.Uuid
+  /// ADR-023: top level only, `#RRGGBB` upper case, unique among top-level categories (check + partial unique index in the migration).
+  color             String?                  @db.Char(7)
   legacySource      CategoryLegacySource?    @map("legacy_source")
   legacyId          BigInt?                  @map("legacy_id")
   createdAt         DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)

@@ -2,6 +2,7 @@
 // adminCreateCategory, adminGetCategory, adminUpdateCategory, adminDeleteCategory. Old slugs go to
 // `slug_redirects` by the rules of data-model §3.R; SEO texts are `staff_content` HTML (CONVENTIONS §19).
 // Every write is audited in its transaction and empties the public tree cache (`CategoriesService`).
+// Colours (ADR-023): top level only, unique among top-level categories, the first unused starter colour by default.
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { Schema } from '@mytask/types';
 import {
@@ -19,7 +20,9 @@ import type { RequestContext } from '../auth/request-context';
 import { imageVariants } from '../files/image-variants';
 import { FileAttachments, FilesService } from '../files/files.service';
 import { CategoriesService } from './categories.service';
+import { firstUnusedStarter, normalizeColor } from './category-colors';
 import { categoryImageInUse } from './category-images';
+import { localized } from './localized';
 
 type Tx = Prisma.TransactionClient;
 type Row = GigCategory & { translations: GigCategoryTranslation[] };
@@ -31,6 +34,8 @@ type ImageField = 'iconFileId' | 'imageFileId';
 
 const PERMISSION = 'catalog.write';
 const MAX_DEPTH = 3;
+/** ADR-023 §5: one transaction-scoped lock for every write that sets or picks a top-level colour. */
+const COLOR_LOCK = 'gig_category:color';
 
 const notFound = () => new ApiException(404, 'NOT_FOUND', 't_page_not_fount');
 const slugTaken = () => new ApiException(409, 'DUPLICATE', 't_validator_unique', { field: 'slug' });
@@ -115,6 +120,7 @@ export class AdminCategoriesService {
       throw new ApiException(422, 'BUSINESS_RULE_VIOLATION', 't_category_max_depth');
     }
     const depth = parent ? parent.depth + 1 : 1;
+    const color = this.checkColor(input, depth, ctx);
     const texts = this.texts(input, ctx);
     const images = await this.checkImages(input, depth, staffId, null, ctx);
 
@@ -123,6 +129,8 @@ export class AdminCategoriesService {
       id = await this.prisma.$transaction(async (tx) => {
         await this.lockSlugs(tx, depth, [input.slug]);
         await this.refuseTakenSlug(tx, depth, input.slug, null);
+        // A new top-level category without a colour gets the first unused starter colour (ADR-023 §4).
+        const chosen = depth === 1 ? await this.claimColor(tx, color, null, ctx, true) : null;
         const position =
           input.position ??
           ((await tx.gigCategory.aggregate({ where: { parentId }, _max: { position: true } }))._max
@@ -134,6 +142,7 @@ export class AdminCategoriesService {
             slug: input.slug,
             position,
             isVisible: input.isVisibleOnHome ?? true,
+            color: chosen,
             iconFileId: images.iconFileId ?? null,
             imageFileId: images.imageFileId ?? null,
             translations: { create: this.translationRows(texts, staffId) },
@@ -156,7 +165,7 @@ export class AdminCategoriesService {
         return created.id;
       });
     } catch (e) {
-      if (isPrismaError(e, 'P2002')) throw slugTaken();
+      if (isPrismaError(e, 'P2002')) throw await this.duplicate(color, null, ctx);
       throw e;
     }
     this.categories.invalidate();
@@ -174,6 +183,9 @@ export class AdminCategoriesService {
       include: { translations: true },
     });
     if (!before) throw notFound();
+    const given = this.checkColor(input, before.depth, ctx);
+    // Saving the category's own colour again changes nothing and is no duplicate.
+    const color = given !== null && given !== before.color ? given : null;
     const texts = this.texts(input, ctx, before);
     const images = await this.checkImages(input, before.depth, staffId, before, ctx);
     const slug = input.slug !== undefined && input.slug !== before.slug ? input.slug : null;
@@ -197,12 +209,15 @@ export class AdminCategoriesService {
             },
           });
         }
+        // After the slug locks, as in create (one lock order, no deadlock).
+        if (color !== null) await this.claimColor(tx, color, id, ctx, false);
         const after = await tx.gigCategory.update({
           where: { id },
           data: {
             ...(slug !== null ? { slug } : {}),
             ...(input.position !== undefined ? { position: input.position } : {}),
             ...(input.isVisibleOnHome !== undefined ? { isVisible: input.isVisibleOnHome } : {}),
+            ...(color !== null ? { color } : {}),
             ...images,
             // The row is always written so `updatedAt` moves with a translation-only change.
             updatedAt: new Date(),
@@ -235,7 +250,7 @@ export class AdminCategoriesService {
         );
       });
     } catch (e) {
-      if (isPrismaError(e, 'P2002')) throw slugTaken();
+      if (isPrismaError(e, 'P2002')) throw await this.duplicate(color, id, ctx);
       throw e;
     }
     this.categories.invalidate();
@@ -409,6 +424,75 @@ export class AdminCategoriesService {
     }
   }
 
+  // ------------------------------------------------------------------ colours (ADR-023)
+
+  /** The requested colour, upper case, or null when the request has none; refused below the top level (§5). */
+  private checkColor(
+    input: CreateInput | UpdateInput,
+    depth: number,
+    ctx: RequestContext,
+  ): string | null {
+    if (input.color === undefined) return null;
+    if (depth !== 1) {
+      throw this.invalid(ctx, 'color', 'top_level_only', 't_category_color_top_level_only');
+    }
+    return normalizeColor(input.color);
+  }
+
+  /**
+   * Under the colour lock: refuses a colour another top-level category holds, or (`pickDefault`: a create
+   * without a colour) takes the first unused starter colour. Returns the colour to store.
+   */
+  private async claimColor(
+    tx: Tx,
+    color: string | null,
+    ownId: string | null,
+    ctx: RequestContext,
+    pickDefault: boolean,
+  ): Promise<string | null> {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${COLOR_LOCK}, 0))`;
+    if (color === null) {
+      if (!pickDefault) return null;
+      const used = await tx.gigCategory.findMany({
+        where: { depth: 1, color: { not: null } },
+        select: { color: true },
+      });
+      return firstUnusedStarter(used.map((r) => r.color));
+    }
+    const taken = await this.colorTaken(tx, color, ownId, ctx);
+    if (taken) throw taken;
+    return color;
+  }
+
+  /** `409 DUPLICATE` naming the top-level category (other than `ownId`) that has `color`, or null. */
+  private async colorTaken(
+    db: Tx,
+    color: string,
+    ownId: string | null,
+    ctx: RequestContext,
+  ): Promise<ApiException | null> {
+    const holder = await db.gigCategory.findFirst({
+      where: { depth: 1, color, ...(ownId ? { id: { not: ownId } } : {}) },
+      include: { translations: { select: { locale: true, name: true } } },
+    });
+    if (!holder) return null;
+    const name = localized(holder.translations, ctx.locale, ['name']).values.name ?? '';
+    return new ApiException(409, 'DUPLICATE', 't_category_color_taken', {
+      field: 'color',
+      category: { id: holder.id, name },
+      params: { category: name },
+    });
+  }
+
+  /** A unique violation after the checks: a concurrent save took the colour (EC-2), or the slug. */
+  private async duplicate(
+    color: string | null,
+    ownId: string | null,
+    ctx: RequestContext,
+  ): Promise<ApiException> {
+    return (color && (await this.colorTaken(this.prisma, color, ownId, ctx))) || slugTaken();
+  }
+
   // ------------------------------------------------------------------ slugs (data-model §3.R)
 
   /** One transaction-scoped advisory lock per (type, scope, slug), in a fixed order against deadlocks. */
@@ -475,6 +559,7 @@ export class AdminCategoriesService {
     return {
       position: row.position,
       isVisibleOnHome: row.isVisible,
+      color: row.color,
       iconFileId: row.iconFileId,
       imageFileId: row.imageFileId,
       texts,
@@ -490,7 +575,7 @@ export class AdminCategoriesService {
   private async views(rows: Row[]): Promise<Map<string, Schema<'AdminCategory'>>> {
     const ids = rows.map((r) => r.id);
     if (!ids.length) return new Map();
-    const [gigCounts, childCounts, projectCounts, redirects, files] = await Promise.all([
+    const [gigCounts, childCounts, projectCounts, redirects, files, upper] = await Promise.all([
       this.prisma.$queryRaw<{ id: string; n: bigint }[]>`
         SELECT x.id, count(*) AS n FROM (
           SELECT category_id AS id FROM gigs WHERE deleted_at IS NULL
@@ -512,7 +597,21 @@ export class AdminCategoriesService {
         orderBy: [{ createdAt: 'asc' }, { oldSlug: 'asc' }],
       }),
       this.imageFiles(rows.flatMap((r) => [r.iconFileId, r.imageFileId])),
+      // The top two levels reach any category's top-level ancestor (resolvedColor).
+      rows.some((r) => r.depth > 1)
+        ? this.prisma.gigCategory.findMany({
+            where: { depth: { lt: MAX_DEPTH } },
+            select: { id: true, parentId: true, color: true },
+          })
+        : [],
     ]);
+    type Node = { parentId: string | null; color: string | null };
+    const nodes = new Map<string, Node>(upper.map((n) => [n.id, n]));
+    const resolvedColor = (r: Node): string | null => {
+      let node: Node | undefined = r;
+      while (node?.parentId) node = nodes.get(node.parentId);
+      return node?.color ?? null;
+    };
     const gigs = new Map(gigCounts.map((g) => [g.id, Number(g.n)]));
     const children = new Map(childCounts.map((c) => [c.parentId, c._count._all]));
     const projects = new Map(projectCounts.map((p) => [p.gigCategoryId, p._count._all]));
@@ -534,6 +633,8 @@ export class AdminCategoriesService {
           description: localizedOrNull(t.description),
           contentTop: localizedOrNull(t.contentTop),
           contentBottom: localizedOrNull(t.contentBottom),
+          color: r.color,
+          resolvedColor: resolvedColor(r),
           icon: image(r.iconFileId),
           image: image(r.imageFileId),
           isVisibleOnHome: r.isVisible,

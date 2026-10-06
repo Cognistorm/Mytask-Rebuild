@@ -60,6 +60,7 @@ const PATTERN_KEYS: Record<string, string> = {
   password: 't_password_validation_message',
   referralCode: 't_referral_code_invalid',
   code: 't_2fa_code_invalid',
+  color: 't_category_color_invalid',
 };
 
 export function fieldMessage(

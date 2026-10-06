@@ -1,6 +1,7 @@
 // Public gig category reads (spec 03 AC-1…AC-5, AC-35; data-model §3.C): `listCategories` (the whole 3-level tree,
 // cached ≤ 60 s), `lookupCategory` (slug path, each level inside the one above) and `getCategory` (by id).
 // `is_visible` only drops a top-level category from the home rows (AC-5): the tree and the pages keep it.
+// Every node carries its top-level ancestor's colour (ADR-023 §3), so clients never walk the tree.
 import { Inject, Injectable } from '@nestjs/common';
 import type { Locale, Schema } from '@mytask/types';
 import type { GigCategory, GigCategoryTranslation } from '../../generated/prisma/client';
@@ -49,11 +50,16 @@ export class CategoriesService {
     const { rows, images } = await this.tree.load;
     const children = new Map<string | null, Row[]>();
     for (const r of rows) children.set(r.parentId, [...(children.get(r.parentId) ?? []), r]);
-    const build = (parentId: string | null, prefix: string): Schema<'CategoryNode'>[] =>
+    const build = (
+      parentId: string | null,
+      prefix: string,
+      inherited: string | null,
+    ): Schema<'CategoryNode'>[] =>
       (children.get(parentId) ?? []).sort(byPosition).map((r) => {
         const { values, contentLocale } = localized(r.translations, locale, ['name']);
         const path = prefix ? `${prefix}/${r.slug}` : r.slug;
         const top = r.depth === 1;
+        const color = top ? r.color : inherited;
         return {
           id: r.id,
           slug: r.slug,
@@ -61,14 +67,15 @@ export class CategoriesService {
           depth: r.depth as Depth,
           name: values.name ?? '',
           contentLocale,
+          color,
           icon: top && r.iconFileId ? (images.get(r.iconFileId) ?? null) : null,
           image: top && r.imageFileId ? (images.get(r.imageFileId) ?? null) : null,
           isVisibleOnHome: top ? r.isVisible : true,
           position: r.position,
-          children: build(r.id, path),
+          children: build(r.id, path, color),
         };
       });
-    return { categories: build(null, '') };
+    return { categories: build(null, '', null) };
   }
 
   /** `/categories/{c}[/{s}[/{child}]]`: every segment must exist at its level and belong to the one above (AC-3). */
@@ -102,9 +109,11 @@ export class CategoriesService {
     for (let p: (Row & { parent?: Row | null }) | null = row.parent; p; p = p.parent ?? null) {
       ancestors.unshift(p);
     }
-    const ref = (r: Row): Schema<'CategoryRef'> => {
+    // One page, one colour: the top-level ancestor's (or the row's own at depth 1).
+    const color = (ancestors[0] ?? row).color;
+    const ref = (r: Row): Schema<'CategoryColorRef'> => {
       const { values, contentLocale } = localized(r.translations, locale, ['name']);
-      return { id: r.id, slug: r.slug, name: values.name ?? '', contentLocale };
+      return { id: r.id, slug: r.slug, name: values.name ?? '', contentLocale, color };
     };
     const { values, contentLocale, hasEnglish } = localized(
       (row as DetailRow).translations,
@@ -126,6 +135,7 @@ export class CategoriesService {
       contentBottom: values.contentBottom,
       contentLocale,
       hasEnglish,
+      color,
       icon: row.iconFileId ? (images.get(row.iconFileId) ?? null) : null,
       image: row.imageFileId ? (images.get(row.imageFileId) ?? null) : null,
       breadcrumb: [...ancestors.map(ref), ref(row)],

@@ -597,6 +597,8 @@ export class AdminProjectCatalogService {
                 contentLocale: gigText.contentLocale,
               }
             : null,
+        // ADR-023 §3/§10: the linked category's colour beside the plain `gigCategory` ref.
+        color: gig?.color ?? null,
         image: r.imageFileId ? (images.get(r.imageFileId) ?? null) : null,
         position: r.position,
         isActive: r.isActive,

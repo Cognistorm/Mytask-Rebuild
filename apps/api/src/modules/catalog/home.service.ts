@@ -65,11 +65,12 @@ export class HomeService {
     );
     const cardById = new Map(cards.map((c) => [c.id, c]));
     const cardsOf = (ids: string[]) => ids.flatMap((id) => cardById.get(id) ?? []);
-    const ref = (c: Schema<'CategoryNode'>): Schema<'CategoryRef'> => ({
+    const ref = (c: Schema<'CategoryNode'>): Schema<'CategoryColorRef'> => ({
       id: c.id,
       slug: c.slug,
       name: c.name,
       contentLocale: c.contentLocale,
+      color: c.color,
     });
 
     return {

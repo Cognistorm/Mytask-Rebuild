@@ -1,6 +1,7 @@
 // Public project category reads (spec 03 AC-31, AC-33, AC-34; P-31, R-S8): `listProjectCategories` (active categories
 // with their active skills) and `lookupProjectCategory` (`/explore/projects/{category}[/{skill}]`, the skill must
-// belong to the category; S-075 OFF → 403 FEATURE_DISABLED).
+// belong to the category; S-075 OFF → 403 FEATURE_DISABLED). The colour is the linked top-level gig category's
+// (ADR-023 §3), null without a link.
 import { Inject, Injectable } from '@nestjs/common';
 import type { Locale, Schema } from '@mytask/types';
 import type { Prisma } from '../../generated/prisma/client';
@@ -13,6 +14,7 @@ import { localized } from './localized';
 
 const include = {
   translations: true,
+  gigCategory: { select: { color: true } },
   skills: { where: { isActive: true }, include: { translations: true } },
 } satisfies Prisma.ProjectCategoryInclude;
 type Row = Prisma.ProjectCategoryGetPayload<{ include: typeof include }>;
@@ -79,6 +81,7 @@ export class ProjectCategoriesService {
         seoDescription: values.seoDescription,
         contentLocale,
         hasEnglish,
+        color: r.gigCategory?.color ?? null,
         image: r.imageFileId ? (images.get(r.imageFileId) ?? null) : null,
         position: r.position,
         skills: r.skills

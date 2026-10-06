@@ -245,6 +245,9 @@ importers:
       '@mytask/rich-text':
         specifier: workspace:*
         version: link:../../packages/rich-text
+      '@mytask/tokens':
+        specifier: workspace:*
+        version: link:../../packages/tokens
       '@nestjs/common':
         specifier: 11.2.7
         version: 11.2.7(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2)
