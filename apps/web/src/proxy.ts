@@ -14,7 +14,14 @@ import { getWebCustomCode } from './lib/custom-code';
 import { THEME_COOKIE } from './lib/theme';
 import { isPublicPath } from './lib/zones';
 
+// `next dev` runs the proxy a second time on its own `/ka/...` rewrite, which the /ka rule above would send back
+// with a 301 (an endless loop on every Georgian URL under `pnpm local`, 3X.15b); `next start` does not. The rewrite
+// therefore carries this per-process token, and a request that has it is already handled. A visitor cannot know it.
+const REWRITTEN = 'x-mt-rewritten';
+const rewriteToken = createNonce();
+
 export async function proxy(request: NextRequest): Promise<NextResponse> {
+  if (request.headers.get(REWRITTEN) === rewriteToken) return NextResponse.next();
   const { pathname, search } = request.nextUrl;
   let target = pathname.length > 1 ? pathname.replace(/\/+$/, '') || '/' : pathname;
   // Defence in depth: `//host/...` must never become a protocol-relative redirect target (Next.js already
@@ -64,6 +71,7 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
     const url = request.nextUrl.clone();
     url.pathname = `/ka${pathname}`;
     url.search = search;
+    headers.set(REWRITTEN, rewriteToken);
     response = NextResponse.rewrite(url, { request: { headers } });
   }
   response.headers.set('content-security-policy', csp);
