@@ -8,6 +8,15 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import type { components } from '@mytask/types';
 import { t, useAdminApi } from '../lib/client';
+import {
+  areaHref,
+  areaTitle,
+  forgetAreas,
+  knownAreas,
+  loadAreas,
+  rememberAreas,
+  type SettingArea,
+} from '../lib/settings-areas';
 
 type Me = components['schemas']['AdminMe'];
 type Permission = Me['permissions'][number];
@@ -61,16 +70,30 @@ interface NavGroup {
   items: NavItem[];
 }
 
-/** The screen's group: its link's path is the current path (query strings are not part of a route here). */
-const isCurrent = (path: string, href: string) => path === href.split('?')[0];
-
-export function AdminShell({ onMe, children }: { onMe?: (me: Me) => void; children: ReactNode }) {
+/**
+ * Props: `current` is the link of the current item when the path alone does not name it (a settings area,
+ * `/settings?area=…`); `settingsAreas` is the area list when the screen has already loaded it (Settings).
+ */
+export function AdminShell({
+  onMe,
+  current,
+  settingsAreas,
+  children,
+}: {
+  onMe?: (me: Me) => void;
+  current?: string;
+  settingsAreas?: SettingArea[];
+  children: ReactNode;
+}) {
   const api = useAdminApi();
   const router = useRouter();
   const path = usePathname();
   const [me, setMe] = useState<Me>();
   const [drawer, setDrawer] = useState(false);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+  const [areas, setAreas] = useState<SettingArea[] | undefined>(
+    () => settingsAreas ?? knownAreas(),
+  );
   const closeRef = useRef<HTMLButtonElement>(null);
   const burgerRef = useRef<HTMLButtonElement>(null);
   const navId = useId();
@@ -83,6 +106,22 @@ export function AdminShell({ onMe, children }: { onMe?: (me: Me) => void; childr
     });
     // Load once per page.
   }, []);
+
+  // Settings areas: from the Settings screen when it has them, else loaded once (admin-refresh.md §4).
+  const canReadSettings = !!me && (me.isSuperAdmin || me.permissions.includes('settings.read'));
+  useEffect(() => {
+    if (settingsAreas) {
+      rememberAreas(settingsAreas);
+      return setAreas(settingsAreas);
+    }
+    // The Settings screen loads the list itself; other screens load it here.
+    if (!canReadSettings || path === '/settings') return;
+    let live = true;
+    void loadAreas(api).then((list) => live && list && setAreas(list));
+    return () => {
+      live = false;
+    };
+  }, [settingsAreas, canReadSettings]);
 
   // The drawer (below 1024 px): Escape closes it; focus moves into it and back to the menu button.
   useEffect(() => {
@@ -103,6 +142,8 @@ export function AdminShell({ onMe, children }: { onMe?: (me: Me) => void; childr
   }
 
   const can = (p: Permission) => !!me && (me.isSuperAdmin || me.permissions.includes(p));
+  // The current item: its link is `current` when given, else the item whose path is the current path.
+  const isCurrent = (href: string) => (current ? href === current : path === href.split('?')[0]);
   // Legacy sidebar order (admin-refresh.md §3); later slices add their screens in the same order.
   const groups: NavGroup[] = [
     {
@@ -144,7 +185,14 @@ export function AdminShell({ onMe, children }: { onMe?: (me: Me) => void; childr
       label: t('t_settings'),
       icon: 'gear',
       items: [
-        { href: '/settings', label: t('t_settings'), show: can('settings.read') },
+        // One item per settings area; a plain "Settings" link until the list is known.
+        ...(areas
+          ? areas.map((a) => ({
+              href: areaHref(a),
+              label: areaTitle(a),
+              show: can('settings.read'),
+            }))
+          : [{ href: '/settings', label: t('t_settings'), show: can('settings.read') }]),
         { href: '/security', label: t('t_banned_ips'), show: can('security.ip_bans') },
       ],
     },
@@ -152,11 +200,12 @@ export function AdminShell({ onMe, children }: { onMe?: (me: Me) => void; childr
     .map((g) => ({ ...g, items: g.items.filter((i) => i.show) }) as NavGroup)
     .filter((g) => g.items.length > 0);
 
-  const currentGroup = groups.find((g) => g.items.some((i) => isCurrent(path, i.href)));
+  const currentGroup = groups.find((g) => g.items.some((i) => isCurrent(i.href)));
   const isOpen = (g: NavGroup) => openGroups[g.key] ?? g === currentGroup;
 
   async function logout() {
     await api.POST('/admin/auth/logout');
+    forgetAreas();
     router.replace('/login');
   }
 
@@ -188,7 +237,7 @@ export function AdminShell({ onMe, children }: { onMe?: (me: Me) => void; childr
                     <Link
                       href={item.href}
                       className="mt-sidebar-link admin-sidebar-top"
-                      aria-current={isCurrent(path, item.href) ? 'page' : undefined}
+                      aria-current={isCurrent(item.href) ? 'page' : undefined}
                       onClick={() => setDrawer(false)}
                     >
                       <Icon name={g.icon} />
@@ -221,7 +270,7 @@ export function AdminShell({ onMe, children }: { onMe?: (me: Me) => void; childr
                         <Link
                           href={item.href}
                           className="mt-sidebar-link"
-                          aria-current={isCurrent(path, item.href) ? 'page' : undefined}
+                          aria-current={isCurrent(item.href) ? 'page' : undefined}
                           onClick={() => setDrawer(false)}
                         >
                           {item.label}

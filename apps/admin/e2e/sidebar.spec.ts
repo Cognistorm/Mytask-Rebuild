@@ -24,6 +24,10 @@ const ME = {
 async function setup(page: Page, me: Partial<typeof ME> = {}) {
   let loggedOut = false;
   await page.route('**/api/v1/admin/me', (route) => json(route, 200, { ...ME, ...me }));
+  // The Settings group lists the settings areas (4X.3); one area is enough here.
+  await page.route('**/api/v1/admin/settings**', (route) =>
+    json(route, 200, { settings: [{ key: 'e2e.auth', registerId: 'S-056', area: 'auth' }] }),
+  );
   await page.route('**/api/v1/admin/ip-bans**', (route) =>
     json(route, 200, { data: [], meta: { nextCursor: null } }),
   );
@@ -94,10 +98,9 @@ test('the current screen opens its group, marks its item and names the group abo
     'aria-current',
     'page',
   );
-  await expect(nav(page).getByRole('link', { name: 'პარამეტრები' })).not.toHaveAttribute(
-    'aria-current',
-    'page',
-  );
+  await expect(
+    nav(page).getByRole('link', { name: 'ავტორიზაცია და უსაფრთხოება' }),
+  ).not.toHaveAttribute('aria-current', 'page');
   await expect(page.locator('main .admin-eyebrow')).toHaveText('პარამეტრები');
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('დაბლოკილი IP მისამართები');
   // The content sits right of the fixed sidebar.

@@ -1,25 +1,31 @@
 'use client';
-// Settings (spec 16 AC-51…AC-56): the register rows implemented so far, grouped by area. Booleans are
-// switches, numbers and choices are inputs. Rows marked "re-login" ask for the password first (AC-7).
-import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+// Settings (spec 16 AC-51…AC-56): the register rows implemented so far, one area at a time (`?area=…`, the
+// first area by default; admin-refresh.md §4). Booleans are switches, numbers and choices are inputs. Rows
+// marked "re-login" ask for the password first (AC-7).
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import type { components } from '@mytask/types';
 import { AdminShell } from '../../components/shell';
 import { Alert, Field, Submit } from '@mytask/ui/web';
 import { AuthCard } from '../../components/ui';
 import { splitErrors, t, useAdminApi, type ApiErrorBody } from '../../lib/client';
+import { areaHref, areaTitle, areasOf } from '../../lib/settings-areas';
 
 type Entry = components['schemas']['SettingEntry'];
 
-const AREA_TITLE: Record<string, string> = {
-  auth: 't_settings_area_auth',
-  notifications: 't_settings_area_notifications',
-  system: 't_settings_area_system',
-};
-
+// The area comes from the query string, which needs a Suspense boundary in a prerendered page.
 export default function SettingsPage() {
+  return (
+    <Suspense>
+      <Settings />
+    </Suspense>
+  );
+}
+
+function Settings() {
   const api = useAdminApi();
   const router = useRouter();
+  const query = useSearchParams().get('area');
   const [rows, setRows] = useState<Entry[]>([]);
   const [notice, setNotice] = useState<string>();
   const [err, setErr] = useState<ApiErrorBody>();
@@ -27,6 +33,9 @@ export default function SettingsPage() {
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const reauthErrors = splitErrors(err);
+  const areas = useMemo(() => areasOf(rows), [rows]);
+  // An unknown or missing `?area=` opens the first area.
+  const area = areas.find((a) => a === query) ?? areas[0];
 
   const load = useCallback(async () => {
     const list = await api.GET('/admin/settings', { params: { query: {} } });
@@ -95,18 +104,14 @@ export default function SettingsPage() {
     );
   }
 
-  const areas = [...new Set(rows.map((r) => r.area))];
   const valueOf = (registerId: string) => rows.find((r) => r.registerId === registerId)?.value;
   return (
-    <AdminShell>
-      <h1 className="mt-text-h2">{t('t_settings')}</h1>
+    <AdminShell settingsAreas={rows.length ? areas : undefined} current={area && areaHref(area)}>
+      <h1 className="mt-text-h2">{area ? areaTitle(area) : t('t_settings')}</h1>
       {notice && <Alert kind="success">{notice}</Alert>}
       {err && err.code !== 'REAUTH_REQUIRED' && <Alert kind="error">{err.message}</Alert>}
-      {areas.map((area) => (
-        <section key={area} className="admin-section" aria-labelledby={`area-${area}`}>
-          <h2 id={`area-${area}`} className="mt-text-h3">
-            {t(AREA_TITLE[area] ?? 't_settings')}
-          </h2>
+      {area && (
+        <section key={area} className="admin-section">
           <ul className="admin-rows">
             {rows
               .filter((r) => r.area === area)
@@ -123,7 +128,7 @@ export default function SettingsPage() {
               ))}
           </ul>
         </section>
-      ))}
+      )}
     </AdminShell>
   );
 }

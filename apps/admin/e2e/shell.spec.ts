@@ -22,6 +22,11 @@ test('Super-admin switches email 2FA (S-056) on and off from the settings screen
   await page.getByLabel('პაროლი', { exact: true }).fill(password!);
   await page.getByRole('button', { name: 'ავტორიზაცია' }).click();
   await expect(page).toHaveURL(/\/settings$/);
+  // The security switches are in the "Login and security" area (4X.3).
+  await page
+    .getByRole('navigation', { name: 'ადმინისტრაციის ნავიგაცია' })
+    .getByRole('link', { name: 'ავტორიზაცია და უსაფრთხოება' })
+    .click();
 
   const s056 = page.getByRole('switch', { name: /^S-056 / });
   const wasOn = await s056.isChecked();
