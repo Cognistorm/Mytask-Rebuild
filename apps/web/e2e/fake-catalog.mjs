@@ -139,6 +139,7 @@ function categoryDetail(locale, path) {
     slug: n.slug,
     name: n.slug === 'web-design' && georgianOnly ? 'ვებ დიზაინი' : n.name,
     contentLocale: n.slug === 'web-design' && georgianOnly ? 'ka' : locale,
+    color: n.color,
   });
   return {
     id: node.id,
@@ -146,6 +147,7 @@ function categoryDetail(locale, path) {
     path: node.path,
     depth: node.depth,
     name: ref(node).name,
+    color: node.color,
     description: null,
     contentTop: georgianOnly
       ? '<p>ვებ დიზაინის აღწერა</p>'
@@ -252,6 +254,8 @@ const PROJECT_CATEGORIES = [
     hasEnglish: true,
     image: null,
     position: 0,
+    // Linked to the programming top-level category (contract 1.4.0: its colour).
+    color: '#2563EB',
     skills: [
       {
         id: '01900000-0000-7000-8000-0000000e0001',
@@ -270,6 +274,7 @@ const PROJECT_CATEGORIES = [
     hasEnglish: true,
     image: null,
     position: 1,
+    color: '#7C3AED',
     skills: [],
   },
 ];

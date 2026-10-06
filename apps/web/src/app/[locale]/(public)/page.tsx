@@ -4,7 +4,6 @@
 // (setting OFF) or empty is not shown; a failed getHome leaves only the hero. The projects row joins with slice 9,
 // the invite banner with slice 9 (referrals), logos and articles with slice 16.
 import type { Metadata } from 'next';
-import { headers } from 'next/headers';
 import Link from 'next/link';
 import type { components } from '@mytask/types';
 import type { Locale } from '@mytask/i18n';
@@ -14,7 +13,6 @@ import {
   FreelancerCard,
   GigCard,
   GigGrid,
-  MOTION_ENTRANCE_SCRIPT,
   motionEntrance,
   SiteIcon,
 } from '@mytask/ui/web';
@@ -25,6 +23,7 @@ import { href } from '../../../lib/href';
 import { getT, toLocale } from '../../../lib/i18n';
 import { getServerPublicConfig } from '../../../lib/site-data';
 import { alternates } from '../../../lib/seo';
+import { MotionEntrance } from '../../../components/motion-entrance';
 import { contactHref } from '../../../components/profile/parts';
 import '../../../components/catalog/catalog.css';
 import '../../../components/home/home.css';
@@ -56,11 +55,10 @@ async function loadHome(locale: Locale): Promise<{ home: Home | null; guest: boo
 
 export default async function HomePage({ params }: Params) {
   const locale = toLocale((await params).locale);
-  const [t, config, { home, guest }, head] = await Promise.all([
+  const [t, config, { home, guest }] = await Promise.all([
     getT(locale),
     getServerPublicConfig(locale),
     loadHome(locale),
-    headers(),
   ]);
   const hero = config?.content.hero;
   const projectsOn = config?.projects.enabled ?? false;
@@ -83,10 +81,7 @@ export default async function HomePage({ params }: Params) {
   return (
     // The entrance script marks <main> once it runs (3X.11, M-10); React does not own that attribute.
     <main className="mt-home" suppressHydrationWarning>
-      <script
-        nonce={head.get('x-nonce') ?? ''}
-        dangerouslySetInnerHTML={{ __html: MOTION_ENTRANCE_SCRIPT }}
-      />
+      <MotionEntrance />
       <section className="mt-home-hero" aria-labelledby="home-title">
         <div className="mt-home-hero-inner">
           <div className="mt-home-hero-text">

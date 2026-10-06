@@ -50,7 +50,7 @@ export function FilterPanel(props: {
     <>
       <button
         type="button"
-        className="mt-list-filter-open"
+        className="mt-button mt-list-filter-open"
         onClick={() => setOpen(true)}
         aria-expanded={open}
         data-testid="open-filters"

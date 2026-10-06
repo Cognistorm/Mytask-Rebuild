@@ -5,8 +5,9 @@ import Link from 'next/link';
 import type { TFunction } from 'i18next';
 import type { components } from '@mytask/types';
 import type { Locale } from '@mytask/i18n';
-import { EmptyState, FreelancerCard, Pagination } from '@mytask/ui/web';
+import { EmptyState, FreelancerCard, motionEntrance, Pagination } from '@mytask/ui/web';
 import { href } from '../../lib/href';
+import { MotionEntrance } from '../motion-entrance';
 import { contactHref } from '../profile/parts';
 import './catalog.css';
 
@@ -27,10 +28,12 @@ export function SellerList(props: {
   const pages = Math.ceil(props.total / props.pageSize);
   if (props.sellers.length === 0) return <EmptyState title={t('no_results_found')} />;
   return (
-    <>
+    // M-10: the cards rise in as they come into view (3X.12).
+    <div className="mt-seller-list" suppressHydrationWarning>
+      <MotionEntrance />
       <ul className="mt-seller-grid" aria-label={props.label}>
-        {props.sellers.map(({ user, skills }) => (
-          <li key={user.id}>
+        {props.sellers.map(({ user, skills }, i) => (
+          <li key={user.id} {...motionEntrance(i)}>
             <FreelancerCard
               seller={{
                 username: user.username,
@@ -64,7 +67,7 @@ export function SellerList(props: {
         href={(n) => `${props.basePath}${n > 1 ? `?page=${n}` : ''}`}
         Link={Link}
       />
-    </>
+    </div>
   );
 }
 

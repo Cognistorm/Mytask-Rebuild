@@ -205,10 +205,13 @@
   justify-content: center;
 }
 
-/* ---- Breadcrumb ---- */
+/* ---- Breadcrumb ----
+   3X.12 (visual-refresh.md §8.5): the links are small chips in the page's category tint with its ink (brand values
+   outside a category theme); the current page stays plain text. */
 .mt-breadcrumb ol {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: var(--mt-space-1);
   margin: 0;
   padding: 0;
@@ -224,7 +227,28 @@
 }
 
 .mt-breadcrumb a {
-  color: var(--mt-text-link);
+  display: inline-flex;
+  align-items: center;
+  padding: var(--mt-space-0-5) var(--mt-space-2);
+  border: var(--mt-border-width-hairline) solid var(--mt-cat-tint-strong);
+  border-radius: var(--mt-radius-full);
+  background: var(--mt-cat-tint);
+  color: var(--mt-cat-ink);
+  font-weight: var(--mt-font-weight-medium);
+  text-decoration: none;
+  transition:
+    border-color var(--mt-motion-duration-fast) var(--mt-motion-easing-standard),
+    background-color var(--mt-motion-duration-fast) var(--mt-motion-easing-standard);
+}
+
+.mt-breadcrumb a:hover {
+  border-color: var(--mt-cat-indicator);
+  background: var(--mt-cat-tint-strong);
+}
+
+.mt-breadcrumb a:focus-visible {
+  outline: var(--mt-focus-ring-width) solid var(--mt-focus-ring);
+  outline-offset: var(--mt-focus-ring-offset);
 }
 
 .mt-breadcrumb [aria-current='page'] {
@@ -258,22 +282,53 @@
   justify-content: center;
   min-width: var(--mt-size-touch-target-min);
   min-height: var(--mt-size-touch-target-min);
+  box-sizing: border-box;
   border-radius: var(--mt-radius-control);
   color: var(--mt-text-primary);
   text-decoration: none;
 }
 
-.mt-pagination a:hover {
-  background: var(--mt-bg-hover);
+/* 3X.12 (§12): the other pages and Previous/Next are Ghost buttons (subtle border, ghost gradient + soft glow + 1 px
+   lift on hover); the current page is a small Primary button. */
+.mt-pagination a {
+  border: var(--mt-border-width-hairline) solid var(--mt-border-action-ghost);
+  background: transparent;
+  transition:
+    transform var(--mt-motion-duration-fast) var(--mt-motion-easing-standard),
+    border-color var(--mt-motion-duration-fast) var(--mt-motion-easing-standard),
+    box-shadow var(--mt-motion-duration-fast) var(--mt-motion-easing-standard);
+}
+
+@media (hover: hover) {
+  .mt-pagination a:hover {
+    transform: translateY(calc(-1 * var(--mt-motion-distance-lift-control)));
+    border-color: var(--mt-border-action-secondary-hover);
+    background: var(--mt-gradient-action-ghost-hover);
+    box-shadow: var(--mt-glow-brand-soft);
+  }
+}
+
+.mt-pagination a:active {
+  transform: scale(var(--mt-motion-scale-pressed));
+  transition-duration: var(--mt-motion-duration-press);
+}
+
+.mt-pagination a:focus-visible {
+  outline: var(--mt-focus-ring-width) solid var(--mt-focus-ring);
+  outline-offset: var(--mt-focus-ring-offset);
+  box-shadow: var(--mt-glow-brand);
 }
 
 .mt-pagination .mt-pagination-step {
   padding: 0 var(--mt-space-3);
-  color: var(--mt-text-link);
+  color: var(--mt-action-on-ghost);
+  font-weight: var(--mt-font-weight-medium);
 }
 
 .mt-pagination [aria-current='page'] {
-  background: var(--mt-action-primary);
+  border: var(--mt-border-width-hairline) solid var(--mt-border-action-primary);
+  background: var(--mt-gradient-action-primary);
+  box-shadow: var(--mt-elevation-control), var(--mt-highlight-filled);
   color: var(--mt-action-on-primary);
   font-weight: var(--mt-font-weight-semibold);
 }

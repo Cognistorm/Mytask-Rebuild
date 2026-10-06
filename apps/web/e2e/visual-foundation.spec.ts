@@ -137,3 +137,27 @@ test('home: tiles and rows take their category colour; cards rise in once seen, 
     await context.close();
   }
 });
+
+test('catalog: the category page carries its colour (band, breadcrumb chips); explore chips take their linked colour', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto('/en/categories/design/logo-design');
+  const main = page.getByTestId('category-page');
+  // Every level takes the top level's colour (spec 03 AC-38).
+  await expect(main).toHaveAttribute('data-category-theme', '#7C3AED');
+  const title = page.getByRole('heading', { level: 1 });
+  expect(await title.evaluate((el) => getComputedStyle(el).backgroundImage)).toContain(
+    'linear-gradient',
+  );
+  const crumb = page.getByRole('navigation', { name: 'Breadcrumb' }).getByRole('link').last();
+  expect(await crumb.evaluate((el) => getComputedStyle(el).borderRadius)).not.toBe('0px');
+
+  // The result grid is armed for the entrance (M-10) and the visible cards are revealed.
+  const results = page.locator('.mt-list-results');
+  await expect(results).toHaveAttribute('data-motion', 'ready');
+
+  await page.goto('/en/explore/projects');
+  const chip = page.getByRole('link', { name: 'Web development' });
+  await expect(chip).toHaveAttribute('data-category-theme', '#2563EB');
+});
