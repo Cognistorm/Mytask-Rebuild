@@ -17,6 +17,7 @@ import { lightTheme as theme } from '@mytask/tokens/native';
 import type { components } from '@mytask/types';
 import { formatClock } from '../lib/format';
 import type { PortfolioItemCard } from '../lib/profile';
+import { Button, Chip as UiChip } from '../ui';
 
 type ImageVariants = components['schemas']['ImageVariants'];
 type RatingBlock = components['schemas']['RatingBlock'];
@@ -203,11 +204,7 @@ export function Chip({
   label: string;
   accessibilityLabel?: string;
 }) {
-  return (
-    <Text style={s.chip} accessibilityLabel={accessibilityLabel}>
-      {label}
-    </Text>
-  );
+  return <UiChip label={label} accessibilityLabel={accessibilityLabel} />;
 }
 
 const PILL = {
@@ -321,14 +318,7 @@ export function BottomSheet(props: {
 /** Outlined button for the profile actions (Share, Report). */
 export function OutlineButton(props: { label: string; onPress: () => void; testID?: string }) {
   return (
-    <Pressable
-      style={s.outline}
-      onPress={props.onPress}
-      accessibilityRole="button"
-      testID={props.testID}
-    >
-      <Text style={s.outlineText}>{props.label}</Text>
-    </Pressable>
+    <Button variant="secondary" label={props.label} onPress={props.onPress} testID={props.testID} />
   );
 }
 
@@ -393,15 +383,6 @@ const s = StyleSheet.create({
     textAlign: 'right',
     fontVariant: ['tabular-nums'],
   },
-  chip: {
-    ...theme.text.label,
-    color: theme.colors.text.brand,
-    backgroundColor: theme.colors.bg.brandSoft,
-    borderRadius: theme.radius.full,
-    overflow: 'hidden',
-    paddingVertical: theme.space[1],
-    paddingHorizontal: theme.space[3],
-  },
   pill: {
     ...theme.text.badge,
     alignSelf: 'flex-start',
@@ -431,15 +412,4 @@ const s = StyleSheet.create({
   sheetHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   sheetTitle: { ...theme.text.h3, color: theme.colors.text.primary, flex: 1 },
   sheetClose: { ...theme.text.h3, color: theme.colors.text.secondary },
-  outline: {
-    minHeight: theme.size.touchTarget.min,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: theme.borderWidth.hairline,
-    borderColor: theme.colors.border.strong,
-    borderRadius: theme.radius.control,
-    paddingHorizontal: theme.space[4],
-    backgroundColor: theme.colors.bg.surface,
-  },
-  outlineText: { ...theme.text.label, color: theme.colors.text.primary },
 });

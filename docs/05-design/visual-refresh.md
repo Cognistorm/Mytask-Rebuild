@@ -318,7 +318,7 @@ On sub-category and project category forms: a read-only line "Colour inherited f
 
 ## 10. Mobile (3X.16, 3X.17)
 - **Same tokens and the same function** from `packages/tokens` (the native build).
-- **Gradients.** 3X.16 checks whether React Native's own `experimental_backgroundImage` (linear-gradient) and `boxShadow` are stable in the Expo SDK 57 new architecture. If they are, use them (no new dependency). If not, add `expo-linear-gradient` (pinned) for gradients and use coloured `shadowColor` for glow on iOS. On Android, glow becomes elevation + a 1 px coloured border.
+- **Gradients.** *(3X.16 result: RN 0.86 still names it `experimental_backgroundImage`, so `expo-linear-gradient` 57.0.2 is used, pinned.)* 3X.16 checks whether React Native's own `experimental_backgroundImage` (linear-gradient) and `boxShadow` are stable in the Expo SDK 57 new architecture. If they are, use them (no new dependency). If not, add `expo-linear-gradient` (pinned) for gradients and use coloured `shadowColor` for glow on iOS. On Android, glow becomes elevation + a 1 px coloured border.
 - **Motion with Reanimated 4.5.1** (installed): press = `withTiming` scale 0.98 (80/120 ms); entering = `FadeInDown` 300 ms with a 40 ms stagger capped at 8; sheets = the current behaviour with `emphasized` easing. Every animation passes `reduceMotion: ReduceMotion.System`.
 - **Native pieces.** Shared native `Button`, `Card`, `Chip` and `CategoryPill` with the §4–§8 looks. No haptics (not requested; can be proposed later).
 - **App screens.** The Home tab's teal hero uses the §3.4 gradient. The categories menu rows use the dot + `indicator` bar, and the category screen header uses the category gradient band.

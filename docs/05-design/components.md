@@ -65,7 +65,7 @@ Source: the approved [visual-refresh.md](visual-refresh.md) (§ numbers below) a
 | EmptyState | 64 px icon circle `bg.selected` → `bg.brandSoft` + static `glow.brandSoft` ring | — | — | 6.4 |
 | Category tile, category row heading, category page band, breadcrumb, explore chips | `.mt-cat` + `categoryStyle(color)`: tile label band `--mt-gradient-category` + `--mt-cat-on-solid`; row heading dot + 4 px `--mt-cat-indicator` bar; page band `--mt-gradient-category`; breadcrumb chips `--mt-cat-tint`/`--mt-cat-ink` | tile: `--mt-glow-category` + card hover | entrance stagger `stagger.step` × ≤ `stagger.max` | 8.5 |
 | Hero | `gradient.hero` | — | radial layer drift `duration.drift` (off under reduced motion) | 3.4 |
-| Native (all of the above) | same tokens from `@mytask/tokens/native`: `theme.gradient.*` as `expo-linear-gradient` props, `theme.glow.*` (iOS shadow; Android elevation + 1 px coloured border), `categoryTheme(color, scheme)` for category colours | — | Reanimated with `motion.spring.default`, `scale.pressed`, `FadeInDown` 300 ms + 40 ms stagger, `reduceMotion: ReduceMotion.System` | 10 |
+| Native (all of the above; built in 3X.16 in `apps/mobile/src/ui`: `Button`, `Card`, `Chip`, `SkeletonBlock`, motion presets — app-local until a second native consumer justifies `@mytask/ui/native`) | same tokens from `@mytask/tokens/native`: `theme.gradient.*` as `expo-linear-gradient` props, `theme.glow.*` (iOS shadow; Android elevation + 1 px coloured border), `categoryTheme(color, scheme)` for category colours | — | Reanimated with `motion.spring.default`, `scale.pressed`, `FadeInDown` 300 ms + 40 ms stagger, `reduceMotion: ReduceMotion.System` | 10 |
 
 ---
 

@@ -6,6 +6,7 @@ import { Pressable, StyleSheet, Text, View, type ColorValue } from 'react-native
 import Svg, { Path } from 'react-native-svg';
 import { lightTheme as theme } from '@mytask/tokens/native';
 import type { DashboardSide } from '../lib/dashboard';
+import { Button, SkeletonBlock } from '../ui';
 
 const ICON = {
   // Handbag (Buying) and Storefront (Selling), as the web switcher.
@@ -173,11 +174,11 @@ export function Skeleton({ label, tiles, rows }: { label: string; tiles: number;
     <View accessible accessibilityRole="progressbar" accessibilityLabel={label} style={s.skeleton}>
       <View style={s.grid}>
         {Array.from({ length: tiles }, (_, i) => (
-          <View key={i} style={[s.tile, s.skeletonTile]} />
+          <SkeletonBlock key={i} style={[s.tile, s.skeletonTile]} />
         ))}
       </View>
       {Array.from({ length: rows }, (_, i) => (
-        <View key={i} style={s.skeletonRow} />
+        <SkeletonBlock key={i} style={s.skeletonRow} />
       ))}
     </View>
   );
@@ -185,11 +186,7 @@ export function Skeleton({ label, tiles, rows }: { label: string; tiles: number;
 
 /** Secondary (outlined) button for the second action of a pair. */
 export function SecondaryButton({ label, onPress }: { label: string; onPress: () => void }) {
-  return (
-    <Pressable style={s.secondary} onPress={onPress} accessibilityRole="button">
-      <Text style={s.secondaryText}>{label}</Text>
-    </Pressable>
-  );
+  return <Button variant="secondary" label={label} onPress={onPress} />;
 }
 
 /** A label/value row inside a section (stacked table rows on phones, ResponsiveTable §7.x). */
@@ -288,15 +285,6 @@ const s = StyleSheet.create({
     borderRadius: theme.radius.control,
     backgroundColor: theme.colors.bg.skeleton,
   },
-  secondary: {
-    borderWidth: theme.borderWidth.hairline,
-    borderColor: theme.colors.border.strong,
-    borderRadius: theme.radius.control,
-    padding: theme.space[3],
-    alignItems: 'center',
-    backgroundColor: theme.colors.bg.surface,
-  },
-  secondaryText: { ...theme.text.label, color: theme.colors.text.primary },
   row: {
     gap: theme.space[1],
     paddingBottom: theme.space[3],
