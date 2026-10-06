@@ -146,18 +146,45 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Rating bars (visual-refresh.md §12, 3X.13): a recessed track and a fill in the brand gradient that grows in from the
+   start edge once (only transform; none under reduced motion). */
 .mt-rating-bar {
   display: block;
   block-size: var(--mt-space-2);
   border-radius: var(--mt-radius-full);
   background: var(--mt-bg-subtle);
+  box-shadow: var(--mt-highlight-pressed);
   overflow: hidden;
 }
 
 .mt-rating-bar span {
   display: block;
   block-size: 100%;
-  background: var(--mt-action-primary);
+  border-radius: inherit;
+  background: var(--mt-gradient-indicator);
+  transform-origin: left;
+  animation: mt-rating-bar-in var(--mt-motion-duration-slower) var(--mt-motion-easing-emphasized)
+    both;
+}
+
+[dir='rtl'] .mt-rating-bar span {
+  transform-origin: right;
+}
+
+@keyframes mt-rating-bar-in {
+  from {
+    transform: scaleX(0);
+  }
+
+  to {
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mt-rating-bar span {
+    animation: none;
+  }
 }
 
 /* ---- Chip (§5.14) and Pill (§7.6) ---- */

@@ -46,9 +46,27 @@
   min-width: 0;
 }
 
+/* The profile card (visual-refresh.md §12, 3X.13): the §3.2 surface (surfaces.css) with the 4 px brand gradient strip
+   along its top, as on the dialogs; the strip is a background layer, so it follows the rounded corners. The avatar
+   sits in a ring of the brand gradient (its own border, size unchanged), as on the seller cards. */
 .mt-profile-card {
   justify-items: center;
   text-align: center;
+}
+
+aside.mt-profile-card {
+  background:
+    var(--mt-gradient-brand-strip) top / 100% var(--mt-space-1) no-repeat,
+    var(--mt-gradient-surface);
+}
+
+.mt-profile-card > .mt-avatar {
+  box-sizing: border-box;
+  border: var(--mt-border-width-strong) solid transparent;
+  background:
+    linear-gradient(var(--mt-bg-brand-soft), var(--mt-bg-brand-soft)) padding-box,
+    var(--mt-gradient-action-primary) border-box;
+  box-shadow: var(--mt-glow-brand-soft);
 }
 
 .mt-profile-identity {
@@ -170,15 +188,21 @@
   overflow-wrap: anywhere;
 }
 
-/* Availability, pending and rejected notes (text, not colour only). */
+/* Availability, pending and rejected notes (text, not colour only). 3X.13: the alert look of §6.4 (a soft gradient of
+   the warning tint and a 4 px start bar in the warning colour). */
 .mt-profile-notice {
   display: grid;
   justify-items: start;
   gap: var(--mt-space-2);
   padding: var(--mt-space-4);
   border: var(--mt-border-width-hairline) solid var(--mt-feedback-warning-border);
+  border-inline-start: var(--mt-space-1) solid var(--mt-feedback-warning-icon);
   border-radius: var(--mt-radius-card);
-  background: var(--mt-feedback-warning-bg);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--mt-feedback-warning-bg) 55%, var(--mt-bg-surface)) 0%,
+    var(--mt-feedback-warning-bg) 100%
+  );
   color: var(--mt-feedback-warning-text);
 }
 
@@ -272,7 +296,12 @@
   overflow-wrap: anywhere;
 }
 
+.mt-portfolio-card-link .mt-portfolio-card-title {
+  transition: color var(--mt-motion-duration-fast) var(--mt-motion-easing-standard);
+}
+
 .mt-portfolio-card-link:hover .mt-portfolio-card-title {
+  color: var(--mt-text-link-hover);
   text-decoration: underline;
 }
 
@@ -297,12 +326,16 @@
   justify-content: start;
 }
 
+/* Gallery images (3X.13): framed like the cards (fine border, soft shadow, radius.card). */
 .mt-portfolio-image {
   display: block;
+  box-sizing: border-box;
   inline-size: 100%;
   block-size: auto;
+  border: var(--mt-border-width-hairline) solid var(--mt-border-default);
   border-radius: var(--mt-radius-card);
   background: var(--mt-bg-subtle);
+  box-shadow: var(--mt-elevation-sm);
 }
 
 .mt-portfolio-gallery {
