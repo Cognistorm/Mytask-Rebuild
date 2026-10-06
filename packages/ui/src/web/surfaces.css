@@ -1,0 +1,82 @@
+/* Card and panel surfaces (visual-refresh.md §3.2, §6.1, R-2.3/R-4; ROADMAP 3X.9d). Imported once by the root layouts
+   of apps/web and apps/admin (after controls.css). Component stylesheets keep only layout for these classes (padding,
+   grid, overflow); the surface and the hover live here. The corner radius comes from `radius.card` (16 px, 3X.6).
+
+   Surfaces: .mt-gig-card, .mt-freelancer-card, .mt-portfolio-card, .mt-pf-item, .mt-pf-card, .mt-profile-card,
+   .mt-profile-section, .mt-profile-owner, .mt-edit-card, .mt-edit-block, .mt-stat-tile, .mt-panel, .auth-card,
+   .admin-section.
+   Interactive (hover lift): .mt-gig-card, .mt-freelancer-card, .mt-portfolio-card, .mt-pf-item, .mt-category-tile. */
+
+/* ---- Surface: near-solid gradient, fine border, soft shadow and a lit top edge ---- */
+:is(
+  .mt-gig-card,
+  .mt-freelancer-card,
+  .mt-portfolio-card,
+  .mt-pf-item,
+  .mt-pf-card,
+  .mt-profile-card,
+  .mt-profile-section,
+  .mt-profile-owner,
+  .mt-edit-card,
+  .mt-edit-block,
+  .mt-stat-tile,
+  .mt-panel,
+  .auth-card,
+  .admin-section
+) {
+  border: var(--mt-border-width-hairline) solid var(--mt-border-default);
+  border-radius: var(--mt-radius-card);
+  background: var(--mt-gradient-surface);
+  box-shadow: var(--mt-elevation-sm), var(--mt-highlight-surface);
+}
+
+/* ---- Interactive cards (M-3, M-4): lift 3 px, a stronger shadow with a soft brand glow, a brand-tinted border; the
+   media zooms inside its frame. Box-shadow transitions directly: these cards clip their media (`overflow: hidden`),
+   which would also clip a separate outside shadow layer. Reduced motion: the lift and zoom are 0 (motion variables),
+   only the shadow and border fade. ---- */
+:is(.mt-gig-card, .mt-freelancer-card, .mt-portfolio-card, .mt-pf-item, .mt-category-tile) {
+  transition:
+    transform var(--mt-motion-duration-base) var(--mt-motion-easing-standard),
+    box-shadow var(--mt-motion-duration-base) var(--mt-motion-easing-standard),
+    border-color var(--mt-motion-duration-base) var(--mt-motion-easing-standard);
+}
+
+:is(.mt-gig-card-media img, .mt-category-tile img) {
+  transition: transform var(--mt-motion-duration-slow) var(--mt-motion-easing-enter);
+}
+
+/* The gig image zooms inside its own frame, so it never slides over the card text. */
+.mt-gig-card-media {
+  overflow: hidden;
+}
+
+@media (hover: hover) {
+  :is(.mt-gig-card, .mt-freelancer-card, .mt-portfolio-card, .mt-pf-item, .mt-category-tile):hover {
+    transform: translateY(calc(-1 * var(--mt-motion-distance-lift-card)));
+    box-shadow: var(--mt-elevation-md), var(--mt-glow-brand-soft);
+  }
+
+  :is(
+    .mt-gig-card:not(.mt-gig-card-featured),
+    .mt-freelancer-card,
+    .mt-portfolio-card,
+    .mt-pf-item
+  ):hover {
+    border-color: var(--mt-border-card-hover);
+  }
+
+  /* Featured gig (spec 03 AC-18): keeps its orange frame; the hover glow is orange. */
+  .mt-gig-card-featured:hover {
+    box-shadow: var(--mt-elevation-md), var(--mt-glow-accent);
+  }
+
+  :is(.mt-gig-card, .mt-category-tile):hover img {
+    transform: scale(var(--mt-motion-scale-hover));
+  }
+}
+
+/* Pressed (touch and mouse): a slight press-in. */
+:is(.mt-gig-card, .mt-freelancer-card, .mt-portfolio-card, .mt-pf-item, .mt-category-tile):active {
+  transform: scale(calc((1 + var(--mt-motion-scale-pressed)) / 2));
+  transition-duration: var(--mt-motion-duration-press);
+}

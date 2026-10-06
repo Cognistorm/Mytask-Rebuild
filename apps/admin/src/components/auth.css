@@ -8,11 +8,9 @@
 }
 
 .auth-card {
+  /* Surface (gradient, border, radius, shadow): @mytask/ui surfaces.css (3X.9d). */
   width: 100%;
   max-width: calc(var(--mt-space-24) * 4.5);
-  background: var(--mt-bg-surface);
-  border: var(--mt-border-width-hairline) solid var(--mt-border-default);
-  border-radius: var(--mt-radius-card);
   padding: var(--mt-space-8) var(--mt-space-6);
   display: grid;
   gap: var(--mt-space-4);
@@ -104,9 +102,7 @@
 }
 
 .admin-section {
-  background: var(--mt-bg-surface);
-  border: var(--mt-border-width-hairline) solid var(--mt-border-default);
-  border-radius: var(--mt-radius-card);
+  /* Surface (gradient, border, radius, shadow): @mytask/ui surfaces.css (3X.9d). */
   padding: var(--mt-space-4);
 }
 

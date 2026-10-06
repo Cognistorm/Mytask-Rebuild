@@ -446,13 +446,11 @@
 }
 
 .mt-stat-tile {
+  /* Surface (gradient, border, radius, shadow): @mytask/ui surfaces.css (3X.9d). */
   display: grid;
   align-content: space-between;
   gap: var(--mt-space-2);
   padding: var(--mt-space-4);
-  background: var(--mt-bg-surface);
-  border: var(--mt-border-width-hairline) solid var(--mt-border-subtle);
-  border-radius: var(--mt-radius-card);
   min-width: 0;
 }
 
@@ -512,12 +510,10 @@
 
 /* ---- Panel, EmptyState, Skeleton, Table ---- */
 .mt-panel {
+  /* Surface (gradient, border, radius, shadow): @mytask/ui surfaces.css (3X.9d). */
   display: grid;
   gap: var(--mt-space-3);
   padding: var(--mt-space-4);
-  background: var(--mt-bg-surface);
-  border: var(--mt-border-width-hairline) solid var(--mt-border-subtle);
-  border-radius: var(--mt-radius-card);
   min-width: 0;
 }
 
@@ -556,12 +552,7 @@
 
 .mt-skeleton-box {
   border-radius: var(--mt-radius-card);
-  background: linear-gradient(
-    90deg,
-    var(--mt-bg-skeleton) 25%,
-    var(--mt-bg-skeleton-highlight) 50%,
-    var(--mt-bg-skeleton) 75%
-  );
+  background: var(--mt-gradient-skeleton);
   background-size: 200% 100%;
   animation: mt-shimmer var(--mt-motion-duration-shimmer) linear infinite;
 }

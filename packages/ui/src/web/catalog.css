@@ -10,19 +10,12 @@
 }
 
 .mt-gig-card {
+  /* Surface (gradient, border, radius, shadow): @mytask/ui surfaces.css (3X.9d). */
   position: relative;
   display: flex;
   flex-direction: column;
   height: 100%;
   overflow: hidden;
-  border: var(--mt-border-width-hairline) solid var(--mt-border-subtle);
-  border-radius: var(--mt-radius-card);
-  background: var(--mt-bg-surface);
-  box-shadow: var(--mt-elevation-sm);
-}
-
-.mt-gig-card:hover {
-  box-shadow: var(--mt-elevation-md);
 }
 
 /* Premium owner (spec 03 AC-18): the legacy highlight frame, now orange, plus the text badge. */
@@ -161,6 +154,7 @@
 
 /* ---- FreelancerCard ---- */
 .mt-freelancer-card {
+  /* Surface (gradient, border, radius, shadow): @mytask/ui surfaces.css (3X.9d). */
   display: grid;
   justify-items: center;
   align-content: start;
@@ -168,9 +162,6 @@
   height: 100%;
   box-sizing: border-box;
   padding: var(--mt-space-6) var(--mt-space-4);
-  border: var(--mt-border-width-hairline) solid var(--mt-border-subtle);
-  border-radius: var(--mt-radius-card);
-  background: var(--mt-bg-surface);
   text-align: center;
 }
 

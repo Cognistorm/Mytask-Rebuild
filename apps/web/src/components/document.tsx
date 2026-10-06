@@ -10,6 +10,8 @@ import '@mytask/ui/web/foundation.css';
 import '@mytask/ui/web/buttons.css';
 // Text field, checkbox, radio and switch looks (3X.9b), global for the same reason.
 import '@mytask/ui/web/controls.css';
+// Card and panel surfaces and the card hover (3X.9d), global for the same reason.
+import '@mytask/ui/web/surfaces.css';
 import '../styles/globals.css';
 import type { Metadata } from 'next';
 import { cookies, headers } from 'next/headers';
