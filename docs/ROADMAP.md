@@ -223,7 +223,12 @@ Remaining:
   - All suites re-run green: turbo 26/26 (API 635), web E2E 204 / 3 skipped, admin 25 / 6 skipped, gen, format, i18n, tokens contrast, `expo export`. Focus is visible on every keyboard stop (5 screens × light/dark).
   - The two 3X.18b items are full-page capture artefacts (the canvas and the sidebar are fixed). The signed-in header over the hero is fine.
   - For 3X.21: **F-3X19-1** (minor) skill chips are 2 px wider from the new border and wrap onto a second row on 13 of 40 `/sellers` cards (also the explore chips on a phone); **F-3X19-2** (minor) on the app, fades under Reduce Motion stay 200 ms (M-15) and 800 ms (M-14), the cap is 120 ms; F-3X18-1 carried; Q-179 still open.
-- [ ] 3X.20 Security check (short): the admin colour input (enum/validation, no CSS injection), CSP unchanged (no `unsafe-inline` styles), audit entry.
+- [x] 3X.20 Security check (short): the admin colour input (enum/validation, no CSS injection), CSP unchanged (no `unsafe-inline` styles), audit entry.
+  Done 2026-10-06: review `docs/06-qa/security/09-3x-category-colours-2026-10-06.md`, **PASS**, 0 Critical/High/Medium/Low, 5 Info.
+  - Probes: 23 malformed or CSS-breaking colours (`;}`, newline, spaces, `url(`, `var(`, full-width digits, non-strings) → 400 on create and update; lower case stored upper case; 403 without `catalog.write`. The audit has before/after colour under `catalog.write`. Three layers hold: contract pattern, service, DB CHECK + unique index.
+  - Website, admin and app re-validate and rebuild every style value from numbers (`categoryThemeProps` / `categoryStyle` / `categoryTheme`), so the API string never reaches a `style`.
+  - CSP: `csp.ts` + Caddy byte-for-byte pre-3X; live headers checked on the built site. `style-src 'unsafe-inline'` predates 3X (3X.1 correction); script-src stays nonce-only.
+  - For 3X.21: **I-52** (add the probe payloads to `category-colors.test.ts` and the tokens test). Phase 6: I-53 (the themes now rely on `style-src 'unsafe-inline'`; architect keeps or reworks), I-54 (admin CSP must allow inline styles, with I-48), I-55 (`source-map-js` advisory, not reachable at runtime). I-56: the 3X.15b proxy token reviewed, OK.
 - [ ] 3X.21 Fix findings from 3X.19/3X.20, then re-check (split into a/b/… when needed).
 - [ ] 3X.22 PR + CI green + STATUS. **Merge order:** PR #2 `feat/catalog-search` first, then this branch. Redeploy staging with `bash scripts/deploy-staging.sh`.
 - [ ] 3X.23 **Owner click-through on staging** (checklist `docs/06-qa/plans/3x-visual-refresh-owner-click-through.md`, web + admin + app). Approve → merge → **resume Phase 4 at 4.3.1** (`feat/gigs` is cut from `main` after the merge, so slice 3 is built in the new style from the start).
