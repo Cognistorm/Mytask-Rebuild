@@ -10,6 +10,7 @@
     },
     "build": {
       "dependsOn": ["^build"],
+      "env": ["ADMIN_BASE_PATH"],
       "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
     },
     "typecheck": {
