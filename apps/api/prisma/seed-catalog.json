@@ -1,0 +1,1386 @@
+{
+  "source": "Public pages of https://mytask.ge read on 2026-10-03 (ROADMAP 4.2.2b): the header category menu of / and /?locale=en (names and slugs in menu order), and /explore/projects/{slug} in both languages for the project categories (one per top-level gig category slug; other project categories are not listed publicly). The live site lists no project skills. Local development only; the Phase 5 migration loads the real rows.",
+  "gigCategories": [
+    {
+      "slug": "graphics-design",
+      "ka": "დიზაინი",
+      "en": "Graphics & Design",
+      "children": [
+        {
+          "slug": "packaging-covers",
+          "ka": "გარეკანის და შეფუთვის დიზაინი",
+          "en": "Packaging & Covers",
+          "children": [
+            {
+              "slug": "packaging-label-design",
+              "ka": "შეფუთვის და ეტიკეტის დიზაინი",
+              "en": "Packaging & Label Design"
+            },
+            {
+              "slug": "book-design",
+              "ka": "წიგნის დიზაინი",
+              "en": "Book Design"
+            },
+            {
+              "slug": "book-covers",
+              "ka": "წიგნის გარეკანის დიზაინი",
+              "en": "Book Covers"
+            },
+            {
+              "slug": "album-cover-design",
+              "ka": "ალბომის გარეკანის დიზაინი",
+              "en": "Album Cover Design"
+            }
+          ]
+        },
+        {
+          "slug": "visual-design",
+          "ka": "ვიზუალური დიზაინი",
+          "en": "Visual Design",
+          "children": [
+            {
+              "slug": "image-editing",
+              "ka": "სურათების დამუშავება",
+              "en": "Image Editing"
+            },
+            {
+              "slug": "presentation-design",
+              "ka": "პრეზენტაციის დიზაინი",
+              "en": "Presentation Design"
+            },
+            {
+              "slug": "background-removal",
+              "ka": "ფონის მოშორება",
+              "en": "Background Removal"
+            },
+            {
+              "slug": "infopraphic-design",
+              "ka": "ინფოგრაფიკული დიზაინი",
+              "en": "Infographic Design"
+            },
+            {
+              "slug": "resume-design",
+              "ka": "რეზიუმეს დიზაინი",
+              "en": "Resume Design"
+            },
+            {
+              "slug": "graphics-for-streamers",
+              "ka": "გრაფიკა სტრიმინგისთვის",
+              "en": "Graphics for Streamers"
+            }
+          ]
+        },
+        {
+          "slug": "architecture-building-design",
+          "ka": "არქიტექტურა და შენობების დიზაინი",
+          "en": "Architecture & Building Design",
+          "children": [
+            {
+              "slug": "interior-design",
+              "ka": "ინტერიერის დიზაინი",
+              "en": "Interior Design"
+            },
+            {
+              "slug": "landscape-design",
+              "ka": "ლანდშაფტის დიზაინი",
+              "en": "Landscape Design"
+            }
+          ]
+        },
+        {
+          "slug": "print-design",
+          "ka": "პრინტული დიზაინი",
+          "en": "Print Design",
+          "children": [
+            {
+              "slug": "flyer-design",
+              "ka": "ფლაერების დიზაინი",
+              "en": "Flyer Design"
+            },
+            {
+              "slug": "poster-design",
+              "ka": "პოსტერების დიზაინი",
+              "en": "Poster Design"
+            },
+            {
+              "slug": "menu-design",
+              "ka": "მენიუს დიზაინი",
+              "en": "Menu Design"
+            },
+            {
+              "slug": "catalog-design",
+              "ka": "კატალოგის დიზაინი",
+              "en": "Catalog Design"
+            }
+          ]
+        },
+        {
+          "slug": "marketing-design",
+          "ka": "მარკეტინგული დიზაინი",
+          "en": "Marketing Design",
+          "children": [
+            {
+              "slug": "social-media-design",
+              "ka": "სოციალური მედიის დიზაინი",
+              "en": "Social Media Design"
+            },
+            {
+              "slug": "social-posts-banners",
+              "ka": "პოსტები და ბანერები",
+              "en": "Social Posts & Banners"
+            },
+            {
+              "slug": "e-mail-design",
+              "ka": "ელ-ფოსტის დიზაინი",
+              "en": "E-Mail Design"
+            }
+          ]
+        },
+        {
+          "slug": "logo-brand-identity",
+          "ka": "ლოგო და ბრენდინგი",
+          "en": "Logo & Brand Identity",
+          "children": [
+            {
+              "slug": "logo-design",
+              "ka": "ლოგოს დიზაინი",
+              "en": "Logo Design"
+            },
+            {
+              "slug": "business-cards",
+              "ka": "სავიზიტო ბარათების დიზაინი",
+              "en": "Business Cards"
+            },
+            {
+              "slug": "company-branding",
+              "ka": "კომპანიის ბრენდინგი",
+              "en": "Company Branding"
+            }
+          ]
+        },
+        {
+          "slug": "3d-dizaini",
+          "ka": "3D დიზაინი",
+          "en": "3D Design",
+          "children": [
+            {
+              "slug": "3d-architecture",
+              "ka": "3D არქიტექტურა",
+              "en": "3D Architecture"
+            },
+            {
+              "slug": "3d-character-design",
+              "ka": "3D პერსონაჟის დიზაინი",
+              "en": "3D Character Design"
+            }
+          ]
+        },
+        {
+          "slug": "web-app-design",
+          "ka": "ვების და აპლიკაციის დიზაინი",
+          "en": "Web & App Design",
+          "children": [
+            {
+              "slug": "website-design",
+              "ka": "ვებ-გვერდის დიზაინი",
+              "en": "Website Design"
+            },
+            {
+              "slug": "app-design",
+              "ka": "აპლიკაციის დიზაინი",
+              "en": "App Design"
+            },
+            {
+              "slug": "ux-design",
+              "ka": "UX დიზაინი",
+              "en": "UX Design"
+            },
+            {
+              "slug": "icon-design",
+              "ka": "სიმბოლოების დიზაინი",
+              "en": "Icon Design"
+            }
+          ]
+        },
+        {
+          "slug": "art-illustration",
+          "ka": "ილუსტრაციები",
+          "en": "Art & Illustration",
+          "children": [
+            {
+              "slug": "illustrations",
+              "ka": "ილუსტრაციები",
+              "en": "Illustration"
+            },
+            {
+              "slug": "tatto-design",
+              "ka": "ტატუს დიზაინი",
+              "en": "Tatto Design"
+            },
+            {
+              "slug": "portraits-and-caricatures",
+              "ka": "პორტრეტები და კარიკატურები",
+              "en": "Portraits & Caricatures"
+            },
+            {
+              "slug": "nft-art",
+              "ka": "NFT ხელოვნება",
+              "en": "NFT Art"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "music-audio",
+      "ka": "მუსიკა და ხმა",
+      "en": "Music & Audio",
+      "children": [
+        {
+          "slug": "music-lessons",
+          "ka": "მუსიკის გაკვეთილები",
+          "en": "Music Lessons",
+          "children": [
+            {
+              "slug": "online-music-lessons",
+              "ka": "მუსიკის ონლაინ გაკვეთილები",
+              "en": "Online Music Lessons"
+            },
+            {
+              "slug": "music-advice",
+              "ka": "მუსიკალური რჩევები",
+              "en": "Music Advice"
+            }
+          ]
+        },
+        {
+          "slug": "voice-over",
+          "ka": "გახმოვანება",
+          "en": "Voice Over",
+          "children": [
+            {
+              "slug": "female-voice-over",
+              "ka": "ქალის ხმით გახმოვანება",
+              "en": "Female Voice Over"
+            },
+            {
+              "slug": "male-voice-over",
+              "ka": "მამაკაცის ხმით გახმოვანება",
+              "en": "Male Voice Over"
+            },
+            {
+              "slug": "english-voice-over",
+              "ka": "ინგლისურად გახმოვანება",
+              "en": "English Voice Over"
+            }
+          ]
+        },
+        {
+          "slug": "sound-editing",
+          "ka": "ხმის მონტაჟი",
+          "en": "Sound Editing",
+          "children": [
+            {
+              "slug": "audio-editing",
+              "ka": "ხმის რედაქტირება",
+              "en": "Audio Editing"
+            },
+            {
+              "slug": "music-remix",
+              "ka": "რემიქსი",
+              "en": "Music Remix"
+            }
+          ]
+        },
+        {
+          "slug": "music-production-writing",
+          "ka": "მუსიკის დაწერა",
+          "en": "Music Production & Writing",
+          "children": [
+            {
+              "slug": "producers-composers",
+              "ka": "პროდიუსერი და კომპოზიტორი",
+              "en": "Producers & Composers"
+            },
+            {
+              "slug": "singers-vocalists",
+              "ka": "მომღერლები და ვოკალისტები",
+              "en": "Singers & Vocalists"
+            },
+            {
+              "slug": "podcast",
+              "ka": "პოდკასტი",
+              "en": "Podcast"
+            },
+            {
+              "slug": "audio-books",
+              "ka": "აუდიო წიგნები",
+              "en": "Audio Books"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "programming-tech",
+      "ka": "პროგრამირება და ტექნოლოგიები",
+      "en": "Programming & Tech",
+      "children": [
+        {
+          "slug": "website-development",
+          "ka": "ვებ-გვერდის განვითარება",
+          "en": "Website Development",
+          "children": [
+            {
+              "slug": "landing-pages",
+              "ka": "ერთ გვერდიანი საიტები",
+              "en": "Landing Pages"
+            },
+            {
+              "slug": "e-commerce-websites",
+              "ka": "კომერციული საიტები",
+              "en": "E-Commerce Websites"
+            },
+            {
+              "slug": "business-websites",
+              "ka": "ბიზნეს საიტები",
+              "en": "Business Websites"
+            },
+            {
+              "slug": "dropshipping-websites",
+              "ka": "Dropshipping საიტები",
+              "en": "Dropshipping Websites"
+            },
+            {
+              "slug": "custom-websites",
+              "ka": "პერსონალიზირებული საიტი",
+              "en": "Custom Websites"
+            },
+            {
+              "slug": "backup-migration",
+              "ka": "რეზერვაცია და მიგრაცია",
+              "en": "Backup & Migration"
+            },
+            {
+              "slug": "website-customization",
+              "ka": "ვებ-გვერდის კონფიგურაცია",
+              "en": "Website Customization"
+            }
+          ]
+        },
+        {
+          "slug": "website-platforms",
+          "ka": "ვებსაიტის პლათფორმები",
+          "en": "Website Platforms",
+          "children": [
+            {
+              "slug": "wordpress",
+              "ka": "WordPress",
+              "en": "WordPress"
+            },
+            {
+              "slug": "shopify",
+              "ka": "Shopify",
+              "en": "Shopify"
+            },
+            {
+              "slug": "wix",
+              "ka": "Wix",
+              "en": "Wix"
+            },
+            {
+              "slug": "godaddy",
+              "ka": "GoDaddy",
+              "en": "GoDaddy"
+            }
+          ]
+        },
+        {
+          "slug": "ai-development",
+          "ka": "ხელოვნური ინტელექტი",
+          "en": "AI Development",
+          "children": [
+            {
+              "slug": "ai-integrations",
+              "ka": "AI ინტეგრაცია",
+              "en": "AI-Integrations"
+            },
+            {
+              "slug": "ai-chatbot",
+              "ka": "AI ჩეთბოტი",
+              "en": "AI Chatbot"
+            },
+            {
+              "slug": "chatgpt-applications",
+              "ka": "ChatGPT აპლიკაციები",
+              "en": "ChatGPT Applications"
+            }
+          ]
+        },
+        {
+          "slug": "various",
+          "ka": "სხვადასხვა",
+          "en": "Various",
+          "children": [
+            {
+              "slug": "development-for-streamers",
+              "ka": "დეველოპინგი სტრიმერებისთვის",
+              "en": "Development For Streamers"
+            },
+            {
+              "slug": "blockchain-cryptocurrency",
+              "ka": "ბლოქჩეინი და კრიპტო ვალუტა",
+              "en": "Blockchain & Cryptocurrency"
+            },
+            {
+              "slug": "nft-development",
+              "ka": "NFT განვითარება",
+              "en": "NFT Development"
+            }
+          ]
+        },
+        {
+          "slug": "software-development",
+          "ka": "პროგრამული განვითარება",
+          "en": "Software Development",
+          "children": [
+            {
+              "slug": "api-integrations",
+              "ka": "API ინტეგრაცია",
+              "en": "API Integrations"
+            },
+            {
+              "slug": "web-applikations",
+              "ka": "Web აპლიკაციები",
+              "en": "Web Applikations"
+            },
+            {
+              "slug": "desktop-applications",
+              "ka": "Desktop აპლიკაციები",
+              "en": "Desktop Applications"
+            }
+          ]
+        },
+        {
+          "slug": "software-developers",
+          "ka": "პროგრამული უზრუნველყოფა",
+          "en": "Software Developers",
+          "children": [
+            {
+              "slug": "python-developers",
+              "ka": "Python დეველოპერები",
+              "en": "Python Developers"
+            },
+            {
+              "slug": "html-css-developers",
+              "ka": "HTML და CSS დეველოპერები",
+              "en": "HTML & CSS Developers"
+            },
+            {
+              "slug": "javascript-developers",
+              "ka": "JavaScript დეველოპერები",
+              "en": "JavaScript Developers"
+            },
+            {
+              "slug": "java-developers",
+              "ka": "Java დეველოპერები",
+              "en": "Java Developers"
+            },
+            {
+              "slug": "php-developers",
+              "ka": "PHP დეველოპერები",
+              "en": "PHP Developers"
+            }
+          ]
+        },
+        {
+          "slug": "game-development",
+          "ka": "თამაშების განვითარება",
+          "en": "Game Development",
+          "children": [
+            {
+              "slug": "pc-games",
+              "ka": "კომპიუტერის თამაშები",
+              "en": "PC Games"
+            },
+            {
+              "slug": "mobile-games",
+              "ka": "მობილურის თამაშები",
+              "en": "Mobile Games"
+            },
+            {
+              "slug": "console-games",
+              "ka": "Console თამაშები",
+              "en": "Console Games"
+            }
+          ]
+        },
+        {
+          "slug": "quality-review",
+          "ka": "ხარისხის უზრუნველყოფა",
+          "en": "Quality & Review",
+          "children": [
+            {
+              "slug": "software-testing",
+              "ka": "პროგრამის ტესტირება",
+              "en": "Software Testing"
+            },
+            {
+              "slug": "code-review",
+              "ka": "კოდის ტესტირება",
+              "en": "Code Review"
+            },
+            {
+              "slug": "design-review",
+              "ka": "დიზაინის შემოწმება",
+              "en": "Design Review"
+            },
+            {
+              "slug": "user-testing",
+              "ka": "მომხმარებლის პროფილის ტესტირება",
+              "en": "User Testing"
+            },
+            {
+              "slug": "bug-fixes",
+              "ka": "ხარვეზის გამოსწორება",
+              "en": "Bug Fixes"
+            }
+          ]
+        },
+        {
+          "slug": "mobile-app-development",
+          "ka": "მობილური აპლიკაციები",
+          "en": "Mobile App Development",
+          "children": [
+            {
+              "slug": "android-app-development",
+              "ka": "Android აპის შექმნა",
+              "en": "Android App Development"
+            },
+            {
+              "slug": "ios-app-development",
+              "ka": "IOS აპის შექმნა",
+              "en": "IOS App Development"
+            },
+            {
+              "slug": "website-to-app",
+              "ka": "ვებგვერდის აპის შექმნა",
+              "en": "Website to App"
+            }
+          ]
+        },
+        {
+          "slug": "support-cybersecurity",
+          "ka": "მხარდაჭერა და კიბერუსაფრთხოება",
+          "en": "Support & Cybersecurity",
+          "children": [
+            {
+              "slug": "it-support",
+              "ka": "IT მხარდაჭერა",
+              "en": "IT Support"
+            },
+            {
+              "slug": "cybersecurity",
+              "ka": "კიბერუსაფრთხოება",
+              "en": "Cybersecurity"
+            }
+          ]
+        },
+        {
+          "slug": "chatbots",
+          "ka": "ჩეთბოტები",
+          "en": "Chatbots",
+          "children": [
+            {
+              "slug": "discord-chatbots",
+              "ka": "Discord ჩეთბოტები",
+              "en": "Discord Chatbots"
+            },
+            {
+              "slug": "telegram-chatbots",
+              "ka": "Telegram ჩეთბოტები",
+              "en": "Telegram Chatbots"
+            },
+            {
+              "slug": "facebook-chatbots",
+              "ka": "Facebook ჩეთბოტები",
+              "en": "Facebook Chatbots"
+            },
+            {
+              "slug": "other-chatbots",
+              "ka": "სხვა ჩეთბოტები",
+              "en": "Other Chatbots"
+            },
+            {
+              "slug": "chatbot-development",
+              "ka": "ჩეთბოტის განვითარება",
+              "en": "Chatbot Development"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "digital-marketing",
+      "ka": "ციფრული მარკეტინგი",
+      "en": "Digital Marketing",
+      "children": [
+        {
+          "slug": "search",
+          "ka": "ძებნა",
+          "en": "Search",
+          "children": [
+            {
+              "slug": "search-engine-optimisation-seo",
+              "ka": "საძიებო სისტემის ოპტიმიზაცია (SEO)",
+              "en": "Search Engine Optimisation (SEO)"
+            },
+            {
+              "slug": "search-engine-marketing-sem",
+              "ka": "საძიებო სისტემის მარკეტინგი (SEM)",
+              "en": "Search Engine Marketing (SEM)"
+            },
+            {
+              "slug": "local-seo",
+              "ka": "ლოკალური SEO",
+              "en": "Local SEO"
+            },
+            {
+              "slug": "e-commerce-seo",
+              "ka": "E-Commerce SEO",
+              "en": "E-Commerce SEO"
+            },
+            {
+              "slug": "video-seo",
+              "ka": "ვიდეო SEO",
+              "en": "Video SEO"
+            }
+          ]
+        },
+        {
+          "slug": "social-media",
+          "ka": "სოციალური მედია",
+          "en": "Social Media",
+          "children": [
+            {
+              "slug": "social-media-marketing",
+              "ka": "სოციალური მედიის მარკეტინგი",
+              "en": "Social Media Marketing"
+            },
+            {
+              "slug": "paid-social-media",
+              "ka": "ფასიანი სოციალური მედია",
+              "en": "Paid Social Media"
+            },
+            {
+              "slug": "influencer-marketing",
+              "ka": "ინფლუენსერების მარკეტინგი",
+              "en": "Influencer Marketing"
+            },
+            {
+              "slug": "community-management",
+              "ka": "ჯგუფის მენეჯმენტი",
+              "en": "Community Management"
+            }
+          ]
+        },
+        {
+          "slug": "methods-techniques",
+          "ka": "მეთოდები და თექნიკა",
+          "en": "Methods & Techniques",
+          "children": [
+            {
+              "slug": "video-marketing",
+              "ka": "ვიდეო მარკეტინგი",
+              "en": "Video Marketing"
+            },
+            {
+              "slug": "e-commerce-marketing",
+              "ka": "E-Commerce მარკეტინგი",
+              "en": "E-Commerce Marketing"
+            },
+            {
+              "slug": "e-mail-marketing",
+              "ka": "ელ-ფოსტის მარკეტინგი",
+              "en": "Email Marketing"
+            },
+            {
+              "slug": "text-message-marketing",
+              "ka": "ტექსტური შეტყობინებების მარკეტინგი",
+              "en": "Text Message Marketing"
+            }
+          ]
+        },
+        {
+          "slug": "analytics-strategy",
+          "ka": "ანალიტიკა და სტრატეგია",
+          "en": "Analytics & Strategy",
+          "children": [
+            {
+              "slug": "marketing-strategy",
+              "ka": "მარკეტინგის სტრატეგია",
+              "en": "Marketing Strategy"
+            },
+            {
+              "slug": "marketing-advice",
+              "ka": "მარკეტინგული რჩევა",
+              "en": "Marketing Advice"
+            },
+            {
+              "slug": "web-analytics",
+              "ka": "ვებ ანალიტიკა",
+              "en": "Web Analytics"
+            }
+          ]
+        },
+        {
+          "slug": "marketing-other",
+          "ka": "სხვა",
+          "en": "Other",
+          "children": [
+            {
+              "slug": "music-promotion",
+              "ka": "მუსიკის რეკლამირება",
+              "en": "Music Promotion"
+            },
+            {
+              "slug": "podcast-marketing",
+              "ka": "პოდკასტის მარკეტინგი",
+              "en": "Podcast Marketing"
+            },
+            {
+              "slug": "book-ebook-marketing",
+              "ka": "წიგნისა და ელ-წიგნის მარკეტინგი",
+              "en": "Book & eBook Marketing"
+            },
+            {
+              "slug": "mobile-app-marketing",
+              "ka": "მობილური აპის მარკეტინგი",
+              "en": "Mobile App Marketing"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "video-animation",
+      "ka": "ვიდეო და ანიმაცია",
+      "en": "Video & Animation",
+      "children": [
+        {
+          "slug": "editing-post-production",
+          "ka": "რედაქტირება და პოსტის წარმოება",
+          "en": "Editing & Post-Production",
+          "children": [
+            {
+              "slug": "video-editing",
+              "ka": "ვიდეოს რედაქტირება",
+              "en": "Video Editing"
+            },
+            {
+              "slug": "visual-effects",
+              "ka": "ვიზუალური ეფექტები",
+              "en": "Visual Effects"
+            },
+            {
+              "slug": "subtitles-captions",
+              "ka": "სუბტიტრები და წარწერები",
+              "en": "Subtitles & Captions"
+            }
+          ]
+        },
+        {
+          "slug": "social-marketing-videos",
+          "ka": "სოც. მედიისა და მარკეტინგის ვიდეოები",
+          "en": "Social & Marketing Videos",
+          "children": [
+            {
+              "slug": "video-ads-commercials",
+              "ka": "სარეკლამო და კომერციული ვიდეოები",
+              "en": "Video Ads & Commercials"
+            },
+            {
+              "slug": "social-media-videos",
+              "ka": "სოციალური მედიის ვიდეო",
+              "en": "Social Media Videos"
+            },
+            {
+              "slug": "music-videos",
+              "ka": "მუსიკალური ვიდეო",
+              "en": "Music Videos"
+            },
+            {
+              "slug": "slideshow-videos",
+              "ka": "სლაიდ-შოუ ვიდეოები",
+              "en": "Slideshow Videos"
+            }
+          ]
+        },
+        {
+          "slug": "animation-motion-graphics",
+          "ka": "ანიმირებული გრაფიკა",
+          "en": "Animation & Motion Graphics",
+          "children": [
+            {
+              "slug": "character-animation",
+              "ka": "პერსონაჟის ანიმაცია",
+              "en": "Character Animation"
+            },
+            {
+              "slug": "animated-gifs",
+              "ka": "ანიმირებული გიფები",
+              "en": "Animated GIFs"
+            },
+            {
+              "slug": "animation-for-kids",
+              "ka": "ანიმაცია ბავშვებისთვის",
+              "en": "Animation For Kids"
+            },
+            {
+              "slug": "animation-for-streamers",
+              "ka": "ანიმაცია სტრიმერებისთვის",
+              "en": "Animation For Streamers"
+            },
+            {
+              "slug": "nft-animation",
+              "ka": "NFT ანიმაცია",
+              "en": "NFT Animation"
+            },
+            {
+              "slug": "logo-animation",
+              "ka": "ლოგოს ანიმაცია",
+              "en": "Logo Animation"
+            },
+            {
+              "slug": "web-animation",
+              "ka": "Web ანიმაცია",
+              "en": "Web Animation"
+            },
+            {
+              "slug": "text-animation",
+              "ka": "ტექსტის ანიმაცია",
+              "en": "Text Animation"
+            }
+          ]
+        },
+        {
+          "slug": "explainer-videos",
+          "ka": "განმარტებითი ვიდეოები",
+          "en": "Explainer Videos",
+          "children": [
+            {
+              "slug": "animated-explainers",
+              "ka": "ანიმაციური განმარტებები",
+              "en": "Animated Explainers"
+            },
+            {
+              "slug": "spokesperson-videos",
+              "ka": "სპიკერის ვიდეო",
+              "en": "Spokesperson Videos"
+            },
+            {
+              "slug": "screencasting-videos",
+              "ka": "ეკრანის გადაღება",
+              "en": "Screencasting Videos"
+            }
+          ]
+        },
+        {
+          "slug": "product-videos",
+          "ka": "პროდუქტის ვიდეო",
+          "en": "Product Videos",
+          "children": [
+            {
+              "slug": "3d-product-animation",
+              "ka": "3D პროდუქტის ვიდეო",
+              "en": "3D Product Animation"
+            },
+            {
+              "slug": "e-commerce-product-videos",
+              "ka": "E-Commerce პროდუქტის ვიდეო",
+              "en": "E-Commerce Product Videos"
+            },
+            {
+              "slug": "corporate-videos",
+              "ka": "კორპორაციული ვიდეო",
+              "en": "Corporate Videos"
+            },
+            {
+              "slug": "app-website-previews",
+              "ka": "აპის და ვებსაიტის მიმოხილვა",
+              "en": "App & Website Previews"
+            }
+          ]
+        },
+        {
+          "slug": "video-animation-various",
+          "ka": "სხვადასხვა",
+          "en": "Various",
+          "children": [
+            {
+              "slug": "article-to-video",
+              "ka": "სტატიის ვიდეო",
+              "en": "Article To Video"
+            },
+            {
+              "slug": "game-trailers",
+              "ka": "თამაშის თრეილერი",
+              "en": "Game Trailers"
+            },
+            {
+              "slug": "meditation-videos",
+              "ka": "მედიტაციის ვიდეოები",
+              "en": "Meditation Videos"
+            },
+            {
+              "slug": "real-estate-promos",
+              "ka": "უძრავი ქონების პრომო",
+              "en": "Real Estate Promos"
+            },
+            {
+              "slug": "video-advice",
+              "ka": "ვიდეო რჩევები",
+              "en": "Video Advice"
+            },
+            {
+              "slug": "video-animation-various-other",
+              "ka": "სხვა",
+              "en": "Other"
+            }
+          ]
+        },
+        {
+          "slug": "ai-video",
+          "ka": "ხელოვნური ინტელექტის ვიდეო",
+          "en": "AI Video",
+          "children": [
+            {
+              "slug": "ai-video-art",
+              "ka": "AI ვიდეო ხელოვნება",
+              "en": "AI Video Art"
+            },
+            {
+              "slug": "ai-music-videos",
+              "ka": "AI მუსიკალური ვიდეო",
+              "en": "AI Music Videos"
+            },
+            {
+              "slug": "ai-spokespersons-video",
+              "ka": "AI სპიკერების ვიდეო",
+              "en": "AI Spokespersons Video"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "business",
+      "ka": "ბიზნესი",
+      "en": "Business",
+      "children": [
+        {
+          "slug": "general-administrative",
+          "ka": "ზოგადი და ადმინისტრაციული",
+          "en": "General & Administrative",
+          "children": [
+            {
+              "slug": "virtual-assistant",
+              "ka": "ვირტუალური ასისტენტი",
+              "en": "Virtual Assistant"
+            },
+            {
+              "slug": "project-management",
+              "ka": "პროექტის მენეჯმენტი",
+              "en": "Project Management"
+            },
+            {
+              "slug": "hr-consulting",
+              "ka": "HR კონსულტაცია",
+              "en": "HR Consulting"
+            },
+            {
+              "slug": "supply-chain-management",
+              "ka": "მიწოდების ჯაჭვის მენეჯმენტი",
+              "en": "Supply Chain Management"
+            }
+          ]
+        },
+        {
+          "slug": "e-commerce-management",
+          "ka": "ელ. კომერციის მენეჯმენტი",
+          "en": "E-Commerce Management",
+          "children": [
+            {
+              "slug": "product-research",
+              "ka": "პროდუქტის კვლევა",
+              "en": "Product Research"
+            },
+            {
+              "slug": "store-setup",
+              "ka": "მაღაზიის მოწყობა",
+              "en": "Store Setup"
+            },
+            {
+              "slug": "store-management",
+              "ka": "მაღაზიის მენეჯმენტი",
+              "en": "Store Management"
+            }
+          ]
+        },
+        {
+          "slug": "business-management",
+          "ka": "ბიზნესის მენეჯმენტი",
+          "en": "Business Management",
+          "children": [
+            {
+              "slug": "business-registration",
+              "ka": "ბიზნესის რეგისტრაცია",
+              "en": "Business Registration"
+            },
+            {
+              "slug": "business-plans",
+              "ka": "ბიზნეს გეგმა",
+              "en": "Business Plans"
+            },
+            {
+              "slug": "business-consulting",
+              "ka": "ბიზნეს კონსულტაცია",
+              "en": "Business Consulting"
+            },
+            {
+              "slug": "market-research",
+              "ka": "ბაზრის კვლევა",
+              "en": "Market Research"
+            },
+            {
+              "slug": "presentations",
+              "ka": "პრეზენტაციები",
+              "en": "Presentations"
+            }
+          ]
+        },
+        {
+          "slug": "financial-legal-consulting",
+          "ka": "ფინანსური და იურიდიული კონსულტაცია",
+          "en": "Financial & Legal Consulting",
+          "children": [
+            {
+              "slug": "accounting-bookkeeping",
+              "ka": "ბუღალტრული აღრიცხვა",
+              "en": "Accounting & bookkeeping"
+            },
+            {
+              "slug": "tax-consulting",
+              "ka": "საგადასახადო კონსულტაცია",
+              "en": "Tax Consulting"
+            },
+            {
+              "slug": "financial-consulting",
+              "ka": "ფინანსური კონსულტაცია",
+              "en": "Financial Consulting"
+            },
+            {
+              "slug": "applications-registrations",
+              "ka": "განცხადებები და რეგისტრაცია",
+              "en": "Applications & Registrations"
+            },
+            {
+              "slug": "legal-documents-contracts",
+              "ka": "იურიდიული დოკუმენტები და კონტრაქტები",
+              "en": "Legal Documents & Contracts"
+            },
+            {
+              "slug": "legal-consulting",
+              "ka": "იურიდიული კონსულტაცია",
+              "en": "Legal Consulting"
+            }
+          ]
+        },
+        {
+          "slug": "sales-and-customer-care",
+          "ka": "გაყიდვები და მომხმარებელზე ზრუნვა",
+          "en": "Sales And Customer Care",
+          "children": [
+            {
+              "slug": "sales",
+              "ka": "გაყიდვები",
+              "en": "Sales"
+            },
+            {
+              "slug": "customer-care",
+              "ka": "მომხმარებელზე ზრუნვა",
+              "en": "Customer Care"
+            },
+            {
+              "slug": "call-center",
+              "ka": "ქოლ ცენტრი",
+              "en": "Call Center & Calling"
+            }
+          ]
+        },
+        {
+          "slug": "bisness-various",
+          "ka": "სხვადასხვა",
+          "en": "Various",
+          "children": [
+            {
+              "slug": "writing-translation-other",
+              "ka": "სხვა",
+              "en": "Other"
+            },
+            {
+              "slug": "product-management",
+              "ka": "პროდუქტის მენეჯმენტი",
+              "en": "Product Management"
+            },
+            {
+              "slug": "fact-checking",
+              "ka": "ფაქტების შემოწმება",
+              "en": "Fact Checking"
+            },
+            {
+              "slug": "event-management",
+              "ka": "ღონისძიების მენეჯმენტი",
+              "en": "Event Management"
+            }
+          ]
+        },
+        {
+          "slug": "content-writing",
+          "ka": "კონტენტის წერა",
+          "en": "Content Writing",
+          "children": [
+            {
+              "slug": "articles-blog-posts",
+              "ka": "სტატიები და ბლოგის პოსტები",
+              "en": "Articles & Blog Posts"
+            },
+            {
+              "slug": "website-content",
+              "ka": "ვებსაიტის კონტენტი",
+              "en": "Website Content"
+            },
+            {
+              "slug": "creative-writing",
+              "ka": "კრეატიული წერა",
+              "en": "Creative Writing"
+            },
+            {
+              "slug": "podcast-writing",
+              "ka": "პოდკასტის წერა",
+              "en": "Podcast Writing"
+            }
+          ]
+        },
+        {
+          "slug": "business-and-marketing",
+          "ka": "ბიზნესი და მარკეტინგი",
+          "en": "Business And Marketing",
+          "children": [
+            {
+              "slug": "brand-voice-tone",
+              "ka": "ბრენდის ხმა და ტონი",
+              "en": "Brand Voice & Tone"
+            },
+            {
+              "slug": "business-names-slogans",
+              "ka": "ბიზნეს სახელები და სლოგანები",
+              "en": "Business Names & Slogans"
+            },
+            {
+              "slug": "white-papers",
+              "ka": "თეთრი ფურცელი",
+              "en": "White Papers"
+            },
+            {
+              "slug": "product-descriptions",
+              "ka": "პროდუქტის აღწერა",
+              "en": "Product Descriptions"
+            },
+            {
+              "slug": "ad-copy",
+              "ka": "რეკლამის ქოფი",
+              "en": "Ad Copy"
+            },
+            {
+              "slug": "sales-copy",
+              "ka": "გაყიდვების ქოფი",
+              "en": "Sales Copy"
+            },
+            {
+              "slug": "e-mail-copy",
+              "ka": "ელ-ფოსტის ქოფი",
+              "en": "E-Mail Copy"
+            },
+            {
+              "slug": "social-media-copy",
+              "ka": "სოციალური მედიის ქოფი",
+              "en": "Social Media Copy"
+            },
+            {
+              "slug": "press-releases",
+              "ka": "პრეს რელიზი",
+              "en": "Press Releases"
+            }
+          ]
+        },
+        {
+          "slug": "translation-and-transcription",
+          "ka": "თარგმანი და ტრანსკრიფცია",
+          "en": "Translation And Transcription",
+          "children": [
+            {
+              "slug": "translation",
+              "ka": "თარგმანი",
+              "en": "Translation"
+            }
+          ]
+        },
+        {
+          "slug": "writing-translation-various",
+          "ka": "სხვადასხვა",
+          "en": "Various",
+          "children": [
+            {
+              "slug": "technical-writing",
+              "ka": "ტექნიკური წერა",
+              "en": "Technical Writing"
+            },
+            {
+              "slug": "grant-writing",
+              "ka": "საგრანტო წერა",
+              "en": "Grant Writing"
+            },
+            {
+              "slug": "custom-writing-promts",
+              "ka": "მორგებული წერის მოთხოვნა",
+              "en": "Custom Writing Promts"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "photography",
+      "ka": "ფოტოგრაფია",
+      "en": "Photography",
+      "children": [
+        {
+          "slug": "products-lifestyle",
+          "ka": "პროდუქტები და ცხოვრების წესი",
+          "en": "Products & Lifestyle",
+          "children": [
+            {
+              "slug": "product-photographers",
+              "ka": "პროდუქტის ფოტოგრაფები",
+              "en": "Product Photographers"
+            },
+            {
+              "slug": "food-photographers",
+              "ka": "კვების ფოტოგრაფები",
+              "en": "Food Photographers"
+            },
+            {
+              "slug": "lifestyle-fashion-photographers",
+              "ka": "ცხოვრების სტილისა და მოდის ფოტოგრაფები",
+              "en": "Lifestyle & Fashion Photographers"
+            }
+          ]
+        },
+        {
+          "slug": "people-scenes",
+          "ka": "ხალხი და სცენები",
+          "en": "People & Scenes",
+          "children": [
+            {
+              "slug": "portrait-photographers",
+              "ka": "პორტრეტის ფოტოგრაფები",
+              "en": "Portrait Photographers"
+            },
+            {
+              "slug": "event-photographers",
+              "ka": "ღონისძიების ფოტოგრაფები",
+              "en": "Event Photographers"
+            },
+            {
+              "slug": "real-estate-photographers",
+              "ka": "უძრავი ქონების ფოტოგრაფები",
+              "en": "Real Estate Photographers"
+            },
+            {
+              "slug": "scenic-photographers",
+              "ka": "სცენური ფოტოგრაფები",
+              "en": "Scenic Photographers"
+            }
+          ]
+        },
+        {
+          "slug": "photography-various",
+          "ka": "სხვადასხვა",
+          "en": "Various",
+          "children": [
+            {
+              "slug": "modeling-and-acting",
+              "ka": "მოდელირება და მსახიობობა",
+              "en": "Modeling & Acting"
+            },
+            {
+              "slug": "styling-and-beauty",
+              "ka": "სტილი და სილამაზე",
+              "en": "Styling & beauty"
+            },
+            {
+              "slug": "photography-various-other",
+              "ka": "სხვა",
+              "en": "Other"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "projectCategories": [
+    {
+      "slug": "graphics-design",
+      "ka": "გრაფიკული დიზაინი",
+      "en": "Graphics & Design",
+      "gigCategory": "graphics-design"
+    },
+    {
+      "slug": "music-audio",
+      "ka": "მუსიკა და ხმა",
+      "en": "Music & Audio",
+      "gigCategory": "music-audio"
+    },
+    {
+      "slug": "programming-tech",
+      "ka": "პროგრამირება და ტექნოლოგიები",
+      "en": "Programming & Tech",
+      "gigCategory": "programming-tech"
+    },
+    {
+      "slug": "digital-marketing",
+      "ka": "ციფრული მარკეტინგი",
+      "en": "Digital Marketing",
+      "gigCategory": "digital-marketing"
+    },
+    {
+      "slug": "video-animation",
+      "ka": "ვიდეო და ანიმაცია",
+      "en": "Video & Animation",
+      "gigCategory": "video-animation"
+    },
+    {
+      "slug": "business",
+      "ka": "ბიზნესი",
+      "en": "Business",
+      "gigCategory": "business"
+    },
+    {
+      "slug": "photography",
+      "ka": "ფოტოგრაფია",
+      "en": "Photography",
+      "gigCategory": "photography"
+    }
+  ]
+}

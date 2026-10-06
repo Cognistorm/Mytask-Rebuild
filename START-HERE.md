@@ -25,7 +25,7 @@ To edit or add an agent, open its `.md` file and change the text, or type `/agen
 
 **1. Install tools** (one time)
 - Claude desktop app → sign in → open the **Code** section. Or, in a terminal: `npm install -g @anthropic-ai/claude-code`.
-- Git, Node.js 20+ LTS, pnpm (`npm i -g pnpm`), Docker Desktop.
+- Git, Node.js 24 LTS, pnpm (`npm i -g pnpm`). No Docker (ADR-020); see `docs/SETUP-LOCAL.md`.
 - For the mobile app later: Expo Go app on your phone, plus Xcode (Mac, for iOS) and/or Android Studio.
 
 **2. Create the new project**
@@ -60,7 +60,7 @@ The orchestrator reads everything and tells you the next step.
 |---|---|---|---|
 | 1 Discovery | `/discovery` | `docs/01-discovery/*`: full map of the old platform | Answer `open-questions.md`, then confirm "this is everything my platform does" |
 | 2 Blueprint | "Use product-analyst to write all specs" → "Use solution-architect to design architecture, data model and openapi.yaml" → "Use ui-ux-designer to create the design system and preview page" | Specs, API contract, design preview | Read the specs. Open `docs/05-design/preview/index.html` in a browser. |
-| 3 Foundation | "Use devops-engineer to scaffold the monorepo and docker" → `/feature 01-auth.md` | `docker compose up` + `pnpm dev` runs everything; login works on web AND the app | Log in on both |
+| 3 Foundation | "Use devops-engineer to scaffold the monorepo and docker" → `/feature 01-auth.md` | `pnpm local` runs everything; login works on web AND the app | Log in on both |
 | 4 Features | `/feature 02-...md`, then the next, one at a time | Each feature on web + mobile + tests | QA report says PASS; you click through it |
 | 5 Migration | "Use data-migration-engineer to migrate a copy of the DB" | Migration report: counts and money match | Numbers match |
 | 6 Launch | "Use devops-engineer to prepare staging" … | Live site + store submissions | Final go |
@@ -105,5 +105,5 @@ mytask-platform/
 ├── packages/i18n/            ka.json (filled) + en.json ("" values)
 ├── packages/assets/          logos and images from the live site
 ├── tools/migration/          old DB → new DB scripts
-└── docker-compose.yml        local database, storage, email catcher
+└── docker-compose.yml        container stack for CI and deployment (locally: `pnpm local`, ADR-020)
 ```

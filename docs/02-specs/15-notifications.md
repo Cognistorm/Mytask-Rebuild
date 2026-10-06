@@ -117,7 +117,7 @@ One row per event. Legend — **E** email, **I** in-app, **P** push (NEW P-11; o
 | EV-11 | Email change requested: confirm the new address | user (new address) | ✓ | – | – | × | `EmailChangeConfirm` `t_email_change_confirm_subject` | – | **NEW** (P-18) | S | 02 AC-30 |
 | EV-12 | Email changed: notice to the old address | user (old address) | ✓ | – | – | × | `EmailChangeNotice` `t_email_change_notice_subject`, `t_email_change_notice_body` | – | **NEW** (P-18) | S | 02 AC-30 |
 | EV-13 | Profile reported | S-100 | ✓ | – | – | – | `Admin/ProfileReported` `t_subject_admin_profile_reported` | E-15 | kept (CHANGE recipients) | A | 02 AC-14 |
-| EV-14 | Portfolio item pending review (S-071 OFF) | S-100 | ✓ | – | – | – | `Admin/PendingPortfolio` `t_subject_admin_pending_portfolio` | E-12 | kept | A | 02 AC-25 |
+| EV-14 | Portfolio item enters pending review (S-071 OFF; not repeated for edits while pending, Q-166) | S-100 | ✓ | – | – | – | `Admin/PendingPortfolio` `t_subject_admin_pending_portfolio` | E-12 | kept | A | 02 AC-25 |
 | EV-15 | Portfolio item published | owner | ✓ | ✓ | ✓ | o | `PortfolioPublished` `t_subject_seller_portfolio_published`; `t_ur_portfolio_title_has_been_published` | E-74, I-47 | kept (push NEW) | T | 02 AC-26 |
 | EV-16 | KYC verification submitted | S-100 | ✓ | – | – | – | `Admin/NewIdVerificationPending` `t_verification_center` | E-04 | kept | A | 02 AC-36 |
 | EV-17 | KYC approved | user | ✓ | ✓ | ✓ | o | `VerificationApproved` `t_subject_everyone_verification_approved`; `t_ur_account_has_verified` | E-54, I-48 | kept (push NEW) | T | 02 AC-37 |

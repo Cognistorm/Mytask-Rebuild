@@ -8,7 +8,7 @@ import { ApiException } from '../../platform/errors/api-exception';
 import { randomReferralCode, randomToken, sha256 } from '../../platform/crypto';
 import { OutboxService } from '../../platform/outbox/outbox.service';
 import { SettingsService } from '../../platform/settings/settings.service';
-import { toMe } from './me.mapper';
+import { AccountService } from './account.service';
 import { PasswordService } from './password.service';
 import { RecaptchaService, type RecaptchaAction } from './recaptcha.service';
 import { ReferralService } from './referral.service';
@@ -61,6 +61,7 @@ export class AuthService {
     private readonly recaptcha: RecaptchaService,
     private readonly referrals: ReferralService,
     private readonly outbox: OutboxService,
+    private readonly account: AccountService,
   ) {}
 
   // ------------------------------------------------------------------ register (AC-1…AC-6, EC-1)
@@ -356,18 +357,13 @@ export class AuthService {
       rememberMe,
     });
     const cookies = isCookieClient(ctx.client);
-    const twoFactorAvailable = await this.settings.get('S-056');
-    const socialAccounts = await this.prisma.socialAccount.findMany({
-      where: { userId: user.id },
-      select: { provider: true },
-    });
     return {
       kind: 'session',
       tokens,
       deviceId,
       rememberMe,
       body: {
-        user: toMe({ ...user, socialAccounts }, twoFactorAvailable),
+        user: await this.account.me(user.id),
         // Browsers get HttpOnly cookies instead of body tokens (ADR-002 §2).
         accessToken: cookies ? null : tokens.accessToken,
         accessTokenExpiresAt: tokens.accessTokenExpiresAt.toISOString(),
@@ -388,10 +384,6 @@ export class AuthService {
       throw new ApiException(403, 'ACCOUNT_SUSPENDED', 't_account_suspended');
     if (outcome.kind === 'invalid')
       throw new ApiException(401, 'UNAUTHENTICATED', 't_unauthorized');
-    const user = await this.prisma.user.findUniqueOrThrow({
-      where: { id: outcome.userId },
-      include: { profile: true, socialAccounts: { select: { provider: true } } },
-    });
     const cookies = isCookieClient(ctx.client);
     return {
       kind: 'session',
@@ -399,7 +391,7 @@ export class AuthService {
       deviceId: ctx.deviceId ?? '',
       rememberMe: outcome.rememberMe, // SEC-41: the login's choice, not always 30 days
       body: {
-        user: toMe(user, await this.settings.get('S-056')),
+        user: await this.account.me(outcome.userId),
         accessToken: cookies ? null : outcome.tokens.accessToken,
         accessTokenExpiresAt: outcome.tokens.accessTokenExpiresAt.toISOString(),
         refreshToken: cookies ? null : outcome.tokens.refreshToken,

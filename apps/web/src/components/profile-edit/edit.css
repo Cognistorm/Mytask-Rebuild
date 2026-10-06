@@ -1,0 +1,296 @@
+/* Edit profile `/account/profile` (spec 02 AC-15…AC-23): design tokens only (CLAUDE.md).
+   Breakpoint lg 1024px as a literal (CSS variables cannot appear in @media). */
+.mt-edit {
+  display: grid;
+  gap: var(--mt-space-6);
+}
+
+.mt-edit-title {
+  margin: 0;
+  font-size: var(--mt-font-size-2xl);
+  line-height: var(--mt-font-line-height-2xl);
+  font-weight: var(--mt-font-weight-bold);
+}
+
+/* Card + links on top on phones, beside the blocks from lg (as the public profile). */
+.mt-edit-layout,
+.mt-edit-side,
+.mt-edit-main {
+  display: grid;
+  gap: var(--mt-space-6);
+  align-items: start;
+  min-width: 0;
+}
+
+@media (min-width: 1024px) {
+  .mt-edit-layout {
+    grid-template-columns: var(--mt-size-layout-filter-column-width) minmax(0, 1fr);
+  }
+}
+
+.mt-edit-card,
+.mt-edit-block {
+  display: grid;
+  gap: var(--mt-space-4);
+  padding: var(--mt-space-6);
+  background: var(--mt-bg-surface);
+  border: var(--mt-border-width-hairline) solid var(--mt-border-subtle);
+  border-radius: var(--mt-radius-card);
+  min-width: 0;
+}
+
+/* ---- Left card ---- */
+.mt-edit-card {
+  justify-items: center;
+  text-align: center;
+}
+
+.mt-edit-avatar,
+.mt-edit-identity,
+.mt-edit-headline {
+  display: grid;
+  justify-items: center;
+  gap: var(--mt-space-2);
+  inline-size: 100%;
+}
+
+.mt-edit-avatar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--mt-space-2);
+}
+
+/* The file input is visually hidden; its label is the button, so it shows the focus ring. */
+.mt-edit-file:focus-within {
+  outline: var(--mt-focus-ring-width) solid var(--mt-focus-ring);
+  outline-offset: var(--mt-focus-ring-offset);
+}
+
+.mt-edit-file[data-disabled],
+.mt-edit .mt-button[disabled] {
+  cursor: progress;
+  background: var(--mt-action-disabled);
+  color: var(--mt-action-on-disabled);
+}
+
+.mt-edit-username {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mt-space-1);
+  margin: 0;
+  font-size: var(--mt-font-size-lg);
+  font-weight: var(--mt-font-weight-bold);
+  overflow-wrap: anywhere;
+}
+
+.mt-edit-headline {
+  padding-block-start: var(--mt-space-4);
+  border-block-start: var(--mt-border-width-hairline) solid var(--mt-border-subtle);
+}
+
+.mt-edit-headline .mt-edit-form {
+  inline-size: 100%;
+  text-align: start;
+}
+
+.mt-edit-headline-text {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.mt-edit-muted {
+  margin: 0;
+  color: var(--mt-text-secondary);
+  font-size: var(--mt-font-size-sm);
+}
+
+.mt-edit-stats {
+  display: grid;
+  gap: var(--mt-space-2);
+  inline-size: 100%;
+  margin: 0;
+  padding-block-start: var(--mt-space-4);
+  border-block-start: var(--mt-border-width-hairline) solid var(--mt-border-subtle);
+  font-size: var(--mt-font-size-sm);
+}
+
+.mt-edit-stats div {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--mt-space-2);
+}
+
+.mt-edit-stats dt {
+  color: var(--mt-text-secondary);
+}
+
+.mt-edit-stats dd {
+  margin: 0;
+  font-weight: var(--mt-font-weight-medium);
+  text-align: end;
+}
+
+.mt-edit-links {
+  display: grid;
+  gap: var(--mt-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mt-edit-links a {
+  display: flex;
+  align-items: center;
+  min-block-size: var(--mt-size-touch-target-min);
+  color: var(--mt-text-link);
+}
+
+.mt-edit-links a:hover {
+  color: var(--mt-text-link-hover);
+}
+
+/* ---- Blocks ---- */
+.mt-edit-block-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--mt-space-3);
+}
+
+.mt-edit-block-title {
+  margin: 0;
+  font-size: var(--mt-font-size-lg);
+  line-height: var(--mt-font-line-height-lg);
+  font-weight: var(--mt-font-weight-semibold);
+}
+
+.mt-edit-block-hint {
+  margin: 0;
+  color: var(--mt-text-secondary);
+  font-size: var(--mt-font-size-sm);
+}
+
+.mt-edit-block-body,
+.mt-edit-form {
+  display: grid;
+  gap: var(--mt-space-4);
+  min-width: 0;
+}
+
+.mt-edit-grid {
+  display: grid;
+  gap: var(--mt-space-4);
+}
+
+@media (min-width: 768px) {
+  .mt-edit-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.mt-edit-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--mt-space-2);
+}
+
+/* Text button of the block head and of list rows (legacy pencil + "Edit"). */
+.mt-edit-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mt-space-1);
+  min-block-size: var(--mt-size-touch-target-min);
+  padding: 0 var(--mt-space-2);
+  border: 0;
+  background: none;
+  color: var(--mt-text-link);
+  font: inherit;
+  font-size: var(--mt-font-size-sm);
+  font-weight: var(--mt-font-weight-medium);
+  cursor: pointer;
+}
+
+.mt-edit-link:hover {
+  color: var(--mt-text-link-hover);
+}
+
+.mt-edit-link:focus-visible {
+  outline: var(--mt-focus-ring-width) solid var(--mt-focus-ring);
+  outline-offset: var(--mt-focus-ring-offset);
+}
+
+.mt-edit-link svg {
+  inline-size: var(--mt-size-icon-sm);
+  block-size: var(--mt-size-icon-sm);
+}
+
+.mt-edit-link-danger {
+  color: var(--mt-text-danger);
+}
+
+.mt-edit-about {
+  margin: 0;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.mt-edit-availability {
+  display: grid;
+  justify-items: start;
+  gap: var(--mt-space-3);
+  padding: var(--mt-space-4);
+  background: var(--mt-bg-subtle);
+  border-radius: var(--mt-radius-card);
+}
+
+.mt-edit-availability p {
+  margin: 0;
+}
+
+.mt-edit-availability .mt-edit-buttons {
+  justify-self: stretch;
+}
+
+.mt-edit-quote {
+  margin: 0;
+  padding-inline-start: var(--mt-space-4);
+  border-inline-start: var(--mt-border-width-strong) solid var(--mt-border-default);
+  font-style: italic;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.mt-edit-entries {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mt-edit-entries li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0 var(--mt-space-3);
+  padding-block: var(--mt-space-2);
+  border-block-start: var(--mt-border-width-hairline) solid var(--mt-border-subtle);
+}
+
+.mt-edit-entries li[data-editing] {
+  background: var(--mt-bg-subtle);
+}
+
+.mt-edit-entry-name {
+  font-weight: var(--mt-font-weight-medium);
+  overflow-wrap: anywhere;
+}
+
+.mt-edit-entry-actions {
+  grid-row: 1 / span 2;
+  grid-column: 2;
+  display: flex;
+}

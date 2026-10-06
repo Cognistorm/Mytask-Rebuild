@@ -23,6 +23,7 @@ D6ErrorCode:
     - ROLE_IN_USE
     - SETTING_MANAGED_ELSEWHERE
     - CUSTOM_CODE_HOST_NOT_ALLOWED
+    - CUSTOM_CODE_HOST_DENIED
     - CUSTOM_CODE_FIXED_VENDOR_REQUIRED
     - FEE_REQUIRES_PAYMENT_FLOW
     - TRANSLATION_PLACEHOLDERS_MISMATCH
@@ -45,6 +46,7 @@ D6ErrorCode:
     ROLE_IN_USE: '[409] The role is still assigned to staff and cannot be deleted (spec 16 AC-10). messageKey t_category_in_use'
     SETTING_MANAGED_ELSEWHERE: '[422] This register row is not edited through the generic settings endpoint: fee rules S-010…S-018 → `/admin/fee-rules`; S-121 → `/admin/system/maintenance`. `details.operationId` names the right operation. messageKey none (the admin UI never offers it)'
     CUSTOM_CODE_HOST_NOT_ALLOWED: '[422] Custom code (S-110) references hosts that are not in S-127, or S-127 would drop a host still used (spec 16 AC-74, EC-10). `details.hosts` lists them. messageKey t_custom_code_host_not_allowed'
+    CUSTOM_CODE_HOST_DENIED: '[422] Custom code (S-110) or an S-127 host loads a tag-manager container from the built-in deny list (code constant, not a setting): Google Tag Manager `gtm.js` / `GTM-` container ids, Adobe Launch, Tealium, Segment, GTM server-side preview hosts; matched on URLs and container ids, so the Google tag `/gtag/js?id=G-…` is allowed (spec 16 AC-74; ADR-019 §3, Owner 2026-10-01 Q-158 (a)). Nothing is saved. `details.matches` lists the matched URLs, ids or hosts. messageKey t_custom_code_host_denied'
     CUSTOM_CODE_FIXED_VENDOR_REQUIRED: '[422] A host added to S-127 was not confirmed as a fixed-code vendor (`fixedCodeConfirmed: true`); nothing is saved (spec 16 AC-74a; Owner 2026-09-30 Q-146). `details.hosts` lists them. messageKey t_custom_code_fixed_vendor_required'
     FEE_REQUIRES_PAYMENT_FLOW: '[422] The project posting fee (S-016, `project.posting_fee`) cannot be switched ON while no posting-payment flow exists (spec 16 AC-49). messageKey t_fee_requires_payment_flow'
     TRANSLATION_PLACEHOLDERS_MISMATCH: '[422] The override''s placeholders differ from the base value (spec 16 AC-64). `details.placeholders` lists the expected ones. messageKey t_translation_placeholders_mismatch'

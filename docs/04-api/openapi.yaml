@@ -3,7 +3,7 @@
 openapi: 3.1.0
 info:
   title: MyTask.ge API
-  version: 1.2.4
+  version: 1.3.2
   summary: One API for the MyTask.ge website, mobile apps (iOS, Android) and admin panel.
   description: |
     **Status: approved by the Owner 2026-09-30 as the contract** (Phase 2 gate, version 1.0.0, including
@@ -15,7 +15,13 @@ info:
     (ADR-002 §7, Q-156); **1.2.1** (descriptions only) staff-login IP bans: canonical spelling and
     automatic IPv6 bans per /64 prefix (ADR-002 §6, SEC-57, SEC-60); **1.2.2** (descriptions only) `register`
     limit 10 per IP per hour (Q-157, SEC-35); **1.2.3** (descriptions only) register rows S-131/S-132, the EV-02
-    switch and hourly cap (Q-159); **1.2.4** (descriptions only) reCAPTCHA action and host per form (SEC-47).
+    switch and hourly cap (Q-159); **1.2.4** (descriptions only) reCAPTCHA action and host per form (SEC-47); **1.3.0** new error
+    `422 CUSTOM_CODE_HOST_DENIED` on `adminUpdateSetting` / `adminRestoreSettingVersion` (built-in
+    tag-manager deny list, ADR-019 §3, Q-158 (a)); **1.3.1** `Me.countryCode` and `MeUpdateRequest.countryCode`
+    marked deprecated (no country field in account settings, ADR-021, Owner 2026-10-02); **1.3.2** `x-rate-limit`
+    30 saves per user per hour on `createPortfolioItem` / `updatePortfolioItem` with `429` (ADR-022, SEC-69), and
+    "every attempt counts" on the shared report limit (I-31); `updatePortfolioItem` sends EV-14 only when the item
+    enters `pending` (Owner Q-166 (a)).
 
     **The contract is the law** (CLAUDE.md). Web (`apps/web`), mobile (`apps/mobile`) and admin
     (`apps/admin`) use only this API through the generated `packages/types` + `packages/api-client`
@@ -9106,13 +9112,19 @@ paths:
           non-grantable); every external host in the code must be in S-127 and S-127 cannot drop a host
           still used → `422 CUSTOM_CODE_HOST_NOT_ALLOWED` with `details.hosts` (AC-74, EC-10); full
           before/after audited; `enabled: false` = "Disable custom code" (AC-75).
+        - **Built-in tag-manager deny list** (spec 16 AC-74; ADR-019 §3, Owner 2026-10-01 Q-158 (a)): S-110 code
+          or S-127 hosts that load a tag-manager container (Google Tag Manager `gtm.js` / `GTM-` ids, Adobe
+          Launch, Tealium, Segment, GTM server-side preview hosts; matched on URLs and container ids, so the
+          Google tag `/gtag/js?id=G-…` stays allowed) → `422 CUSTOM_CODE_HOST_DENIED` with `details.matches`
+          (messageKey `t_custom_code_host_denied`); nothing is saved. Checked before the S-127 host rules.
         - **S-127 fixed-code vendors only** (spec 16 AC-74a, R-A10; Owner 2026-09-30 Q-146 (c)): the value is
           `CustomCodeAllowedHostsValue`; every host added by the save must carry `fixedCodeConfirmed: true`
           (the Super-admin ticked `t_custom_code_fixed_vendor_confirm`: the host serves fixed vendor code such
           as an analytics or advertising pixel, version-pinned where possible, not a tag manager) → else `422
           CUSTOM_CODE_FIXED_VENDOR_REQUIRED` (`details.hosts`, messageKey `t_custom_code_fixed_vendor_required`)
           and nothing is saved. The API stores `confirmedBy` / `confirmedAt` per host (kept for hosts already
-          in the list) and audits them. Isolating custom code in its own origin is a Phase 3 study (ADR-013 §7).
+          in the list) and audits them. Isolation was studied in ADR-019: the in-page model stays, with the
+          deny list above and the public/private full page load on the web (spec 16 AC-73).
         - **S-129** `withdrawals.security_change_pause_hours` (area `withdrawals`, integer ≥ 0; spec 14 AC-21,
           EC-11): the new value applies to every later withdrawal request, including pauses already running.
         - **S-121** → `422 SETTING_MANAGED_ELSEWHERE` (use `adminUpdateMaintenance`); fee rows S-010…S-018 →
@@ -9274,7 +9286,7 @@ paths:
     post:
       operationId: adminRestoreSettingVersion
       summary: Restore an earlier value as a new change
-      description: '"Restore" creates a new change with the old value (spec 16 AC-53); same permission, validation, re-authentication, audit and EV-124 rules as `adminUpdateSetting`. Rows with a secret (S-065…S-069) cannot be restored (`422 BUSINESS_RULE_VIOLATION`); staff enter the keys again.'
+      description: '"Restore" creates a new change with the old value (spec 16 AC-53); same permission, validation, re-authentication, audit and EV-124 rules as `adminUpdateSetting`. Rows with a secret (S-065…S-069) cannot be restored (`422 BUSINESS_RULE_VIOLATION`); staff enter the keys again. An old S-110 / S-127 value is checked against the current built-in tag-manager deny list like a new save → `422 CUSTOM_CODE_HOST_DENIED` (`details.matches`; spec 16 AC-74, ADR-019 §3).'
       tags:
         - Admin Settings
       security:
@@ -9326,6 +9338,7 @@ paths:
         ownership: none
       x-covers:
         - 16 AC-53
+        - 16 AC-74
       x-notifications:
         - EV-124
       x-audit: setting.restore
@@ -16580,7 +16593,7 @@ paths:
         - S-100
       x-notifications:
         - EV-22
-      x-rate-limit: 10 reports per user per hour, shared by createUserReport, createGigReport, createProjectReport and createProposalReport (SEC-23)
+      x-rate-limit: 10 reports per user per hour, shared by createUserReport, createGigReport, createProjectReport and createProposalReport; every attempt counts, before the target check, also one refused with 400, 403 or 404 (SEC-23, I-31)
       requestBody:
         required: true
         content:
@@ -19205,6 +19218,7 @@ paths:
         - S-100
       x-notifications:
         - EV-14
+      x-rate-limit: 30 saves per user per hour, shared by createPortfolioItem and updatePortfolioItem; every attempt counts, also a refused one (SEC-69, ADR-022)
       requestBody:
         required: true
         content:
@@ -19226,6 +19240,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '422':
           $ref: '#/components/responses/UnprocessableEntity'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
   /portfolio-items/lookup:
     parameters:
       - $ref: '#/components/parameters/AcceptLanguage'
@@ -19304,7 +19320,7 @@ paths:
     patch:
       operationId: updatePortfolioItem
       summary: Edit a portfolio item
-      description: New data replaces the old; `imageFileIds` replaces the whole gallery (old files deleted); with S-071 OFF the item goes back to `pending` and EV-14 is sent again (spec 02 AC-25, AC-27). Editing a `rejected` item follows the same rule (`pending`, or `active` at once with S-071 ON) and clears `rejectionReason`/`rejectedAt` for the owner; the old reason stays in the audit log (spec 02 AC-42).
+      description: New data replaces the old; `imageFileIds` replaces the whole gallery (old files deleted); with S-071 OFF the item goes back to `pending` and EV-14 is sent when it enters `pending` (an edit of an item that is already `pending` sends no new EV-14, Owner Q-166 (a)) (spec 02 AC-25, AC-27). Editing a `rejected` item follows the same rule (`pending`, or `active` at once with S-071 ON) and clears `rejectionReason`/`rejectedAt` for the owner; the old reason stays in the audit log (spec 02 AC-42).
       tags:
         - Portfolio
       x-permission:
@@ -19321,6 +19337,7 @@ paths:
         - S-100
       x-notifications:
         - EV-14
+      x-rate-limit: 30 saves per user per hour, shared by createPortfolioItem and updatePortfolioItem; every attempt counts, also a refused one (SEC-69, ADR-022)
       requestBody:
         required: true
         content:
@@ -19344,6 +19361,8 @@ paths:
           $ref: '#/components/responses/NotFound'
         '422':
           $ref: '#/components/responses/UnprocessableEntity'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
     delete:
       operationId: deletePortfolioItem
       summary: Delete a portfolio item (with its files)
@@ -20004,7 +20023,7 @@ paths:
         - 10 AC-22
       x-notifications:
         - EV-60
-      x-rate-limit: 10 reports per user per hour, shared by createUserReport, createGigReport, createProjectReport and createProposalReport (SEC-23)
+      x-rate-limit: 10 reports per user per hour, shared by createUserReport, createGigReport, createProjectReport and createProposalReport; every attempt counts, before the target check, also one refused with 400, 403 or 404 (SEC-23, I-31)
       requestBody:
         required: true
         content:
@@ -20230,7 +20249,7 @@ paths:
         - 11 AC-15
       x-notifications:
         - EV-65
-      x-rate-limit: 10 reports per user per hour, shared by createUserReport, createGigReport, createProjectReport and createProposalReport (SEC-23)
+      x-rate-limit: 10 reports per user per hour, shared by createUserReport, createGigReport, createProjectReport and createProposalReport; every attempt counts, before the target check, also one refused with 400, 403 or 404 (SEC-23, I-31)
       requestBody:
         required: true
         content:
@@ -21955,7 +21974,7 @@ paths:
         - S-100
       x-notifications:
         - EV-13
-      x-rate-limit: 10 reports per user per hour, shared by createUserReport, createGigReport, createProjectReport and createProposalReport (SEC-23)
+      x-rate-limit: 10 reports per user per hour, shared by createUserReport, createGigReport, createProjectReport and createProposalReport; every attempt counts, before the target check, also one refused with 400, 403 or 404 (SEC-23, I-31)
       requestBody:
         required: true
         content:
@@ -29506,6 +29525,7 @@ components:
         - ROLE_IN_USE
         - SETTING_MANAGED_ELSEWHERE
         - CUSTOM_CODE_HOST_NOT_ALLOWED
+        - CUSTOM_CODE_HOST_DENIED
         - CUSTOM_CODE_FIXED_VENDOR_REQUIRED
         - FEE_REQUIRES_PAYMENT_FLOW
         - TRANSLATION_PLACEHOLDERS_MISMATCH
@@ -29528,6 +29548,7 @@ components:
         ROLE_IN_USE: '[409] The role is still assigned to staff and cannot be deleted (spec 16 AC-10). messageKey t_category_in_use'
         SETTING_MANAGED_ELSEWHERE: '[422] This register row is not edited through the generic settings endpoint: fee rules S-010…S-018 → `/admin/fee-rules`; S-121 → `/admin/system/maintenance`. `details.operationId` names the right operation. messageKey none (the admin UI never offers it)'
         CUSTOM_CODE_HOST_NOT_ALLOWED: '[422] Custom code (S-110) references hosts that are not in S-127, or S-127 would drop a host still used (spec 16 AC-74, EC-10). `details.hosts` lists them. messageKey t_custom_code_host_not_allowed'
+        CUSTOM_CODE_HOST_DENIED: '[422] Custom code (S-110) or an S-127 host loads a tag-manager container from the built-in deny list (code constant, not a setting): Google Tag Manager `gtm.js` / `GTM-` container ids, Adobe Launch, Tealium, Segment, GTM server-side preview hosts; matched on URLs and container ids, so the Google tag `/gtag/js?id=G-…` is allowed (spec 16 AC-74; ADR-019 §3, Owner 2026-10-01 Q-158 (a)). Nothing is saved. `details.matches` lists the matched URLs, ids or hosts. messageKey t_custom_code_host_denied'
         CUSTOM_CODE_FIXED_VENDOR_REQUIRED: '[422] A host added to S-127 was not confirmed as a fixed-code vendor (`fixedCodeConfirmed: true`); nothing is saved (spec 16 AC-74a; Owner 2026-09-30 Q-146). `details.hosts` lists them. messageKey t_custom_code_fixed_vendor_required'
         FEE_REQUIRES_PAYMENT_FLOW: '[422] The project posting fee (S-016, `project.posting_fee`) cannot be switched ON while no posting-payment flow exists (spec 16 AC-49). messageKey t_fee_requires_payment_flow'
         TRANSLATION_PLACEHOLDERS_MISMATCH: '[422] The override''s placeholders differ from the base value (spec 16 AC-64). `details.placeholders` lists the expected ones. messageKey t_translation_placeholders_mismatch'
@@ -32392,6 +32413,8 @@ components:
           oneOf:
             - $ref: '#/components/schemas/CountryCode'
             - type: 'null'
+          deprecated: true
+          description: Deprecated (ADR-021, Owner 2026-10-02) — the platform serves Georgia only; account settings have no country field. Clients do not show it; still returned (stored legacy value or null) until `/api/v2`.
         city:
           type:
             - string
@@ -32505,7 +32528,8 @@ components:
           oneOf:
             - $ref: '#/components/schemas/CountryCode'
             - type: 'null'
-          description: From the active country list (D2 `/countries`); null clears it.
+          deprecated: true
+          description: Deprecated (ADR-021, Owner 2026-10-02) — account settings have no country field; clients do not send it. Still accepted (active country list, D2 `/countries`; null clears it) until `/api/v2`.
         city:
           type: string
           minLength: 1

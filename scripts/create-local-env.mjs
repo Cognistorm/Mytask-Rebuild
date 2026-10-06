@@ -1,4 +1,4 @@
-// `pnpm setup:env` — writes a LOCAL-ONLY `.env` for the docker compose stack + `pnpm dev`.
+// `pnpm setup:env` — writes a LOCAL-ONLY `.env` for `pnpm local` / `pnpm dev` (ADR-020, no Docker).
 // Every secret is freshly random; nothing here is ever used outside the Owner's computer (CLAUDE.md rule 8).
 // Refuses to overwrite an existing .env.
 import { generateKeyPairSync, randomBytes } from 'node:crypto';
@@ -61,7 +61,8 @@ const lines = [
   'MAIL_FROM_ADDRESS=no-reply@mytask.local',
   'MAIL_FROM_NAME=MyTask.ge (local)',
   'BOG_API_BASE_URL=http://localhost:4100',
-  'CLAMAV_HOST=localhost',
+  '# No ClamAV on this computer: uploads are type-checked and marked scan_skipped (ADR-009 §6, ADR-020).',
+  'SCAN_PROVIDER=none',
   '',
 ];
 writeFileSync(target, lines.join('\n'), { mode: 0o600 });

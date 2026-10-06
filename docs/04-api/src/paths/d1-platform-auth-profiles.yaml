@@ -1387,7 +1387,7 @@
     x-covers: ['02 AC-14']
     x-settings: [S-100]
     x-notifications: [EV-13]
-    x-rate-limit: 10 reports per user per hour, shared by createUserReport, createGigReport, createProjectReport and createProposalReport (SEC-23)
+    x-rate-limit: 10 reports per user per hour, shared by createUserReport, createGigReport, createProjectReport and createProposalReport; every attempt counts, before the target check, also one refused with 400, 403 or 404 (SEC-23, I-31)
     requestBody:
       required: true
       content:
@@ -1454,6 +1454,7 @@
     x-covers: ['02 AC-24', '02 AC-25']
     x-settings: [S-071, S-089, S-090, S-100]
     x-notifications: [EV-14]
+    x-rate-limit: 30 saves per user per hour, shared by createPortfolioItem and updatePortfolioItem; every attempt counts, also a refused one (SEC-69, ADR-022)
     requestBody:
       required: true
       content:
@@ -1469,6 +1470,7 @@
       '401': {$ref: '../components/responses.yaml#/Unauthorized'}
       '403': {$ref: '../components/responses.yaml#/Forbidden'}
       '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+      '429': {$ref: '../components/responses.yaml#/TooManyRequests'}
 
 /portfolio-items/lookup:
   parameters:
@@ -1524,12 +1526,13 @@
   patch:
     operationId: updatePortfolioItem
     summary: Edit a portfolio item
-    description: New data replaces the old; `imageFileIds` replaces the whole gallery (old files deleted); with S-071 OFF the item goes back to `pending` and EV-14 is sent again (spec 02 AC-25, AC-27). Editing a `rejected` item follows the same rule (`pending`, or `active` at once with S-071 ON) and clears `rejectionReason`/`rejectedAt` for the owner; the old reason stays in the audit log (spec 02 AC-42).
+    description: New data replaces the old; `imageFileIds` replaces the whole gallery (old files deleted); with S-071 OFF the item goes back to `pending` and EV-14 is sent when it enters `pending` (an edit of an item that is already `pending` sends no new EV-14, Owner Q-166 (a)) (spec 02 AC-25, AC-27). Editing a `rejected` item follows the same rule (`pending`, or `active` at once with S-071 ON) and clears `rejectionReason`/`rejectedAt` for the owner; the old reason stays in the audit log (spec 02 AC-42).
     tags: [Portfolio]
     x-permission: {audience: user, ownership: owner of the item; others 404}
     x-covers: ['02 AC-25', '02 AC-27', '02 AC-42']
     x-settings: [S-071, S-089, S-090, S-100]
     x-notifications: [EV-14]
+    x-rate-limit: 30 saves per user per hour, shared by createPortfolioItem and updatePortfolioItem; every attempt counts, also a refused one (SEC-69, ADR-022)
     requestBody:
       required: true
       content:
@@ -1546,6 +1549,7 @@
       '403': {$ref: '../components/responses.yaml#/Forbidden'}
       '404': {$ref: '../components/responses.yaml#/NotFound'}
       '422': {$ref: '../components/responses.yaml#/UnprocessableEntity'}
+      '429': {$ref: '../components/responses.yaml#/TooManyRequests'}
   delete:
     operationId: deletePortfolioItem
     summary: Delete a portfolio item (with its files)

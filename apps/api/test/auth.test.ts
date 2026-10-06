@@ -8,6 +8,7 @@ import { PrismaService } from '../src/platform/db/prisma.service';
 import { RedisService } from '../src/platform/redis/redis.module';
 import { SettingsService } from '../src/platform/settings/settings.service';
 import { ClientIpResolver } from '../src/platform/client-ip/client-ip.resolver';
+import { ipSourceProps } from '../src/platform/logging/logging.module';
 import { createTestApp } from './app';
 
 let app: NestExpressApplication;
@@ -470,6 +471,18 @@ describe('client IP chain (ADR-013 §19 a–c)', () => {
       }),
     );
     expect(r.ip).toBe('203.0.113.5');
+  });
+
+  it('the request log names the IP source: ssr-visitor only with the credential (review 07 I-41)', () => {
+    const tok = process.env.INTERNAL_SERVICE_TOKEN!;
+    const props = ipSourceProps(
+      new ClientIpResolver({ TRUSTED_PROXY_IPS: [], INTERNAL_SERVICE_TOKEN: tok } as never),
+    );
+    const ssr = { 'x-mytask-visitor-ip': '203.0.113.7', 'x-mytask-service-auth': tok };
+    expect(props(fake('10.0.0.5', ssr) as never)).toEqual({ ipSource: 'ssr-visitor' });
+    expect(props(fake('10.0.0.5', { 'x-mytask-visitor-ip': '203.0.113.7' }) as never)).toEqual({
+      ipSource: 'peer',
+    });
   });
 
   it('(b) through Caddy: canonical header trusted, visitor IP ignored even with the credential', () => {

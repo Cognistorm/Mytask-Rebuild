@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { components } from '@mytask/types';
 import { AdminNav } from '../../components/nav';
-import { Alert, Field } from '../../components/ui';
+import { Alert, Field } from '@mytask/ui/web';
 import { splitErrors, t, useAdminApi, type ApiErrorBody } from '../../lib/client';
 
 type Ban = components['schemas']['IpBan'];

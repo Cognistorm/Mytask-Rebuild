@@ -779,3 +779,85 @@ When: before slice 01 is marked done (security condition). Nothing else waits on
 Recommendation: (a) for launch, with (b) on the Phase 6 checklist if the S-061 switch is ever turned ON.
 When: before S-061 is turned ON in production. Nothing in Phase 3 waits on it.
 
+## Files F0 part 3 (backend, ROADMAP 4.1.5, 2026-10-02) — answered by Owner 2026-10-02
+
+### Q-161
+**File types and size limit for staff image uploads** (`adminCreateFileUpload`: category image, blog image, home logo). Legacy: category/sub/child category icon and image JPG/JPEG/PNG (`Admin/Categories/CreateValidator.php:44-46`); blog image JPG/JPEG/PNG/SVG/GIF (`Admin/Blog/CreateValidator.php:42`); site logos also WEBP/SVG (`Admin/Settings/GeneralValidator.php:32`); no size limit anywhere; the home logo cloud (`LogoCloud` model) had no upload screen.
+Options: (a) the legacy types without SVG (ADR-009 §5, script risk), at most 5 MB like the platform's other images (S-078), fixed rules; (b) like (a) but blog images and logos keep SVG (needs an SVG sanitiser); (c) like (a) with 10 MB.
+**Answer (Owner, 2026-10-02): (a).** Category image JPG/JPEG/PNG; blog image JPG/JPEG/PNG/GIF; home logo JPG/JPEG/PNG/WEBP/GIF; SVG refused; ≤ 5 MB; no new setting. Built in `apps/api/src/modules/files/purposes.ts` (4.1.5).
+
+## Account settings (web, ROADMAP 4.1.20a, 2026-10-02) — answered by Owner 2026-10-02
+
+### Q-162
+**Country field in account settings.** Spec 02 AC-29 had an optional country; legacy had it commented out; only Georgia is active.
+**Answer (Owner, 2026-10-02): remove it** ("the platform operates specifically for Georgia"). There is no country field in account settings, and the edit-profile card shows no country. `Me.countryCode` / `MeUpdateRequest.countryCode` are deprecated in contract 1.3.1. They are not removed, because ADR-014 §5 allows no breaking change in v1 (ADR-021).
+
+## Slice 02 security review 06 (orchestrator, ROADMAP 4.1.28, 2026-10-03) — answered by Owner 2026-10-03
+
+### Q-163
+**What does "Delete account" remove? (security review 06 SEC-66, with Q-147.)** Today "Delete account" behaves like legacy: the profile disappears (404) and the user is logged out everywhere. But the user's photo (avatar) and portfolio images stay downloadable by anyone who has their link, without time limit, and ID documents (KYC photos and selfie, also of declined checks) are kept with no end date. Under the Georgian personal-data law (keep data only as long as needed, delete on request), that is a risk for the platform.
+Options:
+- (a) On deletion, the avatar and portfolio images stop being public at once; the records stay for staff. KYC photos are deleted 90 days after the staff decision and at account deletion, unless there is a legal hold (as Q-147 proposes). Profile texts are pseudonymised after the retention period.
+- (b) Like (a), but KYC photos are kept until the account is deleted.
+- (c) Keep today's legacy behaviour and decide again before launch.
+
+Recommendation: (a).
+When: before Phase 5 (first real users / KYC import). Nothing in slice 02 waits on it.
+**Answer (Owner, 2026-10-03): (a), as recommended.** On deletion the avatar and portfolio images stop being public at once (the records stay for staff); KYC photos are deleted 90 days after the staff decision and at account deletion unless a legal hold applies; profile texts are pseudonymised after the retention period. This also answers the KYC part of Q-147. Built in ROADMAP 5.0 (spec 02 AC-34 and data-model notes updated by the analyst/architect first).
+
+### Q-164
+**Should "Delete account" ask for the password? (security review 06 SEC-67.)** Changing the password or the email needs the current password, but deleting the whole account needs only the legacy confirmation dialog. So anyone with a few seconds at a signed-in computer or an unlocked phone can delete the account, and it cannot be undone.
+Options:
+- (a) Ask for the current password. Accounts that use only Google/Facebook login get an emailed 6-digit code instead (the same method as an email change). Send a "your account was deleted" email.
+- (b) Keep the confirmation dialog only (legacy).
+
+Recommendation: (a). It needs a small contract change through the architect.
+When: before Phase 5.
+**Answer (Owner, 2026-10-03): (a), as recommended.** "Delete account" asks for the current password (an emailed 6-digit code for Google/Facebook-only accounts) and sends a "your account was deleted" email (NEW notification, listed in spec 15). Built in ROADMAP 5.0 after the architect's contract change and the analyst's spec 02 AC-34 update.
+
+## Design direction (Owner, 2026-10-03) — answered by Owner 2026-10-03
+
+### Q-165
+**Should the design rule change from "modernise, don't reinvent" to a fresh redesign?** The Owner considered a fully fresh, modern, colorful UI (keep the user flows, drop the old layout and structure). Measured cost: 16–23 micro-tasks to redo the tokens, components, preview page and screen layouts, and to restyle the slice 01–02 web, mobile and admin screens. API, contract, data model, logic and i18n keys would not change.
+Options:
+- (a) Redesign now, before the slice 1 click-through (4.1.30).
+- (b) Approve slice 1 first, redesign before slice 2.
+- (c) Keep the original direction.
+
+**Answer (Owner, 2026-10-03): (c) keep the original direction.** The design rules and layout stay as in CLAUDE.md → Mission ("modernise, don't reinvent"); tokens, components and screens are unchanged. Priority is a solid rebuild with web and mobile working seamlessly together. The roadmap continues as planned (next: 4.1.30).
+
+## Slice 02 carry-over (architect, ROADMAP 4.2.0c, 2026-10-03)
+
+### Q-166
+**Should a portfolio item that is already waiting for approval send the admin email again when it is saved? (security review 06 SEC-69.)** With "auto-approve portfolio" OFF (S-071, the default), every save of a portfolio item emails every admin address (EV-14 "New portfolio pending approval"). Legacy does the same, and the contract says so ("EV-14 is sent again"). A user who edits an item that is already waiting therefore sends the admins a new email each time. A new limit of 30 saves per user per hour (ADR-022) now caps this in any case.
+Options:
+- (a) Email the admins only when an item **enters** "waiting for approval": a new item, or an edit of a published or rejected item. Edits of an item that is already waiting send no new email; the item stays in the queue with its latest content.
+- (b) Keep legacy: email on every save (capped at 30 per user per hour by ADR-022).
+
+Recommendation: (a). The admins get one email per item to review, not one per edit.
+When: before 4.2.0d (backend). The rate limit in 4.2.0d does not wait on it.
+**Answer (Owner, 2026-10-03): (a), as recommended.** EV-14 is sent only when an item enters "waiting for approval"; edits while it waits send no new email. Spec 02 AC-25, spec 15 EV-14, ADR-022 §4 and the `updatePortfolioItem` description updated; built in ROADMAP 4.2.0d.
+
+## Slice 02 mobile (mobile, ROADMAP 4.2.14, 2026-10-04)
+
+### Q-167
+**May guests (not signed in) browse the app's Home and Explore tabs?** Since slice 1 the app's tab layout is a session gate: a visitor without a session goes straight to the login screen. Slice 2 adds the Home and Explore tabs (gigs, categories, freelancers), which the website shows to everyone. The public profile screen is already open to guests.
+Options:
+- (a) Open Home, Explore and the catalogue screens (categories, sellers, hire, explore projects) to guests; Dashboard and Account (and every action that needs an account, e.g. "Contact me") ask for login. Same as the website.
+- (b) Keep the app login-only (today's behaviour).
+
+Recommendation: (a). Browsing before signing up is how people find a freelancer; the website already allows it, and the API reads are public.
+When: before the mobile part of slice 2 is approved (4.2.20). Building (a) is a small change to `(tabs)/_layout.tsx` (gate only the Dashboard and Account tabs).
+**Answer (Owner, 2026-10-06): (a), as recommended.** Guests may browse Home, Explore and the catalogue screens in the app without logging in; Dashboard, Account and every action that needs an account ask for login. Built in ROADMAP 4.2.18d.
+
+## Slice 02 QA (qa-engineer, ROADMAP 4.2.17c, 2026-10-05)
+
+### Q-168
+**Is the home "Featured categories" block (S-107) ON or OFF in production?** The settings register in spec 00 (line 327) says S-107 `appearance.home.featured_categories` is OFF in production. The live home page (fetched 2026-10-05) shows the block "გამორჩეული კატეგორიები" with 5 image tiles (ბიზნესი, დიზაინი, მუსიკა და ხმა, ფოტოგრაფია, პროგრამირება და ტექნოლოგიები). The new code works both ways (ON → tiles, OFF → no block); only the starting value is in question.
+Options:
+- (a) The live site is right: S-107 is ON. Correct the register and keep the live value at migration (Phase 5 copies the setting).
+- (b) Turn it OFF on the new platform, as the register says.
+
+Recommendation: (a). The live site is what visitors see today, and the block is part of the current layout the Owner wants kept.
+When: before Phase 5 (settings migration). Not blocking slice 2.
+**Answer (Owner, 2026-10-06): (a), as recommended.** Keep the "Featured categories" block ON, matching the live site. Spec 00 register and the S-107 default updated in ROADMAP 4.2.18a/b.

@@ -1,6 +1,10 @@
 # Data model — MyTask.ge rebuild
 Status: **accepted (Owner 2026-09-30)** | Author: solution-architect (P2-B2) | Date: 2026-09-28
 
+> **Revised 2026-10-03 (Phase 4 task 4.2.2a, spec 03 check 4.2.1 §B).** `gig_category_translations.description varchar(300) null` (contract `CategoryDescriptionInput` / `AdminCategory.description` / `CategoryDetail.description`, spec 16 AC-60; legacy kept one untranslated `description` per category row, mapped to the `ka` row, §12.2). New table **`slug_redirects`** (§3.R): old slugs of gig categories, CMS pages and blog articles for the 301 of spec 17 AC-10/EC-3 and `AdminCategory.previousSlugs`, with the slug-change and resolution rules. Entity count 122 → 123 (§13). No contract change.
+
+> **Revised 2026-10-02 (Phase 4 task 4.1.7, spec 02 data model).** `kyc_verifications.decline_reason text null` recorded (needed by the contract `KycVerification.declineReason`, §3.B). Migration `20261002220000_profiles` creates the §3.B spec 02 tables: `user_profiles` columns, `user_skills`, `user_languages`, `user_linked_accounts`, `portfolio_items`, `portfolio_images`, `kyc_verifications`, `countries`, `reports`. No other change.
+
 > **Revised 2026-10-01 (Phase 3 task 3.17m, SEC-41 / I-23).** `sessions.remember_me` and `two_factor_challenges.remember_me` (boolean, default true): the login's "remember me" survives the 2FA step and every refresh. Migration `20261001120000_session_remember_me`.
 
 > **Revised 2026-10-01 (Phase 3 task 3.13, gaps from slice 01 B-1).** `staff.full_name varchar(100)` recorded (already required by the contract `AdminMe.fullName`; ETL fills it from legacy `admins.username`, §3.P). `twofa_purpose` gains `staff_reauth` for the emailed staff re-authentication code (`adminRequestReauthCode` → `adminReauthenticate` `method: email_code`, spec 16 AC-7, §3.A). No new tables.
@@ -474,7 +478,7 @@ PIX `(user_id) WHERE revoked_at IS NULL`, `(staff_id) WHERE revoked_at IS NULL`.
 **portfolio_items** — `id` PK · `legacy_id` · `uid varchar(20) UK` · `user_id` FK · `slug varchar(160)` (title slug + uid) · `title varchar(100)` · `description text` · `project_url varchar(120) null` · `video_url varchar(120) null` · `thumbnail_file_id` FK · `status portfolio_status` (`pending`, `active`, `rejected`) · `rejection_reason varchar(1000) null` · `rejected_at null` (shown only to the owner while `rejected`; spec 02 AC-42, spec 16 AC-21; Owner 2026-09-30 Q-117 — the reject emits EV-126 through the outbox; the owner's next edit sets `pending`/`active` per S-071 and clears both columns, the old reason stays in `audit_log`; migrated items are never `rejected`, spec 02 EC-11) · `reviewed_by_staff_id null` · `reviewed_at null` · `published_at null` · `created_at`, `updated_at`. IX `(user_id, status)`. Hard delete with files (spec 02 AC-27).
 **portfolio_images** — `portfolio_item_id` FK · `file_id` FK · `position smallint`. PK `(portfolio_item_id, file_id)`.
 
-**kyc_verifications** (Q-048, S-122) — `id` PK · `legacy_id` · `user_id` FK · `document_type kyc_document_type` (`national_id`, `driver_license`, `passport`) · `front_file_id` FK · `back_file_id null` (passport) · `selfie_file_id` FK · `status kyc_status` (`pending`, `verified`, `declined`) · `provider kyc_provider` (`manual`; future values) · `provider_reference text null` · `reviewed_by_staff_id null` · `reviewed_at null` · `created_at`. PIX UK `(user_id) WHERE status IN ('pending','verified')` (one active verification, spec 02 AC-38). Files in bucket `kyc`.
+**kyc_verifications** (Q-048, S-122) — `id` PK · `legacy_id` · `user_id` FK · `document_type kyc_document_type` (`national_id`, `driver_license`, `passport`) · `front_file_id` FK · `back_file_id null` (passport) · `selfie_file_id` FK · `status kyc_status` (`pending`, `verified`, `declined`) · `provider kyc_provider` (`manual`; future values) · `provider_reference text null` · `decline_reason text null` (staff reason of a decline, shown to the user; contract `KycVerification.declineReason`, spec 16 AC-27; set only with status `declined`; legacy `verification_center` has no reason column, `legacy/APP/database/migrations/2022_06_25_064507_create_verification_center_table.php:16`, so migrated rows are null) · `reviewed_by_staff_id null` · `reviewed_at null` · `created_at`. PIX UK `(user_id) WHERE status IN ('pending','verified')` (one active verification, spec 02 AC-38). Files in bucket `kyc`.
 
 **billing_profiles** — `user_id` PK FK · `firstname`, `lastname`, `company`, `address varchar(255)` · `country_id null` · `vat_number varchar(50) null` · `updated_at`. Copied into `payments.billing_snapshot` at payment time (spec 05 AC-36).
 
@@ -500,7 +504,8 @@ PIX `(user_id) WHERE revoked_at IS NULL`, `(staff_id) WHERE revoked_at IS NULL`.
 | created_at, updated_at | timestamptz | | |
 IX `parent_id`. Delete is refused while gigs, children or projects reference it (spec 03 EC-2; FK `ON DELETE RESTRICT`).
 
-**gig_category_translations** — PK `(category_id, locale)` · `name varchar(100)` · `content_top text null` · `content_bottom text null` (SEO text) · TM.
+**gig_category_translations** — PK `(category_id, locale)` · `name varchar(100)` · `description varchar(300) null` (SEO description, spec 16 AC-60; contract `CategoryDescriptionInput` ≤ 300 per language) · `content_top text null` · `content_bottom text null` (SEO text) · TM.
+Old category slugs (spec 16 AC-60, spec 17 AC-10) live in `slug_redirects` with `entity_type = 'gig_category'` and `scope = depth` (§3.R).
 **project_categories** — `id` PK · `legacy_id` · `slug varchar(160) UK` · `gig_category_id uuid null FK→gig_categories` (top level; CK depth 1 by trigger; "notify freelancers in the category", BR-053, P-31) · `image_file_id null` · `position` · `is_active` · timestamps.
 **project_category_translations** — PK `(project_category_id, locale)` · `name varchar(100)` · `seo_description text null` · TM.
 **skills** — project skills (P-31) · `id` PK · `legacy_id` · `project_category_id` FK · `slug varchar(100)` · `is_active` · timestamps. UK `(project_category_id, slug)`.
@@ -995,7 +1000,7 @@ Blocking users is out of scope (spec 08; legacy blocking existed only in the rem
 **system_log**: `id bigint identity PK` · `level` (`warn`, `error`, `fatal`) · `source` (`api`, `worker`, `ws`) · `message` · `context jsonb` (redacted) · `request_id` · `created_at`. Kept 30 days; readable only with `system.logs.read` (Q-054).
 
 ### 3.Q Files (ADR-009)
-**files**: `id` PK · `legacy_source`, `legacy_id` · `purpose` (`avatar`, `gig_image`, `gig_thumbnail`, `gig_document`, `portfolio_image`, `category_image`, `blog_image`, `project_thumbnail`, `project_file`, `delivery`, `chat_attachment`, `offer_attachment`, `appeal_file`, `kyc_document`, `home_logo`) · `owner_user_id null` · `owner_staff_id null` · `bucket` (`public_media`, `private`, `kyc`) · `object_key text` · `original_name` · `declared_type` · `detected_type` · `size_bytes bigint` · `checksum_sha256 bytea` · `status` (`pending`, `scanning`, `ready`, `rejected`, `deleted`) · `reject_reason null` · `scan_skipped boolean` · `variants jsonb` (thumb/medium/large keys) · `width`, `height` · `legacy_path text null` · `created_at`, `ready_at`, `deleted_at`. UK `(bucket, object_key)`; IX `(owner_user_id, purpose)`; PIX `created_at WHERE status = 'pending'` (cleanup).
+**files**: `id` PK · `legacy_source`, `legacy_id` · `purpose` (`avatar`, `gig_image`, `gig_thumbnail`, `gig_document`, `portfolio_image`, `category_image`, `blog_image`, `project_thumbnail`, `project_file`, `delivery`, `chat_attachment`, `offer_attachment`, `appeal_file`, `kyc_document`, `home_logo`) · `owner_user_id null` · `owner_staff_id null` · `bucket` (`public_media`, `private`, `kyc`) · `object_key text` · `original_name` · `declared_type` · `detected_type` · `size_bytes bigint` · `checksum_sha256 bytea` · `status` (`pending`, `scanning`, `ready`, `rejected`, `deleted`) · `reject_reason null` · `scan_skipped boolean` · `variants jsonb` (thumb/medium/large keys) · `width`, `height` · `legacy_path text null` · `created_at`, `ready_at`, `attached_at null`, `deleted_at`. UK `(bucket, object_key)`; IX `(owner_user_id, purpose)`; PIX `created_at WHERE status = 'pending'` (cleanup); PIX `created_at WHERE status = 'scanning'` (files-scan sweeper, ROADMAP 4.1.4). `reject_reason` holds an i18n key (`t_file_rejected_*`), translated when read. `attached_at` (security review 07 SEC-74, ROADMAP 4.2.0a): set inside the save transaction when a portfolio item takes the file; the unattached-public cleanup deletes only rows where it is null, so the attach and the cleanup update the same row and row locks serialise them (internal, not in the contract).
 
 ### 3.R i18n and content (ADR-006; to confirm against spec 17)
 **translation_overrides** (admin edits of UI strings): `locale`, `key text`, `value text`, `updated_by_staff_id`, `updated_at`. PK `(locale, key)`. `GET /i18n/{locale}` serves the base JSON plus overrides with a version hash.
@@ -1011,6 +1016,22 @@ Blocking users is out of scope (spec 08; legacy blocking existed only in the rem
 **support_messages** (contact form): `id` PK · `legacy_id` · `user_id null` · `name`, `email`, `subject`, `message` · `status` (`new`, `replied`, `closed`) · `reply_text null` · `replied_by_staff_id null` · `replied_at null` · `created_at`.
 
 **home_logos** (S-109): `id` PK · `file_id` · `name` · `link_url null` · `position` · `is_active`.
+
+**slug_redirects** (spec 17 AC-10, EC-3; spec 16 AC-60; ROADMAP 4.2.2a) — old slugs that answer 301 to the item's current URL.
+| Column | Type | Keys / constraints | Notes |
+|---|---|---|---|
+| entity_type | slug_entity_type | PK part | `gig_category`, `page`, `blog_article` (the three items whose slug staff can change, spec 17 AC-10). Gigs, projects and portfolio items need no row: their uid/pid is in the URL (url-map §4) |
+| scope | smallint | PK part; CK 0..3 | gig categories: the depth (1, 2, 3), because category slugs are unique per level (`gig_categories` UK `(depth, slug)`, contract `CategorySlug`); pages and articles: 0 |
+| old_slug | varchar(160) | PK part | |
+| entity_id | uuid | not null | the item that owned the slug; no FK (three parent tables) — the rows are deleted in the same transaction as their item |
+| created_at | timestamptz | | order of `AdminCategory.previousSlugs` |
+PK `(entity_type, scope, old_slug)` (an old slug belongs to one item at a time); IX `(entity_type, entity_id)`.
+
+Rules (in the service of each item type, one transaction):
+1. **Slug change.** Take `pg_advisory_xact_lock` on `(entity_type, scope, slug)` for both the new and the released slug (so a concurrent rename cannot claim a slug that is becoming a redirect, or the reverse). Refuse the new slug with 409 `DUPLICATE` (field `slug`) when another item of the same type and scope has it as its current slug (the table's UK) **or** as a row here (spec 17 AC-10: "cannot be given to another item of the same type while it redirects"). If the item's **own** row holds the new slug, delete that row (EC-3: changing back answers directly). Insert `(entity_type, scope, old slug, entity_id)`.
+2. **Resolution** (`resolveRedirect`, url-map §10). A slug that is current answers directly; otherwise its row gives the item and the 301 goes to the item's **current** URL, so several changes still take one hop (rows point to the item, never to the next slug). Slugs are language-free: `/en` is kept. Gig category paths are resolved **segment by segment** at depth 1, 2, 3 (current slug or row), then the parent chain is checked on the resolved categories; so a renamed parent also redirects every sub-/child-category URL below it (contract `adminUpdateCategory`).
+3. **Delete.** Deleting an item deletes its rows (its old URLs then answer 404 like the item itself). Gig categories can only be deleted when unused (§3.C), pages and articles per spec 17.
+4. **Migration.** Legacy kept no slug history (spec 17 D-17-13), so the table starts empty.
 
 ### 3.S Search, analytics and operations (ADR-011, ADR-012, ADR-008)
 **search_documents**: `entity_type` (`gig`, `project`, `user`) · `entity_id` · PK both · `tsv tsvector` (`simple` configuration; ka + en title, description and category names) · `search_text text` (normalised; the separators `- _ ' " / \ +` become spaces, P-28) · `category_id`, `subcategory_id`, `childcategory_id`, `project_category_id` · `price_tetri` · `delivery_days` · `rating_count`, `rating_sum` · `sales_count`, `visits_count` · `owner_is_premium boolean` (updated when a subscription starts or ends, Q-069) · `owner_listable boolean` (P-29) · `status` · `published_at` · `updated_at`. GIN on `tsv`; GIN `search_text gin_trgm_ops`; B-tree on the filter and sort columns. The "Recommended" order is `hash(entity_id, current Tbilisi date)`, computed in the query: a stable daily mix (spec 03 R-S3).
@@ -1329,7 +1350,7 @@ For the migration engineer (Phase 5, `tools/migrate-legacy`). Source: 230 migrat
 **Catalog and gigs**
 | Legacy | New | Notes |
 |---|---|---|
-| `categories`, `subcategories`, `childcategories` + `*_translations` | `gig_categories` (depth 1/2/3, `legacy_source`) + `gig_category_translations` | the live-only `name` columns (§0 drift) read if present |
+| `categories`, `subcategories`, `childcategories` + `*_translations` | `gig_categories` (depth 1/2/3, `legacy_source`) + `gig_category_translations`; the untranslated legacy `description` of each row → `description` of the `ka` translation (`en` null; legacy validators already cap it at 300, `Admin/Categories/CreateValidator.php:42`, `Admin/Subcategories/CreateValidator.php:44`; a longer value is listed by the dry run, never cut silently) | the live-only `name` columns (§0 drift) read if present |
 | `projects_categories` + `projects_categories_translation` | `project_categories` + translations; `gig_category_id` = top-level gig category with the same slug (P-31) | |
 | `projects_skills` + `project_skill_translations` | `skills` moved to the project category with the same slug as its current gig category (P-31) | unmatched skills reported |
 | `gigs` | `gigs` | `price` → `price_tetri`; status `boosted|trending|featured` → `active` (R-G5); `rating` recomputed from reviews; `image_thumb/medium/large_id` → `thumbnail_file_id` (largest original); `counter_*` → counters; `orders_in_queue` recomputed; `has_upgrades`, `has_faqs` dropped; `video_link` → `video_url` (kept, unused); `revisions_allowed` = Owner question 1 |
@@ -1436,7 +1457,7 @@ One `migration_opening` journal per user (`idempotency_ref = migration:user:{leg
 ---
 
 ## 13. Entity count
-**122 entities** (tables), by domain:
+**123 entities** (tables), by domain:
 | Domain | Count | Tables |
 |---|---|---|
 | Identity and access | 13 | users, user_profiles, social_accounts, auth_tokens, sessions, refresh_tokens, trusted_devices, trusted_device_ips, two_factor_challenges, banned_ips, user_restrictions, restriction_appeals, restriction_appeal_files |
@@ -1455,7 +1476,7 @@ One `migration_opening` journal per user (`idempotency_ref = migration:user:{leg
 | Notifications | 5 | notifications, push_tokens, notification_preferences, notification_deliveries, outbox_events |
 | Staff, RBAC, audit | 7 | staff, roles, permissions, role_permissions, staff_roles, audit_log, system_log |
 | Files | 1 | files |
-| i18n and content | 9 | translation_overrides, pages, page_translations, blog_articles, blog_article_translations, blog_comments, newsletter_subscribers, support_messages, home_logos |
+| i18n and content | 10 | translation_overrides, pages, page_translations, blog_articles, blog_article_translations, blog_comments, newsletter_subscribers, support_messages, home_logos, slug_redirects |
 | Search, analytics, ops | 4 | search_documents, analytics_events, analytics_daily, sweeper_runs |
 
-Totals: 13 + 10 + 6 + 10 + 3 + 8 + 3 + 7 + 15 + 3 + 12 + 2 + 4 + 5 + 7 + 1 + 9 + 4 = **122** (the two reconciliation tables are accepted with P-135, 2026-09-30).
+Totals: 13 + 10 + 6 + 10 + 3 + 8 + 3 + 7 + 15 + 3 + 12 + 2 + 4 + 5 + 7 + 1 + 10 + 4 = **123** (the two reconciliation tables are accepted with P-135, 2026-09-30; `slug_redirects` added in 4.2.2a, 2026-10-03).

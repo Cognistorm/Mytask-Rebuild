@@ -53,9 +53,12 @@ jobs:
             echo "::notice::No openapi.yaml on ${{ github.base_ref }} yet; breaking-change check skipped (first contract)."
             exit 0
           fi
+          # New enum values are additive in v1 (ADR-014 §5; clients treat unknown values as "unknown"), so
+          # oasdiff-severity-levels.txt lowers that one rule to WARN; every other break stays ERR.
           git show "origin/${{ github.base_ref }}:docs/04-api/openapi.yaml" > /tmp/base-openapi.yaml
           docker run --rm -v /tmp:/base -v "$PWD/docs/04-api:/head" tufin/oasdiff:v1.32.1 \
-            breaking /base/base-openapi.yaml /head/openapi.yaml --fail-on ERR
+            breaking /base/base-openapi.yaml /head/openapi.yaml --fail-on ERR \
+            --severity-levels /head/oasdiff-severity-levels.txt
 
   quality:
     name: Lint, typecheck, test, build, E2E
@@ -78,6 +81,11 @@ jobs:
       DATABASE_URL: postgresql://mytask:ci-only-password@localhost:5432/mytask_test
       REDIS_URL: redis://localhost:6379
       RUN_INTEGRATION: '1'
+      # Storage integration test (ADR-017 §3): presigned POST/GET against the same SeaweedFS as compose.
+      S3_INTEGRATION: '1'
+      S3_ENDPOINT: http://localhost:8333
+      S3_ACCESS_KEY_ID: ci-only-key
+      S3_SECRET_ACCESS_KEY: ci-only-secret
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -96,6 +104,14 @@ jobs:
       - run: pnpm format:check
       - run: pnpm lint
       - run: pnpm typecheck
+      - name: Local S3 server (SeaweedFS, same image and flags as docker-compose.yml)
+        run: |
+          printf '{"identities":[{"name":"ci","credentials":[{"accessKey":"%s","secretKey":"%s"}],"actions":["Admin","Read","List","Tagging","Write"]}]}' \
+            "$S3_ACCESS_KEY_ID" "$S3_SECRET_ACCESS_KEY" > /tmp/s3.json
+          docker run -d --name s3 -p 8333:8333 -v /tmp/s3.json:/etc/s3.json:ro --entrypoint weed chrislusf/seaweedfs:4.48 \
+            server -dir=/data -s3 -s3.port=8333 -s3.config=/etc/s3.json -master.volumeSizeLimitMB=128 -volume.max=0
+          for i in $(seq 1 60); do curl -s -o /dev/null http://localhost:8333/ && exit 0; sleep 2; done
+          docker logs s3; exit 1
       - name: Database migrations apply cleanly
         run: pnpm db:deploy
       - name: Unit, contract and integration tests
@@ -162,7 +178,19 @@ jobs:
           ! grep -qi '^server: ' /tmp/h.txt
           echo "--- web SSR reaches the API through the generated client"
           for i in $(seq 1 30); do curl -fsS http://localhost:8080/ >/tmp/home.html 2>/dev/null && break; sleep 5; done
-          grep -q 'data-up="true"' /tmp/home.html
+          # The real home page (4.2.12) replaced the Phase 3 `data-up` probe: the hero renders and its SSR getHome
+          # call reached the API with 200 (the CI database has no catalogue, so the data blocks stay hidden).
+          grep -q 'id="home-title"' /tmp/home.html
+          docker compose logs --no-color api | grep '"url":"/api/v1/home"' | grep -q '"statusCode":200'
+          echo "--- a server-rendered profile page through Caddy (visitor IP forwarded, SEC-65): localised 404"
+          test "$(curl -s -o /tmp/p404.html -w '%{http_code}' http://localhost:8080/profile/ci_nobody_here)" = 404
+          # Next.js 16.3 answers a notFound() page with its HTML error shell and ships the 404 view in the page's
+          # Flight data, which the browser renders (the same in a plain one-layout app; the web E2E cover the
+          # rendered page). So look for the localised 404 view (Georgian heading) in the response, in either form.
+          grep -qE 'data-testid="not-found"|\\"data-testid\\":\\"not-found\\"' /tmp/p404.html
+          grep -q 'გვერდი ვერ მოიძებნა' /tmp/p404.html
+          echo "--- that page's API call arrived with the visitor IP (review 07 I-41: ipSource in the API request log)"
+          docker compose logs --no-color api | grep '/api/v1/users/ci_nobody_here' | grep -q '"ipSource":"ssr-visitor"'
           echo "--- staff endpoints are not served on the public host"
           test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/api/v1/admin/system/health)" = 404
           echo "--- admin host is noindex"

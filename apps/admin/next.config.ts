@@ -4,11 +4,20 @@ import type { NextConfig } from 'next';
 const devApiOrigin = process.env.API_DEV_PROXY_ORIGIN ?? 'http://localhost:3000';
 
 const config: NextConfig = {
+  // Staging serves the staff panel under https://mytask.1kk.ge/admin (Owner 2026-10-06, infra/staging/README.md);
+  // locally and in production it has its own host and no base path. Read at build time.
+  basePath: process.env.ADMIN_BASE_PATH || undefined,
   output: 'standalone',
   outputFileTracingRoot: resolve(import.meta.dirname, '../..'),
   poweredByHeader: false,
   reactStrictMode: true,
-  transpilePackages: ['@mytask/api-client', '@mytask/i18n', '@mytask/tokens', '@mytask/types'],
+  transpilePackages: [
+    '@mytask/api-client',
+    '@mytask/i18n',
+    '@mytask/tokens',
+    '@mytask/types',
+    '@mytask/ui',
+  ],
   async headers() {
     // The staff panel is never indexed (ADR-010); Caddy sets the same header in production.
     return [{ source: '/:path*', headers: [{ key: 'X-Robots-Tag', value: 'noindex, nofollow' }] }];

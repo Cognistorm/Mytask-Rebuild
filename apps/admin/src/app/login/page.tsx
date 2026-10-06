@@ -3,7 +3,8 @@
 // staff 2FA (S-060) is ON and this browser is not trusted.
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { Alert, AuthCard, CodeInput, Field, Submit } from '../../components/ui';
+import { Alert, CodeInput, Field, Submit } from '@mytask/ui/web';
+import { AuthCard } from '../../components/ui';
 import { splitErrors, t, useAdminApi, type ApiErrorBody } from '../../lib/client';
 
 export default function AdminLogin() {

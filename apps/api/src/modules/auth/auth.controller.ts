@@ -4,6 +4,7 @@ import type { components } from '@mytask/types';
 import type { Request, Response } from 'express';
 import { ClientIpResolver } from '../../platform/client-ip/client-ip.resolver';
 import { COOKIE_REFRESH } from './auth.constants';
+import { AccountSettingsService } from './account-settings.service';
 import { AllowRestricted, CurrentAuth, type AuthState, Public } from './auth.guard';
 import { AuthService, type ChallengeResult, type SessionResult } from './auth.service';
 import { clearSessionCookies, setDeviceCookie, setSessionCookies } from './cookies';
@@ -16,6 +17,7 @@ type Req_ = Request & { cookies?: Record<string, string> };
 export class AuthController {
   constructor(
     private readonly auth: AuthService,
+    private readonly accountSettings: AccountSettingsService,
     private readonly ipResolver: ClientIpResolver,
   ) {}
 
@@ -127,6 +129,17 @@ export class AuthController {
     @Req() req: Req_,
   ): Promise<S['AuthNotice']> {
     return this.auth.verifyEmail(body, this.ctx(req));
+  }
+
+  /** Spec 02 AC-30: the link of EV-11, with or without a session. */
+  @Public()
+  @Post('email-change/confirm')
+  @HttpCode(200)
+  confirmEmailChange(
+    @Body() body: S['EmailChangeConfirmRequest'],
+    @Req() req: Req_,
+  ): Promise<S['AuthNotice']> {
+    return this.accountSettings.confirmEmailChange(body, this.ctx(req));
   }
 
   @Public()

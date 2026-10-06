@@ -73,6 +73,8 @@ afterAll(async () => {
   await app?.close();
 });
 beforeEach(async () => {
+  // staff.test leaves versions of the settings it changed.
+  await prisma.settingVersion.deleteMany();
   await prisma.setting.deleteMany();
   app.get(SettingsService).invalidate();
   await app.get(RedisService).client.flushall();

@@ -1,11 +1,15 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
+import { AccountDeletionGuards } from './account-deletion.guards';
+import { AccountSettingsService } from './account-settings.service';
 import { AccountService } from './account.service';
 import { AuthController } from './auth.controller';
+import { AvatarReader } from './avatar.reader';
 import { AuthGuard } from './auth.guard';
 import { AuthService } from './auth.service';
 import { MeController } from './me.controller';
 import { PasswordService } from './password.service';
+import { PresenceService } from './presence.service';
 import { RecaptchaService } from './recaptcha.service';
 import { ReferralService } from './referral.service';
 import { SessionsService } from './sessions.service';
@@ -21,7 +25,11 @@ import { TwoFactorService } from './two-factor.service';
   providers: [
     AuthService,
     AccountService,
+    AccountSettingsService,
+    AccountDeletionGuards,
+    AvatarReader,
     PasswordService,
+    PresenceService,
     RecaptchaService,
     ReferralService,
     SessionsService,
@@ -34,6 +42,10 @@ import { TwoFactorService } from './two-factor.service';
     { provide: APP_GUARD, useClass: AuthGuard },
   ],
   exports: [
+    AccountService,
+    AccountDeletionGuards,
+    AvatarReader,
+    PresenceService,
     SessionsService,
     PasswordService,
     RecaptchaService,

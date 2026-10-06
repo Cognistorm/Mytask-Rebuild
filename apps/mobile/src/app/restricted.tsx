@@ -1,14 +1,16 @@
 // Restrictions removal center (spec 01 AC-19, AC-46…AC-49), same content as the web /restricted page:
-// each restriction with status, date and reason, and the appeal form while it is pending.
-// Appeal files wait for the files foundation (F0) and Q-154.
+// each restriction with status, date and reason, and the appeal form while it is pending, with the
+// file picker (camera or files; S-091…S-093 from the public config).
 import { router } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { lightTheme as theme } from '@mytask/tokens/native';
 import type { components } from '@mytask/types';
+import { AppealFiles } from '../components/appeal-files';
 import { Button, Input, LinkButton, Notice, Screen } from '../components/form';
 import { clearSession, mobileApi } from '../lib/api';
 import { createT } from '../lib/i18n';
+import { usePublicConfig } from '../lib/public-config';
 
 type Restriction = components['schemas']['Restriction'];
 interface ApiError {
@@ -28,18 +30,24 @@ const STATUS: Record<Restriction['status'], { key: string; color: string }> = {
 };
 
 function Appeal({ restriction, onDone }: { restriction: Restriction; onDone: () => void }) {
+  const rule = usePublicConfig(locale)?.uploads.appealFile;
   const [message, setMessage] = useState('');
+  const [fileIds, setFileIds] = useState<string[]>([]);
+  const [uploading, setUploading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<ApiError>();
-  const fieldError = err?.details?.fields?.find(
-    (f) => f.field === 'message' || f.field === 'fileIds',
-  );
+  const fieldError = (name: string) => err?.details?.fields?.find((f) => f.field === name);
+  const hasFieldError = !!err?.details?.fields?.length;
+  const onFiles = useCallback((ids: string[], running: boolean) => {
+    setFileIds(ids);
+    setUploading(running);
+  }, []);
 
   async function submit() {
     setBusy(true);
     setErr(undefined);
     const res = await api.POST('/restriction-appeals', {
-      body: { restrictionId: restriction.id, message },
+      body: { restrictionId: restriction.id, message, fileIds },
     });
     setBusy(false);
     if (res.error) return setErr(res.error as ApiError);
@@ -48,16 +56,25 @@ function Appeal({ restriction, onDone }: { restriction: Restriction; onDone: () 
 
   return (
     <View style={s.gap}>
-      {err && !fieldError ? <Notice kind="error" text={err.message} /> : null}
+      {err && !hasFieldError ? <Notice kind="error" text={err.message} /> : null}
       <Input
         label={t('t_type_ur_response_here')}
         value={message}
         onChangeText={setMessage}
         multiline
         maxLength={1500}
-        error={fieldError?.message}
+        error={fieldError('message')?.message}
       />
-      <Button label={t('t_appeal_the_closure')} onPress={submit} busy={busy} />
+      {rule?.enabled ? (
+        <AppealFiles
+          locale={locale}
+          rule={rule}
+          required={restriction.filesRequired}
+          error={fieldError('fileIds')?.message}
+          onChange={onFiles}
+        />
+      ) : null}
+      <Button label={t('t_appeal_the_closure')} onPress={submit} busy={busy} disabled={uploading} />
     </View>
   );
 }

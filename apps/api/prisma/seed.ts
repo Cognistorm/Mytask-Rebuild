@@ -2,6 +2,8 @@
 //  1. Permission catalogue mirror (ADR-010) and the system role Super-admin (every permission, spec 16).
 //  2. The first Super-admin staff account, only when no staff exists yet. Its password is generated and
 //     printed ONCE in this console (never stored in a file). Email: SEED_ADMIN_EMAIL or the first S-100 address.
+//  3. The catalogue (ROADMAP 4.2.2b), only while it is empty: the live site's public gig category tree and
+//     project categories (seed-catalog.ts / seed-catalog.json). Staff edits are kept.
 // Never run against production data (CLAUDE.md rule 7).
 import { randomBytes } from 'node:crypto';
 import { existsSync } from 'node:fs';
@@ -9,6 +11,7 @@ import { hash, Algorithm } from '@node-rs/argon2';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../src/generated/prisma/client';
 import { DEFAULT_ROLES, PERMISSIONS, SUPER_ADMIN_ROLE } from '../src/modules/staff/permissions';
+import { seedCatalog } from './seed-catalog';
 
 if (!process.env.DATABASE_URL && existsSync('../../.env')) process.loadEnvFile('../../.env');
 if (process.env.NODE_ENV === 'production') {
@@ -52,6 +55,13 @@ async function main(): Promise<void> {
       },
     });
   }
+
+  const categories = await seedCatalog(prisma);
+  console.log(
+    categories === null
+      ? 'db:seed — catalogue already present (not changed).'
+      : `db:seed — catalogue: ${categories} gig categories and the project categories loaded.`,
+  );
 
   if ((await prisma.staff.count()) > 0) {
     console.log(

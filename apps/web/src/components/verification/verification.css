@@ -1,0 +1,72 @@
+/* Verification centre `/account/verification` (spec 02 AC-36…AC-39): design tokens only (CLAUDE.md); layout,
+   blocks and side card from ../profile-edit/edit.css, photo pickers from ../portfolio-edit/portfolio.css. */
+[data-testid='kyc-form'] [hidden] {
+  display: none !important;
+}
+
+.mt-kyc-sides {
+  display: grid;
+  gap: var(--mt-space-6);
+}
+
+@media (min-width: 768px) {
+  .mt-kyc-sides {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.mt-kyc-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--mt-space-2);
+}
+
+.mt-kyc-actions > :only-child {
+  margin-inline-start: auto;
+}
+
+.mt-kyc-facts {
+  display: grid;
+  gap: var(--mt-space-3);
+  margin: 0;
+}
+
+.mt-kyc-facts > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--mt-space-2);
+}
+
+.mt-kyc-facts dt {
+  color: var(--mt-text-secondary);
+}
+
+.mt-kyc-facts dd {
+  margin: 0;
+  font-weight: var(--mt-font-weight-medium);
+}
+
+.mt-kyc-subtitle {
+  margin: 0;
+  font-size: var(--mt-font-size-md);
+  font-weight: var(--mt-font-weight-semibold);
+}
+
+.mt-kyc-files {
+  display: grid;
+  gap: var(--mt-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mt-kyc-files li {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--mt-space-2);
+  overflow-wrap: anywhere;
+}

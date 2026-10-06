@@ -1,11 +1,25 @@
-// Contract: getMe, changeMyPassword, listMySessions, revokeMyOtherSessions, updateMyTwoFactor (slice 01 part A).
-import { Body, Controller, Get, HttpCode, Post, Put, Req } from '@nestjs/common';
+// Contract: getMe, changeMyPassword, listMySessions, revokeMyOtherSessions, updateMyTwoFactor (slice 01 part A);
+// updateMe, updateMyPreferences, deleteMe (spec 02, ROADMAP 4.1.11).
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Patch,
+  Post,
+  Put,
+  Req,
+  Res,
+} from '@nestjs/common';
 import type { components } from '@mytask/types';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 import { ClientIpResolver } from '../../platform/client-ip/client-ip.resolver';
+import { AccountSettingsService } from './account-settings.service';
 import { AccountService } from './account.service';
 import { AllowRestricted, CurrentAuth, type AuthState } from './auth.guard';
-import { buildContext } from './request-context';
+import { clearSessionCookies } from './cookies';
+import { buildContext, isCookieClient } from './request-context';
 
 type S = components['schemas'];
 
@@ -13,6 +27,7 @@ type S = components['schemas'];
 export class MeController {
   constructor(
     private readonly account: AccountService,
+    private readonly accountSettings: AccountSettingsService,
     private readonly ipResolver: ClientIpResolver,
   ) {}
 
@@ -25,6 +40,34 @@ export class MeController {
   @Get()
   getMe(@CurrentAuth() auth: AuthState): Promise<S['Me']> {
     return this.account.me(auth.userId);
+  }
+
+  @Patch()
+  updateMe(
+    @CurrentAuth() auth: AuthState,
+    @Body() body: S['MeUpdateRequest'],
+    @Req() req: Request,
+  ): Promise<S['Me']> {
+    return this.accountSettings.updateMe(auth.userId, body, this.ctx(req));
+  }
+
+  @Delete()
+  @HttpCode(204)
+  async deleteMe(
+    @CurrentAuth() auth: AuthState,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<void> {
+    await this.accountSettings.deleteMe(auth.userId);
+    if (isCookieClient(this.ctx(req).client)) clearSessionCookies(res);
+  }
+
+  @Patch('preferences')
+  updatePreferences(
+    @CurrentAuth() auth: AuthState,
+    @Body() body: S['MePreferencesUpdateRequest'],
+  ): Promise<S['Me']> {
+    return this.accountSettings.updatePreferences(auth.userId, body);
   }
 
   @Post('password')

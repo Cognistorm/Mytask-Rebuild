@@ -871,6 +871,20 @@ export const settingsRegistry = {
     socialProvider: true,
     writePermission: 'settings.auth.write',
   }),
+  // 4.11 Moderation (auto-approve)
+  'S-071': row({
+    key: 'moderation.portfolio.auto_approve',
+    default: false,
+    area: 'moderation',
+    type: 'boolean',
+    meaning: {
+      en: 'Portfolio items go live without review',
+      ka: 'პორტფოლიოს ნამუშევრები ქვეყნდება განხილვის გარეშე',
+    },
+    source: 'settings_publish, Q-068',
+    tag: 'LEGACY',
+    writePermission: 'settings.moderation.write',
+  }),
   // 4.12 Projects
   'S-075': row({
     key: 'projects.enabled',
@@ -1293,14 +1307,15 @@ export const settingsRegistry = {
   }),
   'S-107': row({
     key: 'appearance.home.featured_categories',
-    default: false,
+    // ON as on the live site (Owner Q-168, 2026-10-06).
+    default: true,
     area: 'content',
     type: 'boolean',
     meaning: {
       en: 'Featured-categories block on home',
       ka: 'რჩეული კატეგორიების ბლოკი მთავარ გვერდზე',
     },
-    source: 'settings_appearance, Q-068',
+    source: 'settings_appearance, Q-068, Q-168',
     tag: 'LEGACY',
     public: true,
     writePermission: 'settings.content.write',
@@ -1486,6 +1501,20 @@ export const settingsRegistry = {
     source: 'Admin/System/MaintenanceComponent.php',
     tag: 'LEGACY',
     public: true,
+    writePermission: 'settings.system.write',
+  }),
+  'S-122': row({
+    key: 'kyc.provider',
+    default: 'manual' as const,
+    area: 'system',
+    type: 'enum',
+    allowedValues: ['manual'],
+    meaning: {
+      en: 'ID verification: manual staff review now, external service later',
+      ka: 'პირადობის ვერიფიკაცია: ახლა ადმინისტრატორის ხელით განხილვა, მოგვიანებით გარე სერვისი',
+    },
+    source: 'Q-048',
+    tag: 'LEGACY',
     writePermission: 'settings.system.write',
   }),
   'S-123': row({

@@ -1,0 +1,342 @@
+/* @mytask/ui/web profile pieces: design tokens only (CLAUDE.md). */
+
+/* ---- Avatar + online status (§7.7) ---- */
+.mt-avatar {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  inline-size: var(--mt-avatar-size);
+  block-size: var(--mt-avatar-size);
+  border-radius: var(--mt-radius-full);
+  background: var(--mt-bg-brand-soft);
+  color: var(--mt-text-brand);
+}
+
+.mt-avatar-md {
+  --mt-avatar-size: var(--mt-size-avatar-md);
+  font-size: var(--mt-font-size-md);
+}
+
+.mt-avatar-lg {
+  --mt-avatar-size: var(--mt-size-avatar-lg);
+  font-size: var(--mt-font-size-xl);
+}
+
+.mt-avatar-xl {
+  --mt-avatar-size: var(--mt-size-avatar-xl);
+  font-size: var(--mt-font-size-3xl);
+}
+
+.mt-avatar img {
+  inline-size: 100%;
+  block-size: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+}
+
+.mt-avatar-initial {
+  margin: auto;
+  font-weight: var(--mt-font-weight-semibold);
+}
+
+.mt-avatar-dot {
+  position: absolute;
+  inset-block-end: 0;
+  inset-inline-end: 0;
+  inline-size: var(--mt-size-online-dot);
+  block-size: var(--mt-size-online-dot);
+  border-radius: var(--mt-radius-full);
+  background: var(--mt-status-offline);
+  box-shadow: 0 0 0 var(--mt-border-width-strong) var(--mt-bg-surface);
+}
+
+.mt-avatar-dot[data-online='true'],
+.mt-online[data-online='true'] .mt-online-dot {
+  background: var(--mt-status-online);
+}
+
+.mt-online {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mt-space-1);
+  font-size: var(--mt-font-size-sm);
+  color: var(--mt-text-secondary);
+}
+
+.mt-online-dot {
+  inline-size: var(--mt-space-2);
+  block-size: var(--mt-space-2);
+  border-radius: var(--mt-radius-full);
+  background: var(--mt-status-offline);
+}
+
+/* ---- Rating (§7.8) ---- */
+.mt-stars {
+  display: inline-flex;
+  gap: var(--mt-space-0-5);
+}
+
+.mt-stars svg {
+  inline-size: var(--mt-size-icon-sm);
+  block-size: var(--mt-size-icon-sm);
+}
+
+.mt-rating {
+  display: grid;
+  align-content: start;
+  gap: var(--mt-space-2);
+  min-width: 0;
+}
+
+.mt-rating-title {
+  margin: 0;
+  font-size: var(--mt-font-size-md);
+  font-weight: var(--mt-font-weight-semibold);
+}
+
+.mt-rating-empty,
+.mt-rating-based {
+  margin: 0;
+  font-size: var(--mt-font-size-sm);
+  color: var(--mt-text-muted);
+}
+
+.mt-rating-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--mt-space-2);
+  margin: 0;
+}
+
+.mt-rating-average {
+  font-size: var(--mt-font-size-2xl);
+  line-height: var(--mt-font-line-height-2xl);
+  font-weight: var(--mt-font-weight-bold);
+  font-variant-numeric: tabular-nums;
+}
+
+.mt-rating-out-of {
+  color: var(--mt-text-secondary);
+}
+
+.mt-rating-rows {
+  display: grid;
+  gap: var(--mt-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--mt-font-size-sm);
+}
+
+.mt-rating-rows li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--mt-space-2);
+}
+
+.mt-rating-row-label {
+  min-inline-size: var(--mt-space-12);
+  color: var(--mt-text-secondary);
+}
+
+.mt-rating-row-count {
+  min-inline-size: var(--mt-space-6);
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+
+.mt-rating-bar {
+  display: block;
+  block-size: var(--mt-space-2);
+  border-radius: var(--mt-radius-full);
+  background: var(--mt-bg-subtle);
+  overflow: hidden;
+}
+
+.mt-rating-bar span {
+  display: block;
+  block-size: 100%;
+  background: var(--mt-action-primary);
+}
+
+/* ---- Chip (§5.14) and Pill (§7.6) ---- */
+.mt-chip {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--mt-size-control-sm);
+  padding: var(--mt-space-1) var(--mt-space-3);
+  box-sizing: border-box;
+  border-radius: var(--mt-radius-full);
+  background: var(--mt-bg-brand-soft);
+  color: var(--mt-text-brand);
+  font-size: var(--mt-font-size-sm);
+  font-weight: var(--mt-font-weight-medium);
+  text-decoration: none;
+}
+
+.mt-chip:hover {
+  text-decoration: underline;
+}
+
+.mt-chip:focus-visible,
+.mt-link-button:focus-visible,
+.mt-dialog-close:focus-visible {
+  outline: var(--mt-focus-ring-width) solid var(--mt-focus-ring);
+  outline-offset: var(--mt-focus-ring-offset);
+}
+
+.mt-pill {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--mt-space-6);
+  padding: 0 var(--mt-space-2);
+  border-radius: var(--mt-radius-full);
+  font-size: var(--mt-font-size-xs);
+  font-weight: var(--mt-font-weight-semibold);
+  white-space: nowrap;
+}
+
+.mt-pill-neutral {
+  background: var(--mt-badge-neutral-bg);
+  color: var(--mt-badge-neutral-text);
+}
+
+.mt-pill-brand {
+  background: var(--mt-badge-brand-bg);
+  color: var(--mt-badge-brand-text);
+}
+
+.mt-pill-success {
+  background: var(--mt-badge-success-bg);
+  color: var(--mt-badge-success-text);
+}
+
+.mt-pill-warning {
+  background: var(--mt-badge-warning-bg);
+  color: var(--mt-badge-warning-text);
+}
+
+.mt-pill-danger {
+  background: var(--mt-badge-danger-bg);
+  color: var(--mt-badge-danger-text);
+}
+
+.mt-pill-info {
+  background: var(--mt-badge-info-bg);
+  color: var(--mt-badge-info-text);
+}
+
+/* ---- Expandable text (About me) ---- */
+.mt-expandable {
+  display: grid;
+  justify-items: start;
+  gap: var(--mt-space-2);
+}
+
+.mt-expandable-text {
+  margin: 0;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 6;
+  line-clamp: 6;
+  overflow: hidden;
+}
+
+.mt-expandable-text[data-open='true'] {
+  display: block;
+  -webkit-line-clamp: unset;
+  line-clamp: none;
+}
+
+.mt-link-button {
+  font: inherit;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--mt-text-link);
+  font-weight: var(--mt-font-weight-semibold);
+  cursor: pointer;
+}
+
+.mt-link-button:hover {
+  color: var(--mt-text-link-hover);
+  text-decoration: underline;
+}
+
+/* ---- Dialog (§8.1): a bottom sheet below md ---- */
+.mt-dialog {
+  inline-size: min(var(--mt-size-layout-dialog-width-md), calc(100vw - var(--mt-space-8)));
+  max-block-size: calc(100dvh - var(--mt-space-12));
+  padding: 0;
+  border: 0;
+  border-radius: var(--mt-radius-dialog);
+  background: var(--mt-bg-surface-raised);
+  color: var(--mt-text-primary);
+  box-shadow: var(--mt-shadow-lg);
+}
+
+.mt-dialog::backdrop {
+  background: var(--mt-bg-scrim);
+}
+
+.mt-dialog-body {
+  display: grid;
+  gap: var(--mt-space-4);
+  padding: var(--mt-space-6);
+}
+
+.mt-dialog-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: var(--mt-space-4);
+}
+
+.mt-dialog-title {
+  margin: 0;
+  font-size: var(--mt-font-size-lg);
+  line-height: var(--mt-font-line-height-lg);
+  font-weight: var(--mt-font-weight-semibold);
+}
+
+.mt-dialog-description {
+  margin: 0;
+  color: var(--mt-text-secondary);
+}
+
+.mt-dialog-close {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  inline-size: var(--mt-size-touch-target-min);
+  block-size: var(--mt-size-touch-target-min);
+  margin: calc(-1 * var(--mt-space-3));
+  padding: 0;
+  border: 0;
+  border-radius: var(--mt-radius-full);
+  background: none;
+  color: var(--mt-text-secondary);
+  cursor: pointer;
+}
+
+.mt-dialog-close:hover {
+  background: var(--mt-bg-hover);
+}
+
+.mt-dialog-close svg {
+  inline-size: var(--mt-size-icon-md);
+  block-size: var(--mt-size-icon-md);
+}
+
+@media (max-width: 767px) {
+  .mt-dialog {
+    inline-size: 100vw;
+    max-inline-size: 100vw;
+    margin: auto 0 0;
+    border-end-start-radius: 0;
+    border-end-end-radius: 0;
+  }
+}

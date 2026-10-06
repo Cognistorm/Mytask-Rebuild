@@ -778,6 +778,8 @@ Me:
     referralCode: {type: string, pattern: '^[A-Z0-9]{8}$'}
     countryCode:
       oneOf: [{$ref: '../components/schemas.yaml#/CountryCode'}, {type: 'null'}]
+      deprecated: true
+      description: Deprecated (ADR-021, Owner 2026-10-02) — the platform serves Georgia only; account settings have no country field. Clients do not show it; still returned (stored legacy value or null) until `/api/v2`.
     city: {type: [string, 'null']}
     kycStatus: {$ref: '#/KycState'}
     socialProviders:
@@ -804,7 +806,8 @@ MeUpdateRequest:
     fullName: {type: string, minLength: 1, maxLength: 60}
     countryCode:
       oneOf: [{$ref: '../components/schemas.yaml#/CountryCode'}, {type: 'null'}]
-      description: From the active country list (D2 `/countries`); null clears it.
+      deprecated: true
+      description: Deprecated (ADR-021, Owner 2026-10-02) — account settings have no country field; clients do not send it. Still accepted (active country list, D2 `/countries`; null clears it) until `/api/v2`.
     city: {type: string, minLength: 1, maxLength: 60}
     currentPassword: {type: [string, 'null'], maxLength: 1024}
     challengeId:

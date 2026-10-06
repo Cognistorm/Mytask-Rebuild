@@ -1,0 +1,83 @@
+{
+  "$comment": "CONVENTIONS §19 (SEC-22). The ONE allow-list for stored HTML: apps/api sanitises every write with it, web and mobile render with it. Change it only together with CONVENTIONS §19 and the API sanitiser tests.",
+  "dropWithContent": [
+    "script",
+    "style",
+    "iframe",
+    "object",
+    "embed",
+    "applet",
+    "svg",
+    "math",
+    "form",
+    "input",
+    "button",
+    "select",
+    "option",
+    "textarea",
+    "base",
+    "meta",
+    "link",
+    "title",
+    "template",
+    "noscript",
+    "noembed",
+    "noframes",
+    "xmp",
+    "plaintext"
+  ],
+  "profiles": {
+    "user_text": {
+      "elements": ["p", "br", "strong", "b", "em", "i", "ul", "ol", "li"],
+      "attributes": {},
+      "linkSchemes": [],
+      "relativeLinks": false,
+      "mediaLibraryImages": false,
+      "linkRel": null
+    },
+    "user_text_links": {
+      "elements": ["p", "br", "strong", "b", "em", "i", "ul", "ol", "li", "a"],
+      "attributes": { "a": ["href"] },
+      "linkSchemes": ["http", "https"],
+      "relativeLinks": false,
+      "mediaLibraryImages": false,
+      "linkRel": "nofollow ugc noopener noreferrer"
+    },
+    "staff_content": {
+      "elements": [
+        "h2",
+        "h3",
+        "h4",
+        "h5",
+        "h6",
+        "p",
+        "br",
+        "strong",
+        "b",
+        "em",
+        "i",
+        "ul",
+        "ol",
+        "li",
+        "a",
+        "table",
+        "thead",
+        "tbody",
+        "tr",
+        "th",
+        "td",
+        "img"
+      ],
+      "attributes": {
+        "a": ["href"],
+        "img": ["src", "alt", "width", "height"],
+        "th": ["colspan", "rowspan"],
+        "td": ["colspan", "rowspan"]
+      },
+      "linkSchemes": ["http", "https", "mailto"],
+      "relativeLinks": true,
+      "mediaLibraryImages": true,
+      "linkRel": "noopener"
+    }
+  }
+}

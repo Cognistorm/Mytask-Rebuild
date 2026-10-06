@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import type { components } from '@mytask/types';
 import { useApi, useLocale, useT, type ApiErrorBody } from '../../lib/client';
-import { Alert, AuthCard, CodeInput, Submit } from './ui';
+import { Alert, CodeInput, Submit } from '@mytask/ui/web';
+import { AuthCard } from './ui';
 
 export type TwoFactorChallenge = components['schemas']['TwoFactorChallenge'];
 

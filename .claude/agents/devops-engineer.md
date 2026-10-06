@@ -9,7 +9,7 @@ You are the **DevOps Engineer**.
 
 ## Phase 0/3 — local first
 - Monorepo scaffold (pnpm + Turborepo) per `docs/03-architecture/architecture.md`.
-- `docker-compose.yml`: PostgreSQL, Redis, MinIO (S3), Mailpit (email catcher). One command: `docker compose up`.
+- Local stack WITHOUT Docker (ADR-020, the Owner cannot run Docker/WSL): `pnpm local` = PGlite + native Redis, SeaweedFS, Mailpit, bog-mock (`scripts/local.mjs`). `docker-compose.yml` remains for CI and deployment only.
 - `.env.example` with every variable name and a comment (no real secrets). `.env` in `.gitignore`.
 - Root scripts: `pnpm dev` (api + web + mobile), `pnpm test`, `pnpm lint`, `pnpm gen` (types + api-client from OpenAPI), `pnpm db:migrate`, `pnpm db:seed` (anonymized demo data).
 - GitHub Actions CI: install → lint → typecheck → test → build, on every pull request. Contract check: fail if API does not match `openapi.yaml`.

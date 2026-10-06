@@ -5,7 +5,7 @@ import type { Locale } from '@mytask/types';
 import type { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../db/prisma.service';
 
-/** Spec 15 events emitted by slice 01. */
+/** Spec 15 events emitted so far (slice 01, slice 1 spec 02). */
 export type OutboxEventType =
   | 'EV-01' // VerifyEmail
   | 'EV-02' // Admin/PendingUser
@@ -17,6 +17,15 @@ export type OutboxEventType =
   | 'EV-08' // Admin/NewRestrictionAppeal
   | 'EV-09' // AppealAccepted
   | 'EV-10' // AppealRejected
+  | 'EV-11' // EmailChangeConfirm (to the new address, spec 02 AC-30)
+  | 'EV-12' // EmailChangeNotice (to the old address, spec 02 AC-30)
+  | 'EV-13' // Admin/ProfileReported (spec 02 AC-14)
+  | 'EV-14' // Admin/PendingPortfolio (spec 02 AC-25)
+  | 'EV-15' // PortfolioPublished (spec 02 AC-26)
+  | 'EV-16' // Admin/NewIdVerificationPending (spec 02 AC-36)
+  | 'EV-17' // VerificationApproved (spec 02 AC-37)
+  | 'EV-18' // VerificationDeclined (spec 02 AC-37)
+  | 'EV-126' // PortfolioRejected (spec 02 AC-42, NEW Q-117)
   | 'EV-124' // Admin/CriticalSettingChanged
   | 'EV-128' // LoginSlowMode
   | 'EV-129'; // TwoFactorLocked

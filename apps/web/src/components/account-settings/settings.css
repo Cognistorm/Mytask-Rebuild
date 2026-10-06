@@ -1,0 +1,47 @@
+/* Account settings `/account/settings` (spec 02 AC-29…AC-35): design tokens only (CLAUDE.md); the layout,
+   card, blocks and links come from ../profile-edit/edit.css. */
+.mt-account-nav .mt-edit-links {
+  justify-self: stretch;
+  text-align: start;
+}
+
+/* Legacy sidebar: the current page is marked with the brand colour and a start border. */
+.mt-account-nav .mt-edit-links a {
+  padding-inline-start: var(--mt-space-3);
+  border-inline-start: var(--mt-border-width-strong) solid transparent;
+}
+
+.mt-account-nav .mt-edit-links a[aria-current='page'] {
+  border-inline-start-color: var(--mt-border-brand);
+  color: var(--mt-text-primary);
+  font-weight: var(--mt-font-weight-semibold);
+}
+
+.mt-account-nav .mt-edit-link {
+  padding-inline-start: var(--mt-space-3);
+}
+
+.mt-settings-code {
+  display: grid;
+  gap: var(--mt-space-3);
+}
+
+.mt-settings-danger {
+  border-color: var(--mt-border-danger);
+}
+
+.mt-account-nav .mt-account-theme {
+  justify-self: stretch;
+  text-align: start;
+  padding-block-start: var(--mt-space-4);
+  border-block-start: var(--mt-border-width-hairline) solid var(--mt-border-subtle);
+}
+
+/* Phones and tablets (below lg): the page content comes first and the account card follows it (QA 4.1.26
+   BUG-03). Legacy hides the account sidebar below lg; the dashboard menu has the same links, and the theme
+   switch stays reachable under the content. */
+@media (max-width: 1023.98px) {
+  .mt-account-side {
+    order: 1;
+  }
+}

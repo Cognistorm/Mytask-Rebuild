@@ -8,6 +8,7 @@
   },
   "scripts": {
     "setup:env": "node scripts/create-local-env.mjs",
+    "local": "node scripts/local.mjs",
     "dev": "turbo run dev --filter=@mytask/api --filter=@mytask/web --filter=@mytask/admin",
     "dev:mobile": "pnpm --filter @mytask/mobile start",
     "dev:all": "turbo run dev",
@@ -26,9 +27,7 @@
     "contract:verify": "npm --prefix docs/04-api ci && npm --prefix docs/04-api run verify:final",
     "i18n:import-legacy": "pnpm --filter @mytask/i18n import:legacy",
     "i18n:check": "pnpm --filter @mytask/i18n check",
-    "infra:up": "docker compose up -d",
-    "infra:down": "docker compose down",
-    "preview": "node scripts/preview.mjs"
+    "infra:up": "node scripts/local.mjs --infra-only"
   },
   "devDependencies": {
     "prettier": "3.9.9",

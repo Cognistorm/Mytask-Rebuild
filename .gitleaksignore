@@ -5,3 +5,6 @@
 21bcd453fb425332d812176f442ee339e002ca52:.gitleaksignore:generic-api-key:2
 # tokens.service.ts line 1 is a code comment about access tokens, not a key.
 1fdcc27eeebd961e5ab765770db0416f177bcb2a:apps/api/src/modules/auth/tokens.service.ts:generic-api-key:1
+# account-settings.spec.ts lines 296 and 335 are fake email-change tokens in E2E test URLs (`tok_...`), not keys.
+b69974b78a154815590fb371b319469c673136e5:apps/web/e2e/account-settings.spec.ts:generic-api-key:296
+b69974b78a154815590fb371b319469c673136e5:apps/web/e2e/account-settings.spec.ts:generic-api-key:335

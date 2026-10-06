@@ -54,3 +54,12 @@ export function splitLegacyLinks(translated: string): TextPart[] {
   if (last < translated.length) parts.push({ text: strip(translated.slice(last)) });
   return parts.filter((p) => p.text !== '');
 }
+
+/**
+ * A free text (e.g. a staff reason) placed in the middle of a sentence that ends with its own full stop, as in
+ * `t_portfolio_rejected_reason` "… Reason: {{reason}}. …": trims it and drops one final `.` so the text never
+ * shows "..". (QA 4.1.26 BUG-04).
+ */
+export function inSentence(text: string | null | undefined): string {
+  return (text ?? '').trim().replace(/\.$/, '');
+}

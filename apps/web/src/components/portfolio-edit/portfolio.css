@@ -1,0 +1,296 @@
+/* Selling → Portfolio list and the create/edit form (spec 02 AC-24…AC-28, AC-42): design tokens only
+   (CLAUDE.md). Breakpoints md 768px / lg 1024px as literals (CSS variables cannot appear in @media). */
+.mt-pf {
+  display: grid;
+  gap: var(--mt-space-6);
+  min-width: 0;
+}
+
+.mt-pf-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--mt-space-3);
+}
+
+.mt-pf-title {
+  margin: 0;
+  font-size: var(--mt-font-size-2xl);
+  line-height: var(--mt-font-line-height-2xl);
+  font-weight: var(--mt-font-weight-bold);
+}
+
+.mt-pf-muted {
+  margin: 0;
+  color: var(--mt-text-secondary);
+  font-size: var(--mt-font-size-sm);
+}
+
+.mt-pf-line {
+  display: block;
+}
+
+.mt-pf .mt-button[disabled],
+.mt-pf-file[data-disabled] {
+  cursor: not-allowed;
+  background: var(--mt-action-disabled);
+  color: var(--mt-action-on-disabled);
+}
+
+/* ---- List: 1 / 2 / 3 columns, the "Add a new work" tile last ---- */
+.mt-pf-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--mt-space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+@media (min-width: 768px) {
+  .mt-pf-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  .mt-pf-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.mt-pf-item {
+  display: grid;
+  align-content: start;
+  border: var(--mt-border-width-hairline) solid var(--mt-border-subtle);
+  border-radius: var(--mt-radius-card);
+  background: var(--mt-bg-surface);
+  overflow: hidden;
+}
+
+.mt-pf-item-link {
+  display: grid;
+  color: inherit;
+  text-decoration: none;
+}
+
+.mt-pf-item-link img {
+  inline-size: 100%;
+  aspect-ratio: var(--mt-size-layout-card-image-ratio);
+  object-fit: cover;
+  background: var(--mt-bg-subtle);
+}
+
+.mt-pf-item-title {
+  padding: var(--mt-space-3) var(--mt-space-3) 0;
+  font-weight: var(--mt-font-weight-semibold);
+  overflow-wrap: anywhere;
+}
+
+.mt-pf-item-link:hover .mt-pf-item-title {
+  text-decoration: underline;
+}
+
+.mt-pf-item-link:focus-visible {
+  outline: var(--mt-focus-ring-width) solid var(--mt-focus-ring);
+  outline-offset: calc(-1 * var(--mt-focus-ring-width));
+}
+
+.mt-pf-item-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--mt-space-2);
+  padding: var(--mt-space-3);
+}
+
+.mt-pf-item-actions,
+.mt-pf-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mt-space-2);
+}
+
+.mt-pf-buttons {
+  justify-content: end;
+}
+
+.mt-pf-reason {
+  margin: 0;
+  padding: 0 var(--mt-space-3) var(--mt-space-3);
+  color: var(--mt-text-danger);
+  font-size: var(--mt-font-size-sm);
+  overflow-wrap: anywhere;
+}
+
+.mt-pf-add a {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: var(--mt-space-2);
+  block-size: 100%;
+  min-block-size: calc(var(--mt-space-6) * 8);
+  border: var(--mt-border-width-strong) dashed var(--mt-border-strong);
+  border-radius: var(--mt-radius-card);
+  background: var(--mt-bg-subtle);
+  color: var(--mt-text-secondary);
+  font-weight: var(--mt-font-weight-semibold);
+  text-decoration: none;
+}
+
+.mt-pf-add a:hover {
+  color: var(--mt-text-link);
+  border-color: var(--mt-border-brand);
+}
+
+.mt-pf-add a:focus-visible {
+  outline: var(--mt-focus-ring-width) solid var(--mt-focus-ring);
+  outline-offset: var(--mt-focus-ring-offset);
+}
+
+.mt-pf-add svg {
+  inline-size: var(--mt-space-12);
+  block-size: var(--mt-space-12);
+}
+
+.mt-pf-more {
+  display: flex;
+  justify-content: center;
+}
+
+/* ---- Form: fields on the left (2/3), media + submit on the right (legacy create.blade.php) ---- */
+.mt-pf-status {
+  display: grid;
+  justify-items: start;
+  gap: var(--mt-space-2);
+}
+
+.mt-pf-layout,
+.mt-pf-side {
+  display: grid;
+  gap: var(--mt-space-6);
+  align-items: start;
+  min-width: 0;
+}
+
+@media (min-width: 1024px) {
+  .mt-pf-layout {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  }
+}
+
+.mt-pf-card {
+  display: grid;
+  gap: var(--mt-space-4);
+  padding: var(--mt-space-6);
+  background: var(--mt-bg-surface);
+  border: var(--mt-border-width-hairline) solid var(--mt-border-subtle);
+  border-radius: var(--mt-radius-card);
+  min-width: 0;
+}
+
+.mt-pf-submit {
+  inline-size: 100%;
+}
+
+.mt-pf-divider {
+  margin: 0;
+  border: 0;
+  border-block-start: var(--mt-border-width-hairline) solid var(--mt-border-subtle);
+}
+
+.mt-pf-uploader {
+  display: grid;
+  gap: var(--mt-space-2);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.mt-pf-uploader-label {
+  padding: 0;
+  margin-block-end: var(--mt-space-2);
+  font-weight: var(--mt-font-weight-semibold);
+}
+
+.mt-pf-file {
+  justify-self: start;
+}
+
+/* The file input is visually hidden; its label is the button, so it shows the focus ring. */
+.mt-pf-file:focus-within {
+  outline: var(--mt-focus-ring-width) solid var(--mt-focus-ring);
+  outline-offset: var(--mt-focus-ring-offset);
+}
+
+.mt-pf-thumbs,
+.mt-pf-current-gallery {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--mt-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mt-pf-thumb {
+  display: grid;
+  gap: var(--mt-space-1);
+  align-content: start;
+  font-size: var(--mt-font-size-sm);
+}
+
+.mt-pf-thumb img,
+.mt-pf-current-gallery img,
+.mt-pf-current-thumb {
+  inline-size: 100%;
+  aspect-ratio: var(--mt-size-layout-card-image-ratio);
+  object-fit: cover;
+  border-radius: var(--mt-radius-control);
+  background: var(--mt-bg-subtle);
+}
+
+.mt-pf-thumb[data-state='uploading'] img,
+.mt-pf-thumb[data-state='processing'] img {
+  opacity: 0.6;
+}
+
+.mt-pf-thumb[data-state='failed'] img {
+  outline: var(--mt-border-width-strong) solid var(--mt-border-danger);
+}
+
+.mt-pf-thumb-state {
+  color: var(--mt-text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.mt-pf-thumb[data-state='failed'] .mt-pf-thumb-state {
+  color: var(--mt-text-danger);
+}
+
+.mt-pf-current-thumb {
+  max-inline-size: calc(var(--mt-space-12) * 4);
+}
+
+.mt-pf-link-button {
+  justify-self: start;
+  min-block-size: var(--mt-size-touch-target-min);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--mt-text-link);
+  font: inherit;
+  cursor: pointer;
+}
+
+.mt-pf-link-button:hover {
+  text-decoration: underline;
+}
+
+.mt-pf-link-button:focus-visible {
+  outline: var(--mt-focus-ring-width) solid var(--mt-focus-ring);
+  outline-offset: var(--mt-focus-ring-offset);
+}

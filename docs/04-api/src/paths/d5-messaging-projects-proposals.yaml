@@ -771,7 +771,7 @@
       ownership: any logged-in user except the project owner
     x-covers: ['10 AC-22']
     x-notifications: [EV-60]
-    x-rate-limit: 10 reports per user per hour, shared by createUserReport, createGigReport, createProjectReport and createProposalReport (SEC-23)
+    x-rate-limit: 10 reports per user per hour, shared by createUserReport, createGigReport, createProjectReport and createProposalReport; every attempt counts, before the target check, also one refused with 400, 403 or 404 (SEC-23, I-31)
     requestBody:
       required: true
       content:
@@ -1075,7 +1075,7 @@
       ownership: a user who can see the proposal (owner, Premium), except its author; others get 404
     x-covers: ['11 AC-15']
     x-notifications: [EV-65]
-    x-rate-limit: 10 reports per user per hour, shared by createUserReport, createGigReport, createProjectReport and createProposalReport (SEC-23)
+    x-rate-limit: 10 reports per user per hour, shared by createUserReport, createGigReport, createProjectReport and createProposalReport; every attempt counts, before the target check, also one refused with 400, 403 or 404 (SEC-23, I-31)
     requestBody:
       required: true
       content:

@@ -4,19 +4,25 @@
   "agentGuidance": false,
   "globalDependencies": [".env"],
   "tasks": {
+    "generate": {
+      "inputs": ["prisma/schema.prisma", "prisma.config.ts", "package.json"],
+      "outputs": ["src/generated/prisma/**"]
+    },
     "build": {
       "dependsOn": ["^build"],
+      "env": ["ADMIN_BASE_PATH"],
       "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
     },
     "typecheck": {
-      "dependsOn": ["^build"]
+      "dependsOn": ["^build", "generate"]
     },
     "lint": {
-      "dependsOn": ["^build"]
+      "dependsOn": ["^build", "generate"]
     },
     "test": {
-      "dependsOn": ["^build"],
-      "env": ["DATABASE_URL", "REDIS_URL", "RUN_INTEGRATION"]
+      "dependsOn": ["^build", "generate"],
+      "env": ["DATABASE_URL", "REDIS_URL", "RUN_INTEGRATION", "S3_INTEGRATION", "S3_ENDPOINT"],
+      "passThroughEnv": ["S3_ACCESS_KEY_ID", "S3_SECRET_ACCESS_KEY"]
     },
     "test:e2e": {
       "dependsOn": ["build"],

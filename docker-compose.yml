@@ -1,4 +1,5 @@
-# MyTask.ge local stack (architecture §6, ADR-015 §1). Everything stays on this computer.
+# MyTask.ge container stack (ADR-015). NOT used on the Owner's computer: Docker is not available there, so
+# local development runs `pnpm local` (native tools, ADR-020). Kept as the reference for CI and deployment.
 #
 #   pnpm setup:env                       # once: writes a local-only .env with random secrets
 #   docker compose up -d                 # infrastructure for `pnpm dev`
@@ -16,9 +17,14 @@ x-app-env: &app-env
     DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
     REDIS_URL: redis://redis:6379
     S3_ENDPOINT: http://s3:8333
+    # Presigned upload/download URLs are opened by the browser, which reaches the s3 port on localhost.
+    S3_PUBLIC_ENDPOINT: http://localhost:8333
     SMTP_URL: smtp://mailpit:1025
     BOG_API_BASE_URL: http://bog-mock:4100
     CLAMAV_HOST: clamav
+    # Uploads wait in `scanning` until clamd answers; without `--profile scan`, set SCAN_PROVIDER=none in
+    # .env to mark them scan_skipped instead (local only, ADR-009 §6).
+    SCAN_PROVIDER: ${SCAN_PROVIDER:-clamav}
     APP_URL: http://localhost:8080
     ADMIN_URL: http://admin.localhost:8080
 
@@ -62,11 +68,13 @@ services:
     entrypoint: ['/bin/sh', '-c']
     command:
       - |
-        printf '{"identities":[{"name":"local","credentials":[{"accessKey":"%s","secretKey":"%s"}],"actions":["Admin","Read","List","Tagging","Write"]}]}' "$$S3_ACCESS_KEY_ID" "$$S3_SECRET_ACCESS_KEY" > /tmp/s3.json
-        exec weed server -dir=/data -s3 -s3.port=8333 -s3.config=/tmp/s3.json -master.volumeSizeLimitMB=128 -volume.max=0
+        # anonymous = read-only on the public bucket (ADR-009: processed public images, no listing).
+        printf '{"identities":[{"name":"local","credentials":[{"accessKey":"%s","secretKey":"%s"}],"actions":["Admin","Read","List","Tagging","Write"]},{"name":"anonymous","actions":["Read:%s"]}]}' "$$S3_ACCESS_KEY_ID" "$$S3_SECRET_ACCESS_KEY" "$$S3_BUCKET_PUBLIC" > /tmp/s3.json
+        exec weed server -dir=/data -s3 -s3.port=8333 -s3.config=/tmp/s3.json -filer.disableHttp -master.volumeSizeLimitMB=128 -volume.max=0
     environment:
       S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:?run pnpm setup:env}
       S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:?run pnpm setup:env}
+      S3_BUCKET_PUBLIC: ${S3_BUCKET_PUBLIC:-public-media}
     ports: ['127.0.0.1:8333:8333']
     volumes: [s3data:/data]
     healthcheck:
@@ -129,6 +137,8 @@ services:
     # Virus scanning of uploads (ADR-009). Optional locally: `--profile scan`.
     image: clamav/clamav:1.5-debian13-slim
     profiles: [scan]
+    # Size limits ≥ 100 MB for appeal videos (Q-154).
+    volumes: ['./tools/clamav/clamd.conf:/etc/clamav/clamd.conf:ro']
     ports: ['127.0.0.1:3310:3310']
     networks: [app]
 
@@ -151,6 +161,9 @@ services:
       <<: *app-env-vars
       # Caddy's fixed edge address: the only peer whose X-MyTask-Client-IP is trusted (ADR-013 §16).
       TRUSTED_PROXY_IPS: 172.30.0.10
+      # All interfaces inside the container (the default 127.0.0.1 is for `pnpm local`, SEC-71); a `HOST` line in
+      # .env must not override it.
+      HOST: 0.0.0.0
     depends_on:
       migrate: { condition: service_completed_successfully }
       redis: { condition: service_healthy }
@@ -186,6 +199,8 @@ services:
     environment:
       API_INTERNAL_URL: http://api:3000/api/v1
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?run pnpm setup:env}
+      # Browsers POST uploads straight to storage: the page CSP allows this origin (connect-src).
+      S3_PUBLIC_ENDPOINT: http://localhost:8333
     depends_on:
       api: { condition: service_healthy }
     networks: [edge, app]

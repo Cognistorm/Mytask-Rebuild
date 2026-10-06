@@ -21,6 +21,7 @@ CMD ["./node_modules/.bin/prisma", "migrate", "deploy"]
 
 FROM node:24-alpine AS runtime
 ENV NODE_ENV=production \
+    HOST=0.0.0.0 \
     OPENAPI_SPEC_PATH=/app/openapi.yaml
 WORKDIR /app
 COPY --from=build --chown=node:node /out/package.json ./package.json

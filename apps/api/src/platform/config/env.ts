@@ -24,6 +24,12 @@ export const envSchema = z
     LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
     /** HTTP port of the public API process. */
     PORT: z.coerce.number().int().positive().default(3000),
+    /**
+     * Interface the public API binds to. Loopback by default, so `pnpm local` / `pnpm dev` are not reachable
+     * from the Wi-Fi (security review 06 SEC-71); containers set 0.0.0.0, and so does phone testing
+     * (SETUP-LOCAL §4).
+     */
+    HOST: z.string().min(1).default('127.0.0.1'),
     /** Internal readiness port (DB, Redis) — never routed by Caddy (architecture §7.11). */
     READINESS_PORT: z.coerce.number().int().positive().default(3001),
     /** Internal readiness port of the worker process. */
@@ -63,6 +69,27 @@ export const envSchema = z
     RECAPTCHA_SITE_KEY: z.string().optional(),
     /** reCAPTCHA v3 server secret; only read while S-061 is ON (spec 01 AC-18). */
     RECAPTCHA_SECRET_KEY: z.string().optional(),
+    /** Object storage, S3 API (ADR-009 §1; SeaweedFS locally, ADR-017). Without it, file operations answer 503. */
+    S3_ENDPOINT: z.url().optional(),
+    /** Endpoint written into presigned URLs for browsers/apps when it differs from S3_ENDPOINT (compose: `s3` vs localhost). */
+    S3_PUBLIC_ENDPOINT: z.url().optional(),
+    S3_REGION: z.string().min(1).default('us-east-1'),
+    S3_ACCESS_KEY_ID: z.string().optional(),
+    S3_SECRET_ACCESS_KEY: z.string().optional(),
+    S3_BUCKET_PUBLIC: z.string().min(3).default('public-media'),
+    S3_BUCKET_PRIVATE: z.string().min(3).default('private'),
+    S3_BUCKET_KYC: z.string().min(3).default('kyc'),
+    /** Base URL of processed public images (CDN, or the local S3 bucket path). */
+    PUBLIC_MEDIA_BASE_URL: z.url().optional(),
+    /**
+     * Virus scanner of uploads (ADR-009 §6). `clamav` needs CLAMAV_HOST; `none` marks files `scan_skipped`.
+     * Unset = `clamav` when CLAMAV_HOST is set, else `none`. Production needs a scanner unless `none` is
+     * set explicitly (Owner approval).
+     */
+    SCAN_PROVIDER: z.enum(['clamav', 'none']).optional(),
+    /** clamd TCP address (compose profile `scan`: `clamav:3310`). */
+    CLAMAV_HOST: z.string().optional(),
+    CLAMAV_PORT: z.coerce.number().int().positive().default(3310),
     /** API tests only (ADR-002 §2); refused in production below. */
     STAFF_BODY_TOKENS_ENABLED: bool,
   })
@@ -86,6 +113,37 @@ export const envSchema = z
         code: 'custom',
         path: ['SETTINGS_ENCRYPTION_KEY'],
         message: 'required in production (social-login secrets are stored encrypted, ADR-005 §8)',
+      });
+    }
+    if (env.NODE_ENV === 'production') {
+      for (const name of [
+        'S3_ENDPOINT',
+        'S3_ACCESS_KEY_ID',
+        'S3_SECRET_ACCESS_KEY',
+        'PUBLIC_MEDIA_BASE_URL',
+      ] as const) {
+        if (!env[name]) {
+          ctx.addIssue({
+            code: 'custom',
+            path: [name],
+            message: 'required in production (uploads, ADR-009)',
+          });
+        }
+      }
+    }
+    if (env.SCAN_PROVIDER === 'clamav' && !env.CLAMAV_HOST) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['CLAMAV_HOST'],
+        message: 'required when SCAN_PROVIDER=clamav',
+      });
+    }
+    if (env.NODE_ENV === 'production' && !env.SCAN_PROVIDER && !env.CLAMAV_HOST) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['CLAMAV_HOST'],
+        message:
+          'required in production (virus scan of uploads, ADR-009 §6); SCAN_PROVIDER=none only with Owner approval',
       });
     }
     if (env.NODE_ENV === 'production' && env.MAIL_TRANSPORT === 'log') {

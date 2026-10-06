@@ -42,9 +42,10 @@ export function Input(props: {
   secure?: boolean;
   multiline?: boolean;
   maxLength?: number;
-  keyboardType?: 'default' | 'email-address' | 'number-pad';
+  placeholder?: string;
+  keyboardType?: 'default' | 'email-address' | 'number-pad' | 'url';
   textContentType?:
-    'emailAddress' | 'password' | 'newPassword' | 'username' | 'name' | 'oneTimeCode';
+    'emailAddress' | 'password' | 'newPassword' | 'username' | 'name' | 'oneTimeCode' | 'URL';
 }) {
   return (
     <View style={s.field}>
@@ -56,6 +57,8 @@ export function Input(props: {
         secureTextEntry={props.secure}
         multiline={props.multiline}
         maxLength={props.maxLength}
+        placeholder={props.placeholder}
+        placeholderTextColor={theme.colors.text.muted}
         autoCapitalize={props.multiline ? 'sentences' : 'none'}
         autoCorrect={!!props.multiline}
         keyboardType={props.keyboardType ?? 'default'}
@@ -76,16 +79,19 @@ export function Button({
   onPress,
   busy,
   disabled,
+  danger,
 }: {
   label: string;
   onPress: () => void;
   busy?: boolean;
   disabled?: boolean;
+  /** Destructive action (e.g. the delete confirmation). */
+  danger?: boolean;
 }) {
   const off = !!busy || !!disabled;
   return (
     <Pressable
-      style={[s.button, off ? s.buttonBusy : null]}
+      style={[s.button, danger ? s.buttonDanger : null, off ? s.buttonBusy : null]}
       onPress={onPress}
       disabled={off}
       accessibilityRole="button"
@@ -165,6 +171,7 @@ const s = StyleSheet.create({
     padding: theme.space[3],
     alignItems: 'center',
   },
+  buttonDanger: { backgroundColor: theme.colors.action.danger },
   buttonBusy: { backgroundColor: theme.colors.action.disabled },
   buttonText: { ...theme.text.label, color: theme.colors.action.onPrimary },
   buttonTextDisabled: { color: theme.colors.action.onDisabled },

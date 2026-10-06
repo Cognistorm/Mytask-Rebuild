@@ -1,0 +1,391 @@
+/* Public profile and portfolio pages (spec 02 AC-8, AC-28; audit §3.6): design tokens only (CLAUDE.md).
+   Breakpoints md 768px / lg 1024px as literals (CSS variables cannot appear in @media). */
+.mt-profile {
+  display: grid;
+  gap: var(--mt-space-6);
+  max-width: var(--mt-size-layout-container-max);
+  margin: 0 auto;
+  padding: var(--mt-space-8) var(--mt-size-layout-gutter-mobile);
+  box-sizing: border-box;
+}
+
+.mt-profile-narrow {
+  max-width: var(--mt-size-layout-prose);
+}
+
+/* Left card on top on phones, beside the main column from lg (legacy layout). */
+.mt-profile-layout {
+  display: grid;
+  gap: var(--mt-space-6);
+  align-items: start;
+}
+
+@media (min-width: 768px) {
+  .mt-profile {
+    padding-inline: var(--mt-size-layout-gutter-tablet);
+  }
+}
+
+@media (min-width: 1024px) {
+  .mt-profile {
+    padding-inline: var(--mt-size-layout-gutter-desktop);
+  }
+
+  .mt-profile-layout {
+    grid-template-columns: var(--mt-size-layout-filter-column-width) minmax(0, 1fr);
+  }
+}
+
+.mt-profile-card,
+.mt-profile-section,
+.mt-profile-owner {
+  display: grid;
+  gap: var(--mt-space-4);
+  padding: var(--mt-space-6);
+  background: var(--mt-bg-surface);
+  border: var(--mt-border-width-hairline) solid var(--mt-border-subtle);
+  border-radius: var(--mt-radius-card);
+  min-width: 0;
+}
+
+.mt-profile-card {
+  justify-items: center;
+  text-align: center;
+}
+
+.mt-profile-identity {
+  display: grid;
+  justify-items: center;
+  gap: var(--mt-space-1);
+}
+
+.mt-profile-name {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mt-space-1);
+  margin: 0;
+  font-size: var(--mt-font-size-xl);
+  line-height: var(--mt-font-line-height-xl);
+  font-weight: var(--mt-font-weight-bold);
+  overflow-wrap: anywhere;
+}
+
+.mt-profile-verified {
+  display: inline-flex;
+  color: var(--mt-text-brand);
+}
+
+.mt-profile-verified svg {
+  inline-size: var(--mt-size-icon-md);
+  block-size: var(--mt-size-icon-md);
+}
+
+.mt-profile-muted {
+  margin: 0;
+  color: var(--mt-text-secondary);
+  font-size: var(--mt-font-size-sm);
+}
+
+.mt-profile-headline {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.mt-profile-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--mt-space-2);
+}
+
+.mt-profile-card .mt-profile-actions > * {
+  flex: 1 1 auto;
+}
+
+/* Facts, verifications, languages, linked accounts: label left, value right. */
+.mt-profile-facts,
+.mt-profile-list {
+  display: grid;
+  gap: var(--mt-space-2);
+  inline-size: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--mt-font-size-sm);
+  text-align: start;
+}
+
+.mt-profile-facts > div,
+.mt-profile-list > li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--mt-space-3);
+}
+
+.mt-profile-facts dt {
+  color: var(--mt-text-secondary);
+}
+
+.mt-profile-facts dd {
+  margin: 0;
+  font-weight: var(--mt-font-weight-medium);
+  font-variant-numeric: tabular-nums;
+}
+
+.mt-profile-card-section {
+  display: grid;
+  gap: var(--mt-space-2);
+  inline-size: 100%;
+  padding-block-start: var(--mt-space-4);
+  border-block-start: var(--mt-border-width-hairline) solid var(--mt-border-subtle);
+}
+
+.mt-profile-card-title {
+  margin: 0;
+  font-size: var(--mt-font-size-md);
+  font-weight: var(--mt-font-weight-semibold);
+  text-align: start;
+}
+
+.mt-profile-ok {
+  color: var(--mt-text-success);
+  font-weight: var(--mt-font-weight-medium);
+}
+
+.mt-profile-main {
+  display: grid;
+  gap: var(--mt-space-6);
+  min-width: 0;
+}
+
+.mt-profile-section-title,
+.mt-profile-page-title {
+  margin: 0;
+  font-size: var(--mt-font-size-lg);
+  line-height: var(--mt-font-line-height-lg);
+  font-weight: var(--mt-font-weight-semibold);
+}
+
+.mt-profile-page-title {
+  font-size: var(--mt-font-size-xl);
+  line-height: var(--mt-font-line-height-xl);
+  overflow-wrap: anywhere;
+}
+
+/* Availability, pending and rejected notes (text, not colour only). */
+.mt-profile-notice {
+  display: grid;
+  justify-items: start;
+  gap: var(--mt-space-2);
+  padding: var(--mt-space-4);
+  border: var(--mt-border-width-hairline) solid var(--mt-feedback-warning-border);
+  border-radius: var(--mt-radius-card);
+  background: var(--mt-feedback-warning-bg);
+  color: var(--mt-feedback-warning-text);
+}
+
+.mt-profile-notice-title {
+  margin: 0;
+  font-weight: var(--mt-font-weight-semibold);
+}
+
+.mt-profile-notice-text {
+  margin: 0;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.mt-profile-ratings {
+  display: grid;
+  gap: var(--mt-space-6);
+}
+
+@media (min-width: 768px) {
+  .mt-profile-ratings {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.mt-profile-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mt-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mt-profile-more {
+  display: flex;
+  justify-content: center;
+}
+
+.mt-profile-error {
+  margin: 0;
+  color: var(--mt-text-danger);
+  text-align: center;
+}
+
+/* ---- Portfolio grid: 1 / 2 / 3 columns ---- */
+.mt-portfolio-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--mt-space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+@media (min-width: 768px) {
+  .mt-portfolio-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  .mt-portfolio-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.mt-portfolio-card {
+  position: relative;
+  display: grid;
+  border: var(--mt-border-width-hairline) solid var(--mt-border-subtle);
+  border-radius: var(--mt-radius-card);
+  background: var(--mt-bg-surface);
+  overflow: hidden;
+}
+
+.mt-portfolio-card-link {
+  display: grid;
+  color: inherit;
+  text-decoration: none;
+}
+
+.mt-portfolio-card-link img {
+  inline-size: 100%;
+  aspect-ratio: var(--mt-size-layout-card-image-ratio);
+  object-fit: cover;
+  background: var(--mt-bg-subtle);
+}
+
+.mt-portfolio-card-title {
+  padding: var(--mt-space-3);
+  font-weight: var(--mt-font-weight-semibold);
+  overflow-wrap: anywhere;
+}
+
+.mt-portfolio-card-link:hover .mt-portfolio-card-title {
+  text-decoration: underline;
+}
+
+.mt-portfolio-card-link:focus-visible {
+  outline: var(--mt-focus-ring-width) solid var(--mt-focus-ring);
+  outline-offset: calc(-1 * var(--mt-focus-ring-width));
+}
+
+.mt-portfolio-card .mt-pill {
+  position: absolute;
+  inset-block-start: var(--mt-space-2);
+  inset-inline-start: var(--mt-space-2);
+}
+
+/* ---- Portfolio item ---- */
+.mt-portfolio-item {
+  display: grid;
+  gap: var(--mt-space-4);
+}
+
+.mt-portfolio-item > .mt-profile-actions {
+  justify-content: start;
+}
+
+.mt-portfolio-image {
+  display: block;
+  inline-size: 100%;
+  block-size: auto;
+  border-radius: var(--mt-radius-card);
+  background: var(--mt-bg-subtle);
+}
+
+.mt-portfolio-gallery {
+  display: grid;
+  gap: var(--mt-space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mt-portfolio-description {
+  margin: 0;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+/* ---- Owner box of the portfolio pages ---- */
+.mt-profile-owner {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+}
+
+.mt-profile-owner .mt-profile-actions {
+  grid-column: 1 / -1;
+  justify-content: start;
+}
+
+.mt-profile-owner-text {
+  display: grid;
+  gap: var(--mt-space-1);
+}
+
+.mt-profile-owner-name {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mt-space-1);
+  margin: 0;
+  font-weight: var(--mt-font-weight-semibold);
+  overflow-wrap: anywhere;
+}
+
+/* ---- Share dialog ---- */
+.mt-profile-share {
+  display: grid;
+  gap: var(--mt-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mt-profile-share .mt-button {
+  inline-size: 100%;
+  min-block-size: var(--mt-size-touch-target-min);
+}
+
+.mt-profile-share-status {
+  margin: 0;
+  min-block-size: var(--mt-font-line-height-sm);
+  color: var(--mt-text-success);
+  font-size: var(--mt-font-size-sm);
+}
+
+/* Report user dialog (AC-14). */
+.mt-profile-report {
+  display: grid;
+  gap: var(--mt-space-4);
+}
+
+.mt-profile-report-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--mt-space-2);
+}
+
+/* The gigs block sits in the narrower main column: fewer, wider cards than a full-width list. */
+.mt-profile-section .mt-gig-grid {
+  grid-template-columns: repeat(
+    auto-fill,
+    minmax(calc(var(--mt-size-layout-sidebar-width) - var(--mt-space-4)), 1fr)
+  );
+}

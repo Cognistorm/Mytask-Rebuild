@@ -1,11 +1,14 @@
 // Restrictions and appeals (spec 01 AC-19, AC-46…AC-50, R-A8; spec 16 AC-19, AC-29, AC-32).
 // `users.is_restricted` is a cached flag, recomputed in the same transaction as every change (data-model §3.A).
-// Appeal FILES wait for the files foundation (F0, slice 02) and the Owner's answer on S-093 (Q-154).
+// Appeal files (ROADMAP 4.1.6a): ready `appeal_file` uploads of the user, 1 to S-091 when required (Q-154 types
+// and size are checked at upload, S-092/S-093); private, staff download them audited (R-A8).
 import { Injectable } from '@nestjs/common';
 import type { components } from '@mytask/types';
 import type {
+  File as FileRow,
   Prisma,
   RestrictionAppeal,
+  RestrictionAppealFile,
   RestrictionStatus,
   User,
   UserRestriction,
@@ -16,26 +19,51 @@ import { ApiException } from '../../platform/errors/api-exception';
 import { OutboxService } from '../../platform/outbox/outbox.service';
 import { SettingsService } from '../../platform/settings/settings.service';
 import type { RequestContext } from '../auth/request-context';
+import { FileAttachments, FilesService } from '../files/files.service';
+import { PremiumStatus } from '../subscriptions/premium-status';
 
 type S = components['schemas'];
 type Tx = Prisma.TransactionClient;
-type Row = UserRestriction & { appeal: RestrictionAppeal | null };
+type Appeal = RestrictionAppeal & { files: RestrictionAppealFile[] };
+type Row = UserRestriction & { appeal: Appeal | null };
+type Files = Map<string, FileRow>;
 const ACTIVE: RestrictionStatus[] = ['pending', 'submitted', 'rejected'];
+/** Restriction with its appeal and the appeal's files in the user's order. */
+const WITH_APPEAL = {
+  appeal: { include: { files: { orderBy: { position: 'asc' } } } },
+} as const satisfies Prisma.UserRestrictionInclude;
 
-const appealView = (a: RestrictionAppeal | null): S['RestrictionAppeal'] | null =>
+const attachments = (a: Appeal, files: Files): S['Attachment'][] =>
+  a.files.flatMap((af) => {
+    const f = files.get(af.fileId);
+    return f
+      ? [
+          {
+            fileId: f.id,
+            fileName: f.originalName,
+            contentType: f.detectedType ?? f.declaredType,
+            sizeBytes: Number(f.sizeBytes),
+          },
+        ]
+      : [];
+  });
+
+const appealView = (a: Appeal | null, files: Files): S['RestrictionAppeal'] | null =>
   a && {
     id: a.id,
     restrictionId: a.restrictionId,
     message: a.message,
-    files: [],
+    files: attachments(a, files),
     createdAt: a.createdAt.toISOString(),
   };
 
-const userSummary = (u: User): S['UserSummary'] => ({
+const notFound = () => new ApiException(404, 'NOT_FOUND', 't_page_not_fount');
+
+const userSummary = (u: User, premium: ReadonlySet<string>): S['UserSummary'] => ({
   id: u.id,
   username: u.username,
   avatar: null,
-  isPremium: false,
+  isPremium: premium.has(u.id),
   isIdVerified: false,
   isOnline: false,
   countryCode: null,
@@ -49,7 +77,25 @@ export class RestrictionsService {
     private readonly settings: SettingsService,
     private readonly outbox: OutboxService,
     private readonly audit: AuditService,
-  ) {}
+    private readonly files: FilesService,
+    private readonly premium: PremiumStatus,
+    attachmentChecks: FileAttachments,
+  ) {
+    // An appeal file stays as long as its appeal: deleteFile answers 409 for it.
+    attachmentChecks.register(
+      async (file) =>
+        file.purpose === 'appeal_file' &&
+        (await this.prisma.restrictionAppealFile.count({ where: { fileId: file.id } })) > 0,
+    );
+  }
+
+  /** The files rows behind the appeals' attachments. */
+  private async fileMap(appeals: (Appeal | null)[]): Promise<Files> {
+    const ids = appeals.flatMap((a) => a?.files.map((f) => f.fileId) ?? []);
+    if (ids.length === 0) return new Map();
+    const rows = await this.prisma.file.findMany({ where: { id: { in: ids } } });
+    return new Map(rows.map((f) => [f.id, f]));
+  }
 
   /** The cached flag = an open restriction exists (pending, submitted or rejected, not deleted). */
   private async recompute(tx: Tx, userId: string): Promise<void> {
@@ -64,10 +110,11 @@ export class RestrictionsService {
   async listMine(userId: string): Promise<S['RestrictionPage']> {
     const rows = await this.prisma.userRestriction.findMany({
       where: { userId, deletedAt: null },
-      include: { appeal: true },
+      include: WITH_APPEAL,
       orderBy: { createdAt: 'desc' },
     });
-    return { data: rows.map((r) => this.userView(r)), nextCursor: null };
+    const files = await this.fileMap(rows.map((r) => r.appeal));
+    return { data: rows.map((r) => this.userView(r, files)), nextCursor: null };
   }
 
   async appeal(userId: string, input: S['RestrictionAppealCreateRequest'], ctx: RequestContext) {
@@ -82,23 +129,29 @@ export class RestrictionsService {
         currentState: restriction.status,
       });
     }
-    const fileIds = input.fileIds ?? [];
-    if (restriction.filesRequired && fileIds.length === 0) {
-      throw new ApiException(400, 'VALIDATION_FAILED', 't_validator_required', {
-        fields: [
-          {
-            field: 'fileIds',
-            code: 'required',
-            message: ctx.t('t_validator_required'),
-            messageKey: 't_validator_required',
-          },
-        ],
+    const fileIds = [...new Set(input.fileIds ?? [])];
+    const invalid = (code: string, messageKey: string, params?: Record<string, number>) =>
+      new ApiException(400, 'VALIDATION_FAILED', messageKey, {
+        fields: [{ field: 'fileIds', code, message: ctx.t(messageKey, params), messageKey }],
       });
+    if (restriction.filesRequired && fileIds.length === 0) {
+      throw invalid('required', 't_validator_required');
     }
-    if (fileIds.length > 0) {
-      // No `appeal_file` can exist before the files foundation (F0, slice 02) and the S-093 types (Q-154):
-      // any referenced file is unknown, so it is never ready.
-      throw new ApiException(422, 'FILE_NOT_READY', 't_toast_something_went_wrong');
+    // Legacy saved files sent without the flag too; the S-091 count applies either way.
+    const maxFiles = await this.settings.get('S-091');
+    if (fileIds.length > maxFiles) {
+      throw invalid('max_items', 't_validator_max_array', { max: maxFiles });
+    }
+    const files = await this.prisma.file.findMany({ where: { id: { in: fileIds } } });
+    for (const id of fileIds) {
+      const f = files.find((x) => x.id === id);
+      // Own `appeal_file` uploads only; types (S-093) and size (S-092) were checked at upload and by the scan.
+      if (!f || f.ownerUserId !== userId || f.purpose !== 'appeal_file' || f.status === 'deleted') {
+        throw new ApiException(422, 'FILE_PURPOSE_MISMATCH', 't_file_not_found');
+      }
+      if (f.status !== 'ready') {
+        throw new ApiException(422, 'FILE_NOT_READY', 't_file_not_ready');
+      }
     }
     const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
     const updated = await this.prisma.$transaction(async (tx) => {
@@ -109,7 +162,11 @@ export class RestrictionsService {
       if (moved.count !== 1)
         throw new ApiException(409, 'STATE_CONFLICT', 't_toast_something_went_wrong');
       await tx.restrictionAppeal.create({
-        data: { restrictionId: restriction.id, message: input.message.trim() },
+        data: {
+          restrictionId: restriction.id,
+          message: input.message.trim(),
+          files: { create: fileIds.map((fileId, position) => ({ fileId, position })) },
+        },
       });
       await this.outbox.add(
         'EV-08',
@@ -123,10 +180,10 @@ export class RestrictionsService {
       );
       return tx.userRestriction.findUniqueOrThrow({
         where: { id: restriction.id },
-        include: { appeal: true },
+        include: WITH_APPEAL,
       });
     });
-    return this.userView(updated);
+    return this.userView(updated, await this.fileMap([updated.appeal]));
   }
 
   // ------------------------------------------------------------------ staff side
@@ -141,7 +198,7 @@ export class RestrictionsService {
         ...(filter.userId ? { userId: filter.userId } : {}),
         ...(filter.status?.length ? { status: { in: filter.status } } : {}),
       },
-      include: { appeal: true },
+      include: WITH_APPEAL,
       orderBy: { createdAt: 'desc' },
       take: 200,
     });
@@ -159,7 +216,7 @@ export class RestrictionsService {
           filesRequired: input.filesRequired,
           createdByStaffId: staffId,
         },
-        include: { appeal: true },
+        include: WITH_APPEAL,
       });
       await this.recompute(tx, user.id);
       await this.outbox.add(
@@ -222,18 +279,19 @@ export class RestrictionsService {
           ...(filter.userId ? { userId: filter.userId } : {}),
         },
       },
-      include: { restriction: { include: { appeal: true } } },
+      include: { restriction: { include: WITH_APPEAL } },
       orderBy: { createdAt: 'asc' },
       take: 50,
     });
     const views = await this.adminViews(appeals.map((a) => a.restriction));
+    const files = await this.fileMap(appeals.map((a) => a.restriction.appeal));
     const data = await Promise.all(
       appeals.map(async (a, i) => ({
         id: a.id,
         restriction: views[i]!,
         owner: await this.ownerSummary(a.restriction.userId),
         message: a.message,
-        files: [],
+        files: attachments(a.restriction.appeal!, files),
         createdAt: a.createdAt.toISOString(),
       })),
     );
@@ -293,21 +351,52 @@ export class RestrictionsService {
     });
     const r = await this.prisma.userRestriction.findUniqueOrThrow({
       where: { id: appeal.restrictionId },
-      include: { appeal: true },
+      include: WITH_APPEAL,
     });
     return {
       id: appeal.id,
       restriction: (await this.adminViews([r]))[0]!,
       owner: await this.ownerSummary(userId),
       message: appeal.message,
-      files: [],
+      files: attachments(r.appeal!, await this.fileMap([r.appeal])),
       createdAt: appeal.createdAt.toISOString(),
     };
   }
 
+  /**
+   * adminGetRestrictionAppealFileDownload (spec 16 AC-29, R-A8): only a file of this appeal (else 404), signed
+   * like getFileDownload; every access is audited (spec 16 AC-14).
+   */
+  async fileDownload(
+    appealId: string,
+    fileId: string,
+    staffId: string,
+    ctx: RequestContext,
+  ): Promise<S['SignedUrl']> {
+    const link = await this.prisma.restrictionAppealFile.findUnique({
+      where: { appealId_fileId: { appealId, fileId } },
+      include: { appeal: { include: { restriction: true } } },
+    });
+    if (!link || link.appeal.restriction.deletedAt) throw notFound();
+    const file = await this.prisma.file.findUnique({ where: { id: fileId } });
+    if (!file || file.status !== 'ready') throw notFound();
+    const signed = await this.files.signDownload(file);
+    await this.audit.write({
+      actorStaffId: staffId,
+      permissionCode: 'users.restrict',
+      action: 'restriction_appeal.file_view',
+      targetType: 'user',
+      targetId: link.appeal.restriction.userId,
+      after: { appealId, fileId },
+      ip: ctx.ip,
+      userAgent: ctx.userAgent,
+    });
+    return signed;
+  }
+
   // ------------------------------------------------------------------ mapping
 
-  private userView(r: Row): S['Restriction'] {
+  private userView(r: Row, files: Files): S['Restriction'] {
     return {
       id: r.id,
       message: r.message,
@@ -315,12 +404,13 @@ export class RestrictionsService {
       status: r.status,
       createdAt: r.createdAt.toISOString(),
       resolvedAt: r.resolvedAt?.toISOString() ?? null,
-      appeal: appealView(r.appeal),
+      appeal: appealView(r.appeal, files),
       canAppeal: r.status === 'pending' && r.deletedAt === null,
     };
   }
 
   private async adminViews(rows: Row[]): Promise<S['AdminRestriction'][]> {
+    const files = await this.fileMap(rows.map((r) => r.appeal));
     const users = await this.prisma.user.findMany({
       where: { id: { in: [...new Set(rows.map((r) => r.userId))] } },
     });
@@ -330,13 +420,17 @@ export class RestrictionsService {
     const staff = staffIds.length
       ? await this.prisma.staff.findMany({ where: { id: { in: staffIds } } })
       : [];
+    const premium = await this.premium.activeAmong(users.map((u) => u.id));
     const staffSummary = (id: string | null) => {
       const s = id ? staff.find((x) => x.id === id) : undefined;
       return s ? { id: s.id, username: s.username, fullName: s.fullName } : null;
     };
     return rows.map((r) => ({
       id: r.id,
-      user: userSummary(users.find((u) => u.id === r.userId)!),
+      user: userSummary(
+        users.find((u) => u.id === r.userId)!,
+        premium,
+      ),
       message: r.message,
       filesRequired: r.filesRequired,
       status: r.status,
@@ -344,7 +438,7 @@ export class RestrictionsService {
       createdAt: r.createdAt.toISOString(),
       resolvedBy: staffSummary(r.resolvedByStaffId),
       resolvedAt: r.resolvedAt?.toISOString() ?? null,
-      appeal: appealView(r.appeal),
+      appeal: appealView(r.appeal, files),
       decisionReason: r.decisionReason,
     }));
   }
@@ -354,12 +448,13 @@ export class RestrictionsService {
     const earlier = await this.prisma.userRestriction.count({
       where: { userId, status: 'rejected' },
     });
+    const premium = await this.premium.activeAmong([userId]);
     return {
-      user: userSummary(u),
+      user: userSummary(u, premium),
       status: u.status,
       isRestricted: u.isRestricted,
       isDeleted: u.deletedAt !== null,
-      plan: 'standard',
+      plan: premium.has(u.id) ? 'premium' : 'standard',
       kycStatus: 'none',
       reportCount: 0,
       earlierRejectionCount: earlier,

@@ -72,14 +72,14 @@ Give every user one account with two dashboards (Buying and Selling) and one swi
 
 ### Portfolio
 - AC-24 Given a user on Selling → Portfolio → Create, When they submit a title (3–100 chars), a description (≥ 10 chars), a thumbnail (JPG/PNG ≤ S-090 MB), 1 to S-089 gallery images (JPG/PNG, each ≤ S-090 MB), and optionally a project link and a video link (valid URLs, ≤ 120 chars), Then the item is saved with a URL slug made from the title plus a unique id. (LEGACY `CreateValidator.php:32-46`, `CreateComponent.php:116-146`)
-- AC-25 Given S-071 `moderation.portfolio.auto_approve` is OFF, When an item is created or edited, Then its status is pending (not public) and `Admin/PendingPortfolio` goes to every address in S-100. Given S-071 is ON, Then it is public at once and no admin email is sent. (LEGACY; CHANGE recipients Q-026)
+- AC-25 Given S-071 `moderation.portfolio.auto_approve` is OFF, When an item is created or edited, Then its status is pending (not public) and `Admin/PendingPortfolio` goes to every address in S-100, but only when the item enters pending (a new item, or an edit of a public or rejected item); an edit of an item that is already pending sends no new email (**CHANGE**, Owner 2026-10-03 Q-166 (a), SEC-69). Given S-071 is ON, Then it is public at once and no admin email is sent. Saves (create and edit together) are limited to 30 per user per hour (ADR-022). (LEGACY; CHANGE recipients Q-026)
 - AC-26 Given a pending item, When staff approve it, Then it becomes public, and the owner gets the `PortfolioPublished` email and the in-app notification `t_ur_portfolio_title_has_been_published` (plus push, P-11). When staff reject it instead, Then AC-42 applies. (LEGACY `Admin/Portfolios/PortfoliosComponent.php:65-135`: approve or delete, no rejection message; reject with reason **CHANGE**, Owner 2026-09-30 Q-117)
 - AC-27 Given the owner edits an item, When they save, Then the new data replaces the old; uploading new gallery images replaces the old gallery; the status follows AC-25. The owner can delete an item at any time (files are deleted too). (LEGACY `EditComponent.php:162-234`, `PortfolioComponent.php:113-148`)
 - AC-28 Given a public profile, When `/profile/{username}/portfolio` is opened, Then only public items of that user are listed. `/profile/{username}/portfolio/{slug}` shows the item's thumbnail, gallery, description and links. Pending items are visible only to their owner (marked "Pending"); rejected items are visible only to their owner (marked "Rejected" with the reason, AC-42). (LEGACY; rejected state Q-117)
 - AC-42 Given a pending portfolio item, When staff reject it with a reason (required, ≤ 1,000 characters, spec 16 AC-19/AC-21), Then its status becomes `rejected` and it stays not public; the owner sees it in Selling → Portfolio (web and mobile) marked `t_portfolio_status_rejected` with `t_portfolio_rejected_reason`; and the owner gets the email `PortfolioRejected` (`t_subject_seller_portfolio_rejected`, body `t_portfolio_rejected_email_body` with the title and the reason), the in-app notification `t_ur_portfolio_title_has_been_rejected` and push (spec 15 EV-126). When the owner then edits and saves the item, Then its status follows AC-25 (pending again, or public at once when S-071 is ON) and the old reason is no longer shown to the owner (it stays in the audit log). The owner can delete a rejected item at any time (AC-27). A rejected item does not appear on `/profile/{username}/portfolio` and its item URL answers 404 to everyone except the owner. (NEW state and notification, Owner 2026-09-30 Q-117; legacy had no rejection)
 
 ### Account settings (`/account/settings`)
-- AC-29 Given a logged-in user, When they save username (same rules as registration, spec 01 AC-1/AC-2), email (valid, unique), full name (required, ≤ 60), country (optional, from the active country list) and city (required, ≤ 60) and enter their current password, Then the changes are saved with `t_ur_account_settings_updated`. A wrong password shows `t_ur_current_pass_does_not_match`. Given an account without a password (social login only), When the save changes the email, Then instead of a password the user asks for a 6-digit code (`t_2fa_resend_code`), which is emailed to the **current** address (spec 15 EV-06; valid only for an email change and only once; S-057/S-058 and the resend limits of spec 01 AC-27 apply) and enters it (`t_confirm_with_email_code`); a wrong or expired code shows `t_2fa_code_invalid` / `t_2fa_code_expired` and nothing is saved. Such an account saving other fields without changing the email is not asked for a password or code. (LEGACY `SettingsComponent.php:156-223`, `EditValidator.php:26-38`; emailed code **CHANGE** from "not asked", Owner 2026-09-30 Q-144 / SEC-05)
+- AC-29 Given a logged-in user, When they save username (same rules as registration, spec 01 AC-1/AC-2), email (valid, unique), full name (required, ≤ 60) and city (no country field: Georgia only, **CHANGE** Owner 2026-10-02, Q-162, ADR-021) (required, ≤ 60) and enter their current password, Then the changes are saved with `t_ur_account_settings_updated`. A wrong password shows `t_ur_current_pass_does_not_match`. Given an account without a password (social login only), When the save changes the email, Then instead of a password the user asks for a 6-digit code (`t_2fa_resend_code`), which is emailed to the **current** address (spec 15 EV-06; valid only for an email change and only once; S-057/S-058 and the resend limits of spec 01 AC-27 apply) and enters it (`t_confirm_with_email_code`); a wrong or expired code shows `t_2fa_code_invalid` / `t_2fa_code_expired` and nothing is saved. Such an account saving other fields without changing the email is not asked for a password or code. (LEGACY `SettingsComponent.php:156-223`, `EditValidator.php:26-38`; emailed code **CHANGE** from "not asked", Owner 2026-09-30 Q-144 / SEC-05)
 - AC-30 Given a user changes their email in settings, When they save, Then the email does not change yet: a confirmation link valid for S-054 minutes is sent to the new address (`t_email_change_pending`) and a notice is sent to the old address. The new email becomes active only when the link is opened; at that moment the withdrawal pause of spec 14 AC-21 (S-129, default 24 h) starts. (ACCEPTED P-18; legacy changed the email at once with no check; pause NEW, Owner 2026-09-30 Q-144)
 - AC-31 Given a user changes their username, When saved, Then their profile moves to `/profile/{new-username}`. (LEGACY; see EC-4)
 - AC-32 Given a user with an active order or project (as buyer or freelancer: order items pending/started/delivered and not finished; projects active, awaiting payment, in development or awaiting final review), When they choose "Delete account", Then it is refused with `t_cannot_delete_account_active_orders_projects`. (LEGACY `SettingsComponent.php:253-305`)
@@ -134,7 +134,7 @@ Accessibility: switcher items have `aria-current` and text labels on all sizes (
 | Notification | Channel | Recipient | Trigger | Tag |
 |---|---|---|---|---|
 | `Admin/ProfileReported` (`t_subject_admin_profile_reported`) | email | all S-100 recipients | AC-14 | LEGACY, CHANGE recipients (Q-026) |
-| `Admin/PendingPortfolio` (`t_subject_admin_pending_portfolio`) | email | all S-100 recipients | AC-25 (create or edit with S-071 OFF) | LEGACY, CHANGE recipients |
+| `Admin/PendingPortfolio` (`t_subject_admin_pending_portfolio`) | email | all S-100 recipients | AC-25 (create or edit with S-071 OFF, only when the item enters pending, Q-166) | LEGACY, CHANGE recipients and repeat (Q-166) |
 | `PortfolioPublished` (`t_subject_seller_portfolio_published`) + in-app `t_ur_portfolio_title_has_been_published` | email + in-app + push (P-11) | owner | AC-26 | LEGACY (push NEW) |
 | `PortfolioRejected` (`t_subject_seller_portfolio_rejected`, body `t_portfolio_rejected_email_body`) + in-app `t_ur_portfolio_title_has_been_rejected` (spec 15 EV-126) | email + in-app + push | owner | AC-42 | **NEW** (Owner 2026-09-30, Q-117) |
 | Re-authentication code, spec 15 EV-06 `TwoFactorCode` | email only | user without a password (current address) | email change in settings (AC-29) | NEW purpose on an existing NEW event (Q-144 / SEC-05) |
@@ -144,7 +144,7 @@ Accessibility: switcher items have `aria-current` and text labels on all sizes (
 | `YouBecameSeller` / `t_u_became_a_seller` | – | – | dropped (Q-013, X-06) | removed |
 
 ## Texts (i18n key | en | ka)
-Legacy keys reused (values unchanged). The Owner may want to refine `t_basic` (ka value is a joke: "გაქცეულს მოვაბრუნებ") and `t_verifications` (ka value is English).
+Legacy keys reused (values unchanged). The Owner may want to refine `t_basic` (ka value is a joke: "გაქცეულს მოვაბრუნებ") and `t_verifications` (the legacy ka value was English; now "ვერიფიკაციები", design §7.4; QA 4.1.26 F-04).
 | Key | en | ka |
 |---|---|---|
 | `t_switch_to_selling` | Switch to selling | ფრილანსერის პროფილი |
@@ -173,7 +173,7 @@ Legacy keys reused (values unchanged). The Owner may want to refine `t_basic` (k
 | `t_local_time` | Local time | ლოკალური დრო |
 | `t_last_delivery` | Last delivery | ბოლოს მიწოდებული ნამუშევარი |
 | `t_member_since` | Member since | შემოუერთდა |
-| `t_verifications` | Verifications | Verifications |
+| `t_verifications` | Verifications | ვერიფიკაციები |
 | `t_verified` | Verified | ვერიფიცირებული |
 | `t_account_verified` | Account verified | პროფილი ვერიფიცირებულია |
 | `t_email_address` | E-mail address | ელ-ფოსტა |
@@ -237,7 +237,7 @@ NEW keys (English first, Georgian alongside, Q-058):
 | `t_no_reviews_yet` | No reviews yet | შეფასებები ჯერ არ არის |
 | `t_id_verified` | ID verified | პირადობა დადასტურებულია |
 | `t_request_an_offer` | Request an offer | შეთავაზების მოთხოვნა |
-| `t_total_reach` | Total reach | ჯამური ნახვები |
+| `t_total_reach` | Total reach | მთლიანად მიაღწია — not new: a legacy key (`legacy/APP/lang/ka/messages.php:4350`), value kept (QA 4.1.26 F-04) |
 | `t_orders_in_progress` | Orders in progress | მიმდინარე შეკვეთები |
 | `t_create_new_gig` | Create a new gig | ახალი განცხადების შექმნა |
 | `t_dashboard_empty_selling` | You have no sales yet. Create your first gig to start selling. | გაყიდვები ჯერ არ გაქვთ. გაყიდვის დასაწყებად შექმენით პირველი განცხადება. |

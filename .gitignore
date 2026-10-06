@@ -25,6 +25,8 @@ apps/api/src/generated/prisma/
 # Isolated copies used by review agents
 .claude/worktrees/
 apps/api/.pglite/
+# Native local infrastructure: downloaded tools and their data (pnpm local, ADR-020).
+.local/
 
 # Re-written by `next dev` when an AI agent runs it (no opt-out); the root CLAUDE.md stays the single
 # committed rules file (QA P3 BUG-13).

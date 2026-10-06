@@ -27,7 +27,25 @@ const config: ExpoConfig = {
   orientation: 'portrait',
   userInterfaceStyle: 'automatic',
   platforms: ['ios', 'android'],
-  plugins: ['expo-router', 'expo-font', 'expo-web-browser'],
+  plugins: [
+    'expo-router',
+    'expo-font',
+    'expo-web-browser',
+    // Availability date (spec 02 screens table: bottom sheet with date picker).
+    '@react-native-community/datetimepicker',
+    // Appeal files (spec 01: "camera or files") and the avatar (spec 02 AC-16: camera or photo library). The
+    // library opens the system photo picker, which needs no photo-library permission; no microphone.
+    // Store-language texts for the prompt: Phase 6.
+    [
+      'expo-image-picker',
+      {
+        cameraPermission:
+          'MyTask uses the camera for your profile photo and to photograph documents you attach.',
+        photosPermission: false,
+        microphonePermission: false,
+      },
+    ],
+  ],
   experiments: { typedRoutes: true },
   ios: appLinks ? { associatedDomains: [`applinks:${appHost}`] } : undefined,
   android: appLinks

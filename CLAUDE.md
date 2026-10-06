@@ -31,7 +31,7 @@ improve visual polish, spacing, consistency, accessibility and mobile behavior.
 4. **Vertical slices.** One feature at a time through API → web → mobile → tests. Do not build all backend first.
 5. **No agent approves its own work.** QA and Security review; the Owner approves phase gates.
 6. **Never invent business rules.** If the old code and the live site disagree or are unclear, write the question into `docs/01-discovery/open-questions.md` and stop that item.
-7. **Local first.** Everything runs on the owner's computer (`docker compose up`). Nothing touches production until Phase 6 and explicit Owner approval.
+7. **Local first.** Everything runs on the owner's computer (`pnpm local`, no Docker — ADR-020). Nothing touches production until Phase 6 and explicit Owner approval.
 8. **Secrets never go in files.** Use `.env` (git-ignored) and document only the variable names in `.env.example`.
 
 ## Languages (i18n)
