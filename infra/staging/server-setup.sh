@@ -58,7 +58,9 @@ if [ ! -f $ENVF ]; then
 NODE_ENV=production
 LOG_LEVEL=info
 APP_URL=https://mytask.1kk.ge
-ADMIN_URL=https://mytask.1kk.ge
+ADMIN_URL=https://mytask.1kk.ge/admin
+# Staff panel under /admin on the same host (Owner 2026-10-06); read by the admin build (next.config basePath).
+ADMIN_BASE_PATH=/admin
 HOST=127.0.0.1
 PORT=3300
 READINESS_PORT=3301

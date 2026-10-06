@@ -30,4 +30,7 @@ unit mytask-worker "MyTask staging worker"                  $A/apps/api "$NODE -
 # HOSTNAME=localhost, not 127.0.0.1: the proxy rewrites to http://localhost:<port>/ka and Next treats a different
 # host as an external rewrite, which loops (BUG-01).
 unit mytask-web    "MyTask staging web (localhost:3310)"    $A/apps/web/.next/standalone "/usr/bin/env PORT=3310 HOSTNAME=localhost $NODE --max-old-space-size=256 apps/web/server.js" 300M ""
+unit mytask-admin  "MyTask staging admin (localhost:3320, /admin)" $A/apps/admin/.next/standalone "/usr/bin/env PORT=3320 HOSTNAME=localhost $NODE --max-old-space-size=256 apps/admin/server.js" 300M ""
 systemctl daemon-reload
+# Start at boot; remote-deploy.sh starts and restarts them.
+systemctl enable mytask-api mytask-worker mytask-web mytask-admin 2>/dev/null
