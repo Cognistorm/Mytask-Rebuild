@@ -3,6 +3,7 @@
 import { useMemo } from 'react';
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet } from 'react-native';
+import type { AccessibilityState } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { usePressLayer, usePressScale } from './motion';
 import { Gradient, useTheme } from './theme';
@@ -14,6 +15,7 @@ export function IconButton(props: {
   /** The glyph or icon (decorative; the label names the action). */
   children: ReactNode;
   accessibilityLabel: string;
+  accessibilityState?: AccessibilityState;
   onPress: () => void;
   testID?: string;
 }) {
@@ -35,6 +37,7 @@ export function IconButton(props: {
       }}
       accessibilityRole="button"
       accessibilityLabel={props.accessibilityLabel}
+      accessibilityState={props.accessibilityState}
       testID={props.testID}
     >
       <Gradient token={theme.gradient.action.secondary} fill style={s.round} />

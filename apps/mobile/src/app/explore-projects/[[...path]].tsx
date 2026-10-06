@@ -2,17 +2,11 @@
 // "Popular:" chips (project categories at the root, the category's skills inside one) and "Latest projects" (40 per
 // load, newest first). Projects arrive in slice 9, so the list is empty until then; the row design comes with it.
 // S-075 OFF (API 403) → the "feature disabled" state; unknown category or a skill outside it → "not found".
+// 3X look (3X.17b, visual-refresh.md §8.5, Q-171): the canvas, the search field in the input frame, "Popular:" chips
+// in their linked top-level category's colour (brand without a link; skills take their project category's colour).
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import {
-  ActivityIndicator,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { lightTheme as theme } from '@mytask/tokens/native';
 import type { components } from '@mytask/types';
@@ -20,6 +14,7 @@ import { EmptyState } from '../../components/dashboard';
 import { Notice } from '../../components/form';
 import { mobileApi } from '../../lib/api';
 import { createT } from '../../lib/i18n';
+import { Canvas, CategoryChip, InputFrame } from '../../ui';
 
 const locale = 'ka' as const;
 const t = createT(locale);
@@ -28,6 +23,8 @@ const api = mobileApi(locale);
 type ProjectCategory = components['schemas']['ProjectCategory'];
 type SkillSummary = components['schemas']['SkillSummary'];
 type SearchProjectCard = components['schemas']['SearchProjectCard'];
+
+type Chip = { label: string; path: string[]; current: boolean; color: string | null };
 
 type State =
   | { kind: 'loading' }
@@ -38,14 +35,14 @@ type State =
       kind: 'ready';
       category: ProjectCategory | null;
       skill: SkillSummary | null;
-      chips: { label: string; path: string[]; current: boolean }[];
+      chips: Chip[];
       projects: SearchProjectCard[];
     };
 
 async function fetchState(path: string[], q: string): Promise<State> {
   let category: ProjectCategory | null = null;
   let skill: SkillSummary | null = null;
-  let chips: { label: string; path: string[]; current: boolean }[];
+  let chips: Chip[];
   if (path.length > 2) return { kind: 'not-found' };
   if (path.length) {
     const res = await api.GET('/project-categories/lookup', {
@@ -60,6 +57,7 @@ async function fetchState(path: string[], q: string): Promise<State> {
       label: x.name,
       path: [category!.slug, x.slug],
       current: x.id === skill?.id,
+      color: category!.color,
     }));
   } else {
     const res = await api.GET('/project-categories');
@@ -67,6 +65,7 @@ async function fetchState(path: string[], q: string): Promise<State> {
       label: c.name,
       path: [c.slug],
       current: false,
+      color: c.color,
     }));
   }
   const res = await api.GET('/search/projects', {
@@ -92,6 +91,7 @@ export default function ExploreProjectsScreen() {
   const key = path.join('/');
   const [text, setText] = useState('');
   const [q, setQ] = useState('');
+  const [focused, setFocused] = useState(false);
   const [state, setState] = useState<State>({ kind: 'loading' });
 
   useEffect(() => {
@@ -107,101 +107,92 @@ export default function ExploreProjectsScreen() {
       : t('t_explore_projects');
 
   return (
-    <SafeAreaView style={s.screen}>
-      <ScrollView contentContainerStyle={s.content} keyboardShouldPersistTaps="handled">
-        <Text style={s.title} accessibilityRole="header">
-          {title}
-        </Text>
-        {state.kind === 'loading' ? (
-          <ActivityIndicator accessibilityLabel={t('t_ui_loading')} />
-        ) : null}
-        {state.kind === 'disabled' ? (
-          <View testID="projects-disabled">
-            <EmptyState title={t('t_feature_disabled')} />
-          </View>
-        ) : null}
-        {state.kind === 'not-found' ? <Notice kind="info" text={t('t_page_not_fount')} /> : null}
-        {state.kind === 'error' ? (
-          <Notice kind="error" text={t('t_toast_something_went_wrong')} />
-        ) : null}
-        {state.kind === 'ready' ? (
-          <>
-            <TextInput
-              style={s.search}
-              value={text}
-              onChangeText={setText}
-              onSubmitEditing={() => setQ(text.trim().slice(0, 100))}
-              returnKeyType="search"
-              placeholder={t('t_type_something_to_search_in_projects')}
-              placeholderTextColor={theme.colors.text.muted}
-              accessibilityLabel={t('t_search')}
-            />
-            {state.chips.length > 0 ? (
-              <View style={s.chips} accessibilityLabel={t('t_popular_categories')}>
-                <Text style={s.popular}>{t('t_popular_categories')}</Text>
-                {state.chips.map((c) => (
-                  <Pressable
-                    key={c.path.join('/')}
-                    onPress={() =>
-                      router.push({
-                        pathname: '/explore-projects/[[...path]]',
-                        params: { path: c.path },
-                      })
-                    }
-                    accessibilityRole="link"
-                    accessibilityState={{ selected: c.current }}
-                  >
-                    <Text style={[s.chip, c.current && s.chipOn]}>{c.label}</Text>
-                  </Pressable>
-                ))}
-              </View>
-            ) : null}
-            <Text style={s.section} accessibilityRole="header">
-              {t('t_latest_projects')}
-            </Text>
-            {state.projects.length === 0 ? (
-              <EmptyState title={t('t_no_projects_yet')} />
-            ) : (
-              // The project row (ProjectCard, spec 10) is built with slice 9; until then the API lists none.
-              state.projects.map((p) => (
-                <Text key={p.project.id} style={s.row}>
-                  {p.project.title}
-                </Text>
-              ))
-            )}
-          </>
-        ) : null}
-      </ScrollView>
-    </SafeAreaView>
+    <Canvas>
+      <SafeAreaView style={s.screen}>
+        <ScrollView contentContainerStyle={s.content} keyboardShouldPersistTaps="handled">
+          <Text style={s.title} accessibilityRole="header">
+            {title}
+          </Text>
+          {state.kind === 'loading' ? (
+            <ActivityIndicator accessibilityLabel={t('t_ui_loading')} />
+          ) : null}
+          {state.kind === 'disabled' ? (
+            <View testID="projects-disabled">
+              <EmptyState title={t('t_feature_disabled')} />
+            </View>
+          ) : null}
+          {state.kind === 'not-found' ? <Notice kind="info" text={t('t_page_not_fount')} /> : null}
+          {state.kind === 'error' ? (
+            <Notice kind="error" text={t('t_toast_something_went_wrong')} />
+          ) : null}
+          {state.kind === 'ready' ? (
+            <>
+              <InputFrame focused={focused}>
+                <TextInput
+                  style={s.search}
+                  value={text}
+                  onChangeText={setText}
+                  onFocus={() => setFocused(true)}
+                  onBlur={() => setFocused(false)}
+                  onSubmitEditing={() => setQ(text.trim().slice(0, 100))}
+                  returnKeyType="search"
+                  placeholder={t('t_type_something_to_search_in_projects')}
+                  placeholderTextColor={theme.colors.text.muted}
+                  accessibilityLabel={t('t_search')}
+                />
+              </InputFrame>
+              {state.chips.length > 0 ? (
+                <View style={s.chips} accessibilityLabel={t('t_popular_categories')}>
+                  <Text style={s.popular}>{t('t_popular_categories')}</Text>
+                  {state.chips.map((c) => (
+                    <CategoryChip
+                      key={c.path.join('/')}
+                      label={c.label}
+                      color={c.color}
+                      selected={c.current}
+                      onPress={() =>
+                        router.push({
+                          pathname: '/explore-projects/[[...path]]',
+                          params: { path: c.path },
+                        })
+                      }
+                    />
+                  ))}
+                </View>
+              ) : null}
+              <Text style={s.section} accessibilityRole="header">
+                {t('t_latest_projects')}
+              </Text>
+              {state.projects.length === 0 ? (
+                <EmptyState title={t('t_no_projects_yet')} />
+              ) : (
+                // The project row (ProjectCard, spec 10) is built with slice 9; until then the API lists none.
+                state.projects.map((p) => (
+                  <Text key={p.project.id} style={s.row}>
+                    {p.project.title}
+                  </Text>
+                ))
+              )}
+            </>
+          ) : null}
+        </ScrollView>
+      </SafeAreaView>
+    </Canvas>
   );
 }
 
 const s = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: theme.colors.bg.canvas },
+  screen: { flex: 1 },
   content: { padding: theme.space[4], gap: theme.space[3] },
   title: { ...theme.text.h2, color: theme.colors.text.primary },
   search: {
     ...theme.text.body,
     minHeight: theme.size.control.lg,
     paddingHorizontal: theme.space[4],
-    borderWidth: theme.borderWidth.hairline,
-    borderColor: theme.colors.border.default,
-    borderRadius: theme.radius.control,
-    backgroundColor: theme.colors.bg.surface,
     color: theme.colors.text.primary,
   },
   chips: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: theme.space[2] },
   popular: { ...theme.text.bodySm, color: theme.colors.text.secondary },
-  chip: {
-    ...theme.text.caption,
-    paddingHorizontal: theme.space[3],
-    paddingVertical: theme.space[2],
-    borderWidth: theme.borderWidth.hairline,
-    borderColor: theme.colors.border.default,
-    borderRadius: theme.radius.pill,
-    color: theme.colors.text.secondary,
-  },
-  chipOn: { borderColor: theme.colors.border.brand, color: theme.colors.text.brand },
   section: { ...theme.text.h3, color: theme.colors.text.primary, marginTop: theme.space[4] },
   row: { ...theme.text.body, color: theme.colors.text.primary },
 });

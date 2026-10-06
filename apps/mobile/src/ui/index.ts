@@ -11,4 +11,12 @@ export { SkeletonBlock } from './skeleton';
 export { Canvas, GradientLayers } from './layers';
 export { InputFrame, Radio } from './input';
 export { IconButton } from './icon-button';
-export { CategoryDot, CategoryHeading, CategoryLink, useCategoryTheme } from './category';
+export {
+  Breadcrumb,
+  CategoryBand,
+  CategoryChip,
+  CategoryDot,
+  CategoryHeading,
+  CategoryLink,
+  useCategoryTheme,
+} from './category';
