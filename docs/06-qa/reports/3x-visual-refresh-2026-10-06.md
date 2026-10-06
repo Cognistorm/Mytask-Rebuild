@@ -116,6 +116,9 @@ Judged against spec `docs/02-specs/3x-visual-refresh.md` (R-1…R-4, AC-1…AC-1
 - **N-4** The verification "step dots", the KPI icon badge and the EmptyState icon were left out on purpose: each would add content (3X.9d, 3X.14b, 3X.14c). Consistent with "must not change".
 - **N-5** Admin screens are light only (`data-theme="light"`), as before 3X.
 
+## 7. Re-checks after fixes (3X.21)
+- **F-3X19-1 — fixed for skill chips; explore "Popular:" accepted (3X.21a, 2026-10-06).** `.mt-chip` inline padding minus the hairline border. Parity re-run 36/36: `/sellers` 360 px max 2 px, `/hire` 0 px, no card height change on `/sellers`, `/hire` or home at either width. The explore row at 360 px: 7 px spare before 3X vs 16 px of approved dots, so it still wraps; accepted as designed (§8.4).
+
 ## Environment and clean-up
 - Windows 11, Node 24, pnpm, Turborepo `--force`, Next.js production builds (`next start`), Playwright Chromium, Expo SDK 57.
 - Pre-3X: worktree `../mt-pre3x` at `main` 61c4e777, built 2026-10-06 (kept for 3X.21 re-checks).
