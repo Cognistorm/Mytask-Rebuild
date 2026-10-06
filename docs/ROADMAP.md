@@ -130,7 +130,8 @@ Remaining:
   - The rendered-contrast check found resting category-pill text at 3.8–4.5 on `tintStrong`. Fixed in the function (`ink` now also ≥ 4.5 on `tintStrong`; stress test 0 failures).
   - Owner look decisions Q-174…Q-178 answered the same day (all yes).
   Handoff `docs/handoffs/2026-10-06-ui-ux-designer-to-owner-3x-3-refresh-preview.md`.
-- [ ] 3X.4 **Owner review of the look** (preview + answers to the 3X.1 questions). Adjust until approved. Nothing below starts before this approval. The five look decisions of visual-refresh.md §13 were answered in advance (Owner 2026-10-06, Q-174…Q-178, all yes). What remains is the Owner's click-through of the preview and a yes, or a list of changes.
+- [x] 3X.4 **Owner review of the look** (preview + answers to the 3X.1 questions). Adjust until approved. Nothing below starts before this approval. The five look decisions of visual-refresh.md §13 were answered in advance (Owner 2026-10-06, Q-174…Q-178, all yes). What remains is the Owner's click-through of the preview and a yes, or a list of changes.
+  Done 2026-10-06: the Owner clicked through `docs/05-design/preview/refresh.html` and **approved the look as a whole, no changes** (`verify-preview.mjs` re-run 22/22 before the review). `docs/05-design/visual-refresh.md` is now **approved**.
 
 ### 3X.B Foundations
 - [ ] 3X.5 Architect: ADR-023 "Category colours" + data model (nullable `#RRGGBB` on top-level gig categories, unique index, level/format check; children and project categories inherit, spec 3X R-1) + additive contract **1.4.0**. The colour is added to `CategoryNode`, `CategoryDetail` (incl. breadcrumb), the `getHome` tiles and rows, `AdminCategory` and the create/update requests, project categories through their linked top-level category, plus a validation error for an invalid or non-top-level colour. Also: oasdiff note, coverage rows, NEW ACs in specs 03 + 16, and the list of new i18n keys.

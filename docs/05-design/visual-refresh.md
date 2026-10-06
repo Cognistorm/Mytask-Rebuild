@@ -1,5 +1,5 @@
 # Visual refresh — visual language (Phase 3X)
-Status: **proposed** (ui-ux-designer, ROADMAP 3X.2, 2026-10-06). The §13 look decisions were answered by the Owner on 2026-10-06 (Q-174…Q-178, all yes). The Owner approves the look as a whole in 3X.4 from the 3X.3 preview `docs/05-design/preview/refresh.html`.
+Status: **approved** by the Owner 2026-10-06 (ROADMAP 3X.4, no changes; written by ui-ux-designer in 3X.2). The §13 look decisions were answered by the Owner on 2026-10-06 (Q-174…Q-178, all yes). The Owner approves the look as a whole in 3X.4 from the 3X.3 preview `docs/05-design/preview/refresh.html`.
 Brief: `docs/02-specs/3x-visual-refresh.md` (R-1…R-4, AC-1…AC-16; Owner answers Q-169…Q-173).
 Builds on: `tokens.md` (tokens stay the base; this document only **adds**), `components.md` (component behaviour unchanged), `audit.md`.
 Evidence scripts (run with `node`, no dependencies):
