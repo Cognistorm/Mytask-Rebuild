@@ -26,7 +26,7 @@ const ms = (v: string) =>
 for (const theme of ['light', 'dark'] as const) {
   test(`the page canvas is a fixed gradient layer (${theme})`, async ({ page, context }) => {
     await context.addCookies([{ name: 'mt_theme', value: theme, url: BASE, sameSite: 'Lax' }]);
-    await page.goto('/login');
+    await page.goto('/auth/login');
     await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
     const c = await canvas(page);
     expect(c.image).toContain('radial-gradient');
@@ -44,7 +44,7 @@ test('reduced motion: lifts and slides are 0, scales 1, durations capped at fast
   ] as const) {
     const context = await browser.newContext({ reducedMotion });
     const page = await context.newPage();
-    await page.goto('/login');
+    await page.goto('/auth/login');
     expect(await cssVar(page, '--mt-motion-distance-lift-card')).toBe(lift);
     expect(await cssVar(page, '--mt-motion-scale-hover')).toBe(scale);
     expect(ms(await cssVar(page, '--mt-motion-duration-slow'))).toBe(slow);
@@ -55,7 +55,7 @@ test('reduced motion: lifts and slides are 0, scales 1, durations capped at fast
 test('category theme: the inline light/dark set is used by theme; no colour = brand teal', async ({
   page,
 }) => {
-  await page.goto('/login');
+  await page.goto('/auth/login');
   const solid = () =>
     page.evaluate(() => {
       const read = (el: HTMLElement) =>
