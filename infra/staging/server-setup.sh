@@ -78,6 +78,8 @@ MAIL_TRANSPORT=smtp
 MAIL_FROM_ADDRESS=no-reply@mytask.1kk.ge
 MAIL_FROM_NAME="MyTask.ge (staging)"
 S3_ENDPOINT=http://127.0.0.1:8333
+# Browsers upload/download here (presigned URLs signed for this host; Nginx site nginx-s3.1kk.ge.conf).
+S3_PUBLIC_ENDPOINT=https://s3.1kk.ge
 S3_REGION=us-east-1
 S3_ACCESS_KEY_ID=${S3KEY}
 S3_SECRET_ACCESS_KEY=${S3SECRET}

@@ -40,7 +40,7 @@ the admin stays on its own host with no base path.
 | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Folder   | `/opt/mytask-staging` (user `mytask`): `app/` (current release, `DEPLOYED_COMMIT`), `app.prev/`, `.env` (secrets, mode 600, generated on the server), `data/s3`, `data/mail`, `bin/` (weed, mailpit)                                                                                                                     |
 | Services | `mytask-api` 127.0.0.1:3300 (readiness 3301), `mytask-worker` (readiness 3302), `mytask-web` localhost:3310, `mytask-admin` localhost:3320, `mytask-s3` SeaweedFS 127.0.0.1:8333, `mytask-mail` Mailpit SMTP 1025 / UI 8025, plus system `postgresql` (16, db `mytask`) and `redis-server` (7.0, 64 MB, noeviction, AOF) |
-| Nginx    | `/etc/nginx/sites-available/mytask.1kk.ge` = `nginx-mytask.1kk.ge.conf` (TLS by certbot, Let's Encrypt, auto-renew). Inbox basic-auth file `/etc/nginx/mytask-staging.htpasswd`                                                                                                                                          |
+| Nginx    | `/etc/nginx/sites-available/mytask.1kk.ge` = `nginx-mytask.1kk.ge.conf` (TLS by certbot, Let's Encrypt, auto-renew). Inbox basic-auth file `/etc/nginx/mytask-staging.htpasswd`. Object storage: `/etc/nginx/sites-available/s3.1kk.ge` = `nginx-s3.1kk.ge.conf` → SeaweedFS (`S3_PUBLIC_ENDPOINT=https://s3.1kk.ge`)    |
 | Logs     | `journalctl -u mytask-api -u mytask-worker -u mytask-web -u mytask-admin -f`                                                                                                                                                                                                                                             |
 | Backups  | `/root/backups`: the removed n8n data and Cognistorm code, the old dashboard page and Nginx files (2026-10-06)                                                                                                                                                                                                           |
 
@@ -58,10 +58,11 @@ devops list (DEV-S1).
 | `app-units.sh`             | systemd units for API, worker, web and admin                                                                                                                                                   |
 | `remote-deploy.sh`         | Run on the server by `scripts/deploy-staging.sh`                                                                                                                                               |
 | `create-buckets.cjs`       | Creates the three ADR-009 buckets (idempotent)                                                                                                                                                 |
+| `nginx-s3.1kk.ge.conf`     | Nginx site of https://s3.1kk.ge, the browsers' upload/download endpoint (presigned URLs). Fresh server: `certbot --nginx -d s3.1kk.ge --redirect`                                              |
 | `nginx-mytask.1kk.ge.conf` | The live Nginx site. For a fresh server: install it without the certbot lines, run `certbot --nginx -d mytask.1kk.ge --redirect`, and `htpasswd -cB /etc/nginx/mytask-staging.htpasswd <user>` |
 
 ## Known limits of this staging
 
-- **Browser uploads do not work yet.** Presigned upload URLs point at the internal S3 address, and a public S3 host would need its own DNS name. Public images are served read-only under `/media/`.
+- Uploads go from the browser straight to https://s3.1kk.ge (DNS record added by the Owner 2026-10-06). Tested 2026-10-06 from outside: CORS preflight, presigned POST 204, wrong content type 403, presigned GET 200, unsigned GET 403. SeaweedFS answers CORS with `*`; every write still needs a signed policy. Processed public images are served read-only under https://mytask.1kk.ge/media/.
 - `SCAN_PROVIDER=none` (no ClamAV, it needs ~1 GB RAM): uploads would be marked `scan_skipped`.
 - Emails never leave the server (Mailpit).
