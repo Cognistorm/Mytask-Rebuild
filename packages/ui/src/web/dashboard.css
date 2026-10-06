@@ -374,11 +374,37 @@
   min-width: var(--mt-size-layout-sidebar-width);
   padding: var(--mt-space-1);
   display: grid;
-  background: var(--mt-bg-surface-raised);
-  border: var(--mt-border-width-hairline) solid var(--mt-border-subtle);
+  border: var(--mt-border-width-hairline) solid var(--mt-border-translucent);
   border-radius: var(--mt-radius-card);
-  box-shadow: var(--mt-shadow-md);
+  background: var(--mt-bg-surface-raised);
+  box-shadow: var(--mt-elevation-lg);
   z-index: var(--mt-z-index-dropdown);
+  transform-origin: top right;
+  animation: mt-menu-in var(--mt-motion-duration-base) var(--mt-motion-easing-enter) both;
+}
+
+/* Visual refresh (visual-refresh.md §6.4, 3X.9e): a translucent raised surface where the browser can blur behind it,
+   the solid raised surface elsewhere; it opens with M-6 (opacity, 6 px, 0.98 → 1; a fade under reduced motion).
+   Closing is instant: the panel is `hidden`. */
+@supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+  .mt-account-menu-panel {
+    background: var(--mt-bg-translucent);
+    -webkit-backdrop-filter: saturate(1.4) blur(var(--mt-space-3));
+    backdrop-filter: saturate(1.4) blur(var(--mt-space-3));
+  }
+}
+
+@keyframes mt-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(calc(var(--mt-motion-distance-enter) * -0.75))
+      scale(var(--mt-motion-scale-pressed));
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .mt-account-menu-panel[hidden] {
@@ -400,11 +426,12 @@
   text-align: start;
   text-decoration: none;
   cursor: pointer;
+  transition: background-color var(--mt-motion-duration-fast) var(--mt-motion-easing-standard);
 }
 
 .mt-account-menu-panel a:hover,
 .mt-account-menu-panel button:hover {
-  background: var(--mt-bg-hover);
+  background: var(--mt-gradient-action-ghost-hover);
 }
 
 .mt-account-menu-caption {
@@ -501,7 +528,9 @@
   color: var(--mt-text-inverse);
   font-size: var(--mt-font-size-sm);
   border-radius: var(--mt-radius-sm);
+  box-shadow: var(--mt-elevation-md);
   z-index: var(--mt-z-index-popover);
+  animation: mt-menu-in var(--mt-motion-duration-fast) var(--mt-motion-easing-enter) both;
 }
 
 .mt-info-popover[hidden] {

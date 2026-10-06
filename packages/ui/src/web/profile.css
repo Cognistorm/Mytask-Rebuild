@@ -295,20 +295,57 @@
   text-decoration: underline;
 }
 
-/* ---- Dialog (§8.1): a bottom sheet below md ---- */
+/* ---- Dialog (§8.1): a bottom sheet below md ----
+   Visual refresh (visual-refresh.md §6.4, 3X.9e): a 4 px brand gradient strip along the top (a background layer, so it
+   stays put when the content scrolls and follows the rounded corners); the panel rises in (M-7: opacity, 12 px,
+   0.98 → 1) and the scrim fades in. Under reduced motion only the fades remain (motion variables). Closing is instant
+   (the native dialog leaves the top layer at once). */
 .mt-dialog {
   inline-size: min(var(--mt-size-layout-dialog-width-md), calc(100vw - var(--mt-space-8)));
   max-block-size: calc(100dvh - var(--mt-space-12));
   padding: 0;
   border: 0;
   border-radius: var(--mt-radius-dialog);
-  background: var(--mt-bg-surface-raised);
+  background:
+    var(--mt-gradient-brand-strip) top / 100% var(--mt-space-1) no-repeat,
+    var(--mt-bg-surface-raised);
   color: var(--mt-text-primary);
-  box-shadow: var(--mt-shadow-lg);
+  box-shadow: var(--mt-elevation-lg), var(--mt-highlight-surface);
+}
+
+.mt-dialog[open] {
+  animation: mt-dialog-in var(--mt-motion-duration-slow) var(--mt-motion-easing-emphasized) both;
 }
 
 .mt-dialog::backdrop {
   background: var(--mt-bg-scrim);
+}
+
+.mt-dialog[open]::backdrop {
+  animation: mt-dialog-scrim-in var(--mt-motion-duration-base) var(--mt-motion-easing-standard) both;
+}
+
+@keyframes mt-dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(calc(var(--mt-motion-distance-enter) * 1.5))
+      scale(var(--mt-motion-scale-pressed));
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes mt-dialog-scrim-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 .mt-dialog-body {

@@ -63,28 +63,54 @@
   cursor: progress;
 }
 
+/* Alert (visual-refresh.md §6.4, 3X.9e): a soft vertical gradient of its feedback tint (from a lighter mix with the
+   surface to the tint), a 4 px start bar in the feedback colour, and a fade + 4 px slide in when it appears (M-15;
+   a fade under reduced motion). Each kind sets --mt-alert-*. */
 .auth-alert {
   padding: var(--mt-space-3);
   border-radius: var(--mt-radius-control);
-  border: var(--mt-border-width-hairline) solid;
+  border: var(--mt-border-width-hairline) solid var(--mt-alert-border);
+  border-inline-start: var(--mt-space-1) solid var(--mt-alert-bar);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--mt-alert-bg) 55%, var(--mt-bg-surface)) 0%,
+    var(--mt-alert-bg) 100%
+  );
+  color: var(--mt-alert-text);
+  animation: mt-alert-in var(--mt-motion-duration-base) var(--mt-motion-easing-enter) both;
 }
 
 .auth-alert-error {
-  background: var(--mt-feedback-danger-bg);
-  color: var(--mt-feedback-danger-text);
-  border-color: var(--mt-feedback-danger-border);
+  --mt-alert-bg: var(--mt-feedback-danger-bg);
+  --mt-alert-text: var(--mt-feedback-danger-text);
+  --mt-alert-border: var(--mt-feedback-danger-border);
+  --mt-alert-bar: var(--mt-feedback-danger-icon);
 }
 
 .auth-alert-success {
-  background: var(--mt-feedback-success-bg);
-  color: var(--mt-feedback-success-text);
-  border-color: var(--mt-feedback-success-border);
+  --mt-alert-bg: var(--mt-feedback-success-bg);
+  --mt-alert-text: var(--mt-feedback-success-text);
+  --mt-alert-border: var(--mt-feedback-success-border);
+  --mt-alert-bar: var(--mt-feedback-success-icon);
 }
 
 .auth-alert-info {
-  background: var(--mt-feedback-info-bg);
-  color: var(--mt-feedback-info-text);
-  border-color: var(--mt-feedback-info-border);
+  --mt-alert-bg: var(--mt-feedback-info-bg);
+  --mt-alert-text: var(--mt-feedback-info-text);
+  --mt-alert-border: var(--mt-feedback-info-border);
+  --mt-alert-bar: var(--mt-feedback-info-icon);
+}
+
+@keyframes mt-alert-in {
+  from {
+    opacity: 0;
+    transform: translateY(calc(var(--mt-motion-distance-enter) / -2));
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .auth-code {
