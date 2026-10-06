@@ -89,6 +89,11 @@
   gap: var(--mt-space-4);
 }
 
+/* Grid items may shrink below their content, so one wide child cannot widen the page (3X.15b). */
+.admin-page > * {
+  min-width: 0;
+}
+
 .admin-header {
   display: flex;
   align-items: center;
@@ -128,8 +133,10 @@
   flex: 1 1 calc(var(--mt-space-24) * 3);
 }
 
+/* Wraps on a phone: three row actions are wider than 360 px (3X.15b). */
 .admin-row-edit {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--mt-space-2);
   align-items: center;
 }
@@ -178,6 +185,11 @@
   gap: var(--mt-space-2);
   padding-block: var(--mt-space-3);
   border-bottom: var(--mt-border-width-hairline) solid var(--mt-border-subtle);
+}
+
+/* A row action directly in a card keeps its compact Ghost size instead of stretching across the grid (3X.15b). */
+.admin-card > button {
+  justify-self: start;
 }
 
 /* Appeal files in the restriction appeals queue (spec 16 AC-29). */
@@ -412,7 +424,7 @@
 
 .admin-color-preview {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(calc(var(--mt-space-24) * 2), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(var(--mt-space-24) * 2)), 1fr));
   gap: var(--mt-space-3);
 }
 

@@ -340,3 +340,22 @@ test('project categories show the colour of their linked top-level category', as
   await expect(inherited).toHaveText('ფერი აღებულია კატეგორიიდან „დიზაინი“');
   await expect(inherited.locator('.mt-cat-dot')).toHaveAttribute('data-category-theme', '#7C3AED');
 });
+
+test('no sideways scroll on a phone: row actions wrap and the colour preview fits (3X.15b)', async ({
+  page,
+}) => {
+  await fake(page);
+  await page.setViewportSize({ width: 360, height: 800 });
+  await page.goto('/categories');
+  await expect(page.getByTestId('category-row')).toHaveCount(3);
+  await page
+    .getByTestId('category-row')
+    .nth(0)
+    .getByRole('button', { name: 'რედაქტირება' })
+    .click();
+  await expect(page.getByTestId('color-preview')).toBeVisible();
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  );
+  expect(overflow).toBe(0);
+});

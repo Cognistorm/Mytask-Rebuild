@@ -139,6 +139,16 @@ input[type='checkbox'][role='switch'] {
   background: var(--mt-gradient-track);
 }
 
+/* On: the Primary gradient. Needed because the track rule above ties with the checkbox :checked rule and wins
+   by order (seen on the full stack in 3X.15b: an "on" switch kept the grey track). */
+input[type='checkbox'][role='switch']:checked {
+  background: var(--mt-gradient-action-primary);
+}
+
+input[type='checkbox'][role='switch']:checked:disabled {
+  background: var(--mt-action-disabled);
+}
+
 /* The thumb: grey when off, the on-primary colour on the Primary gradient when on; it slides (M-16). */
 input[type='checkbox'][role='switch']::before {
   inline-size: calc(
