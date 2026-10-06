@@ -1,12 +1,21 @@
 'use client';
 // Project categories (spec 16 AC-61; spec 03 AC-31, R-S8, P-31): list by position with skill counts; create, edit,
 // delete (refused while skills use it). Name and SEO description in ka + en, slug, exactly one linked top-level
-// gig category (used to notify freelancers of new projects, spec 10), image, position, active.
+// gig category (used to notify freelancers of new projects, spec 10), image, position, active. The colour is the
+// linked category's (spec 3X R-1.2): a dot on each row and an "inherited from" line in the form (3X.15).
 import { useCallback, useEffect, useState } from 'react';
 import type { components } from '@mytask/types';
 import { Alert, Field, Select } from '@mytask/ui/web';
 import { AdminNav } from '../../components/nav';
-import { Checkbox, formText, ImagePicker, LangPair, saveText } from '../../components/catalog';
+import {
+  Checkbox,
+  ColorDot,
+  ColorInherited,
+  formText,
+  ImagePicker,
+  LangPair,
+  saveText,
+} from '../../components/catalog';
 import { splitErrors, t, useAdminApi, type ApiErrorBody } from '../../lib/client';
 
 type ProjectCategory = components['schemas']['AdminProjectCategory'];
@@ -145,6 +154,12 @@ export default function ProjectCategoriesPage() {
             onChange={(gigCategoryId) => setForm({ ...form, gigCategoryId })}
             error={fields.gigCategoryId}
           />
+          <ColorInherited
+            from={(() => {
+              const top = tops.find((c) => c.id === form.gigCategoryId);
+              return top ? { name: top.name.ka, color: top.color } : null;
+            })()}
+          />
           <LangPair
             label={t('t_seo_description')}
             name="seoDescription"
@@ -193,7 +208,7 @@ export default function ProjectCategoriesPage() {
             {list.map((c) => (
               <li key={c.id} className="admin-row" data-testid="project-category-row">
                 <span className="admin-row-text">
-                  <strong>{c.name.ka}</strong>
+                  <ColorDot color={c.color} /> <strong>{c.name.ka}</strong>
                   {c.name.en ? ` / ${c.name.en}` : ''} · <code>{c.slug}</code>
                   {!c.isActive ? ` · ${t('t_inactive')}` : ''}
                   <br />

@@ -3,11 +3,24 @@
 // usage counts and old slugs; create (top level or under a category of level 1–2), edit, delete (refused while in
 // use: the API's message is shown). Names, description and the SEO texts above/below the list in ka + en (SEO
 // texts are HTML, sanitised by the API); icon and image on the top level only; "show on the home page"; position.
+// Top level: the category colour (spec 3X R-1.8, ADR-023; a new one starts on the first unused starter colour, as the
+// API would pick); lower levels show the colour they inherit. Every tree row shows its colour dot.
 import { useCallback, useEffect, useState } from 'react';
+import { nextStarterColor } from '@mytask/tokens/color';
 import type { components } from '@mytask/types';
 import { Alert, Field } from '@mytask/ui/web';
 import { AdminNav } from '../../components/nav';
-import { Checkbox, formText, ImagePicker, LangPair, saveText } from '../../components/catalog';
+import {
+  Checkbox,
+  checkColor,
+  ColorDot,
+  ColorInherited,
+  ColorPicker,
+  formText,
+  ImagePicker,
+  LangPair,
+  saveText,
+} from '../../components/catalog';
 import { splitErrors, t, useAdminApi, type ApiErrorBody } from '../../lib/client';
 
 type Category = components['schemas']['AdminCategory'];
@@ -28,6 +41,9 @@ interface FormState {
   imageFileId: string | null | undefined;
   icon: Category['icon'];
   image: Category['image'];
+  /** Typed colour (top level only; may be unfinished) and the stored one (`null` = brand fallback / new). */
+  color: string;
+  savedColor: string | null;
 }
 
 const empty = (parent: Category | null): FormState => ({
@@ -45,6 +61,8 @@ const empty = (parent: Category | null): FormState => ({
   imageFileId: undefined,
   icon: null,
   image: null,
+  color: '',
+  savedColor: null,
 });
 
 const fromCategory = (c: Category): FormState => ({
@@ -62,6 +80,8 @@ const fromCategory = (c: Category): FormState => ({
   imageFileId: undefined,
   icon: c.icon,
   image: c.image,
+  color: c.color ?? '',
+  savedColor: c.color,
 });
 
 export default function CategoriesPage() {
@@ -71,7 +91,21 @@ export default function CategoriesPage() {
   const [err, setErr] = useState<ApiErrorBody>();
   const [notice, setNotice] = useState<string>();
   const [busy, setBusy] = useState(false);
-  const { fields, general } = splitErrors(err);
+  const [submitted, setSubmitted] = useState(false);
+  const { fields, general: apiGeneral } = splitErrors(err);
+  // A 409 colour duplicate names the field in `details.field` (ADR-023 §5): shown under the colour field.
+  const colorError = fields.color ?? (err?.details?.field === 'color' ? err.message : undefined);
+  const general = err?.details?.field === 'color' ? undefined : apiGeneral;
+  const byId = new Map(list.map((c) => [c.id, c]));
+  const topOf = (id: string | null): Category | undefined => {
+    let node = id ? byId.get(id) : undefined;
+    while (node?.parentId) node = byId.get(node.parentId);
+    return node;
+  };
+  // The other top-level categories, for the duplicate / similar checks and the used swatches.
+  const others = list
+    .filter((c) => c.depth === 1 && c.id !== form?.id)
+    .map((c) => ({ id: c.id, name: c.name.ka, color: c.color }));
 
   const load = useCallback(async () => {
     const res = await api.GET('/admin/categories');
@@ -85,12 +119,22 @@ export default function CategoriesPage() {
   const open = (next: FormState) => {
     setErr(undefined);
     setNotice(undefined);
-    setForm(next);
+    setSubmitted(false);
+    // A new top-level category starts on the first unused starter colour (ADR-023 §4), so the preview shows it.
+    const color =
+      next.depth === 1 && !next.id
+        ? (nextStarterColor(list.filter((c) => c.depth === 1).map((c) => c.color)) ?? '')
+        : next.color;
+    setForm({ ...next, color });
   };
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
     if (!form) return;
+    setSubmitted(true);
+    // The colour: refused here when malformed or taken (the API repeats both checks); empty = not sent.
+    const color = form.depth === 1 && form.color !== '' ? checkColor(form.color, others) : null;
+    if (color && (!color.hex || color.error)) return;
     setBusy(true);
     setErr(undefined);
     const images =
@@ -109,6 +153,7 @@ export default function CategoriesPage() {
       isVisibleOnHome: form.isVisibleOnHome,
       ...(form.position.trim() !== '' ? { position: Number(form.position) } : {}),
       ...images,
+      ...(color?.hex && color.hex !== form.savedColor ? { color: color.hex } : {}),
     };
     const res = form.id
       ? await api.PATCH('/admin/categories/{categoryId}', {
@@ -223,6 +268,23 @@ export default function CategoriesPage() {
               onChange={(isVisibleOnHome) => setForm({ ...form, isVisibleOnHome })}
             />
           )}
+          {form.depth === 1 ? (
+            <ColorPicker
+              value={form.color}
+              onChange={(color) => setForm({ ...form, color })}
+              others={others}
+              name={form.name.ka.trim() || t('t_category')}
+              error={colorError}
+              submitted={submitted}
+            />
+          ) : (
+            <ColorInherited
+              from={(() => {
+                const top = topOf(form.parentId);
+                return top ? { name: top.name.ka, color: top.color } : null;
+              })()}
+            />
+          )}
           <Field
             label={t('t_position')}
             name="position"
@@ -254,8 +316,14 @@ export default function CategoriesPage() {
                 data-testid="category-row"
               >
                 <span className="admin-row-text">
-                  <strong>{c.name.ka}</strong>
+                  <ColorDot color={c.resolvedColor} /> <strong>{c.name.ka}</strong>
                   {c.name.en ? ` / ${c.name.en}` : ''} · <code>{c.slug}</code> · {level(c.depth)}
+                  {c.depth === 1 && c.color && (
+                    <>
+                      {' · '}
+                      <code>{c.color}</code>
+                    </>
+                  )}
                   {c.depth === 1 && !c.isVisibleOnHome ? ` · ${t('t_hidden_on_home')}` : ''}
                   <br />
                   <span className="auth-muted">

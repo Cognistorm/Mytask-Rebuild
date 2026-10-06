@@ -1,7 +1,7 @@
 // Slice 2 (spec 03 + spec 16 AC-60/AC-61, ROADMAP 4.2.16) main flow across the admin panel and the website on the
-// real stack: staff build a 3-level gig category branch, a linked project category and a skill; the website then
-// shows the category in the header, its pages at every level (title, breadcrumb, empty list), the explore-projects
-// chip and skill page, and the search page; deleting the top category is refused while it is in use, then the
+// real stack: staff build a 3-level gig category branch (the top one with a chosen colour, 3X.15), a linked project
+// category and a skill; the website then shows the category in the header (in its colour), its pages at every
+// level (title, breadcrumb, empty list), the explore-projects chip and skill page, and the search page; deleting the top category is refused while it is in use, then the
 // branch is removed bottom-up. Gigs arrive with slice 3, so the lists stay empty here (filled lists are covered by
 // the API tests and the web E2E on the stand-in API).
 // Needs the full stack (`pnpm local`) and its console log, where the seed printed the first Super-admin
@@ -49,8 +49,17 @@ test('staff build a category branch → the website shows it → in-use delete r
   await page
     .getByLabel('SEO ტექსტი სიის ზემოთ · ka')
     .fill('<p>ზედა ტექსტი</p><script>x()</script>');
+  // Its colour (3X.15): the last free starter swatch. Position 0 puts it among the first header pills.
+  const swatch = page
+    .getByTestId('color-picker')
+    .locator('.admin-color-swatch:not([disabled])')
+    .last();
+  const color = (await swatch.getAttribute('aria-label'))!;
+  await swatch.click();
+  await page.getByLabel('პოზიცია').fill('0');
   await page.getByRole('button', { name: 'შენახვა' }).click();
   const topRow = await rowOf(page, 'category-row', top.ka);
+  await expect(topRow).toContainText(color);
   await topRow.getByRole('button', { name: 'ქვეკატეგორიის დამატება' }).click();
   await page.getByLabel('სახელი · ka').fill(sub.ka);
   await page.getByLabel('Slug').fill(sub.slug);
@@ -89,6 +98,15 @@ test('staff build a category branch → the website shows it → in-use delete r
   await expect(web.getByRole('heading', { level: 1 })).toHaveText(top.ka);
   await expect(web.getByTestId('content-top')).toHaveText('ზედა ტექსტი');
   await expect(web.getByTestId('site-header').getByText(top.ka).first()).toBeAttached();
+  // The colour chosen in the admin panel paints its header pill and the category page (spec 3X AC-7, AC-8).
+  await expect(
+    web.getByTestId('site-header').locator(`li[data-category-theme="${color}"]`),
+  ).toContainText(top.ka);
+  await expect(
+    web
+      .getByRole('heading', { level: 1 })
+      .locator(`xpath=ancestor::*[@data-category-theme="${color}"]`),
+  ).toHaveCount(1);
   await expect(web.getByText('გთხოვთ სცადეთ ხელახლა')).toBeVisible();
   await web.goto(`${WEB}/en/categories/${top.slug}/${sub.slug}/${child.slug}`);
   await expect(web.getByRole('heading', { level: 1 })).toHaveText(child.ka);

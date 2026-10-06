@@ -310,3 +310,192 @@
 .admin-depth-3 {
   padding-inline-start: var(--mt-space-12);
 }
+
+/* Category colour (3X.15, visual-refresh.md §9): picker, swatches, messages, light + dark preview, dots. The preview
+   panels set --mt-cat-* inline from deriveCategoryColor, so they paint like the website's category pill, tile label
+   band and breadcrumb chip whatever the admin theme is. */
+.admin-row-text .mt-cat-dot {
+  vertical-align: middle;
+}
+
+.admin-color-inputs {
+  display: flex;
+  align-items: center;
+  gap: var(--mt-space-3);
+}
+
+/* Beats the full-width .auth-field input rule of form.css. */
+.auth-field.admin-color input[type='color'] {
+  flex: none;
+  inline-size: var(--mt-size-touch-target-comfortable);
+  block-size: var(--mt-size-touch-target-min);
+  padding: var(--mt-space-0-5);
+  border: var(--mt-border-width-hairline) solid var(--mt-border-strong);
+  border-radius: var(--mt-radius-control);
+  background: var(--mt-bg-surface);
+  cursor: pointer;
+}
+
+.auth-field.admin-color input.admin-color-hex {
+  flex: none;
+  inline-size: calc(var(--mt-space-24) + var(--mt-space-12));
+  font-family: var(--mt-font-family-mono);
+  text-transform: uppercase;
+}
+
+.admin-color-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mt-space-2);
+}
+
+.admin-color-swatch {
+  position: relative;
+  inline-size: var(--mt-size-touch-target-min);
+  block-size: var(--mt-size-touch-target-min);
+  border: var(--mt-border-width-strong) solid var(--mt-bg-surface);
+  border-radius: var(--mt-radius-md);
+  box-shadow: 0 0 0 var(--mt-border-width-hairline) var(--mt-border-strong);
+  cursor: pointer;
+  transition:
+    transform var(--mt-motion-duration-fast) var(--mt-motion-easing-standard),
+    box-shadow var(--mt-motion-duration-fast) var(--mt-motion-easing-standard);
+}
+
+@media (hover: hover) {
+  .admin-color-swatch:hover:not(:disabled) {
+    transform: translateY(calc(-1 * var(--mt-motion-distance-lift-control)));
+    box-shadow: 0 0 0 var(--mt-border-width-strong) var(--mt-focus-ring);
+  }
+}
+
+.admin-color-swatch[aria-pressed='true'] {
+  box-shadow:
+    0 0 0 var(--mt-border-width-strong) var(--mt-bg-surface),
+    0 0 0 calc(var(--mt-border-width-strong) * 2) var(--mt-focus-ring);
+}
+
+.admin-color-swatch:focus-visible {
+  outline: var(--mt-border-width-strong) solid var(--mt-focus-ring);
+  outline-offset: var(--mt-space-0-5);
+}
+
+/* A colour another top-level category already uses: crossed through, not selectable. */
+.admin-color-swatch:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.admin-color-swatch:disabled::after {
+  content: '';
+  position: absolute;
+  inset: 50% calc(-1 * var(--mt-space-0-5)) auto;
+  block-size: var(--mt-border-width-strong);
+  background: var(--mt-text-primary);
+  transform: rotate(-45deg);
+}
+
+.admin-color-messages {
+  display: grid;
+  gap: var(--mt-space-1);
+}
+
+.admin-color-warning {
+  margin: 0;
+  padding: var(--mt-space-2) var(--mt-space-3);
+  border: var(--mt-border-width-hairline) solid var(--mt-feedback-warning-border);
+  border-radius: var(--mt-radius-md);
+  background: var(--mt-feedback-warning-bg);
+  color: var(--mt-feedback-warning-text);
+  font-size: var(--mt-font-size-sm);
+}
+
+.admin-color-preview {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(calc(var(--mt-space-24) * 2), 1fr));
+  gap: var(--mt-space-3);
+}
+
+.admin-color-preview-title {
+  grid-column: 1 / -1;
+  font-weight: var(--mt-font-weight-semibold);
+}
+
+.admin-color-mode {
+  display: grid;
+  justify-items: start;
+  align-content: start;
+  gap: var(--mt-space-2);
+  padding: var(--mt-space-4);
+  border: var(--mt-border-width-hairline) solid var(--mt-border-default);
+  border-radius: var(--mt-radius-lg);
+  background: var(--mt-bg-canvas);
+  color: var(--mt-text-primary);
+}
+
+.admin-color-mode-name {
+  color: var(--mt-text-secondary);
+  font-size: var(--mt-font-size-xs);
+  font-weight: var(--mt-font-weight-semibold);
+}
+
+/* The header category pill at rest and on hover (§8.4). */
+.admin-color-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mt-space-2);
+  padding: var(--mt-space-1) var(--mt-space-3);
+  border: var(--mt-border-width-hairline) solid var(--mt-cat-tint-strong);
+  border-radius: var(--mt-radius-full);
+  background: linear-gradient(180deg, var(--mt-cat-tint) 0%, var(--mt-cat-tint-strong) 100%);
+  color: var(--mt-cat-ink);
+  font-size: var(--mt-font-size-sm);
+  font-weight: var(--mt-font-weight-semibold);
+}
+
+.admin-color-pill-on,
+.admin-color-band {
+  background: linear-gradient(
+    135deg,
+    var(--mt-cat-gradient-start) 0%,
+    var(--mt-cat-gradient-end) 100%
+  );
+  color: var(--mt-cat-on-solid);
+}
+
+.admin-color-pill-on {
+  border-color: var(--mt-cat-gradient-end);
+  box-shadow: 0 0 0 calc(var(--mt-border-width-strong) + var(--mt-border-width-hairline))
+    var(--mt-cat-glow);
+}
+
+.admin-color-pill-on .mt-cat-dot {
+  background: var(--mt-cat-on-solid);
+}
+
+/* The home tile label band (§8.5). */
+.admin-color-band {
+  justify-self: stretch;
+  padding: var(--mt-space-2) var(--mt-space-3);
+  border-radius: var(--mt-radius-md);
+  font-weight: var(--mt-font-weight-bold);
+}
+
+/* A breadcrumb chip on the category page (§8.5). */
+.admin-color-crumb {
+  padding: var(--mt-space-0-5) var(--mt-space-3);
+  border: var(--mt-border-width-hairline) solid var(--mt-cat-tint-strong);
+  border-radius: var(--mt-radius-full);
+  background: var(--mt-cat-tint);
+  color: var(--mt-cat-ink);
+  font-size: var(--mt-font-size-xs);
+}
+
+.admin-color-inherited {
+  display: flex;
+  align-items: center;
+  gap: var(--mt-space-2);
+  margin: 0;
+  color: var(--mt-text-secondary);
+  font-size: var(--mt-font-size-sm);
+}
