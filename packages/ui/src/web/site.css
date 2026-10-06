@@ -371,7 +371,7 @@
   display: flex;
   align-items: center;
   /* §8.4 asks for space-2; the fit check (3X.10) found the 7 seeded Georgian names do not fit at 1024 px, so the
-     gap drops to space-1 as the design rule says (Q-180 asks the Owner about the rest). */
+     gap drops to space-1 as the design rule says (and the pill padding to space-2, Q-180 (b)). */
   gap: var(--mt-space-1);
   min-height: var(--mt-size-layout-category-bar-height);
   margin: 0;
@@ -390,7 +390,8 @@
   align-items: center;
   gap: var(--mt-space-2);
   min-height: var(--mt-size-touch-target-min);
-  padding: 0 var(--mt-space-3);
+  /* Inner padding space-2 (not space-3): Q-180 (b), so more names fit next to "More ▾" at narrow desktop widths. */
+  padding: 0 var(--mt-space-2);
   border: 0;
   background: transparent;
   color: var(--mt-cat-ink);

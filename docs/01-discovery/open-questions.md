@@ -917,4 +917,4 @@ Recommendation: keep the role colours (Q-092) on the new sliding thumb, with the
 - at 1024 px about 3 show and the rest are under "More ▾" (before: about 5). Nothing is cut off, and "More ▾" lists the rest with their colour dots.
 Options: (a) keep it as built; (b) inner padding 12 → 8 px (measured: 1089 px, so all 7 show from about 1155 px); (c) also drop the bold weight (about 10 px less per pill).
 Recommendation: (b), a one-line change; the pills still read as buttons.
-**Status:** open (built as (a), 2026-10-06; Owner to decide in the 3X.23 click-through or earlier).
+**Answer (Owner, 2026-10-06):** (b) as recommended — pill padding 12 → 8 px (built the same day). The Owner reviews it on staging (https://mytask.1kk.ge) and may ask for changes to this part of the design.
