@@ -1,11 +1,13 @@
 // Measured text contrast on gradients (ROADMAP 3X.18c), for the text axe leaves as "needs review": worst case against
 // every colour stop of the background painted under the text. Used by e2e/contrast.spec.ts and the admin's
 // e2e/contrast.spec.ts. Thresholds: 4.5, or 3 for large text and for graphics hidden from assistive tech.
-import type { Page } from '@playwright/test';
+// No `@playwright/test` import: the admin's Docker image installs only the admin's packages and still type-checks
+// this file through its e2e import, so a Playwright `Page` is accepted by shape.
+type Evaluates = { evaluate<R, A>(fn: (arg: A) => R, arg: A): Promise<R> };
 
 /** Worst contrast of each selector's text against the stops of its nearest opaque background (in the page). */
-export const measure = (page: Page, selectors: string[]) =>
-  page.evaluate((sels) => {
+export const measure = (page: Evaluates, selectors: string[]) =>
+  page.evaluate((sels: string[]) => {
     type RGBA = [number, number, number, number];
     const parse = (s: string): RGBA[] =>
       (s.match(/rgba?\([^)]+\)|color\(srgb [^)]+\)/g) ?? []).map((c) => {
