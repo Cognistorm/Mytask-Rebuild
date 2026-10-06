@@ -275,19 +275,10 @@
   max-inline-size: calc(var(--mt-space-12) * 4);
 }
 
+/* The compact Ghost button look: @mytask/ui buttons.css (3X.9a). */
 .mt-pf-link-button {
   justify-self: start;
   min-block-size: var(--mt-size-touch-target-min);
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--mt-text-link);
-  font: inherit;
-  cursor: pointer;
-}
-
-.mt-pf-link-button:hover {
-  text-decoration: underline;
 }
 
 .mt-pf-link-button:focus-visible {

@@ -6,6 +6,8 @@ import '@mytask/tokens/fonts.css';
 import '@mytask/tokens/tokens.css';
 // Gradient canvas, motion utilities, category theme helpers (3X.8): before every component stylesheet.
 import '@mytask/ui/web/foundation.css';
+// Every button class's look (3X.9a): global, so it applies whichever component stylesheets a route loads.
+import '@mytask/ui/web/buttons.css';
 import '../styles/globals.css';
 import type { Metadata } from 'next';
 import { cookies, headers } from 'next/headers';

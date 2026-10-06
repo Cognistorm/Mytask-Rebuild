@@ -315,15 +315,8 @@
   block-size: var(--mt-size-touch-target-min);
   margin: calc(-1 * var(--mt-space-3));
   padding: 0;
-  border: 0;
   border-radius: var(--mt-radius-full);
-  background: none;
-  color: var(--mt-text-secondary);
   cursor: pointer;
-}
-
-.mt-dialog-close:hover {
-  background: var(--mt-bg-hover);
 }
 
 .mt-dialog-close svg {

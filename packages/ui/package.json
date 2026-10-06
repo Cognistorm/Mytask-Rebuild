@@ -6,7 +6,8 @@
   "type": "module",
   "exports": {
     "./web": "./src/web/index.ts",
-    "./web/foundation.css": "./src/web/foundation.css"
+    "./web/foundation.css": "./src/web/foundation.css",
+    "./web/buttons.css": "./src/web/buttons.css"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
