@@ -9,8 +9,13 @@
 
 .auth-card {
   /* Surface (gradient, border, radius, shadow): @mytask/ui surfaces.css (3X.9d). */
+  /* Border box, so the card fits a 360 px phone (it overflowed by its padding + border, 3X.18b); the max width
+     adds them back, so the desktop card keeps its width. */
+  box-sizing: border-box;
   width: 100%;
-  max-width: calc(var(--mt-space-24) * 4.5);
+  max-width: calc(
+    var(--mt-space-24) * 4.5 + 2 * var(--mt-space-6) + 2 * var(--mt-border-width-hairline)
+  );
   padding: var(--mt-space-8) var(--mt-space-6);
   display: grid;
   gap: var(--mt-space-4);
