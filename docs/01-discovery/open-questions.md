@@ -861,3 +861,25 @@ Options:
 Recommendation: (a). The live site is what visitors see today, and the block is part of the current layout the Owner wants kept.
 When: before Phase 5 (settings migration). Not blocking slice 2.
 **Answer (Owner, 2026-10-06): (a), as recommended.** Keep the "Featured categories" block ON, matching the live site. Spec 00 register and the S-107 default updated in ROADMAP 4.2.18a/b.
+
+## Phase 3X visual refresh (orchestrator, ROADMAP 3X.1, 2026-10-06) — answered by Owner 2026-10-06
+
+### Q-169
+**Category colours: curated palette or free colour picker?**
+**Answer (Owner, 2026-10-06):** free colour picker in the admin panel, so the Owner can change any colour later; Claude chooses the starting colours. Readability for any colour is guaranteed by derived shades (spec 3X R-1.4).
+
+### Q-170
+**Must every top-level category colour be unique?**
+**Answer (Owner, 2026-10-06):** yes, every top-level category has its own distinct colour (spec 3X R-1.3: exact duplicates refused, very similar colours warned).
+
+### Q-171
+**Do sub-categories and project categories inherit the top-level colour?**
+**Answer (Owner, 2026-10-06):** yes (spec 3X R-1.2).
+
+### Q-172
+**How strong should the motion be?**
+**Answer (Owner, 2026-10-06):** elegant and moderate — subtle, engaging micro-interactions and smooth transitions, never aggressive (spec 3X R-4.1 bounds).
+
+### Q-173
+**Does dark mode get its own gradients?**
+**Answer (Owner, 2026-10-06):** yes, tailored dark-mode gradients, as polished as light mode (spec 3X R-1.4, R-3.1).

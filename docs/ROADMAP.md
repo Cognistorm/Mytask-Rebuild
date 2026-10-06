@@ -98,28 +98,29 @@ Remaining:
 - **Accessibility kept.** WCAG AA contrast on **both** ends of every gradient, in light and dark mode (the `contrast.mjs` checks are extended). Focus stays visible.
 - **Reduced motion.** With `prefers-reduced-motion` on the web, or Reduce Motion on iOS/Android, there are no slides, scales or loops; only short fades.
 - **Performance.** Animate only `transform`, `opacity` and `filter`, with no layout shift. The web uses CSS only (no new animation library). Mobile uses the Reanimated already installed, plus `expo-linear-gradient`.
-- **CSP.** The website has a strict nonce CSP, so category colours are applied through classes or data attributes for a fixed set of themes, never as admin-supplied inline styles (decided in 3X.5).
+- **Colour safety.** The admin colour is a strict `#RRGGBB` value checked by the API. The website CSP already allows inline styles (`style-src 'unsafe-inline'`, `apps/web/src/lib/csp.ts`), so it is applied as CSS variables. (Corrected 2026-10-06 in 3X.1.)
 
 ### 3X.A Brief and look (no product code)
-- [ ] 3X.1 Orchestrator + analyst: brief `docs/02-specs/3x-visual-refresh.md`. Contents: R-1…R-4 as acceptance criteria; a "must not change" list (structure, flows, placement, texts, URLs); an inventory of every screen built so far (web public + private, admin, mobile) with the components each one uses. Owner questions go to `open-questions.md`:
+- [x] 3X.1 Orchestrator + analyst: brief `docs/02-specs/3x-visual-refresh.md`. Contents: R-1…R-4 as acceptance criteria; a "must not change" list (structure, flows, placement, texts, URLs); an inventory of every screen built so far (web public + private, admin, mobile) with the components each one uses. Owner questions go to `open-questions.md`:
   - category colour as a curated palette of contrast-checked themes (recommended) or a free colour picker;
   - must each top-level colour be unique;
   - do sub-categories and project categories inherit the colour of their top-level category;
   - how strong the motion should be;
   - does dark mode get its own gradients.
+  Done 2026-10-06: brief **approved** in `docs/02-specs/3x-visual-refresh.md` (R-1…R-4, AC-1…AC-16, EC-1…EC-5, must-not-change list, screen inventory → task per screen). Owner answers the same day, Q-169…Q-173: free colour picker (readability guaranteed by derived shades from one shared function in `packages/tokens`); unique top-level colours (exact duplicate refused, very similar warned); sub-categories and project categories inherit; moderate motion (≤ 400 ms, lift ≤ 4 px, scale ≤ 1.03); own dark-mode gradients. Handoff `docs/handoffs/2026-10-06-orchestrator-to-ui-ux-designer-3x-1-visual-refresh-brief.md`.
 - [ ] 3X.2 Designer: visual language `docs/05-design/visual-refresh.md`. It defines:
   - the gradient system (page canvas, surfaces, hero, cards);
   - buttons (primary / secondary / accent / danger / ghost / icon): border plus inner gradient, with hover, pressed, focus-glow, disabled and loading states;
   - chips, tabs, inputs, switches;
   - the glow states;
   - the motion catalogue (hover lift, press, card entrance + stagger, skeleton shimmer, menu and dialog transitions, toast, success feedback), with durations and easings and the reduced-motion version of each;
-  - the category theme palette (base, soft background, gradient start and end, text-on colour; light + dark).
-- [ ] 3X.3 Designer: interactive preview `docs/05-design/preview/refresh.html`. Old vs new for the header + category bar + mega-menu, home (hero, featured categories, gig cards, category rows), category page, search, profile, dashboard, auth card and the admin category form with the colour choice. It also includes a light/dark switch, a reduced-motion switch and a phone-width view. Contrast and no-horizontal-scroll checks run in headless Chromium.
+  - the category colour rules: the starter palette (distinct colours, one per existing top-level category, plus spares), the derivation function spec (text-on colour, soft tint, gradient ends, dark variants, indicator shade — spec 3X R-1.4) and the "very similar" threshold (R-1.3).
+- [ ] 3X.3 Designer: interactive preview `docs/05-design/preview/refresh.html`. Old vs new for the header + category bar + mega-menu, home (hero, featured categories, gig cards, category rows), category page, search, profile, dashboard, auth card and the admin category form with the colour picker (hex field, starter swatches, live light/dark preview, duplicate/similar messages). It also includes a light/dark switch, a reduced-motion switch and a phone-width view. Contrast and no-horizontal-scroll checks run in headless Chromium.
 - [ ] 3X.4 **Owner review of the look** (preview + answers to the 3X.1 questions). Adjust until approved. Nothing below starts before this approval.
 
 ### 3X.B Foundations
-- [ ] 3X.5 Architect: ADR-023 "Category colour themes" + data model (top-level gig category colour; inheritance per 3X.1 answers) + additive contract **1.4.0**. The colour is added to `CategoryNode`, `CategoryDetail` (incl. breadcrumb), the `getHome` tiles and rows, `AdminCategory` and the create/update requests, project categories through their linked top-level category, plus a validation error for an invalid or non-top-level colour. Also: oasdiff note, coverage rows, NEW ACs in specs 03 + 16, and the list of new i18n keys.
-- [ ] 3X.6 Designer: tokens in `packages/tokens`: new `gradient`, `glow` and `categoryTheme` groups, motion additions (lift, stagger, spring for native), button and surface roles in `theme.light` / `theme.dark`, a CSS + React Native build, and contrast checks on both gradient ends and every category theme (0 failures). Update `tokens.md` and `components.md`.
+- [ ] 3X.5 Architect: ADR-023 "Category colours" + data model (nullable `#RRGGBB` on top-level gig categories, unique index, level/format check; children and project categories inherit, spec 3X R-1) + additive contract **1.4.0**. The colour is added to `CategoryNode`, `CategoryDetail` (incl. breadcrumb), the `getHome` tiles and rows, `AdminCategory` and the create/update requests, project categories through their linked top-level category, plus a validation error for an invalid or non-top-level colour. Also: oasdiff note, coverage rows, NEW ACs in specs 03 + 16, and the list of new i18n keys.
+- [ ] 3X.6 Designer: tokens in `packages/tokens`: new `gradient` and `glow` groups, the category starter palette and the shared colour-derivation function (web + native, unit-tested over many colours, spec 3X AC-5), motion additions (lift, stagger, spring for native), button and surface roles in `theme.light` / `theme.dark`, a CSS + React Native build, and contrast checks on both gradient ends and every category theme (0 failures). Update `tokens.md` and `components.md`.
 - [ ] 3X.7 Backend: migration (colour column, existing top-level categories get default themes in `position` order); public reads + `getHome` return the colour (60 s category cache invalidated on change); admin create/update validates it per ADR-023 and audits it; tests.
 - [ ] 3X.8 Web foundation (`packages/ui/web` + both apps' root layouts): gradient canvas background; motion utility classes with reduced-motion fallbacks; category theme classes (`data-category-theme` → `--mt-cat-*` variables); no other screen change yet. Web + admin E2E stay green.
 - [ ] 3X.9 Web shared components: Button family, IconButton, chips/pills, tabs, role switcher, inputs/select/switch/checkbox (`form.css`, shared with admin), cards, dialogs, toasts, skeletons and empty states, restyled per 3X.2 (borders, inner gradients, hover/press/focus glow, transitions).
@@ -132,7 +133,7 @@ Remaining:
 - [ ] 3X.14 Private pages: auth pages (login, register, 2FA, reset, verify), dashboard shell + Selling Home KPI tiles, account settings, password, sessions, verification centre, edit profile, portfolio create/edit, restricted, theme switch. Checked in dark mode.
 
 ### 3X.D Admin
-- [ ] 3X.15 Admin: the shared look through `packages/ui`. Category form colour choice (theme swatches with a live preview chip, per ADR-023): the category tree shows a colour dot, and project categories show the inherited colour. E2E in `apps/admin/e2e/catalog.spec.ts` extended (pick colour → shown on the website header).
+- [ ] 3X.15 Admin: the shared look through `packages/ui`. Category form colour picker (hex field + starter swatches + live light/dark preview chip, duplicate refused / similar warned, spec 3X R-1.8): the category tree shows a colour dot, and project categories show the inherited colour. E2E in `apps/admin/e2e/catalog.spec.ts` extended (pick colour → shown on the website header).
 
 ### 3X.E Mobile
 - [ ] 3X.16 Mobile foundation: the new tokens in the native theme, `expo-linear-gradient` (pinned), shared Reanimated presets (press scale, fade/slide-in, stagger, skeleton) honouring Reduce Motion, plus shared native Button, Card and Chip in the new style.
