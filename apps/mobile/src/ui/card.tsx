@@ -9,6 +9,7 @@ import type { AccessibilityRole, StyleProp, ViewStyle } from 'react-native';
 import Animated, {
   ReduceMotion,
   useAnimatedStyle,
+  useReducedMotion,
   useSharedValue,
   withSequence,
   withTiming,
@@ -27,15 +28,23 @@ export function useCardGlow() {
   return useContext(GlowContext);
 }
 
-/** M-14: a success border + glow fading in and out once (800 ms; a fade, so kept under Reduce Motion). */
+/**
+ * M-14: a success border + glow fading in and out once (200 + 600 ms). A fade, so kept under Reduce Motion, with
+ * each step capped at 120 ms (`motion.duration.fast`; 2 × 120 ms as the web's capped `2 × duration.slower`).
+ */
 function useGlow(theme: Theme) {
+  const reduced = useReducedMotion();
   const value = useSharedValue(0);
   const style = useAnimatedStyle(() => ({ opacity: value.value }));
   const flash = useCallback(() => {
     const fade = (to: number, duration: number) =>
       withTiming(to, { duration, easing: easing('standard'), reduceMotion: ReduceMotion.Never });
-    value.value = withSequence(fade(1, theme.motion.duration.base), fade(0, 600));
-  }, [value, theme]);
+    const fast = theme.motion.duration.fast;
+    value.value = withSequence(
+      fade(1, reduced ? fast : theme.motion.duration.base),
+      fade(0, reduced ? fast : 600),
+    );
+  }, [value, theme, reduced]);
   return { style, flash };
 }
 

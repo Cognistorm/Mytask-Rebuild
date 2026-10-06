@@ -1,12 +1,12 @@
 // Native alert frame in the 3X look (visual-refresh.md §6.4, as the web `.auth-alert`): the feedback border, a 4 px
 // start bar in the tone's icon colour and a vertical tint (55 % tint over the surface → the full tint); fades in
-// (M-15, a fade is kept under Reduce Motion). The caller lays out the text inside.
+// (M-15, a fade is kept under Reduce Motion, capped at 120 ms). The caller lays out the text inside.
 import { useMemo } from 'react';
 import type { ReactNode } from 'react';
 import { StyleSheet } from 'react-native';
 import type { AccessibilityRole, StyleProp, ViewStyle } from 'react-native';
 import Animated from 'react-native-reanimated';
-import { fadeIn } from './motion';
+import { useFadeIn } from './motion';
 import { Gradient, useTheme } from './theme';
 import type { Theme } from './theme';
 
@@ -34,6 +34,7 @@ export function Alert(props: {
 }) {
   const theme = useTheme();
   const s = useMemo(() => styles(theme), [theme]);
+  const fadeIn = useFadeIn();
   const f = theme.colors.feedback;
   const c = {
     info: { bg: f.infoBg, border: f.infoBorder, bar: f.infoIcon },

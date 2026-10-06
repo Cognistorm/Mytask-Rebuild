@@ -75,10 +75,16 @@ export function enterAt(index: number) {
     .reduceMotion(ReduceMotion.System);
 }
 
-/** M-15 alert / toast in: a short fade (kept under Reduce Motion: no movement). */
-export const fadeIn = FadeIn.duration(m.duration.base)
-  .easing(easing('enter'))
-  .reduceMotion(ReduceMotion.Never);
+/**
+ * M-15 alert / toast in: a short fade, 200 ms. Under Reduce Motion it stays (no movement), capped at 120 ms
+ * (`motion.duration.fast`, spec 3X R-4.3, as the web).
+ */
+export function useFadeIn() {
+  const reduced = useReducedMotion();
+  return FadeIn.duration(reduced ? m.duration.fast : m.duration.base)
+    .easing(easing('enter'))
+    .reduceMotion(ReduceMotion.Never);
+}
 
 /** M-13 skeleton shimmer: 0 → 1 progress, 1200 ms linear, looping; static (0) under Reduce Motion. */
 export function useShimmer() {

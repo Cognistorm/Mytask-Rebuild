@@ -60,6 +60,9 @@ exists.
 ## Reduce Motion (phone accessibility setting)
 - [ ] With **Reduce Motion** on: nothing slides or rises, the switcher jumps, rating bars appear filled; short
       fades and the green save glow may stay.
+- [ ] With **Reduce Motion** on (3X.21b, F-3X19-2): an alert (e.g. "Saved") fades in quickly (about a tenth of a
+      second, not a fifth), and the green save glow on its card is a short blink (about a quarter second in total,
+      not almost a second). With Reduce Motion off both look as before.
 
 ## Known, not changed
 - The app is light only until the app's theme switch exists (tokens.md).

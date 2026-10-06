@@ -2,7 +2,7 @@
 // Chip and skeleton block. Screens adopt them in 3X.17.
 export { Gradient, useTheme } from './theme';
 export type { GradientToken, Theme } from './theme';
-export { easing, enterAt, fadeIn, usePressLayer, usePressScale, useShimmer } from './motion';
+export { easing, enterAt, useFadeIn, usePressLayer, usePressScale, useShimmer } from './motion';
 export { Button } from './button';
 export type { ButtonVariant } from './button';
 export { Card, useCardGlow } from './card';
