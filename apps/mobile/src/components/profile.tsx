@@ -1,7 +1,15 @@
 // Profile pieces of the app on the shared tokens (components.md §7.4 ProfileCard, §7.6 Pill, §7.7 Avatar,
 // §7.8 RatingSummary, §5.14 Chip, §8.1 Dialog as a bottom sheet on phones). Same rules as the web
 // (`packages/ui/src/web/profile.tsx`). Texts come from i18n.
+// 3X look (3X.17c, as the web 3X.13): the avatar ring in the brand gradient, rating bars on a recessed track with a
+// brand-gradient fill that grows in once, portfolio cards on the native `Card`, the brand strip on the bottom sheet.
 import { useEffect, useState, type ReactNode } from 'react';
+import Animated, {
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 import {
   Image,
   KeyboardAvoidingView,
@@ -17,7 +25,7 @@ import { lightTheme as theme } from '@mytask/tokens/native';
 import type { components } from '@mytask/types';
 import { formatClock } from '../lib/format';
 import type { PortfolioItemCard } from '../lib/profile';
-import { Button, Gradient, IconButton, Chip as UiChip } from '../ui';
+import { BrandStrip, Button, Card, easing, Gradient, IconButton, Chip as UiChip } from '../ui';
 
 type ImageVariants = components['schemas']['ImageVariants'];
 type RatingBlock = components['schemas']['RatingBlock'];
@@ -50,6 +58,20 @@ export function Avatar(props: {
       {props.online !== undefined ? (
         <View style={[s.avatarDot, props.online ? s.dotOnline : null]} />
       ) : null}
+    </View>
+  );
+}
+
+/**
+ * The avatar in a ring of the brand gradient (visual-refresh.md §12, as the web seller cards and profile card);
+ * `glow` adds the soft brand glow of the profile card.
+ */
+export function AvatarRing({ children, glow }: { children: ReactNode; glow?: boolean }) {
+  return (
+    <View style={[s.ring, glow ? theme.glow.brandSoft : null]}>
+      <Gradient token={theme.gradient.action.primary} style={s.ringFill}>
+        {children}
+      </Gradient>
     </View>
   );
 }
@@ -151,7 +173,7 @@ export function RatingSummary(props: {
             >
               <Text style={s.ratingRowLabel}>{labels.rows[i]}</Text>
               <View style={s.ratingBar}>
-                <View style={[s.ratingBarFill, { width: `${(n / data.count) * 100}%` }]} />
+                <RatingFill share={n / data.count} />
               </View>
               <Text style={s.ratingRowCount}>{n}</Text>
             </View>
@@ -159,6 +181,28 @@ export function RatingSummary(props: {
         </>
       )}
     </View>
+  );
+}
+
+/**
+ * A rating bar's fill (as the web 3X.13): the brand gradient, growing in from the start once (transform only, 400 ms
+ * `enter`); shown at once under Reduce Motion.
+ */
+function RatingFill({ share }: { share: number }) {
+  const reduced = useReducedMotion();
+  const grow = useSharedValue(reduced ? 1 : 0);
+  useEffect(() => {
+    if (!reduced)
+      grow.value = withTiming(1, {
+        duration: theme.motion.duration.slower,
+        easing: easing('enter'),
+      });
+  }, [grow, reduced]);
+  const style = useAnimatedStyle(() => ({ transform: [{ scaleX: grow.value }] }));
+  return (
+    <Animated.View style={[s.ratingBarFill, { width: `${share * 100}%` }, style]}>
+      <Gradient token={theme.gradient.indicator} fill />
+    </Animated.View>
   );
 }
 
@@ -235,23 +279,27 @@ export function PortfolioCard({
 }) {
   const pill = item.status === 'active' ? null : STATUS_PILL[item.status];
   return (
-    <Pressable
-      style={({ pressed }) => [s.work, pressed && s.pressed]}
+    <Card
+      style={s.work}
       onPress={onPress}
       accessibilityRole="link"
       accessibilityLabel={pill ? `${item.title}, ${t(pill.key)}` : item.title}
       testID={`portfolio-${item.uid}`}
     >
-      <Image
-        source={{ uri: item.thumbnail.medium }}
-        style={s.workImage}
-        accessibilityIgnoresInvertColors
-      />
-      <Text style={s.workTitle} numberOfLines={2}>
-        {item.title}
-      </Text>
-      {pill ? <Pill tone={pill.tone} label={t(pill.key)} /> : null}
-    </Pressable>
+      <View style={s.workMedia}>
+        <Image
+          source={{ uri: item.thumbnail.medium }}
+          style={s.workImage}
+          accessibilityIgnoresInvertColors
+        />
+      </View>
+      <View style={s.workBody}>
+        <Text style={s.workTitle} numberOfLines={2}>
+          {item.title}
+        </Text>
+        {pill ? <Pill tone={pill.tone} label={t(pill.key)} /> : null}
+      </View>
+    </Card>
   );
 }
 
@@ -272,8 +320,8 @@ export function LocalTime({ timezone }: { timezone: string }) {
 
 /**
  * Bottom sheet (§8.1 Dialog on phones): slides up over a scrim; the scrim, the close button and the system back
- * gesture close it; screen readers stay inside it. 3X look (§6.4): the surface gradient, a hairline top border, the
- * large shadow and a Secondary icon close.
+ * gesture close it; screen readers stay inside it. 3X look (§6.4): the surface gradient, the brand strip on top, a
+ * hairline border, the large shadow and a Secondary icon close.
  */
 export function BottomSheet(props: {
   open: boolean;
@@ -297,6 +345,7 @@ export function BottomSheet(props: {
         />
         <View style={s.sheet} accessibilityViewIsModal testID={props.testID}>
           <Gradient token={theme.gradient.surface} fill style={s.sheetFill} />
+          <BrandStrip radius={theme.radius.dialog} />
           <View style={s.sheetHead}>
             <Text style={s.sheetTitle} accessibilityRole="header">
               {props.title}
@@ -365,14 +414,19 @@ const s = StyleSheet.create({
     color: theme.colors.text.secondary,
     minWidth: theme.space[16],
   },
+  // Recessed track: the pressed fill with a hairline border.
   ratingBar: {
     flex: 1,
     height: theme.space[2],
     borderRadius: theme.radius.full,
+    borderWidth: theme.borderWidth.hairline,
+    borderColor: theme.colors.border.default,
     backgroundColor: theme.colors.bg.subtle,
     overflow: 'hidden',
   },
-  ratingBarFill: { height: '100%', backgroundColor: theme.colors.action.primary },
+  ratingBarFill: { height: '100%', transformOrigin: 'left', overflow: 'hidden' },
+  ring: { borderRadius: theme.radius.full, backgroundColor: theme.colors.action.primary },
+  ringFill: { padding: theme.borderWidth.strong, borderRadius: theme.radius.full },
   ratingRowCount: {
     ...theme.text.bodySm,
     color: theme.colors.text.primary,
@@ -387,14 +441,19 @@ const s = StyleSheet.create({
     overflow: 'hidden',
     paddingHorizontal: theme.space[2],
   },
-  work: { width: '48%', gap: theme.space[1] },
-  pressed: { backgroundColor: theme.colors.action.ghostPressed, borderRadius: theme.radius.md },
+  work: { width: '48%' },
+  // The image clips to the card's inner top corners (inside its 1 px border).
+  workMedia: {
+    overflow: 'hidden',
+    borderTopLeftRadius: theme.radius.card - theme.borderWidth.hairline,
+    borderTopRightRadius: theme.radius.card - theme.borderWidth.hairline,
+  },
   workImage: {
     width: '100%',
     aspectRatio: theme.size.layout.cardImageRatio,
-    borderRadius: theme.radius.md,
     backgroundColor: theme.colors.bg.skeleton,
   },
+  workBody: { gap: theme.space[1], padding: theme.space[2] },
   workTitle: { ...theme.text.label, color: theme.colors.text.primary },
   sheetRoot: { flex: 1, justifyContent: 'flex-end' },
   scrim: { ...StyleSheet.absoluteFill, backgroundColor: theme.colors.bg.scrim },

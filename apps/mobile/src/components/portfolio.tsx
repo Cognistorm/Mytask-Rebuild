@@ -1,6 +1,7 @@
 // Portfolio pieces of the app (spec 02 AC-28, AC-42; screens table "Portfolio grid → item viewer (swipe gallery)"),
 // the same data and order as the web `components/profile/client.tsx` + `parts.tsx`: the 2-column grid, the
-// owner box and the gallery pager. Texts come from i18n.
+// owner box and the gallery pager. Texts come from i18n. 3X look (3X.17c, as the web 3X.13): the owner box on the
+// native `Card` with the avatar ring, status notes in the alert look, gallery images framed like cards.
 import { router } from 'expo-router';
 import { useState } from 'react';
 import {
@@ -16,7 +17,8 @@ import {
 import { lightTheme as theme } from '@mytask/tokens/native';
 import type { components } from '@mytask/types';
 import type { PortfolioItemCard, UserSummary } from '../lib/profile';
-import { Avatar, OutlineButton, Pill, PortfolioCard, VerifiedMark } from './profile';
+import { Avatar, AvatarRing, OutlineButton, Pill, PortfolioCard, VerifiedMark } from './profile';
+import { Alert, Card } from '../ui';
 import { inSentence } from '@mytask/i18n';
 
 type ImageVariants = components['schemas']['ImageVariants'];
@@ -50,7 +52,12 @@ export function PortfolioGrid(props: { username: string; items: PortfolioItemCar
 export function StatusNote(props: { status: 'pending' | 'rejected'; reason: string | null; t: T }) {
   const { t } = props;
   return (
-    <View style={s.note} accessibilityRole="summary" testID={`${props.status}-note`}>
+    <Alert
+      tone={props.status === 'pending' ? 'warning' : 'danger'}
+      style={s.note}
+      accessibilityRole="summary"
+      testID={`${props.status}-note`}
+    >
       {props.status === 'pending' ? (
         <>
           <Pill tone="warning" label={t('t_pending')} />
@@ -64,7 +71,7 @@ export function StatusNote(props: { status: 'pending' | 'rejected'; reason: stri
           </Text>
         </>
       )}
-    </View>
+    </Alert>
   );
 }
 
@@ -75,9 +82,11 @@ export function StatusNote(props: { status: 'pending' | 'rejected'; reason: stri
 export function OwnerBox(props: { user: UserSummary; headline?: string | null; t: T }) {
   const { user, t } = props;
   return (
-    <View style={s.owner} testID="owner-box">
+    <Card style={s.owner} testID="owner-box">
       <View style={s.ownerRow}>
-        <Avatar image={user.avatar} name={user.username} size="lg" online={user.isOnline} />
+        <AvatarRing>
+          <Avatar image={user.avatar} name={user.username} size="lg" online={user.isOnline} />
+        </AvatarRing>
         <View style={s.ownerText}>
           <View style={s.ownerNameRow}>
             <Text style={s.ownerName}>{user.username}</Text>
@@ -93,7 +102,7 @@ export function OwnerBox(props: { user: UserSummary; headline?: string | null; t
         }
         testID="view-profile"
       />
-    </View>
+    </Card>
   );
 }
 
@@ -109,30 +118,34 @@ export function Gallery(props: { images: ImageVariants[]; title: string }) {
   };
 
   return (
-    <View style={s.gallery} onLayout={onLayout} testID="gallery">
-      {width > 0 ? (
-        <FlatList
-          data={props.images}
-          keyExtractor={(image) => image.fileId}
-          horizontal
-          pagingEnabled
-          showsHorizontalScrollIndicator={false}
-          onMomentumScrollEnd={onScroll}
-          getItemLayout={(_, i) => ({ length: width, offset: width * i, index: i })}
-          renderItem={({ item: image, index: i }) => (
-            <Image
-              source={{ uri: image.large }}
-              style={[s.galleryImage, { width }]}
-              resizeMode="contain"
-              accessible
-              accessibilityLabel={`${props.title} (${i + 1}/${total})`}
-              accessibilityIgnoresInvertColors
+    <View style={s.gallery} testID="gallery">
+      <View style={s.galleryFrame}>
+        <View style={s.galleryClip} onLayout={onLayout}>
+          {width > 0 ? (
+            <FlatList
+              data={props.images}
+              keyExtractor={(image) => image.fileId}
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              onMomentumScrollEnd={onScroll}
+              getItemLayout={(_, i) => ({ length: width, offset: width * i, index: i })}
+              renderItem={({ item: image, index: i }) => (
+                <Image
+                  source={{ uri: image.large }}
+                  style={[s.galleryImage, { width }]}
+                  resizeMode="contain"
+                  accessible
+                  accessibilityLabel={`${props.title} (${i + 1}/${total})`}
+                  accessibilityIgnoresInvertColors
+                />
+              )}
             />
+          ) : (
+            <View style={s.galleryImage} />
           )}
-        />
-      ) : (
-        <View style={s.galleryImage} />
-      )}
+        </View>
+      </View>
       {total > 1 ? (
         <Text style={s.counter} importantForAccessibility="no" accessibilityElementsHidden>
           {`${Math.min(index, total - 1) + 1} / ${total}`}
@@ -149,33 +162,30 @@ const s = StyleSheet.create({
     justifyContent: 'space-between',
     rowGap: theme.space[4],
   },
-  note: {
-    backgroundColor: theme.colors.bg.surface,
-    borderWidth: theme.borderWidth.hairline,
-    borderColor: theme.colors.border.default,
-    borderRadius: theme.radius.control,
-    padding: theme.space[3],
-    gap: theme.space[2],
-  },
+  note: { gap: theme.space[2] },
   noteText: { ...theme.text.bodySm, color: theme.colors.text.primary },
-  owner: {
-    backgroundColor: theme.colors.bg.surface,
-    borderWidth: theme.borderWidth.hairline,
-    borderColor: theme.colors.border.default,
-    borderRadius: theme.radius.card,
-    padding: theme.space[4],
-    gap: theme.space[3],
-  },
+  owner: { padding: theme.space[4], gap: theme.space[3] },
   ownerRow: { flexDirection: 'row', alignItems: 'center', gap: theme.space[3] },
   ownerText: { flex: 1, gap: theme.space[1] },
   ownerNameRow: { flexDirection: 'row', alignItems: 'center', gap: theme.space[1] },
   ownerName: { ...theme.text.title, color: theme.colors.text.primary, flexShrink: 1 },
   muted: { ...theme.text.bodySm, color: theme.colors.text.muted },
   gallery: { gap: theme.space[2] },
+  // Framed like a card (as the web 3X.13): border, card radius, small shadow.
+  galleryFrame: {
+    borderWidth: theme.borderWidth.hairline,
+    borderColor: theme.colors.border.default,
+    borderRadius: theme.radius.card,
+    backgroundColor: theme.colors.bg.skeleton,
+    ...theme.shadow.sm,
+  },
+  galleryClip: {
+    overflow: 'hidden',
+    borderRadius: theme.radius.card - theme.borderWidth.hairline,
+  },
   galleryImage: {
     width: '100%',
     aspectRatio: theme.size.layout.cardImageRatio,
-    borderRadius: theme.radius.md,
     backgroundColor: theme.colors.bg.skeleton,
   },
   counter: { ...theme.text.bodySm, color: theme.colors.text.muted, textAlign: 'center' },

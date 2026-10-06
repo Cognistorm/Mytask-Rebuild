@@ -42,17 +42,8 @@ import { formatMoney } from '../lib/format';
 import { gigUrl, openWebPage } from '../lib/web-pages';
 import { EmptyState } from './dashboard';
 import { Button, Notice } from './form';
-import { Avatar, BottomSheet, RatingStars } from './profile';
-import {
-  Button as UiButton,
-  Card,
-  Chip,
-  enterAt,
-  Gradient,
-  IconButton,
-  InputFrame,
-  Radio,
-} from '../ui';
+import { Avatar, AvatarRing, BottomSheet, RatingStars } from './profile';
+import { Button as UiButton, Card, Chip, enterAt, IconButton, InputFrame, Radio } from '../ui';
 
 type SellerCard = components['schemas']['SellerCard'];
 
@@ -175,9 +166,9 @@ export function SellerMini({
         accessibilityRole="link"
       >
         {/* The avatar sits in a ring of the brand gradient (visual-refresh.md §12, as the web best sellers). */}
-        <Gradient token={theme.gradient.action.primary} style={s.avatarRing}>
+        <AvatarRing>
           <Avatar image={user.avatar} name={user.username} size="lg" online={user.isOnline} />
-        </Gradient>
+        </AvatarRing>
         <Text style={s.title}>{user.username}</Text>
         {user.isIdVerified ? <Text style={s.verified}>{t('t_account_verified')}</Text> : null}
       </Pressable>
@@ -624,7 +615,6 @@ const s = StyleSheet.create({
   price: { ...theme.text.price, color: theme.colors.text.primary },
   sellerCard: { alignItems: 'center', gap: theme.space[2], padding: theme.space[4] },
   sellerHead: { alignItems: 'center', gap: theme.space[2] },
-  avatarRing: { padding: theme.borderWidth.strong, borderRadius: theme.radius.full },
   verified: { ...theme.text.caption, color: theme.colors.text.success },
   skills: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: theme.space[2] },
   sheetScreen: { flex: 1, backgroundColor: theme.colors.bg.surface },

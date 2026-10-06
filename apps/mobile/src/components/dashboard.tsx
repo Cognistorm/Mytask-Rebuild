@@ -6,7 +6,7 @@ import { Pressable, StyleSheet, Text, View, type ColorValue } from 'react-native
 import Svg, { Path } from 'react-native-svg';
 import { lightTheme as theme } from '@mytask/tokens/native';
 import type { DashboardSide } from '../lib/dashboard';
-import { Button, SkeletonBlock } from '../ui';
+import { Button, Card, SkeletonBlock } from '../ui';
 
 const ICON = {
   // Handbag (Buying) and Storefront (Selling), as the web switcher.
@@ -139,7 +139,7 @@ export function StatGrid({ children }: { children: ReactNode }) {
   return <View style={s.grid}>{children}</View>;
 }
 
-/** A titled card section (Panel). */
+/** A titled card section (Panel) on the native `Card` (3X look: surface gradient, border, small shadow). */
 export function Section({
   title,
   children,
@@ -150,12 +150,12 @@ export function Section({
   testID?: string;
 }) {
   return (
-    <View style={s.section} testID={testID}>
+    <Card style={s.section} testID={testID}>
       <Text style={s.sectionTitle} accessibilityRole="header">
         {title}
       </Text>
       {children}
-    </View>
+    </Card>
   );
 }
 
@@ -270,7 +270,7 @@ const s = StyleSheet.create({
   negative: { color: theme.colors.text.danger },
   tileInfo: { ...theme.text.bodySm, color: theme.colors.text.secondary },
   infoButton: { alignItems: 'center', justifyContent: 'center' },
-  section: { ...card, padding: theme.space[4], gap: theme.space[3] },
+  section: { padding: theme.space[4], gap: theme.space[3] },
   sectionTitle: { ...theme.text.h3, color: theme.colors.text.primary },
   empty: { alignItems: 'center', gap: theme.space[3], paddingVertical: theme.space[4] },
   emptyTitle: { ...theme.text.body, color: theme.colors.text.secondary, textAlign: 'center' },

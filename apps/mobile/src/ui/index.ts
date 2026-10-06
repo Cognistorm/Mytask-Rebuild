@@ -11,6 +11,9 @@ export { SkeletonBlock } from './skeleton';
 export { Canvas, GradientLayers } from './layers';
 export { InputFrame, Radio } from './input';
 export { IconButton } from './icon-button';
+export { BrandStrip } from './strip';
+export { Alert } from './alert';
+export type { AlertTone } from './alert';
 export {
   Breadcrumb,
   CategoryBand,

@@ -5,6 +5,8 @@
 // "Contact me" (chat, slice 08), "Request an offer" (slice 11; the API sends `canRequestOffer: false`). Since 4.2.15
 // the gigs block (listGigs, 6 + "Load more") and skill chips opening `/hire/{slug}` (spec 03 AC-30). Since 4.1.24a a work opens the item viewer and "View my portfolio"
 // opens the portfolio screen when there are more than the preview shows.
+// 3X look (3X.17c, as the web 3X.13): the canvas, the card on the native `Card` with the 4 px brand strip and the
+// avatar in a glowing brand-gradient ring, the availability note in the alert look, skills as tappable `Chip`s.
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
@@ -24,7 +26,7 @@ import { EmptyState, Section, SecondaryButton, Skeleton } from '../../../compone
 import { Button, Notice } from '../../../components/form';
 import {
   Avatar,
-  Chip,
+  AvatarRing,
   ExpandableText,
   LocalTime,
   OnlineStatus,
@@ -48,6 +50,7 @@ import {
   type UserProfile,
 } from '../../../lib/profile';
 import { profileUrl } from '../../../lib/web-pages';
+import { Alert, BrandStrip, Canvas, Card, Chip } from '../../../ui';
 
 const locale = 'ka' as const;
 const t = createT(locale);
@@ -116,37 +119,39 @@ export default function ProfileScreen() {
   );
 
   return (
-    <SafeAreaView style={s.screen}>
-      <ScrollView contentContainerStyle={s.content}>
-        {state.kind === 'loading' ? (
-          <Skeleton label={t('t_ui_loading')} tiles={2} rows={4} />
-        ) : null}
-        {state.kind === 'not-found' ? (
-          <View style={s.gap} testID="profile-not-found">
-            <Notice kind="info" text={t('t_user_not_found')} />
-            <SecondaryButton
-              label={t('t_go_back')}
-              onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
+    <Canvas>
+      <SafeAreaView style={s.screen}>
+        <ScrollView contentContainerStyle={s.content}>
+          {state.kind === 'loading' ? (
+            <Skeleton label={t('t_ui_loading')} tiles={2} rows={4} />
+          ) : null}
+          {state.kind === 'not-found' ? (
+            <View style={s.gap} testID="profile-not-found">
+              <Notice kind="info" text={t('t_user_not_found')} />
+              <SecondaryButton
+                label={t('t_go_back')}
+                onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
+              />
+            </View>
+          ) : null}
+          {state.kind === 'error' ? (
+            <View style={s.gap}>
+              <Notice kind="error" text={t('t_toast_something_went_wrong')} />
+              <SecondaryButton label={t('t_ui_retry')} onPress={() => void load()} />
+            </View>
+          ) : null}
+          {state.kind === 'ready' ? (
+            <Profile
+              profile={state.profile}
+              portfolio={state.portfolio}
+              hasMore={state.hasMore}
+              gigs={state.gigs}
+              gigsCursor={state.gigsCursor}
             />
-          </View>
-        ) : null}
-        {state.kind === 'error' ? (
-          <View style={s.gap}>
-            <Notice kind="error" text={t('t_toast_something_went_wrong')} />
-            <SecondaryButton label={t('t_ui_retry')} onPress={() => void load()} />
-          </View>
-        ) : null}
-        {state.kind === 'ready' ? (
-          <Profile
-            profile={state.profile}
-            portfolio={state.portfolio}
-            hasMore={state.hasMore}
-            gigs={state.gigs}
-            gigsCursor={state.gigsCursor}
-          />
-        ) : null}
-      </ScrollView>
-    </SafeAreaView>
+          ) : null}
+        </ScrollView>
+      </SafeAreaView>
+    </Canvas>
   );
 }
 
@@ -218,9 +223,12 @@ function Profile({
   return (
     <>
       {/* Card (§7.4): stacks on top on phones. */}
-      <View style={s.card} testID="profile-card">
+      <Card style={s.card} testID="profile-card">
+        <BrandStrip />
         <View style={s.identity}>
-          <Avatar image={p.avatar} name={p.username} size="xl" online={p.isOnline} />
+          <AvatarRing glow>
+            <Avatar image={p.avatar} name={p.username} size="xl" online={p.isOnline} />
+          </AvatarRing>
           <View style={s.identityText}>
             <View style={s.nameRow}>
               <Text style={s.name} accessibilityRole="header">
@@ -308,17 +316,17 @@ function Profile({
             ))}
           </View>
         ) : null}
-      </View>
+      </Card>
 
       {p.availability ? (
-        <View style={s.notice} accessibilityRole="summary" testID="availability">
+        <Alert tone="warning" accessibilityRole="summary" testID="availability">
           <Text style={s.noticeTitle}>
             {t('t_this_user_is_not_available_right_now_msg', {
               date: formatDateOnly(p.availability.unavailableUntil),
             })}
           </Text>
           <Text style={s.noticeText}>{p.availability.message}</Text>
-        </View>
+        </Alert>
       ) : null}
 
       <Section title={t('t_reviews')}>
@@ -398,18 +406,15 @@ function Profile({
         <Section title={t('t_skills')}>
           <View style={s.chips}>
             {p.skills.map((skill) => (
-              <Pressable
+              <Chip
                 key={skill.id}
+                label={skill.name}
+                accessibilityLabel={`${skill.name}, ${t(SKILL_LEVEL[skill.experience])}`}
+                accessibilityRole="link"
                 onPress={() =>
                   router.push({ pathname: '/hire/[keyword]', params: { keyword: skill.slug } })
                 }
-                accessibilityRole="link"
-              >
-                <Chip
-                  label={skill.name}
-                  accessibilityLabel={`${skill.name}, ${t(SKILL_LEVEL[skill.experience])}`}
-                />
-              </Pressable>
+              />
             ))}
           </View>
         </Section>
@@ -449,17 +454,11 @@ function CardList(props: {
 }
 
 const s = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: theme.colors.bg.canvas },
+  screen: { flex: 1 },
   content: { padding: theme.space[4], gap: theme.space[4] },
   gap: { gap: theme.space[3] },
-  card: {
-    backgroundColor: theme.colors.bg.surface,
-    borderWidth: theme.borderWidth.hairline,
-    borderColor: theme.colors.border.default,
-    borderRadius: theme.radius.card,
-    padding: theme.space[4],
-    gap: theme.space[4],
-  },
+  // The top padding clears the 4 px brand strip.
+  card: { padding: theme.space[4], paddingTop: theme.space[5], gap: theme.space[4] },
   identity: { flexDirection: 'row', alignItems: 'center', gap: theme.space[4] },
   identityText: { flex: 1, gap: theme.space[1] },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: theme.space[1], flexWrap: 'wrap' },
@@ -489,14 +488,6 @@ const s = StyleSheet.create({
     alignItems: 'center',
     gap: theme.space[3],
     minHeight: theme.space[6],
-  },
-  notice: {
-    backgroundColor: theme.colors.feedback.warningBg,
-    borderWidth: theme.borderWidth.hairline,
-    borderColor: theme.colors.feedback.warningBorder,
-    borderRadius: theme.radius.control,
-    padding: theme.space[3],
-    gap: theme.space[1],
   },
   noticeTitle: { ...theme.text.label, color: theme.colors.feedback.warningText },
   noticeText: { ...theme.text.bodySm, color: theme.colors.feedback.warningText },
