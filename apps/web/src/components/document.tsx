@@ -4,6 +4,8 @@
 // visitor's `mt_theme` cookie and S-105/S-106 (lib/theme.ts, spec 02 AC-35).
 import '@mytask/tokens/fonts.css';
 import '@mytask/tokens/tokens.css';
+// Gradient canvas, motion utilities, category theme helpers (3X.8): before every component stylesheet.
+import '@mytask/ui/web/foundation.css';
 import '../styles/globals.css';
 import type { Metadata } from 'next';
 import { cookies, headers } from 'next/headers';

@@ -49,5 +49,6 @@ export {
   type GigCardData,
   type GigCardLabels,
 } from './catalog';
+export { categoryThemeProps, type CategoryThemeProps } from './category';
 export { formatMoney } from './money';
 export { Carousel } from './carousel';

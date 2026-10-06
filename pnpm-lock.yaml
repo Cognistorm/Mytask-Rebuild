@@ -637,6 +637,10 @@ importers:
         version: 2.8.1
 
   packages/ui:
+    dependencies:
+      '@mytask/tokens':
+        specifier: workspace:*
+        version: link:../tokens
     devDependencies:
       '@mytask/config':
         specifier: workspace:*

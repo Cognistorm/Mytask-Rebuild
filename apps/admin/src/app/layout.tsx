@@ -1,5 +1,7 @@
 import '@mytask/tokens/fonts.css';
 import '@mytask/tokens/tokens.css';
+// Gradient canvas, motion utilities, category theme helpers (3X.8): before every component stylesheet.
+import '@mytask/ui/web/foundation.css';
 import './globals.css';
 // Admin page and auth panel styles (every admin screen uses them).
 import '../components/auth.css';
