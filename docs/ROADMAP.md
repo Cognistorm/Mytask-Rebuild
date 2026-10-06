@@ -246,9 +246,42 @@ Remaining:
 
 ---
 
+## Phase 4X — Admin refresh (branch `feat/admin-refresh`, cut from `feat/gigs`) — Owner request 2026-10-07
+
+**Why.** The Owner, 2026-10-07: the admin panel's navigation and layout need a major update to be clean, intuitive and user-friendly. Phase 4 **pauses again at 4.3.1** until 4X is built, verified, merged and approved. Task IDs use `4X.n`, as 3X did.
+
+**Owner requirements (AR-1…AR-3):**
+- **AR-1 Sidebar:** the top row of text links becomes a fixed, clean left sidebar holding every top-level section.
+- **AR-2 Content on the right:** choosing a sidebar item shows its settings, controls and fields in the content area on the right.
+- **AR-3 Modern controls:** forms, switches, inputs and action buttons follow the 3X design system.
+
+**Rules for this phase:** the same API calls, behaviour, permissions, texts and `data-testid`s; tokens and `packages/ui` only; light only, as now; 360 px without sideways scroll; reduced motion respected. Brief: `docs/05-design/admin-refresh.md`.
+
+### 4X.A Brief
+- [x] 4X.1 Brief + layout `docs/05-design/admin-refresh.md`: AR-1…AR-3, must-not-change list, sidebar map in legacy order with icons and permissions, desktop / phone behaviour, settings-by-area, control patterns, checks.
+  Done 2026-10-07: the legacy admin already had a left sidebar with Phosphor icons and expandable groups (`legacy/APP/app/Livewire/Admin/Includes/Sidebar.php`), so 4X restores that shape. Sidebar = Users (Verifications, User restrictions), Portfolios, Projects (Project categories, Skills), Categories, Settings (one item per settings area + Banned IPs), with the account block (name, Change password, Logout) at the bottom. It is built on the shared `.mt-dashboard*` frame, with a drawer below 1024 px. Settings areas use `/settings?area=…`, so every route stays. No blocking Owner question; three choices are listed in the brief §7 for the click-through.
+
+### 4X.B Shell
+- [ ] 4X.2 `AdminShell` (apps/admin): fixed left sidebar (logo, grouped links with Phosphor icons, expand/collapse groups, current item, account block), content area with the page header, drawer + top bar below 1024 px; every admin screen moved onto it (the old `AdminNav` top bar removed); E2E: sidebar items per permission, current item, group expand, drawer at 360 px, no sideways scroll; existing suites green.
+- [ ] 4X.3 Settings by area: each area the API returns is a sidebar item under Settings (`/settings?area=…`, first area by default), the content shows that area only; 12 new `t_settings_area_*` keys (en + ka); E2E (area switch, S-056 flow still green).
+
+### 4X.C Controls
+- [ ] 4X.4 Settings rows: two-column setting row (meaning, register ID tag, unit, re-login badge | control), unit suffix in fields, Save Secondary → Primary when changed, hover tint; social provider cards (header with switch, labels above fields, secret-state pill).
+- [ ] 4X.5 Queues and security: banned IPs, user restrictions, portfolio and KYC queues — segmented status tabs with sliding thumb, item cards with header / body / action bar (Approve Primary, Reject Danger), inline add form, `EmptyState`.
+- [ ] 4X.6 Catalogue: categories, project categories, skills — tree rows with hover and depth guide, compact Ghost row actions, forms in a card with the `ka` / `en` pair side by side on wide screens (colour picker unchanged).
+- [ ] 4X.7 Login, change password, re-login step in the new shell look (login keeps its centred card).
+
+### 4X.D Verify, review, merge
+- [ ] 4X.8 Full admin E2E green; admin screenshot baselines renewed (every screen, 1280 + 360 px); axe + measured contrast 0 failures; reduced-motion check of the drawer and tabs.
+- [ ] 4X.9 QA report (qa-engineer, independent) `docs/06-qa/reports/4x-admin-refresh-<date>.md`: every old link reachable with the same permissions, behaviour unchanged, keyboard + screen-reader order, phone.
+- [ ] 4X.10 Fix findings; PR `feat/admin-refresh` → `main`, CI green; redeploy staging (`bash scripts/deploy-staging.sh`); STATUS.
+- [ ] 4X.11 **Owner click-through on staging** (checklist `docs/06-qa/plans/4x-admin-refresh-owner-click-through.md`). Approve → merge → rebase `feat/gigs` on `main` → **resume Phase 4 at 4.3.1**.
+
+---
+
 ## Phase 4 — Features (one slice at a time; order from `docs/02-specs/README.md`)
 
-> Paused at 4.3.1 on 2026-10-06 for Phase 3X; **resumed 2026-10-07** (3X approved and merged, PR #3).
+> Paused at 4.3.1 on 2026-10-06 for Phase 3X; resumed 2026-10-07 (3X approved and merged, PR #3). **Paused again at 4.3.1 on 2026-10-07 for Phase 4X (admin refresh)**; resumes after the 4X.11 approval.
 
 **Standard tail of every slice** (numbered at the end of each slice below):
 - E2E main flows;
