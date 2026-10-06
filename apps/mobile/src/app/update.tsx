@@ -7,7 +7,7 @@ const t = createT('ka');
 
 export default function UpdateRequired() {
   return (
-    <Screen title="MyTask.ge">
+    <Screen card title="MyTask.ge">
       <Notice kind="info" text={t('t_app_update_required')} />
     </Screen>
   );

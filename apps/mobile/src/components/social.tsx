@@ -2,12 +2,14 @@
 // under an "or" divider, in the legacy order — the same entry point as the web (components.md AuthLayout).
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { lightTheme as theme } from '@mytask/tokens/native';
 import type { Locale } from '@mytask/api-client';
 import { createT } from '../lib/i18n';
 import { usePublicConfig, type SocialProvider } from '../lib/public-config';
 import { socialLogin, type TwoFactorChallenge } from '../lib/social';
 import { Notice } from './form';
+import { Gradient, usePressLayer } from '../ui';
 import { SocialIcon } from './social-icons';
 
 /** Legacy button order (`livewire/main/auth/login.blade.php`). */
@@ -56,17 +58,11 @@ export function SocialButtons({
       {enabled.map((p) => {
         const label = t('t_continue_with_provider', { provider: t(`t_${p}`) });
         return (
-          <Pressable
+          <SocialButton
             key={p}
             testID={`social-${p}`}
-            style={({ pressed }) => [
-              s.button,
-              pressed ? s.pressed : null,
-              busy ? s.disabled : null,
-            ]}
+            off={!!busy}
             onPress={() => void start(p)}
-            disabled={!!busy}
-            accessibilityRole="button"
             accessibilityLabel={label}
             accessibilityState={{ busy: busy === p, disabled: !!busy }}
           >
@@ -76,10 +72,48 @@ export function SocialButtons({
               <SocialIcon provider={p} />
             )}
             <Text style={[s.label, busy ? s.labelDisabled : null]}>{label}</Text>
-          </Pressable>
+          </SocialButton>
         );
       })}
     </>
+  );
+}
+
+/**
+ * The Secondary button look (3X, as the web `.auth-social-button`): a border, the Secondary gradient and the pressed
+ * gradient fading in; flat while another sign-in is on its way.
+ */
+function SocialButton(props: {
+  off: boolean;
+  onPress: () => void;
+  accessibilityLabel: string;
+  accessibilityState: { busy: boolean; disabled: boolean };
+  testID: string;
+  children: React.ReactNode;
+}) {
+  const layer = usePressLayer();
+  return (
+    <Pressable
+      testID={props.testID}
+      style={[s.button, props.off ? s.disabled : theme.shadow.control]}
+      onPress={props.onPress}
+      onPressIn={layer.pressIn}
+      onPressOut={layer.pressOut}
+      disabled={props.off}
+      accessibilityRole="button"
+      accessibilityLabel={props.accessibilityLabel}
+      accessibilityState={props.accessibilityState}
+    >
+      {props.off ? null : (
+        <>
+          <Gradient token={theme.gradient.action.secondary} fill style={s.fill} />
+          <Animated.View style={[StyleSheet.absoluteFill, layer.style]} pointerEvents="none">
+            <Gradient token={theme.gradient.action.secondaryHover} fill style={s.fill} />
+          </Animated.View>
+        </>
+      )}
+      {props.children}
+    </Pressable>
   );
 }
 
@@ -100,10 +134,14 @@ const s = StyleSheet.create({
     paddingVertical: theme.space[2],
     paddingHorizontal: theme.space[3],
     borderRadius: theme.radius.control,
-    backgroundColor: theme.colors.action.secondary,
+    borderWidth: theme.borderWidth.hairline,
+    borderColor: theme.colors.border.action.secondary,
   },
-  pressed: { backgroundColor: theme.colors.action.secondaryPressed },
-  disabled: { backgroundColor: theme.colors.action.disabled },
+  fill: { borderRadius: theme.radius.control - theme.borderWidth.hairline },
+  disabled: {
+    backgroundColor: theme.colors.action.disabled,
+    borderColor: theme.colors.border.default,
+  },
   label: { ...theme.text.label, color: theme.colors.action.onSecondary },
   labelDisabled: { color: theme.colors.action.onDisabled },
 });

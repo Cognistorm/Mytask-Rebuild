@@ -72,7 +72,7 @@ export default function Register() {
 
   if (pending) {
     return (
-      <Screen title={t('t_verify_email')}>
+      <Screen card title={t('t_verify_email')}>
         <Notice kind="success" text={pending} />
         <LinkButton label={t('t_login')} onPress={() => router.replace('/login')} />
       </Screen>
@@ -81,6 +81,7 @@ export default function Register() {
 
   return (
     <Screen
+      card
       title={t('t_welcome_to_app_name', { name: siteTitle })}
       subtitle={t('t_pls_signup_to_continue')}
     >

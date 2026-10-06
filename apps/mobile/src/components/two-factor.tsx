@@ -52,7 +52,7 @@ export function TwoFactorStep({
 
   const wait = Math.max(0, Math.ceil((Date.parse(challenge.resendAvailableAt) - now) / 1000));
   return (
-    <Screen title={t('t_2fa_enter_code_title')}>
+    <Screen card title={t('t_2fa_enter_code_title')}>
       <Notice kind="info" text={challenge.notice.message} />
       {error ? <Notice kind="error" text={error} /> : null}
       <Input

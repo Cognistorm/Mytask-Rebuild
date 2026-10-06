@@ -58,7 +58,7 @@ export default function UpdatePassword() {
   }
 
   return (
-    <Screen title={t('t_update_password')} subtitle={t('t_update_password_subtitle')}>
+    <Screen card title={t('t_update_password')} subtitle={t('t_update_password_subtitle')}>
       {state === 'checking' ? (
         <Text
           accessibilityRole="progressbar"

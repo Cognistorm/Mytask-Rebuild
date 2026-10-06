@@ -1,30 +1,54 @@
 // Mobile form pieces on the shared tokens (components.md TextField, Button, Alert). Texts come from i18n.
 // 3X look: `Screen` on the page canvas, `Notice` on the native `Alert` (a success notice makes its card glow once,
-// M-14) — 3X.17d; the text field follows in 3X.17e.
-import { useEffect, type ReactNode } from 'react';
+// M-14) — 3X.17d; `Screen card` = the auth card (surface + 4 px brand strip, as the web `.auth-card`) and the text
+// field in the §6.3 input frame (brand border + soft glow while focused, danger border with an error) — 3X.17e.
+import { useEffect, useState, type ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { lightTheme as theme } from '@mytask/tokens/native';
-import { Alert, Button as UiButton, Canvas, useCardGlow } from '../ui';
+import {
+  Alert,
+  BrandStrip,
+  Button as UiButton,
+  Canvas,
+  Card,
+  InputFrame,
+  useCardGlow,
+} from '../ui';
 
 export function Screen({
   title,
   subtitle,
+  card,
   children,
 }: {
   title: string;
   subtitle?: string;
+  /** Auth screens: the title and the form sit in one card with the brand strip (as the web auth card). */
+  card?: boolean;
   children: ReactNode;
 }) {
+  const body = (
+    <>
+      <Text style={s.title} accessibilityRole="header">
+        {title}
+      </Text>
+      {subtitle ? <Text style={s.subtitle}>{subtitle}</Text> : null}
+      {children}
+    </>
+  );
   return (
     <Canvas>
       <SafeAreaView style={s.screen}>
         <ScrollView contentContainerStyle={s.content} keyboardShouldPersistTaps="handled">
-          <Text style={s.title} accessibilityRole="header">
-            {title}
-          </Text>
-          {subtitle ? <Text style={s.subtitle}>{subtitle}</Text> : null}
-          {children}
+          {card ? (
+            <Card style={s.card}>
+              <BrandStrip />
+              {body}
+            </Card>
+          ) : (
+            body
+          )}
         </ScrollView>
       </SafeAreaView>
     </Canvas>
@@ -44,24 +68,29 @@ export function Input(props: {
   textContentType?:
     'emailAddress' | 'password' | 'newPassword' | 'username' | 'name' | 'oneTimeCode' | 'URL';
 }) {
+  const [focused, setFocused] = useState(false);
   return (
     <View style={s.field}>
       <Text style={s.label}>{props.label}</Text>
-      <TextInput
-        style={[s.input, props.multiline ? s.multiline : null, props.error ? s.inputError : null]}
-        value={props.value}
-        onChangeText={props.onChangeText}
-        secureTextEntry={props.secure}
-        multiline={props.multiline}
-        maxLength={props.maxLength}
-        placeholder={props.placeholder}
-        placeholderTextColor={theme.colors.text.muted}
-        autoCapitalize={props.multiline ? 'sentences' : 'none'}
-        autoCorrect={!!props.multiline}
-        keyboardType={props.keyboardType ?? 'default'}
-        textContentType={props.textContentType}
-        accessibilityLabel={props.label}
-      />
+      <InputFrame focused={focused} invalid={!!props.error}>
+        <TextInput
+          style={[s.input, props.multiline ? s.multiline : null]}
+          value={props.value}
+          onChangeText={props.onChangeText}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          secureTextEntry={props.secure}
+          multiline={props.multiline}
+          maxLength={props.maxLength}
+          placeholder={props.placeholder}
+          placeholderTextColor={theme.colors.text.muted}
+          autoCapitalize={props.multiline ? 'sentences' : 'none'}
+          autoCorrect={!!props.multiline}
+          keyboardType={props.keyboardType ?? 'default'}
+          textContentType={props.textContentType}
+          accessibilityLabel={props.label}
+        />
+      </InputFrame>
       {props.error ? (
         <Text style={s.error} accessibilityLiveRegion="polite">
           {props.error}
@@ -144,17 +173,11 @@ const s = StyleSheet.create({
   title: { ...theme.text.h2, color: theme.colors.text.primary },
   field: { gap: theme.space[1] },
   label: { ...theme.text.label, color: theme.colors.text.primary },
-  input: {
-    ...theme.text.body,
-    color: theme.colors.text.primary,
-    backgroundColor: theme.colors.bg.surface,
-    borderWidth: theme.borderWidth.hairline,
-    borderColor: theme.colors.border.strong,
-    borderRadius: theme.radius.control,
-    padding: theme.space[3],
-  },
+  // The frame (border, fill, focus) is the InputFrame around it.
+  input: { ...theme.text.body, color: theme.colors.text.primary, padding: theme.space[3] },
   multiline: { minHeight: theme.space[24], textAlignVertical: 'top' },
-  inputError: { borderColor: theme.colors.border.danger },
+  // The top padding clears the 4 px brand strip.
+  card: { padding: theme.space[4], paddingTop: theme.space[6], gap: theme.space[4] },
   error: { ...theme.text.bodySm, color: theme.colors.text.danger },
   link: { ...theme.text.body, color: theme.colors.text.link, textDecorationLine: 'underline' },
   subtitle: { ...theme.text.body, color: theme.colors.text.secondary },

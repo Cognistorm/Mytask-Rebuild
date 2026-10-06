@@ -17,6 +17,7 @@ import {
   platformToday,
 } from '../../lib/format';
 import { Button, Input } from '../form';
+import { InputFrame } from '../../ui';
 import { BottomSheet, OutlineButton, Pill } from '../profile';
 import type { ApiError } from '../reauth';
 import { Block, BlockMessage, ButtonCell, ButtonRow, EditLink, useBlockState } from './block';
@@ -136,16 +137,18 @@ export function AvailabilityBlock(props: {
               onChange={(_, picked) => picked && setDate(localToDateOnly(picked))}
             />
           ) : (
-            <Pressable
-              style={[s.dateField, form.fields.unavailableUntil ? s.dateFieldError : null]}
-              onPress={openAndroidPicker}
-              accessibilityRole="button"
-              accessibilityLabel={t('t_when_do_u_expect_tobe_ready_for_new_work')}
-              accessibilityValue={{ text: formatDateOnly(date) }}
-              testID="availability-date"
-            >
-              <Text style={s.body}>{formatDateOnly(date)}</Text>
-            </Pressable>
+            <InputFrame invalid={!!form.fields.unavailableUntil}>
+              <Pressable
+                style={s.dateField}
+                onPress={openAndroidPicker}
+                accessibilityRole="button"
+                accessibilityLabel={t('t_when_do_u_expect_tobe_ready_for_new_work')}
+                accessibilityValue={{ text: formatDateOnly(date) }}
+                testID="availability-date"
+              >
+                <Text style={s.body}>{formatDateOnly(date)}</Text>
+              </Pressable>
+            </InputFrame>
           )}
           {form.fields.unavailableUntil ? (
             <Text style={s.error} accessibilityLiveRegion="polite">
@@ -182,14 +185,9 @@ const s = StyleSheet.create({
   field: { gap: theme.space[1] },
   label: { ...theme.text.label, color: theme.colors.text.primary },
   dateField: {
-    backgroundColor: theme.colors.bg.surface,
-    borderWidth: theme.borderWidth.hairline,
-    borderColor: theme.colors.border.strong,
-    borderRadius: theme.radius.control,
     padding: theme.space[3],
     minHeight: theme.size.control.md,
     justifyContent: 'center',
   },
-  dateFieldError: { borderColor: theme.colors.border.danger },
   error: { ...theme.text.bodySm, color: theme.colors.text.danger },
 });

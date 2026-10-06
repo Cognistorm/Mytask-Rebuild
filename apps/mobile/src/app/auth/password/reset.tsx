@@ -34,7 +34,7 @@ export default function ForgotPassword() {
   }
 
   return (
-    <Screen title={t('t_reset_ur_password')} subtitle={t('t_reset_ur_password_subtitle')}>
+    <Screen card title={t('t_reset_ur_password')} subtitle={t('t_reset_ur_password_subtitle')}>
       {sent ? <Notice kind="success" text={sent} /> : null}
       {general ? <Notice kind="error" text={general} /> : null}
       {!sent ? (
