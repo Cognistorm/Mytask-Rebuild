@@ -93,6 +93,26 @@ test('categoryTheme (native): one mode; null or invalid -> brand', () => {
   assert.equal(categoryTheme('nope', 'light'), categoryBrand.light);
 });
 
+// Security review 09 probe P2 (I-52): malformed and CSS-breaking colours never reach a style value.
+const MALFORMED = [
+  '#123456;}body{background:red', '#123456\n', ' #123456', '#123456 ', '#1234567', '#123', 'red',
+  'url(https://evil.example/x)', '#12345\u0000', 'var(--x)', '#１２３４５６', '#١٢٣٤٥٦', 'expression(alert(1))',
+  '#123456/*', '#12345"', "#12345'", '#12345<', '', null, 123456, ['#123456'], { hex: '#123456' }, true,
+];
+
+test('I-52: every malformed or CSS-breaking colour gives {} / brand, is refused by the validators, and throws in deriveCategoryColor', () => {
+  assert.equal(MALFORMED.length, 23);
+  for (const bad of MALFORMED) {
+    const label = JSON.stringify(bad);
+    assert.deepEqual(categoryStyle(bad), {}, label);
+    assert.equal(categoryTheme(bad, 'light'), categoryBrand.light, label);
+    assert.equal(categoryTheme(bad, 'dark'), categoryBrand.dark, label);
+    assert.equal(isCategoryColor(bad), false, label);
+    assert.equal(normalizeCategoryColor(bad), null, label);
+    if (bad !== null) assert.throws(() => deriveCategoryColor(bad), TypeError, label);
+  }
+});
+
 test('validators', () => {
   assert.equal(isCategoryColor('#a3a30d'), true);
   assert.equal(isCategoryColor('#A3A30'), false);

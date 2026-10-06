@@ -26,6 +26,36 @@ const http = () => request(app.getHttpServer());
 const ADMIN = '/api/v1/admin/categories';
 const en = { 'Accept-Language': 'en' };
 
+/**
+ * Security review 09 probe P1 (I-52): malformed and CSS-breaking colours. Each must answer 400 on create and update,
+ * so a later change to the request schema cannot let one through unnoticed.
+ */
+const MALFORMED: unknown[] = [
+  '#123456;}body{background:red',
+  '#123456\n',
+  ' #123456',
+  '#123456 ',
+  '#1234567',
+  '#123',
+  'red',
+  'url(https://evil.example/x)',
+  '#12345\u0000',
+  'var(--x)',
+  '#１２３４５６',
+  '#١٢٣٤٥٦',
+  'expression(alert(1))',
+  '#123456/*',
+  '#12345"',
+  "#12345'",
+  '#12345<',
+  '',
+  null,
+  123456,
+  ['#123456'],
+  { hex: '#123456' },
+  true,
+];
+
 type AdminCategory = {
   id: string;
   depth: number;
@@ -212,6 +242,21 @@ describe('adminCreateCategory colour (spec 16 AC-60a, spec 3X AC-6)', () => {
         messageKey: 't_category_color_top_level_only',
       }),
     ]);
+  });
+
+  it('400 for every malformed or CSS-breaking colour of the security probe (I-52), on create and update', async () => {
+    expect(MALFORMED).toHaveLength(23);
+    const top = await created({ color: '#0B0C0D' });
+    for (const color of MALFORMED) {
+      const made = await create({ color });
+      expect(made.status, `create ${JSON.stringify(color)}`).toBe(400);
+      expect(made.body.code).toBe('VALIDATION_FAILED');
+      const changed = await update(top.id, { color });
+      expect(changed.status, `update ${JSON.stringify(color)}`).toBe(400);
+      expect(changed.body.code).toBe('VALIDATION_FAILED');
+    }
+    const kept = await http().get(`${ADMIN}/${top.id}`).set(staff.auth);
+    expect(kept.body.color).toBe('#0B0C0D');
   });
 
   it('409 DUPLICATE names the category that has the colour (any case), in the request language', async () => {
