@@ -909,7 +909,7 @@ When: before Phase 5 (settings migration). Not blocking slice 2.
 ### Q-179
 **Buying/Selling switcher thumb: role colours (Q-092) or brand teal (visual-refresh.md §6.2)?** visual-refresh.md §6.2 gives the selected item "a sliding thumb with the Primary button gradient" (teal), and the approved 3X.3 preview showed it teal. But the preview's "Now" column also showed today's switcher as teal, while the real one uses the role colours the Owner kept in Q-092 (Buying = blue, Selling = green). So the approval did not knowingly reverse Q-092.
 Recommendation: keep the role colours (Q-092) on the new sliding thumb, with the new border, highlight and slide. This is what 3X.9c built (`packages/ui/src/web/dashboard.css`). If the Owner prefers teal, it is a one-rule change.
-**Status:** open (built as recommended, 2026-10-06; Owner to confirm in the 3X.23 click-through or earlier).
+**Answer (Owner, 2026-10-07, 3X.23 approval):** keep the role colours as built (Q-092 stands).
 
 ### Q-180
 **Category bar at narrow desktop widths: accept more categories under "More ▾", or make the pills tighter?** The 3X.10 fit check (visual-refresh.md §8.4) measured the 7 seeded Georgian names at 1024 px. The bar has 960 px there. The names never fitted: the old flat look needed 999 px, so one category was already under "More ▾" at 1024 px. The new pills (8 px dot, semibold text, a gap between pills) need 1169 px. Following the design rule, the gap was lowered from 8 to 4 px first, which brings it to 1145 px. Result:

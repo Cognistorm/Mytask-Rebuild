@@ -241,13 +241,14 @@ Remaining:
     Done 2026-10-06: Owner chose option 2 (one-frame transition suppression). `applyTheme` sets `data-theme-switching` on `<html>` with the new theme and removes it two frames later (only when the theme really changes); `packages/ui/src/web/foundation.css` sets `transition: none` while it is on. `e2e/theme.spec.ts` checks the attribute is set and removed (7/7). Re-measured (`3x-inp.mjs`, 7 runs): home theme switch **88 → 80 ms** (pre-3X 24 ms; limit 200 ms), category/search 32 ms OK; see `docs/06-qa/perf/3x-lighthouse-2026-10-06.md`. The remaining gap is style recalculation + paint of the gradient surfaces (option 3 would change the look). Web typecheck, lint, prettier OK; full web E2E 204 passed / 3 skipped.
 - [x] 3X.22 PR + CI green + STATUS. **Merge order:** PR #2 `feat/catalog-search` first, then this branch. Redeploy staging with `bash scripts/deploy-staging.sh`.
   Done 2026-10-07: PR #2 was already merged; PR #3 `feat/visual-refresh` → `main` open, CI green on push (run 35) and PR (run 36), all 5 jobs. First CI run of 3X found 3 test/build problems, fixed: the admin Docker build type-checked `apps/web/e2e/contrast-measure.ts` without `@playwright/test` (helper now takes the page by shape); `category-colors.test.ts` hit the 120 staff-writes/minute limit on the fast runner (each test now starts with a fresh `rl:*` window); web `visual-foundation.spec.ts` opened `/login`, a 404 (the login page is `/auth/login`), and on CI the Next.js 16.3 blank 404 shell has no CSS. Playwright on CI now reports failures as GitHub annotations + the uploaded HTML report. Staging redeployed at `5998616c` (api/web/admin 200). PR #3 stays open until the 3X.23 approval.
-- [ ] 3X.23 **Owner click-through on staging** (checklist `docs/06-qa/plans/3x-visual-refresh-owner-click-through.md`, web + admin + app). Approve → merge → **resume Phase 4 at 4.3.1** (`feat/gigs` is cut from `main` after the merge, so slice 3 is built in the new style from the start).
+- [x] 3X.23 **Owner click-through on staging** (checklist `docs/06-qa/plans/3x-visual-refresh-owner-click-through.md`, web + admin + app). Approve → merge → **resume Phase 4 at 4.3.1** (`feat/gigs` is cut from `main` after the merge, so slice 3 is built in the new style from the start).
+  Done 2026-10-07: checklist `docs/06-qa/plans/3x-visual-refresh-owner-click-through.md` written; **Owner approved 3X** and merged PR #3 into `main` (`6a049f5f`). Kept as built: Q-179 switcher thumb in the role colours (Q-092), the coloured logo on the home hero, the category bar at narrow widths (Q-180 (b)). `feat/gigs` cut from `main`.
 
 ---
 
 ## Phase 4 — Features (one slice at a time; order from `docs/02-specs/README.md`)
 
-> **Paused at 4.3.1 (Owner 2026-10-06)** until Phase 3X (visual refresh) is merged and approved.
+> Paused at 4.3.1 on 2026-10-06 for Phase 3X; **resumed 2026-10-07** (3X approved and merged, PR #3).
 
 **Standard tail of every slice** (numbered at the end of each slice below):
 - E2E main flows;
