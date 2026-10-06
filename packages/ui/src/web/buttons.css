@@ -5,10 +5,12 @@
 
    Class map (§4.4):
    - Primary:   .mt-button-primary, .auth-button (the Submit component), .mt-pf-submit (always with .mt-button-primary),
-                .mt-not-found-home (404 page)
-   - Secondary: .mt-button, .auth-social-button, .mt-icon-button (round; header icons keep their look until 3X.10)
+                .mt-not-found-home (404 page), .mt-site-join (header "Join", 3X.10)
+   - Secondary: .mt-button, .auth-social-button, .mt-icon-button (round; the header row's icons are borderless ghosts,
+                site.css)
    - Danger:    .mt-button-danger
-   - Ghost:     .auth-link-button, .mt-pf-link-button (actions, not links), .mt-dialog-close, .mt-info-button
+   - Ghost:     .auth-link-button, .mt-pf-link-button (actions, not links), .mt-menu-button (header menu triggers; the
+                search pill's category trigger stays flush inside the pill, site.css), .mt-dialog-close, .mt-info-button
    - Accent:    .mt-button-accent (reserved for Premium/invite, later slices)
    .mt-link-button (ExpandableText "more/less" inside prose) stays a text link. */
 
@@ -17,10 +19,12 @@
   .mt-button,
   .auth-button,
   .mt-not-found-home,
+  .mt-site-join,
   .auth-social-button,
-  .mt-icon-button:not(:where(.mt-site-header *)),
+  .mt-icon-button,
   .auth-link-button,
   .mt-pf-link-button,
+  .mt-menu-button,
   .mt-dialog-close,
   .mt-info-button
 ) {
@@ -52,10 +56,12 @@
   .mt-button,
   .auth-button,
   .mt-not-found-home,
+  .mt-site-join,
   .auth-social-button,
-  .mt-icon-button:not(:where(.mt-site-header *)),
+  .mt-icon-button,
   .auth-link-button,
   .mt-pf-link-button,
+  .mt-menu-button,
   .mt-dialog-close,
   .mt-info-button
 )::before {
@@ -71,7 +77,7 @@
 }
 
 /* ---- Variants (§4.2) ---- */
-:is(.mt-button-primary, .auth-button, .mt-not-found-home) {
+:is(.mt-button-primary, .auth-button, .mt-not-found-home, .mt-site-join) {
   --mt-btn-bg: var(--mt-gradient-action-primary);
   --mt-btn-bg-hover: var(--mt-gradient-action-primary-hover);
   --mt-btn-border: var(--mt-border-action-primary);
@@ -103,8 +109,9 @@
   --mt-btn-glow-focus: var(--mt-glow-accent);
 }
 
-/* Ghost: the quiet button (Cancel, Resend, Load more, Edit/Delete in admin rows). A subtle border, no fill at rest. */
-:is(.auth-link-button, .mt-pf-link-button, .mt-dialog-close, .mt-info-button) {
+/* Ghost: the quiet button (Cancel, Resend, Load more, Edit/Delete in admin rows, the header's menu triggers). A subtle
+   border, no fill at rest. */
+:is(.auth-link-button, .mt-pf-link-button, .mt-menu-button, .mt-dialog-close, .mt-info-button) {
   --mt-btn-bg: transparent;
   --mt-btn-bg-hover: var(--mt-gradient-action-ghost-hover);
   --mt-btn-border: var(--mt-border-action-ghost);
@@ -112,6 +119,11 @@
   --mt-btn-text: var(--mt-action-on-ghost);
   --mt-btn-highlight: 0 0 transparent;
   --mt-btn-rest: 0 0 transparent;
+}
+
+/* Menu triggers (Explore, Sort, "More") label with the normal text colour: they name a menu, not an action. */
+.mt-menu-button {
+  --mt-btn-text: var(--mt-text-primary);
 }
 
 /* Icon-only ghosts keep their quieter icon colour. */
@@ -138,10 +150,12 @@
       .mt-button,
       .auth-button,
       .mt-not-found-home,
+      .mt-site-join,
       .auth-social-button,
-      .mt-icon-button:not(:where(.mt-site-header *)),
+      .mt-icon-button,
       .auth-link-button,
       .mt-pf-link-button,
+      .mt-menu-button,
       .mt-dialog-close,
       .mt-info-button
     ):hover:not(:disabled, [aria-disabled='true']) {
@@ -154,10 +168,12 @@
       .mt-button,
       .auth-button,
       .mt-not-found-home,
+      .mt-site-join,
       .auth-social-button,
-      .mt-icon-button:not(:where(.mt-site-header *)),
+      .mt-icon-button,
       .auth-link-button,
       .mt-pf-link-button,
+      .mt-menu-button,
       .mt-dialog-close,
       .mt-info-button
     ):hover:not(:disabled, [aria-disabled='true'])::before {
@@ -170,10 +186,12 @@
   .mt-button,
   .auth-button,
   .mt-not-found-home,
+  .mt-site-join,
   .auth-social-button,
-  .mt-icon-button:not(:where(.mt-site-header *)),
+  .mt-icon-button,
   .auth-link-button,
   .mt-pf-link-button,
+  .mt-menu-button,
   .mt-dialog-close,
   .mt-info-button
 ):focus-visible {
@@ -185,10 +203,12 @@
     .mt-button,
     .auth-button,
     .mt-not-found-home,
+    .mt-site-join,
     .auth-social-button,
-    .mt-icon-button:not(:where(.mt-site-header *)),
+    .mt-icon-button,
     .auth-link-button,
     .mt-pf-link-button,
+    .mt-menu-button,
     .mt-dialog-close,
     .mt-info-button
   ):active:not(:disabled, [aria-disabled='true']) {
@@ -201,10 +221,12 @@
     .mt-button,
     .auth-button,
     .mt-not-found-home,
+    .mt-site-join,
     .auth-social-button,
-    .mt-icon-button:not(:where(.mt-site-header *)),
+    .mt-icon-button,
     .auth-link-button,
     .mt-pf-link-button,
+    .mt-menu-button,
     .mt-dialog-close,
     .mt-info-button
   ):active::before {
@@ -217,10 +239,12 @@
   .mt-button,
   .auth-button,
   .mt-not-found-home,
+  .mt-site-join,
   .auth-social-button,
-  .mt-icon-button:not(:where(.mt-site-header *)),
+  .mt-icon-button,
   .auth-link-button,
   .mt-pf-link-button,
+  .mt-menu-button,
   .mt-dialog-close,
   .mt-info-button
 ):is(:disabled, [aria-disabled='true']) {
@@ -232,7 +256,7 @@
 }
 
 /* Ghosts stay transparent when disabled ("Resend code in 30 s"): only the text and border fade. */
-:is(.auth-link-button, .mt-pf-link-button, .mt-dialog-close, .mt-info-button):is(
+:is(.auth-link-button, .mt-pf-link-button, .mt-menu-button, .mt-dialog-close, .mt-info-button):is(
   :disabled,
   [aria-disabled='true']
 ) {

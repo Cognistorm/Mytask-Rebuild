@@ -4,6 +4,7 @@
 // the app's link component. Menus open on click / Enter / Space (never hover only, audit §3.1), close on Escape
 // and outside click, and return the focus to their button. Styles use design tokens only (site.css).
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
+import { categoryThemeProps } from './category';
 import type { LinkComponent } from './dashboard';
 import './site.css';
 
@@ -125,18 +126,22 @@ export interface NavNode {
   label: string;
   href: string;
   children: NavNode[];
+  /** The API's resolved category colour (`#RRGGBB`, ADR-023); null → brand teal. Painted on the top level only. */
+  color?: string | null;
 }
 
 /**
  * The header's second row (spec 03 AC-2): top-level categories; items that do not fit go into "More ▾" (never
  * truncated, 01-home.md "Georgian length"). Clicking a category (or Enter/Space on it) opens its panel with the
- * sub-categories and their child categories; pointer hover opens it too.
+ * sub-categories and their child categories; pointer hover opens it too. Each item is a pill in its category colour
+ * (visual-refresh.md §8.4); `currentId` (the category whose pages are shown) gets the filled look.
  */
 export function CategoryBar(props: {
   label: string;
   moreLabel: string;
   browseLabel: (category: string) => string;
   items: NavNode[];
+  currentId?: string | null;
   Link?: LinkComponent;
 }) {
   const Link = props.Link ?? PlainLink;
@@ -165,10 +170,12 @@ export function CategoryBar(props: {
     const fit = () => {
       const total = widths.current.length;
       const avail = ul.clientWidth;
+      // The pills sit `gap` apart (3X.10): one gap after every item but the last shown, and one before "More".
+      const gap = parseFloat(getComputedStyle(ul).columnGap) || 0;
       let n = total;
       let used = widths.current.reduce((a, b) => a + b, 0);
       // Room for the "More ▾" button whenever at least one item moves into it.
-      while (n > 0 && used + (n < total ? MORE_WIDTH : 0) > avail) {
+      while (n > 0 && used + gap * (n - 1) + (n < total ? MORE_WIDTH + gap : 0) > avail) {
         n -= 1;
         used -= widths.current[n]!;
       }
@@ -193,7 +200,11 @@ export function CategoryBar(props: {
     >
       <ul className="mt-category-bar-list" ref={list}>
         {shown.map((item) => (
-          <li key={item.id} onMouseEnter={() => item.children.length && setOpenId(item.id)}>
+          <li
+            key={item.id}
+            {...categoryThemeProps(item.color)}
+            onMouseEnter={() => item.children.length && setOpenId(item.id)}
+          >
             {item.children.length ? (
               <button
                 type="button"
@@ -201,13 +212,20 @@ export function CategoryBar(props: {
                   if (el) buttons.current.set(item.id, el);
                 }}
                 className="mt-category-bar-item"
+                data-current={item.id === props.currentId ? '' : undefined}
                 aria-expanded={openId === item.id}
                 onClick={() => setOpenId((v) => (v === item.id ? null : item.id))}
               >
+                <span className="mt-cat-dot" aria-hidden="true" />
                 {item.label}
               </button>
             ) : (
-              <Link href={item.href} className="mt-category-bar-item">
+              <Link
+                href={item.href}
+                className="mt-category-bar-item"
+                data-current={item.id === props.currentId ? '' : undefined}
+              >
+                <span className="mt-cat-dot" aria-hidden="true" />
                 {item.label}
               </Link>
             )}
@@ -218,7 +236,14 @@ export function CategoryBar(props: {
             <MenuButton label={props.moreLabel} align="end" testId="category-more">
               {(closeMore) =>
                 hidden.map((item) => (
-                  <Link key={item.id} href={item.href} onClick={closeMore}>
+                  <Link
+                    key={item.id}
+                    href={item.href}
+                    onClick={closeMore}
+                    className="mt-category-more-item"
+                    {...categoryThemeProps(item.color)}
+                  >
+                    <span className="mt-cat-dot" aria-hidden="true" />
                     {item.label}
                   </Link>
                 ))
@@ -228,7 +253,7 @@ export function CategoryBar(props: {
         )}
       </ul>
       {open && (
-        <div className="mt-mega-menu" data-testid="mega-menu">
+        <div className="mt-mega-menu" data-testid="mega-menu" {...categoryThemeProps(open.color)}>
           <Link href={open.href} className="mt-mega-menu-browse" onClick={close}>
             {props.browseLabel(open.label)}
           </Link>
@@ -281,14 +306,21 @@ export function CategoryAccordion(props: {
     [q],
   );
   const items = useMemo(() => filter(props.items), [filter, props.items]);
+  // Top-level rows carry their category colour (dot, start-edge bar when open; visual-refresh.md §8.4).
+  const theme = (n: NavNode, depth: number) => (depth === 1 ? categoryThemeProps(n.color) : {});
+  const dot = (depth: number) =>
+    depth === 1 ? <span className="mt-cat-dot" aria-hidden="true" /> : null;
   const render = (nodes: NavNode[], depth: number): ReactNode => (
     <ul className={`mt-accordion-level mt-accordion-level-${depth}`}>
       {nodes.map((n) =>
         n.children.length ? (
-          <li key={n.id}>
+          <li key={n.id} {...theme(n, depth)}>
             <details open={q !== ''}>
               <summary>
-                <span>{n.label}</span>
+                <span className="mt-accordion-label">
+                  {dot(depth)}
+                  {n.label}
+                </span>
                 <SiteIcon name="caret" size={14} />
               </summary>
               <Link href={n.href} className="mt-accordion-browse" onClick={props.onNavigate}>
@@ -298,9 +330,12 @@ export function CategoryAccordion(props: {
             </details>
           </li>
         ) : (
-          <li key={n.id}>
+          <li key={n.id} {...theme(n, depth)}>
             <Link href={n.href} onClick={props.onNavigate}>
-              {n.label}
+              <span className="mt-accordion-label">
+                {dot(depth)}
+                {n.label}
+              </span>
             </Link>
           </li>
         ),

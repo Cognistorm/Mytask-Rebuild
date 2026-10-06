@@ -1,6 +1,7 @@
 // Visual refresh foundation (ROADMAP 3X.8; visual-refresh.md §3.1, §7, §8.3): the gradient canvas behind every page,
 // the motion variables under reduced motion, and the category theme mapping by light/dark. No screen uses the
-// category props yet (3X.10+), so the mapping is checked on an element added to the page.
+// category props yet (3X.10+), so the mapping is checked on an element added to the page. 3X.10: the header category
+// bar and mega-menu use them (colours from the stand-in API, e2e/fake-catalog.mjs).
 import { expect, test, type Page } from '@playwright/test';
 import { BASE } from './base';
 
@@ -74,4 +75,31 @@ test('category theme: the inline light/dark set is used by theme; no colour = br
   expect(await solid()).toEqual({ themed: '#7C3AED', brand: '#29807E' });
   await page.evaluate(() => (document.documentElement.dataset.theme = 'dark'));
   expect(await solid()).toEqual({ themed: '#A78BFA', brand: '#52B3B0' });
+});
+
+test('header category bar: each pill and the mega-menu take their category colour; the current one is filled', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/en/categories/programming');
+  const bar = page.getByRole('navigation', { name: 'Categories' });
+  const design = bar.getByRole('button', { name: 'Design' });
+  // The pill's <li> carries the theme; the derived solid is contrast-adjusted, so it is only compared with the brand.
+  await expect(design.locator('xpath=..')).toHaveAttribute('data-category-theme', '#7C3AED');
+  const solid = await design.evaluate((el) =>
+    getComputedStyle(el).getPropertyValue('--mt-cat-solid').trim().toUpperCase(),
+  );
+  expect(solid).not.toBe('#29807E');
+
+  // On a category's pages its pill is filled (the gradient layer shown), the others rest on their tint.
+  const programming = bar.getByRole('link', { name: 'Programming' });
+  await expect(programming).toHaveAttribute('data-current', '');
+  const layer = (el: Element) => getComputedStyle(el, '::after').opacity;
+  expect(await programming.evaluate(layer)).toBe('1');
+  expect(await design.evaluate(layer)).toBe('0');
+
+  // The mega-menu is themed by the open category.
+  await design.focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByTestId('mega-menu')).toHaveAttribute('data-category-theme', '#7C3AED');
 });

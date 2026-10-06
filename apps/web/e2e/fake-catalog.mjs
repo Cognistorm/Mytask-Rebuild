@@ -12,8 +12,26 @@ const node = (id, slug, path, depth, name, children = []) => ({
   image: null,
   isVisibleOnHome: true,
   position: id,
+  // Resolved colour (contract 1.4.0, ADR-023): set on the top level below, inherited by every level.
+  color: null,
   children,
 });
+
+/** Starter colours (visual-refresh.md §8.1) in bar order; the last category has none (brand teal fallback). */
+export const CATEGORY_COLORS = [
+  '#7C3AED',
+  '#2563EB',
+  '#D99A00',
+  '#0EA5E9',
+  '#1E3A8A',
+  '#DB2777',
+  '#C026D3',
+  '#4D9A1E',
+  '#52606D',
+  null,
+];
+
+const paint = (n, color) => ({ ...n, color, children: n.children.map((c) => paint(c, color)) });
 
 export const CATEGORY_NAMES = {
   ka: [
@@ -60,20 +78,23 @@ export function categoryTree(locale) {
   const sub = locale === 'en' ? ['Logo design', 'Web design'] : ['ლოგოს დიზაინი', 'ვებ დიზაინი'];
   const child = locale === 'en' ? 'Minimalist logo' : 'მინიმალისტური ლოგო';
   return SLUGS.map((slug, i) =>
-    node(
-      i + 1,
-      slug,
-      slug,
-      1,
-      names[i],
-      i === 0
-        ? [
-            node(101, 'logo-design', 'design/logo-design', 2, sub[0], [
-              node(1001, 'minimal', 'design/logo-design/minimal', 3, child),
-            ]),
-            node(102, 'web-design', 'design/web-design', 2, sub[1]),
-          ]
-        : [],
+    paint(
+      node(
+        i + 1,
+        slug,
+        slug,
+        1,
+        names[i],
+        i === 0
+          ? [
+              node(101, 'logo-design', 'design/logo-design', 2, sub[0], [
+                node(1001, 'minimal', 'design/logo-design/minimal', 3, child),
+              ]),
+              node(102, 'web-design', 'design/web-design', 2, sub[1]),
+            ]
+          : [],
+      ),
+      CATEGORY_COLORS[i],
     ),
   );
 }

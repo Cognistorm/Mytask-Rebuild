@@ -9,6 +9,7 @@ import {
   useRef,
   useState,
   type ComponentType,
+  type CSSProperties,
   type MouseEventHandler,
   type ReactNode,
 } from 'react';
@@ -23,6 +24,10 @@ export type LinkComponent = ComponentType<{
   'aria-current'?: 'page';
   onClick?: MouseEventHandler<HTMLAnchorElement>;
   'data-testid'?: string;
+  /** A category colour theme (categoryThemeProps) and the category bar's current marker. */
+  'data-category-theme'?: string;
+  'data-current'?: string;
+  style?: CSSProperties;
   children: ReactNode;
 }>;
 

@@ -84,6 +84,9 @@ export function SiteHeaderClient(props: HeaderProps) {
     window.addEventListener('scroll', update, { passive: true });
     return () => window.removeEventListener('scroll', update);
   }, [home]);
+  // The top-level category whose pages are shown gets the filled pill in the category bar (visual-refresh.md §8.4).
+  const currentCategory =
+    categories.find((c) => pathname === c.href || pathname?.startsWith(`${c.href}/`))?.id ?? null;
   const desktopInput = useRef<HTMLInputElement>(null);
   useEffect(() => {
     const q = /\/search$/.test(pathname ?? '')
@@ -260,6 +263,7 @@ export function SiteHeaderClient(props: HeaderProps) {
           moreLabel={t('t_more')}
           browseLabel={(category) => t('t_browse_parent_category', { category })}
           items={categories}
+          currentId={currentCategory}
           Link={Link}
         />
       )}

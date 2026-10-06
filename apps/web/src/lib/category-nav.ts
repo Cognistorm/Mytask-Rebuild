@@ -17,6 +17,7 @@ export function toNavNodes(locale: Locale, nodes: CategoryNode[]): NavNode[] {
     label: n.name,
     href: categoryHref(locale, n.path),
     children: toNavNodes(locale, n.children),
+    color: n.color,
   }));
 }
 
