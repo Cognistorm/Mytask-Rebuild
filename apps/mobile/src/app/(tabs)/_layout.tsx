@@ -1,6 +1,8 @@
 // App tab bar (components.md §6.9; design 07 "Native app"; audit §4.11): Home and Explore (slice 2, 4.2.14),
 // Dashboard and Account; Messages joins with slice 08. Guests browse Home and Explore (Owner Q-167); the Dashboard
 // and Account tabs send them to login. Restricted → the restrictions removal center (spec 01 AC-19).
+// 3X look (3X.17d): the tab bar is the translucent surface of the header bars with a translucent hairline and a small
+// lift shadow; the active tab in brand ink. Scenes sit on the page canvas.
 import { Redirect, router } from 'expo-router';
 import { Tabs } from 'expo-router/js-tabs';
 import { useEffect, useMemo, useState } from 'react';
@@ -12,6 +14,7 @@ import { loadSession, mobileApi } from '../../lib/api';
 import { setDashboardSide } from '../../lib/dashboard';
 import { createT } from '../../lib/i18n';
 import { MeContext, type Me } from '../../lib/me';
+import { Canvas } from '../../ui';
 
 const locale = 'ka' as const;
 const t = createT(locale);
@@ -33,11 +36,13 @@ export default function TabLayout() {
 
   if (me === 'loading') {
     return (
-      <SafeAreaView style={{ flex: 1, padding: theme.space[4] }}>
-        <Text accessibilityRole="progressbar" style={theme.text.body}>
-          {t('t_ui_loading')}
-        </Text>
-      </SafeAreaView>
+      <Canvas>
+        <SafeAreaView style={{ flex: 1, padding: theme.space[4] }}>
+          <Text accessibilityRole="progressbar" style={theme.text.body}>
+            {t('t_ui_loading')}
+          </Text>
+        </SafeAreaView>
+      </Canvas>
     );
   }
   if (ctx?.me.isRestricted) return <Redirect href="/restricted" />;
@@ -60,8 +65,9 @@ export default function TabLayout() {
           tabBarInactiveTintColor: theme.colors.text.secondary,
           tabBarLabelStyle: theme.text.caption,
           tabBarStyle: {
-            backgroundColor: theme.colors.bg.surface,
-            borderTopColor: theme.colors.border.default,
+            backgroundColor: theme.colors.bg.translucent,
+            borderTopColor: theme.colors.border.translucent,
+            ...theme.shadow.sm,
           },
           sceneStyle: { backgroundColor: theme.colors.bg.canvas },
         }}

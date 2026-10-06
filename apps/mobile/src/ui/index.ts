@@ -5,7 +5,7 @@ export type { GradientToken, Theme } from './theme';
 export { easing, enterAt, fadeIn, usePressLayer, usePressScale, useShimmer } from './motion';
 export { Button } from './button';
 export type { ButtonVariant } from './button';
-export { Card } from './card';
+export { Card, useCardGlow } from './card';
 export { Chip } from './chip';
 export { SkeletonBlock } from './skeleton';
 export { Canvas, GradientLayers } from './layers';

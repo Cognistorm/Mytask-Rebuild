@@ -12,6 +12,7 @@ import { Button, LinkButton, Notice, Screen } from '../../../components/form';
 import { Reauth, type ApiError, type ReauthProof } from '../../../components/reauth';
 import { loadSession, mobileApi } from '../../../lib/api';
 import { createT } from '../../../lib/i18n';
+import { Card } from '../../../ui';
 
 type Me = components['schemas']['Me'];
 type Session = components['schemas']['SessionSummary'];
@@ -128,7 +129,7 @@ export default function Security() {
           />
 
           {me.twoFactorAvailable ? (
-            <View style={s.card}>
+            <Card style={s.card}>
               <Text style={s.heading} accessibilityRole="header">
                 {t('t_two_factor_auth')}
               </Text>
@@ -168,10 +169,10 @@ export default function Security() {
                   />
                 </>
               ) : null}
-            </View>
+            </Card>
           ) : null}
 
-          <View style={s.card}>
+          <Card style={s.card}>
             <Text style={s.heading} accessibilityRole="header">
               {t('t_browser_sessions')}
             </Text>
@@ -232,7 +233,7 @@ export default function Security() {
                 />
               </>
             ) : null}
-          </View>
+          </Card>
         </>
       )}
     </Screen>
@@ -248,10 +249,6 @@ const s = StyleSheet.create({
   card: {
     gap: theme.space[3],
     padding: theme.space[4],
-    backgroundColor: theme.colors.bg.surface,
-    borderWidth: theme.borderWidth.hairline,
-    borderColor: theme.colors.border.default,
-    borderRadius: theme.radius.card,
   },
   session: { flexDirection: 'row', gap: theme.space[3], alignItems: 'flex-start' },
 });

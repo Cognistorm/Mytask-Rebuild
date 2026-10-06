@@ -28,6 +28,7 @@ import { formatCount, formatDate, formatMoney } from '../../lib/format';
 import { createT } from '../../lib/i18n';
 import { RequireMe, useSwitchDashboard } from '../../lib/me';
 import { usePublicConfig } from '../../lib/public-config';
+import { Canvas } from '../../ui';
 
 const locale = 'ka' as const;
 const t = createT(locale);
@@ -63,36 +64,38 @@ function DashboardTabScreen() {
   const nav = navItems(side, config);
 
   return (
-    <SafeAreaView style={s.screen} edges={['top', 'left', 'right']}>
-      <ScrollView contentContainerStyle={s.content}>
-        <RoleSwitcher
-          label={t('t_dashboard_switcher')}
-          current={side}
-          items={[
-            { side: 'buying', label: t('t_buying') },
-            { side: 'selling', label: t('t_selling') },
-          ]}
-          onSelect={switchTo}
-        />
-        <RoleBadge
-          side={side}
-          label={t(side === 'selling' ? 't_seller_dashboard' : 't_buyer_dashboard')}
-        />
-        {side === 'selling' ? (
-          <SellingHome onSwitch={() => switchTo('buying')} />
-        ) : (
-          <BuyingHome projectsOn={config?.projects.enabled ?? true} />
-        )}
-        <NavList
-          label={t(side === 'selling' ? 't_selling_navigation' : 't_buying_navigation')}
-          items={nav.map((n) => ({ key: n.key, label: t(n.label) }))}
-          onPress={(key) => {
-            const item = nav.find((n) => n.key === key);
-            if (item) router.push(item.screen as never);
-          }}
-        />
-      </ScrollView>
-    </SafeAreaView>
+    <Canvas>
+      <SafeAreaView style={s.screen} edges={['top', 'left', 'right']}>
+        <ScrollView contentContainerStyle={s.content}>
+          <RoleSwitcher
+            label={t('t_dashboard_switcher')}
+            current={side}
+            items={[
+              { side: 'buying', label: t('t_buying') },
+              { side: 'selling', label: t('t_selling') },
+            ]}
+            onSelect={switchTo}
+          />
+          <RoleBadge
+            side={side}
+            label={t(side === 'selling' ? 't_seller_dashboard' : 't_buyer_dashboard')}
+          />
+          {side === 'selling' ? (
+            <SellingHome onSwitch={() => switchTo('buying')} />
+          ) : (
+            <BuyingHome projectsOn={config?.projects.enabled ?? true} />
+          )}
+          <NavList
+            label={t(side === 'selling' ? 't_selling_navigation' : 't_buying_navigation')}
+            items={nav.map((n) => ({ key: n.key, label: t(n.label) }))}
+            onPress={(key) => {
+              const item = nav.find((n) => n.key === key);
+              if (item) router.push(item.screen as never);
+            }}
+          />
+        </ScrollView>
+      </SafeAreaView>
+    </Canvas>
   );
 }
 
@@ -234,7 +237,7 @@ function SellingHome({ onSwitch }: { onSwitch: () => void }) {
 }
 
 const s = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: theme.colors.bg.canvas },
+  screen: { flex: 1 },
   content: { padding: theme.space[4], gap: theme.space[4] },
   block: { gap: theme.space[4] },
   welcome: { gap: theme.space[1] },

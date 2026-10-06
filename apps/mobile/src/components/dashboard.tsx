@@ -1,12 +1,28 @@
 // Dashboard pieces of the app on the shared tokens (components.md §6.7 RoleSwitcher, §6.9 TabBar icons,
 // §7.5 StatTile, §7.10 EmptyState, §7.15 InfoButton, Skeleton; design 07 "Native app"). Same artwork as the
 // web (`packages/ui/src/web/dashboard.tsx`, Phosphor 256 grid). Texts come from i18n.
-import { useState, type ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, View, type ColorValue } from 'react-native';
+// 3X look (3X.17d, as the web 3X.9c / 3X.14b): the role switcher on the track gradient with the current side's thumb
+// sliding between the items (M-9, jumps under Reduce Motion; role colours kept, Q-092 / Q-179), KPI tiles and
+// sections on the native `Card`, tiles rising in one after another (M-10), the nav list as a card with a pressed tint.
+import { Children, useEffect, useRef, useState, type ReactNode } from 'react';
+import {
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  type ColorValue,
+  type LayoutChangeEvent,
+} from 'react-native';
+import Animated, {
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 import Svg, { Path } from 'react-native-svg';
 import { lightTheme as theme } from '@mytask/tokens/native';
 import type { DashboardSide } from '../lib/dashboard';
-import { Button, Card, SkeletonBlock } from '../ui';
+import { Button, Card, easing, enterAt, Gradient, SkeletonBlock } from '../ui';
 
 const ICON = {
   // Handbag (Buying) and Storefront (Selling), as the web switcher.
@@ -50,8 +66,16 @@ export function Icon({
 }
 
 const ROLE = {
-  buying: { bg: theme.colors.role.buyingBg, text: theme.colors.role.buyingText },
-  selling: { bg: theme.colors.role.sellingBg, text: theme.colors.role.sellingText },
+  buying: {
+    bg: theme.colors.role.buyingBg,
+    text: theme.colors.role.buyingText,
+    accent: theme.colors.role.buyingAccent,
+  },
+  selling: {
+    bg: theme.colors.role.sellingBg,
+    text: theme.colors.role.sellingText,
+    accent: theme.colors.role.sellingAccent,
+  },
 };
 
 /**
@@ -64,15 +88,61 @@ export function RoleSwitcher(props: {
   items: { side: DashboardSide; label: string }[];
   onSelect: (side: DashboardSide) => void;
 }) {
+  const reduced = useReducedMotion();
+  const [width, setWidth] = useState(0);
+  const index = props.items.findIndex((i) => i.side === props.current);
+  const pad = theme.space[1];
+  const segment = width
+    ? (width - 2 * pad - pad * (props.items.length - 1)) / props.items.length
+    : 0;
+  const x = useSharedValue(0);
+  const placed = useRef(false);
+  useEffect(() => {
+    if (index < 0 || !segment) return;
+    const to = index * (segment + pad);
+    // The first placement jumps; a change of side slides (M-9).
+    x.value =
+      placed.current && !reduced
+        ? withTiming(to, { duration: theme.motion.duration.base, easing: easing('emphasized') })
+        : to;
+    placed.current = true;
+  }, [index, segment, pad, reduced, x]);
+  const thumb = useAnimatedStyle(() => ({ transform: [{ translateX: x.value }] }));
+  const current = index >= 0 ? props.items[index]!.side : undefined;
+
   return (
-    <View style={s.switcher} accessibilityRole="tablist" accessibilityLabel={props.label}>
+    <View
+      style={s.switcher}
+      accessibilityRole="tablist"
+      accessibilityLabel={props.label}
+      onLayout={(e: LayoutChangeEvent) => setWidth(e.nativeEvent.layout.width)}
+    >
+      <Gradient token={theme.gradient.track} fill style={s.switcherFill} />
+      {current && segment ? (
+        <Animated.View
+          style={[
+            s.thumb,
+            {
+              width: segment,
+              backgroundColor: ROLE[current].bg,
+              borderColor: ROLE[current].accent,
+            },
+            thumb,
+          ]}
+          pointerEvents="none"
+        />
+      ) : null}
       {props.items.map((item) => {
         const selected = item.side === props.current;
         const color = selected ? ROLE[item.side].text : theme.colors.text.secondary;
         return (
           <Pressable
             key={item.side}
-            style={[s.segment, selected ? { backgroundColor: ROLE[item.side].bg } : null]}
+            // Until the track is measured the current item paints its own fill.
+            style={[
+              s.segment,
+              selected && !segment ? { backgroundColor: ROLE[item.side].bg } : null,
+            ]}
             accessibilityRole="tab"
             accessibilityState={{ selected }}
             testID={`switch-${item.side}`}
@@ -108,7 +178,7 @@ export function StatTile(props: {
 }) {
   const [open, setOpen] = useState(false);
   return (
-    <View style={s.tile} testID={props.testID} accessible={!props.info}>
+    <Card style={s.tile} testID={props.testID} accessible={!props.info}>
       <View style={s.tileHead}>
         <Text style={s.tileLabel}>{props.label}</Text>
         {props.info ? (
@@ -130,13 +200,21 @@ export function StatTile(props: {
           {props.info.text}
         </Text>
       ) : null}
-    </View>
+    </Card>
   );
 }
 
-/** Tiles in 2 columns on phones; tiles in a row keep equal height. */
+/** Tiles in 2 columns on phones; tiles in a row keep equal height; they rise in one after another (M-10). */
 export function StatGrid({ children }: { children: ReactNode }) {
-  return <View style={s.grid}>{children}</View>;
+  return (
+    <View style={s.grid}>
+      {Children.toArray(children).map((child, i) => (
+        <Animated.View key={i} entering={enterAt(i)} style={s.tileSlot}>
+          {child}
+        </Animated.View>
+      ))}
+    </View>
+  );
 }
 
 /** A titled card section (Panel) on the native `Card` (3X look: surface gradient, border, small shadow). */
@@ -174,7 +252,7 @@ export function Skeleton({ label, tiles, rows }: { label: string; tiles: number;
     <View accessible accessibilityRole="progressbar" accessibilityLabel={label} style={s.skeleton}>
       <View style={s.grid}>
         {Array.from({ length: tiles }, (_, i) => (
-          <SkeletonBlock key={i} style={[s.tile, s.skeletonTile]} />
+          <SkeletonBlock key={i} style={s.skeletonTile} />
         ))}
       </View>
       {Array.from({ length: rows }, (_, i) => (
@@ -211,11 +289,11 @@ export function NavList(props: {
 }) {
   if (props.items.length === 0) return null;
   return (
-    <View style={s.section} accessibilityLabel={props.label}>
+    <Card style={s.nav} accessibilityLabel={props.label}>
       {props.items.map((item) => (
         <Pressable
           key={item.key}
-          style={s.navItem}
+          style={({ pressed }) => [s.navItem, pressed ? s.navPressed : null]}
           accessibilityRole="link"
           onPress={() => props.onPress(item.key)}
         >
@@ -223,24 +301,31 @@ export function NavList(props: {
           <Text style={s.navChevron}>{'›'}</Text>
         </Pressable>
       ))}
-    </View>
+    </Card>
   );
 }
-
-const card = {
-  backgroundColor: theme.colors.bg.surface,
-  borderWidth: theme.borderWidth.hairline,
-  borderColor: theme.colors.border.default,
-  borderRadius: theme.radius.card,
-};
 
 const s = StyleSheet.create({
   switcher: {
     flexDirection: 'row',
     padding: theme.space[1],
     gap: theme.space[1],
-    ...card,
+    borderWidth: theme.borderWidth.hairline,
+    borderColor: theme.colors.border.default,
     borderRadius: theme.radius.control + theme.space[1],
+    backgroundColor: theme.colors.bg.subtle,
+  },
+  switcherFill: {
+    borderRadius: theme.radius.control + theme.space[1] - theme.borderWidth.hairline,
+  },
+  thumb: {
+    position: 'absolute',
+    top: theme.space[1],
+    bottom: theme.space[1],
+    left: theme.space[1],
+    borderWidth: theme.borderWidth.hairline,
+    borderRadius: theme.radius.control,
+    ...theme.shadow.control,
   },
   segment: {
     flex: 1,
@@ -263,7 +348,8 @@ const s = StyleSheet.create({
     overflow: 'hidden',
   },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: theme.space[3] },
-  tile: { ...card, flexBasis: '40%', flexGrow: 1, padding: theme.space[3], gap: theme.space[1] },
+  tileSlot: { flexBasis: '40%', flexGrow: 1 },
+  tile: { flex: 1, padding: theme.space[3], gap: theme.space[1] },
   tileHead: { flexDirection: 'row', alignItems: 'flex-start', gap: theme.space[1] },
   tileLabel: { ...theme.text.bodySm, color: theme.colors.text.secondary, flex: 1 },
   tileValue: { ...theme.text.price, color: theme.colors.text.primary },
@@ -276,9 +362,10 @@ const s = StyleSheet.create({
   emptyTitle: { ...theme.text.body, color: theme.colors.text.secondary, textAlign: 'center' },
   skeleton: { gap: theme.space[3] },
   skeletonTile: {
-    backgroundColor: theme.colors.bg.skeleton,
-    borderColor: theme.colors.bg.skeleton,
+    flexBasis: '40%',
+    flexGrow: 1,
     minHeight: theme.space[20],
+    borderRadius: theme.radius.card,
   },
   skeletonRow: {
     height: theme.space[10],
@@ -293,12 +380,16 @@ const s = StyleSheet.create({
   },
   rowTitle: { ...theme.text.label, color: theme.colors.text.primary },
   rowLine: { ...theme.text.bodySm, color: theme.colors.text.secondary },
+  nav: { padding: theme.space[2] },
   navItem: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     minHeight: theme.size.touchTarget.min,
+    paddingHorizontal: theme.space[2],
+    borderRadius: theme.radius.control,
   },
+  navPressed: { backgroundColor: theme.colors.action.ghostPressed },
   navText: { ...theme.text.body, color: theme.colors.text.primary, flex: 1 },
   navChevron: { ...theme.text.h3, color: theme.colors.text.muted },
 });

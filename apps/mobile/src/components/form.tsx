@@ -1,9 +1,11 @@
 // Mobile form pieces on the shared tokens (components.md TextField, Button, Alert). Texts come from i18n.
-import type { ReactNode } from 'react';
+// 3X look: `Screen` on the page canvas, `Notice` on the native `Alert` (a success notice makes its card glow once,
+// M-14) — 3X.17d; the text field follows in 3X.17e.
+import { useEffect, type ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { lightTheme as theme } from '@mytask/tokens/native';
-import { Button as UiButton } from '../ui';
+import { Alert, Button as UiButton, Canvas, useCardGlow } from '../ui';
 
 export function Screen({
   title,
@@ -15,15 +17,17 @@ export function Screen({
   children: ReactNode;
 }) {
   return (
-    <SafeAreaView style={s.screen}>
-      <ScrollView contentContainerStyle={s.content} keyboardShouldPersistTaps="handled">
-        <Text style={s.title} accessibilityRole="header">
-          {title}
-        </Text>
-        {subtitle ? <Text style={s.subtitle}>{subtitle}</Text> : null}
-        {children}
-      </ScrollView>
-    </SafeAreaView>
+    <Canvas>
+      <SafeAreaView style={s.screen}>
+        <ScrollView contentContainerStyle={s.content} keyboardShouldPersistTaps="handled">
+          <Text style={s.title} accessibilityRole="header">
+            {title}
+          </Text>
+          {subtitle ? <Text style={s.subtitle}>{subtitle}</Text> : null}
+          {children}
+        </ScrollView>
+      </SafeAreaView>
+    </Canvas>
   );
 }
 
@@ -119,23 +123,23 @@ export function LinkList({ items }: { items: { label: string; onPress: () => voi
 
 export function Notice({ kind, text }: { kind: 'error' | 'info' | 'success'; text: string }) {
   const f = theme.colors.feedback;
-  const c = {
-    error: { bg: f.dangerBg, border: f.dangerBorder, text: f.dangerText },
-    info: { bg: f.infoBg, border: f.infoBorder, text: f.infoText },
-    success: { bg: f.successBg, border: f.successBorder, text: f.successText },
-  }[kind];
+  const color = { error: f.dangerText, info: f.infoText, success: f.successText }[kind];
+  const glow = useCardGlow();
+  // M-14: the card around a new success message glows once (a new text glows again).
+  useEffect(() => {
+    if (kind === 'success') glow?.();
+  }, [kind, text, glow]);
   return (
-    <View
-      style={[s.notice, { backgroundColor: c.bg, borderColor: c.border }]}
-      accessibilityLiveRegion="polite"
-    >
-      <Text style={{ ...theme.text.body, color: c.text }}>{text}</Text>
+    <View accessibilityLiveRegion="polite">
+      <Alert tone={kind === 'error' ? 'danger' : kind}>
+        <Text style={{ ...theme.text.body, color }}>{text}</Text>
+      </Alert>
     </View>
   );
 }
 
 const s = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: theme.colors.bg.canvas },
+  screen: { flex: 1 },
   content: { padding: theme.space[4], gap: theme.space[4] },
   title: { ...theme.text.h2, color: theme.colors.text.primary },
   field: { gap: theme.space[1] },
@@ -158,9 +162,4 @@ const s = StyleSheet.create({
   linkItem: { flexDirection: 'row', gap: theme.space[2] },
   linkBullet: { ...theme.text.bodySm, color: theme.colors.text.secondary },
   linkListText: { ...theme.text.bodySm, color: theme.colors.text.secondary },
-  notice: {
-    borderWidth: theme.borderWidth.hairline,
-    borderRadius: theme.radius.control,
-    padding: theme.space[3],
-  },
 });

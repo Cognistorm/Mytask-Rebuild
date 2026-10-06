@@ -11,13 +11,14 @@ import { lightTheme as theme } from '@mytask/tokens/native';
 import { EmptyState, SecondaryButton, Skeleton } from '../../../components/dashboard';
 import { Button, Notice, Screen } from '../../../components/form';
 import { openPortfolioItem } from '../../../components/portfolio';
-import { BottomSheet, OutlineButton, Pill } from '../../../components/profile';
+import { BottomSheet, Pill } from '../../../components/profile';
 import type { ApiError } from '../../../components/reauth';
 import { loadSession, mobileApi } from '../../../lib/api';
 import { takeFlash } from '../../../lib/flash';
 import { createT } from '../../../lib/i18n';
 import { PORTFOLIO_PAGE_SIZE, type PortfolioItemCard } from '../../../lib/profile';
 import { inSentence } from '@mytask/i18n';
+import { Button as UiButton, Card } from '../../../ui';
 
 const locale = 'ka' as const;
 const t = createT(locale);
@@ -161,7 +162,7 @@ export default function MyPortfolioScreen() {
           {state.items.length === 0 ? <EmptyState title={t('t_no_portfolio_yet')} /> : null}
           <View style={s.list} testID="my-portfolio">
             {state.items.map((card) => (
-              <View key={card.id} style={s.item} testID="my-portfolio-item">
+              <Card key={card.id} style={s.item} testID="my-portfolio-item">
                 <Pressable
                   style={({ pressed }) => [s.itemLink, pressed && s.pressed]}
                   onPress={() => openPortfolioItem(state.username, card.slug)}
@@ -185,8 +186,10 @@ export default function MyPortfolioScreen() {
                     {t('t_portfolio_rejected_reason', { reason: inSentence(reasons[card.id]) })}
                   </Text>
                 ) : null}
+                {/* Edit / Delete as compact Ghost buttons (as the web edit actions, 3X.14c). */}
                 <View style={s.actions}>
-                  <OutlineButton
+                  <UiButton
+                    variant="ghost"
                     label={t('t_edit')}
                     onPress={() =>
                       router.push({
@@ -195,9 +198,13 @@ export default function MyPortfolioScreen() {
                       })
                     }
                   />
-                  <OutlineButton label={t('t_delete')} onPress={() => setConfirm(card)} />
+                  <UiButton
+                    variant="ghost"
+                    label={t('t_delete')}
+                    onPress={() => setConfirm(card)}
+                  />
                 </View>
-              </View>
+              </Card>
             ))}
           </View>
           {moreFailed ? <Notice kind="error" text={t('t_toast_something_went_wrong')} /> : null}
@@ -232,10 +239,6 @@ export default function MyPortfolioScreen() {
 const s = StyleSheet.create({
   list: { gap: theme.space[3] },
   item: {
-    backgroundColor: theme.colors.bg.surface,
-    borderWidth: theme.borderWidth.hairline,
-    borderColor: theme.colors.border.default,
-    borderRadius: theme.radius.card,
     padding: theme.space[3],
     gap: theme.space[2],
   },
