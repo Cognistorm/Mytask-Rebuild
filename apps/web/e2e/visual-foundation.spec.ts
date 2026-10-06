@@ -83,7 +83,7 @@ test('header category bar: each pill and the mega-menu take their category colou
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/en/categories/programming');
   const bar = page.getByRole('navigation', { name: 'Categories' });
-  const design = bar.getByRole('button', { name: 'Design' });
+  const design = bar.getByRole('link', { name: 'Design', exact: true });
   // The pill's <li> carries the theme; the derived solid is contrast-adjusted, so it is only compared with the brand.
   await expect(design.locator('xpath=..')).toHaveAttribute('data-category-theme', '#7C3AED');
   const solid = await design.evaluate((el) =>
@@ -100,7 +100,7 @@ test('header category bar: each pill and the mega-menu take their category colou
 
   // The mega-menu is themed by the open category.
   await design.focus();
-  await page.keyboard.press('Enter');
+  await page.keyboard.press('ArrowDown');
   await expect(page.getByTestId('mega-menu')).toHaveAttribute('data-category-theme', '#7C3AED');
 });
 

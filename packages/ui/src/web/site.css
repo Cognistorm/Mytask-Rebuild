@@ -514,13 +514,6 @@
   }
 }
 
-.mt-mega-menu-browse {
-  display: inline-block;
-  margin-block-end: var(--mt-space-4);
-  color: var(--mt-cat-ink);
-  font-weight: var(--mt-font-weight-semibold);
-}
-
 .mt-mega-menu-columns {
   display: grid;
   grid-template-columns: repeat(
@@ -560,7 +553,7 @@
   color: var(--mt-cat-ink);
 }
 
-.mt-mega-menu :is(.mt-mega-menu-browse, .mt-mega-menu-heading):hover {
+.mt-mega-menu .mt-mega-menu-heading:hover {
   text-decoration: underline;
 }
 

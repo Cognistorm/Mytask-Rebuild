@@ -10,8 +10,10 @@ import {
   useState,
   type ComponentType,
   type CSSProperties,
+  type KeyboardEventHandler,
   type MouseEventHandler,
   type ReactNode,
+  type Ref,
 } from 'react';
 import { formatMoney } from './money';
 import './dashboard.css';
@@ -23,6 +25,11 @@ export type LinkComponent = ComponentType<{
   className?: string;
   'aria-current'?: 'page';
   onClick?: MouseEventHandler<HTMLAnchorElement>;
+  /** The header category bar: its names are links that also open a panel (Arrow Down, Escape back). */
+  onKeyDown?: KeyboardEventHandler<HTMLAnchorElement>;
+  ref?: Ref<HTMLAnchorElement>;
+  'aria-expanded'?: boolean;
+  'aria-controls'?: string;
   'data-testid'?: string;
   /** A category colour theme (categoryThemeProps) and the category bar's current marker. */
   'data-category-theme'?: string;

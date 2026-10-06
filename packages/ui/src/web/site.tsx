@@ -132,14 +132,15 @@ export interface NavNode {
 
 /**
  * The header's second row (spec 03 AC-2): top-level categories; items that do not fit go into "More ▾" (never
- * truncated, 01-home.md "Georgian length"). Clicking a category (or Enter/Space on it) opens its panel with the
- * sub-categories and their child categories; pointer hover opens it too. Each item is a pill in its category colour
- * (visual-refresh.md §8.4); `currentId` (the category whose pages are shown) gets the filled look.
+ * truncated, 01-home.md "Georgian length"). Every top-level category is a link to its page (Owner 2026-10-06: the
+ * name itself opens the category; the panel's "Browse {category}" line is gone). Pointer hover opens its panel with
+ * the sub-categories and their child categories; on the keyboard Arrow Down opens it and moves into it, Escape closes
+ * it and returns to the name. Each item is a pill in its category colour (visual-refresh.md §8.4); `currentId` (the
+ * category whose pages are shown) gets the filled look.
  */
 export function CategoryBar(props: {
   label: string;
   moreLabel: string;
-  browseLabel: (category: string) => string;
   items: NavNode[];
   currentId?: string | null;
   Link?: LinkComponent;
@@ -150,7 +151,8 @@ export function CategoryBar(props: {
   const root = useRef<HTMLElement>(null);
   const list = useRef<HTMLUListElement>(null);
   const widths = useRef<number[]>([]);
-  const buttons = useRef(new Map<string, HTMLButtonElement>());
+  const buttons = useRef(new Map<string, HTMLAnchorElement>());
+  const panel = useRef<HTMLDivElement>(null);
   const close = useCallback(() => setOpenId(null), []);
   const openButton = useMemo(
     () => ({
@@ -191,6 +193,14 @@ export function CategoryBar(props: {
   const hidden = props.items.slice(visible);
   const open = props.items.find((i) => i.id === openId);
 
+  // Arrow Down on a name with sub-categories opens its panel and moves to the first link in it.
+  const [focusPanel, setFocusPanel] = useState(false);
+  useEffect(() => {
+    if (!focusPanel || !openId) return;
+    panel.current?.querySelector<HTMLElement>('a')?.focus();
+    setFocusPanel(false);
+  }, [focusPanel, openId]);
+
   return (
     <nav
       className="mt-category-bar"
@@ -205,30 +215,28 @@ export function CategoryBar(props: {
             {...categoryThemeProps(item.color)}
             onMouseEnter={() => item.children.length && setOpenId(item.id)}
           >
-            {item.children.length ? (
-              <button
-                type="button"
-                ref={(el) => {
-                  if (el) buttons.current.set(item.id, el);
-                }}
-                className="mt-category-bar-item"
-                data-current={item.id === props.currentId ? '' : undefined}
-                aria-expanded={openId === item.id}
-                onClick={() => setOpenId((v) => (v === item.id ? null : item.id))}
-              >
-                <span className="mt-cat-dot" aria-hidden="true" />
-                {item.label}
-              </button>
-            ) : (
-              <Link
-                href={item.href}
-                className="mt-category-bar-item"
-                data-current={item.id === props.currentId ? '' : undefined}
-              >
-                <span className="mt-cat-dot" aria-hidden="true" />
-                {item.label}
-              </Link>
-            )}
+            <Link
+              href={item.href}
+              ref={(el) => {
+                if (el) buttons.current.set(item.id, el);
+              }}
+              className="mt-category-bar-item"
+              data-current={item.id === props.currentId ? '' : undefined}
+              aria-expanded={item.children.length ? openId === item.id : undefined}
+              aria-controls={
+                item.children.length && openId === item.id ? 'mt-mega-menu' : undefined
+              }
+              onClick={close}
+              onKeyDown={(e) => {
+                if (e.key !== 'ArrowDown' || !item.children.length) return;
+                e.preventDefault();
+                setOpenId(item.id);
+                setFocusPanel(true);
+              }}
+            >
+              <span className="mt-cat-dot" aria-hidden="true" />
+              {item.label}
+            </Link>
           </li>
         ))}
         {hidden.length > 0 && (
@@ -253,10 +261,13 @@ export function CategoryBar(props: {
         )}
       </ul>
       {open && (
-        <div className="mt-mega-menu" data-testid="mega-menu" {...categoryThemeProps(open.color)}>
-          <Link href={open.href} className="mt-mega-menu-browse" onClick={close}>
-            {props.browseLabel(open.label)}
-          </Link>
+        <div
+          id="mt-mega-menu"
+          ref={panel}
+          className="mt-mega-menu"
+          data-testid="mega-menu"
+          {...categoryThemeProps(open.color)}
+        >
           <div className="mt-mega-menu-columns">
             {open.children.map((sub) => (
               <div key={sub.id} className="mt-mega-menu-group">
