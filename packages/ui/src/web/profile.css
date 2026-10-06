@@ -161,22 +161,46 @@
 }
 
 /* ---- Chip (§5.14) and Pill (§7.6) ---- */
+/* Chip (visual-refresh.md §6.2, 3X.9c): a bordered pill with a soft gradient; hover lifts and glows; the current one
+   (`aria-current`) takes the category tint/ink, which is brand teal outside a category theme (--mt-cat-* defaults). */
 .mt-chip {
   display: inline-flex;
   align-items: center;
   min-block-size: var(--mt-size-control-sm);
   padding: var(--mt-space-1) var(--mt-space-3);
   box-sizing: border-box;
+  border: var(--mt-border-width-hairline) solid var(--mt-border-default);
   border-radius: var(--mt-radius-full);
-  background: var(--mt-bg-brand-soft);
-  color: var(--mt-text-brand);
+  background: var(--mt-gradient-action-secondary);
+  color: var(--mt-text-primary);
   font-size: var(--mt-font-size-sm);
   font-weight: var(--mt-font-weight-medium);
   text-decoration: none;
+  transition:
+    transform var(--mt-motion-duration-fast) var(--mt-motion-easing-standard),
+    border-color var(--mt-motion-duration-fast) var(--mt-motion-easing-standard),
+    box-shadow var(--mt-motion-duration-fast) var(--mt-motion-easing-standard);
 }
 
-.mt-chip:hover {
-  text-decoration: underline;
+@media (hover: hover) {
+  .mt-chip:hover {
+    border-color: var(--mt-border-action-secondary-hover);
+    box-shadow: var(--mt-glow-brand-soft);
+    transform: translateY(calc(-1 * var(--mt-motion-distance-lift-control)));
+  }
+}
+
+.mt-chip:active {
+  transform: scale(var(--mt-motion-scale-pressed));
+  transition-duration: var(--mt-motion-duration-press);
+}
+
+.mt-chip[aria-current='page'],
+.mt-chip[aria-pressed='true'] {
+  border-color: var(--mt-cat-indicator);
+  background: linear-gradient(180deg, var(--mt-cat-tint) 0%, var(--mt-cat-tint-strong) 100%);
+  color: var(--mt-cat-ink);
+  font-weight: var(--mt-font-weight-semibold);
 }
 
 .mt-chip:focus-visible,
@@ -186,12 +210,17 @@
   outline-offset: var(--mt-focus-ring-offset);
 }
 
+/* Pill (status, not interactive: no motion). Each status keeps its colours; a border one step darker (its own text
+   colour, faded) and a lit top edge give it the soft gradient of §6.2. */
 .mt-pill {
   display: inline-flex;
   align-items: center;
   min-block-size: var(--mt-space-6);
   padding: 0 var(--mt-space-2);
+  box-sizing: border-box;
+  border: var(--mt-border-width-hairline) solid color-mix(in srgb, currentColor 28%, transparent);
   border-radius: var(--mt-radius-full);
+  box-shadow: var(--mt-highlight-filled);
   font-size: var(--mt-font-size-xs);
   font-weight: var(--mt-font-weight-semibold);
   white-space: nowrap;

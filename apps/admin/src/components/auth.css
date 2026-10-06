@@ -209,9 +209,38 @@
   flex-wrap: wrap;
 }
 
+/* Status tabs (ghost buttons from @mytask/ui buttons.css): the selected one takes the brand tint and a 2 px gradient
+   indicator that grows in from the start edge (visual-refresh.md §6.2, M-9; it appears at once under reduced motion). */
+.admin-tabs .auth-link-button::after {
+  content: '';
+  position: absolute;
+  inset-inline: var(--mt-space-2);
+  inset-block-end: calc(-1 * var(--mt-border-width-hairline));
+  block-size: var(--mt-border-width-strong);
+  border-radius: var(--mt-radius-full);
+  background: var(--mt-gradient-indicator);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform var(--mt-motion-duration-base) var(--mt-motion-easing-emphasized);
+}
+
 .admin-tabs [aria-pressed='true'] {
+  --mt-btn-bg: var(--mt-gradient-action-ghost-hover);
+  --mt-btn-border: var(--mt-border-brand);
+  --mt-btn-border-hover: var(--mt-border-brand);
+  --mt-btn-text: var(--mt-text-brand);
   font-weight: var(--mt-font-weight-semibold);
   text-decoration: none;
+}
+
+.admin-tabs [aria-pressed='true']::after {
+  transform: scaleX(1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-tabs .auth-link-button::after {
+    transition: none;
+  }
 }
 
 .admin-owner {

@@ -905,3 +905,8 @@ When: before Phase 5 (settings migration). Not blocking slice 2.
 ### Q-178
 **Admin warning when a category colour is close to error red, success green, Featured orange or brand teal?**
 **Answer (Owner, 2026-10-06):** yes — warning only, saving stays allowed (spec 3X R-1.3, OKLab ΔE < 0.06).
+
+### Q-179
+**Buying/Selling switcher thumb: role colours (Q-092) or brand teal (visual-refresh.md §6.2)?** visual-refresh.md §6.2 gives the selected item "a sliding thumb with the Primary button gradient" (teal), and the approved 3X.3 preview showed it teal. But the preview's "Now" column also showed today's switcher as teal, while the real one uses the role colours the Owner kept in Q-092 (Buying = blue, Selling = green). So the approval did not knowingly reverse Q-092.
+Recommendation: keep the role colours (Q-092) on the new sliding thumb, with the new border, highlight and slide. This is what 3X.9c built (`packages/ui/src/web/dashboard.css`). If the Owner prefers teal, it is a one-rule change.
+**Status:** open (built as recommended, 2026-10-06; Owner to confirm in the 3X.23 click-through or earlier).

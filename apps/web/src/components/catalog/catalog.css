@@ -269,11 +269,6 @@
   font-size: var(--mt-font-size-sm);
 }
 
-.mt-explore-chips [aria-current='page'] {
-  border-color: var(--mt-border-brand);
-  color: var(--mt-text-brand);
-}
-
 .mt-catalog-section-title {
   margin: 0 0 var(--mt-space-4);
   font-size: var(--mt-font-size-xl);
