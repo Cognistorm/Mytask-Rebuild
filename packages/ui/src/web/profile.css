@@ -194,7 +194,8 @@
   display: inline-flex;
   align-items: center;
   min-block-size: var(--mt-size-control-sm);
-  padding: var(--mt-space-1) var(--mt-space-3);
+  /* The border comes out of the inline padding, so a chip is as wide as before 3X (F-3X19-1: skill chips wrapped). */
+  padding: var(--mt-space-1) calc(var(--mt-space-3) - var(--mt-border-width-hairline));
   box-sizing: border-box;
   border: var(--mt-border-width-hairline) solid var(--mt-border-default);
   border-radius: var(--mt-radius-full);
