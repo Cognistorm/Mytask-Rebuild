@@ -17,11 +17,12 @@
     description: |
       The whole tree for the header menu, the mobile accordion, category pages and the gig wizard
       (spec 03 AC-1, AC-2; spec 04 AC-4). Names in the request language with Georgian fallback (AC-4).
-      Cached; changes by staff appear within 60 seconds.
+      Every node carries the resolved colour of its top-level category (`color`, spec 03 AC-38, ADR-023 §3).
+      Cached; changes by staff (names, colours…) appear within 60 seconds (spec 03 AC-39).
     tags: [Catalog]
     security: []
     x-permission: {audience: public}
-    x-covers: ['03 AC-1', '03 AC-2', '03 AC-4', '04 AC-4']
+    x-covers: ['03 AC-1', '03 AC-2', '03 AC-4', '04 AC-4', '03 AC-38', '03 AC-39']
     responses:
       '200':
         description: The tree.
@@ -40,11 +41,13 @@
       `/categories/{c}`, `/categories/{c}/{s}`, `/categories/{c}/{s}/{child}` (spec 03 AC-3). Each lower
       level must belong to the level above; otherwise 404. On 404 the web asks `resolveRedirect` (an old
       slug after a staff slug change answers 301, spec 17 AC-10) before showing the 404 page. The gig
-      list of the page is `searchGigs?categoryId=`.
+      list of the page is `searchGigs?categoryId=`. `color`, `breadcrumb[].color` and `children[].color`
+      are the resolved top-level colour (spec 03 AC-38, ADR-023 §3); not cached, so a colour change shows
+      on the next request.
     tags: [Catalog]
     security: []
     x-permission: {audience: public}
-    x-covers: ['03 AC-3', '03 AC-4', '03 AC-35']
+    x-covers: ['03 AC-3', '03 AC-4', '03 AC-35', '03 AC-38']
     parameters:
       - name: path
         in: query
@@ -70,10 +73,11 @@
   get:
     operationId: getCategory
     summary: Get a gig category (any level)
+    description: Same body as `lookupCategory`, including the resolved colours (spec 03 AC-38, ADR-023 §3).
     tags: [Catalog]
     security: []
     x-permission: {audience: public}
-    x-covers: ['03 AC-3']
+    x-covers: ['03 AC-3', '03 AC-38']
     responses:
       '200':
         description: The category.
@@ -88,11 +92,11 @@
   get:
     operationId: listProjectCategories
     summary: Project categories with their skills
-    description: Active project categories and their active skills (spec 03 AC-31, P-31), for explore chips, the post-project form (at most S-076 skills per project, spec 10) and category pages.
+    description: Active project categories and their active skills (spec 03 AC-31, P-31), for explore chips, the post-project form (at most S-076 skills per project, spec 10) and category pages. `color` is the colour of the linked top-level gig category, `null` without a link (spec 03 AC-38, ADR-023 §3).
     tags: [Catalog]
     security: []
     x-permission: {audience: public}
-    x-covers: ['03 AC-31']
+    x-covers: ['03 AC-31', '03 AC-38']
     x-settings: [S-076]
     responses:
       '200':
@@ -112,7 +116,7 @@
     tags: [Catalog]
     security: []
     x-permission: {audience: public, toggles: [S-075]}
-    x-covers: ['03 AC-33', '03 AC-34']
+    x-covers: ['03 AC-33', '03 AC-34', '03 AC-38']
     parameters:
       - {name: slug, in: query, required: true, schema: {type: string, minLength: 1, maxLength: 160}}
       - {name: skillSlug, in: query, required: false, schema: {type: string, minLength: 1, maxLength: 100}}
@@ -1266,10 +1270,11 @@
   get:
     operationId: adminListCategories
     summary: All gig categories (3 levels, flat list)
+    description: Each item has its stored `color` (top level) and `resolvedColor`; the admin colour form checks "very similar" and "reserved" colours against this list on the client with `packages/tokens` (spec 16 AC-60a, AC-61a; ADR-023 §6).
     tags: [Admin Catalog]
     security: [{staffBearer: []}, {staffCookie: []}]
     x-permission: {audience: staff, permission: catalog.write, ownership: none}
-    x-covers: ['16 AC-60']
+    x-covers: ['16 AC-60', '16 AC-60a', '16 AC-61a']
     responses:
       '200':
         description: Every category with usage counts.
@@ -1281,11 +1286,21 @@
   post:
     operationId: adminCreateCategory
     summary: Create a gig category, sub-category or child category
-    description: 'Fields of spec 16 AC-60 (name ka/en ≤ 60, slug unique per level ≤ 60, description ≤ 300, SEO text above/below, icon and image for the top level, home visibility, position). At most 3 levels (a parent of depth 3 → 422 BUSINESS_RULE_VIOLATION). Slug taken → 409 DUPLICATE (field `slug`).'
+    description: |
+      Fields of spec 16 AC-60 (name ka/en ≤ 60, slug unique per level ≤ 60, description ≤ 300, SEO text above/below,
+      icon and image for the top level, home visibility, position). At most 3 levels (a parent of depth 3 → 422
+      BUSINESS_RULE_VIOLATION). Slug taken → 409 DUPLICATE (field `slug`).
+      **Colour** (top level only, spec 16 AC-60a, ADR-023): stored upper-case; omitted → the first unused starter
+      colour (or `null` when all 12 are used); the value is in the `category.create` audit entry. The new colour is
+      in `listCategories` at once on this API instance and within 60 s on the others (spec 03 AC-39).
+      Errors: 400 VALIDATION_FAILED — field `color`, code `pattern` (`t_category_color_invalid`) or code
+      `top_level_only` with a `parentId` (`t_category_color_top_level_only`); 409 DUPLICATE — field `slug`, or field
+      `color` when another top-level category has the colour, with `details.category {id, name}` of that category and
+      `t_category_color_taken` (also on a concurrent save, enforced by the database).
     tags: [Admin Catalog]
     security: [{staffBearer: []}, {staffCookie: []}]
     x-permission: {audience: staff, permission: catalog.write, ownership: none}
-    x-covers: ['16 AC-60', '03 AC-1', '03 AC-5']
+    x-covers: ['16 AC-60', '03 AC-1', '03 AC-5', '16 AC-60a', '03 AC-39']
     x-audit: category.create
     requestBody:
       required: true
@@ -1315,10 +1330,11 @@
   get:
     operationId: adminGetCategory
     summary: Get a gig category for editing
+    description: With the stored `color` (top level) and the `resolvedColor` shown read-only on sub-/child category forms (spec 16 AC-60a, AC-61a; ADR-023 §3).
     tags: [Admin Catalog]
     security: [{staffBearer: []}, {staffCookie: []}]
     x-permission: {audience: staff, permission: catalog.write, ownership: none}
-    x-covers: ['16 AC-60']
+    x-covers: ['16 AC-60', '16 AC-60a', '16 AC-61a']
     responses:
       '200':
         description: The category.
@@ -1336,10 +1352,17 @@
       answer 301 to the new ones through `resolveRedirect`; the old slug cannot be reused at the same
       level while it redirects (spec 16 AC-60, spec 17 AC-10, EC-3). `isVisibleOnHome` controls only the
       home row (spec 03 AC-5). Renames apply to gigs at once (spec 04 EC-3).
+      **Colour** (top level only, spec 16 AC-60a, ADR-023): can be changed, not cleared; stored upper-case; the
+      before/after is in the `category.update` audit entry; visitors see it within 60 s (spec 03 AC-39) and it is
+      inherited at once by the sub-/child categories and the linked project categories (spec 03 AC-38).
+      Errors: 400 VALIDATION_FAILED — field `color`, code `pattern` (`t_category_color_invalid`) or code
+      `top_level_only` on a sub-/child category (`t_category_color_top_level_only`); 409 DUPLICATE — field `slug`,
+      or field `color` when another top-level category has the colour, with `details.category {id, name}` and
+      `t_category_color_taken` (also on a concurrent save, enforced by the database).
     tags: [Admin Catalog]
     security: [{staffBearer: []}, {staffCookie: []}]
     x-permission: {audience: staff, permission: catalog.write, ownership: none}
-    x-covers: ['16 AC-60', '03 AC-5', '17 AC-10']
+    x-covers: ['16 AC-60', '03 AC-5', '17 AC-10', '16 AC-60a', '03 AC-39']
     x-audit: category.update
     requestBody:
       required: true
@@ -1379,10 +1402,11 @@
   get:
     operationId: adminListProjectCategories
     summary: All project categories
+    description: Each item carries the inherited colour of its linked top-level gig category (`color`, `gigCategory.color`; spec 16 AC-61a, ADR-023 §3).
     tags: [Admin Catalog]
     security: [{staffBearer: []}, {staffCookie: []}]
     x-permission: {audience: staff, permission: catalog.write, ownership: none}
-    x-covers: ['16 AC-61']
+    x-covers: ['16 AC-61', '16 AC-61a']
     responses:
       '200':
         description: The list.
@@ -1398,7 +1422,7 @@
     tags: [Admin Catalog]
     security: [{staffBearer: []}, {staffCookie: []}]
     x-permission: {audience: staff, permission: catalog.write, ownership: none}
-    x-covers: ['16 AC-61', '03 AC-31']
+    x-covers: ['16 AC-61', '03 AC-31', '16 AC-61a']
     x-audit: project_category.create
     requestBody:
       required: true
@@ -1430,7 +1454,7 @@
     tags: [Admin Catalog]
     security: [{staffBearer: []}, {staffCookie: []}]
     x-permission: {audience: staff, permission: catalog.write, ownership: none}
-    x-covers: ['16 AC-61']
+    x-covers: ['16 AC-61', '16 AC-61a']
     responses:
       '200':
         description: The project category.
@@ -1446,7 +1470,7 @@
     tags: [Admin Catalog]
     security: [{staffBearer: []}, {staffCookie: []}]
     x-permission: {audience: staff, permission: catalog.write, ownership: none}
-    x-covers: ['16 AC-61', '03 AC-31']
+    x-covers: ['16 AC-61', '03 AC-31', '16 AC-61a']
     x-audit: project_category.update
     requestBody:
       required: true
@@ -2575,11 +2599,12 @@
       categories, random order, up to 4 gigs each, Premium owners first, AC-25, AC-5), best sellers (S-108,
       AC-26), featured categories (S-107), logo cloud (S-109) and recent articles (S-117 + S-119, spec 17
       AC-21). Blocks of switched-off settings are null (spec 17 AC-35). Not cached per user except
-      `isFavorite` on cards.
+      `isFavorite` on cards. Category rows and featured tiles carry the category colour
+      (`category.color`, spec 03 AC-38, ADR-023 §3).
     tags: [Content]
     security: [{}, {userBearer: []}, {userCookie: []}]
     x-permission: {audience: optional-user, ownership: 'none (a signed-in caller gets `isFavorite`)'}
-    x-covers: ['03 AC-5', '03 AC-24', '03 AC-25', '03 AC-26', '17 AC-21', '17 AC-35']
+    x-covers: ['03 AC-5', '03 AC-24', '03 AC-25', '03 AC-26', '17 AC-21', '17 AC-35', '03 AC-38']
     x-settings: [S-107, S-108, S-109, S-117, S-119]
     responses:
       '200':

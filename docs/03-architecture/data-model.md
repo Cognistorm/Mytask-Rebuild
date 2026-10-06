@@ -1,6 +1,8 @@
 # Data model — MyTask.ge rebuild
 Status: **accepted (Owner 2026-09-30)** | Author: solution-architect (P2-B2) | Date: 2026-09-28
 
+> **Revised 2026-10-06 (Phase 3X task 3X.5, ADR-023, spec 3X R-1).** `gig_categories.color char(7) null` — the colour of a **top-level** gig category (`#RRGGBB`, upper-case), CK `gig_categories_color_ck` (format + depth 1 only), partial UK `gig_categories_color_top_key` (`WHERE depth = 1 AND color IS NOT NULL`). Sub-/child categories and project categories store nothing and inherit through the tree / `project_categories.gig_category_id` (§3.C). Derived shades are never stored. Legacy has no colour: the 3X.7 migration and the Phase 5 ETL give the existing top-level categories the starter colours in `position` order (§12.2). Contract 1.4.0. No new table (entity count unchanged).
+
 > **Revised 2026-10-03 (Phase 4 task 4.2.2a, spec 03 check 4.2.1 §B).** `gig_category_translations.description varchar(300) null` (contract `CategoryDescriptionInput` / `AdminCategory.description` / `CategoryDetail.description`, spec 16 AC-60; legacy kept one untranslated `description` per category row, mapped to the `ka` row, §12.2). New table **`slug_redirects`** (§3.R): old slugs of gig categories, CMS pages and blog articles for the 301 of spec 17 AC-10/EC-3 and `AdminCategory.previousSlugs`, with the slug-change and resolution rules. Entity count 122 → 123 (§13). No contract change.
 
 > **Revised 2026-10-02 (Phase 4 task 4.1.7, spec 02 data model).** `kyc_verifications.decline_reason text null` recorded (needed by the contract `KycVerification.declineReason`, §3.B). Migration `20261002220000_profiles` creates the §3.B spec 02 tables: `user_profiles` columns, `user_skills`, `user_languages`, `user_linked_accounts`, `portfolio_items`, `portfolio_images`, `kyc_verifications`, `countries`, `reports`. No other change.
@@ -499,10 +501,12 @@ PIX `(user_id) WHERE revoked_at IS NULL`, `(staff_id) WHERE revoked_at IS NULL`.
 | position | int | | |
 | is_visible | boolean | default true | home rows only (spec 03 AC-5) |
 | icon_file_id, image_file_id | uuid | FK null | top level |
+| color | char(7) | null; CK `gig_categories_color_ck`: `color IS NULL OR (depth = 1 AND color ~ '^#[0-9A-F]{6}$')`; partial UK `gig_categories_color_top_key (color) WHERE depth = 1 AND color IS NOT NULL` | top level only (ADR-023, spec 3X R-1.1, R-1.3); `#RRGGBB` upper-case (the API normalises); `NULL` = no colour, clients use the brand values; unique among top-level categories, enforced by the database (EC-2); set at create to the first unused starter colour when omitted (ADR-023 §4); can be changed, not cleared |
 | legacy_source | enum | `categories`, `subcategories`, `childcategories` | |
 | legacy_id | bigint | UK with legacy_source | |
 | created_at, updated_at | timestamptz | | |
 IX `parent_id`. Delete is refused while gigs, children or projects reference it (spec 03 EC-2; FK `ON DELETE RESTRICT`).
+**Category colour resolution** (ADR-023 §3): a sub-/child category shows the `color` of its depth-1 ancestor; a project category shows the `color` of `gig_category_id` (`NULL` without a link). The API returns the resolved value, so clients never walk the tree. A category never changes level (trigger `gig_categories_set_depth` refuses a new `parent_id`), so a stored colour can never end up below the top level; deleting a top-level category frees its colour.
 
 **gig_category_translations** — PK `(category_id, locale)` · `name varchar(100)` · `description varchar(300) null` (SEO description, spec 16 AC-60; contract `CategoryDescriptionInput` ≤ 300 per language) · `content_top text null` · `content_bottom text null` (SEO text) · TM.
 Old category slugs (spec 16 AC-60, spec 17 AC-10) live in `slug_redirects` with `entity_type = 'gig_category'` and `scope = depth` (§3.R).
@@ -1350,7 +1354,7 @@ For the migration engineer (Phase 5, `tools/migrate-legacy`). Source: 230 migrat
 **Catalog and gigs**
 | Legacy | New | Notes |
 |---|---|---|
-| `categories`, `subcategories`, `childcategories` + `*_translations` | `gig_categories` (depth 1/2/3, `legacy_source`) + `gig_category_translations`; the untranslated legacy `description` of each row → `description` of the `ka` translation (`en` null; legacy validators already cap it at 300, `Admin/Categories/CreateValidator.php:42`, `Admin/Subcategories/CreateValidator.php:44`; a longer value is listed by the dry run, never cut silently) | the live-only `name` columns (§0 drift) read if present |
+| `categories`, `subcategories`, `childcategories` + `*_translations` | `gig_categories` (depth 1/2/3, `legacy_source`) + `gig_category_translations`; the untranslated legacy `description` of each row → `description` of the `ka` translation (`en` null; legacy validators already cap it at 300, `Admin/Categories/CreateValidator.php:42`, `Admin/Subcategories/CreateValidator.php:44`; a longer value is listed by the dry run, never cut silently); `color` has no legacy source (NEW, spec 3X): after loading, the top-level rows get the starter colours (`packages/tokens` `categoryStarter`) in `position` order, the same rule as the 3X.7 migration (ADR-023 §9) | the live-only `name` columns (§0 drift) read if present |
 | `projects_categories` + `projects_categories_translation` | `project_categories` + translations; `gig_category_id` = top-level gig category with the same slug (P-31) | |
 | `projects_skills` + `project_skill_translations` | `skills` moved to the project category with the same slug as its current gig category (P-31) | unmatched skills reported |
 | `gigs` | `gigs` | `price` → `price_tetri`; status `boosted|trending|featured` → `active` (R-G5); `rating` recomputed from reviews; `image_thumb/medium/large_id` → `thumbnail_file_id` (largest original); `counter_*` → counters; `orders_in_queue` recomputed; `has_upgrades`, `has_faqs` dropped; `video_link` → `video_url` (kept, unused); `revisions_allowed` = Owner question 1 |

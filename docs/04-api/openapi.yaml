@@ -3,7 +3,7 @@
 openapi: 3.1.0
 info:
   title: MyTask.ge API
-  version: 1.3.2
+  version: 1.4.0
   summary: One API for the MyTask.ge website, mobile apps (iOS, Android) and admin panel.
   description: |
     **Status: approved by the Owner 2026-09-30 as the contract** (Phase 2 gate, version 1.0.0, including
@@ -21,7 +21,12 @@ info:
     marked deprecated (no country field in account settings, ADR-021, Owner 2026-10-02); **1.3.2** `x-rate-limit`
     30 saves per user per hour on `createPortfolioItem` / `updatePortfolioItem` with `429` (ADR-022, SEC-69), and
     "every attempt counts" on the shared report limit (I-31); `updatePortfolioItem` sends EV-14 only when the item
-    enters `pending` (Owner Q-166 (a)).
+    enters `pending` (Owner Q-166 (a)); **1.4.0** category colours (ADR-023, spec 3X R-1, Q-169…Q-171): `color`
+    on top-level gig categories (`CategoryColor` / `CategoryColorInput`), resolved on `CategoryNode`,
+    `CategoryDetail` (+ breadcrumb and children as `CategoryColorRef`), the `getHome` rows and tiles, `ProjectCategory`
+    and `AdminProjectCategory`; `AdminCategory.color` + `resolvedColor`; optional `color` on the category
+    create/update requests with `400 VALIDATION_FAILED` (field `color`: `pattern`, `top_level_only`) and
+    `409 DUPLICATE` (field `color`).
 
     **The contract is the law** (CLAUDE.md). Web (`apps/web`), mobile (`apps/mobile`) and admin
     (`apps/admin`) use only this API through the generated `packages/types` + `packages/api-client`
@@ -1491,6 +1496,7 @@ paths:
     get:
       operationId: adminListCategories
       summary: All gig categories (3 levels, flat list)
+      description: Each item has its stored `color` (top level) and `resolvedColor`; the admin colour form checks "very similar" and "reserved" colours against this list on the client with `packages/tokens` (spec 16 AC-60a, AC-61a; ADR-023 §6).
       tags:
         - Admin Catalog
       security:
@@ -1502,6 +1508,8 @@ paths:
         ownership: none
       x-covers:
         - 16 AC-60
+        - 16 AC-60a
+        - 16 AC-61a
       responses:
         '200':
           description: Every category with usage counts.
@@ -1516,7 +1524,17 @@ paths:
     post:
       operationId: adminCreateCategory
       summary: Create a gig category, sub-category or child category
-      description: Fields of spec 16 AC-60 (name ka/en ≤ 60, slug unique per level ≤ 60, description ≤ 300, SEO text above/below, icon and image for the top level, home visibility, position). At most 3 levels (a parent of depth 3 → 422 BUSINESS_RULE_VIOLATION). Slug taken → 409 DUPLICATE (field `slug`).
+      description: |
+        Fields of spec 16 AC-60 (name ka/en ≤ 60, slug unique per level ≤ 60, description ≤ 300, SEO text above/below,
+        icon and image for the top level, home visibility, position). At most 3 levels (a parent of depth 3 → 422
+        BUSINESS_RULE_VIOLATION). Slug taken → 409 DUPLICATE (field `slug`).
+        **Colour** (top level only, spec 16 AC-60a, ADR-023): stored upper-case; omitted → the first unused starter
+        colour (or `null` when all 12 are used); the value is in the `category.create` audit entry. The new colour is
+        in `listCategories` at once on this API instance and within 60 s on the others (spec 03 AC-39).
+        Errors: 400 VALIDATION_FAILED — field `color`, code `pattern` (`t_category_color_invalid`) or code
+        `top_level_only` with a `parentId` (`t_category_color_top_level_only`); 409 DUPLICATE — field `slug`, or field
+        `color` when another top-level category has the colour, with `details.category {id, name}` of that category and
+        `t_category_color_taken` (also on a concurrent save, enforced by the database).
       tags:
         - Admin Catalog
       security:
@@ -1530,6 +1548,8 @@ paths:
         - 16 AC-60
         - 03 AC-1
         - 03 AC-5
+        - 16 AC-60a
+        - 03 AC-39
       x-audit: category.create
       requestBody:
         required: true
@@ -1567,6 +1587,7 @@ paths:
     get:
       operationId: adminGetCategory
       summary: Get a gig category for editing
+      description: With the stored `color` (top level) and the `resolvedColor` shown read-only on sub-/child category forms (spec 16 AC-60a, AC-61a; ADR-023 §3).
       tags:
         - Admin Catalog
       security:
@@ -1578,6 +1599,8 @@ paths:
         ownership: none
       x-covers:
         - 16 AC-60
+        - 16 AC-60a
+        - 16 AC-61a
       responses:
         '200':
           description: The category.
@@ -1599,6 +1622,13 @@ paths:
         answer 301 to the new ones through `resolveRedirect`; the old slug cannot be reused at the same
         level while it redirects (spec 16 AC-60, spec 17 AC-10, EC-3). `isVisibleOnHome` controls only the
         home row (spec 03 AC-5). Renames apply to gigs at once (spec 04 EC-3).
+        **Colour** (top level only, spec 16 AC-60a, ADR-023): can be changed, not cleared; stored upper-case; the
+        before/after is in the `category.update` audit entry; visitors see it within 60 s (spec 03 AC-39) and it is
+        inherited at once by the sub-/child categories and the linked project categories (spec 03 AC-38).
+        Errors: 400 VALIDATION_FAILED — field `color`, code `pattern` (`t_category_color_invalid`) or code
+        `top_level_only` on a sub-/child category (`t_category_color_top_level_only`); 409 DUPLICATE — field `slug`,
+        or field `color` when another top-level category has the colour, with `details.category {id, name}` and
+        `t_category_color_taken` (also on a concurrent save, enforced by the database).
       tags:
         - Admin Catalog
       security:
@@ -1612,6 +1642,8 @@ paths:
         - 16 AC-60
         - 03 AC-5
         - 17 AC-10
+        - 16 AC-60a
+        - 03 AC-39
       x-audit: category.update
       requestBody:
         required: true
@@ -6512,6 +6544,7 @@ paths:
     get:
       operationId: adminListProjectCategories
       summary: All project categories
+      description: Each item carries the inherited colour of its linked top-level gig category (`color`, `gigCategory.color`; spec 16 AC-61a, ADR-023 §3).
       tags:
         - Admin Catalog
       security:
@@ -6523,6 +6556,7 @@ paths:
         ownership: none
       x-covers:
         - 16 AC-61
+        - 16 AC-61a
       responses:
         '200':
           description: The list.
@@ -6550,6 +6584,7 @@ paths:
       x-covers:
         - 16 AC-61
         - 03 AC-31
+        - 16 AC-61a
       x-audit: project_category.create
       requestBody:
         required: true
@@ -6596,6 +6631,7 @@ paths:
         ownership: none
       x-covers:
         - 16 AC-61
+        - 16 AC-61a
       responses:
         '200':
           description: The project category.
@@ -6624,6 +6660,7 @@ paths:
       x-covers:
         - 16 AC-61
         - 03 AC-31
+        - 16 AC-61a
       x-audit: project_category.update
       requestBody:
         required: true
@@ -13531,7 +13568,8 @@ paths:
       description: |
         The whole tree for the header menu, the mobile accordion, category pages and the gig wizard
         (spec 03 AC-1, AC-2; spec 04 AC-4). Names in the request language with Georgian fallback (AC-4).
-        Cached; changes by staff appear within 60 seconds.
+        Every node carries the resolved colour of its top-level category (`color`, spec 03 AC-38, ADR-023 §3).
+        Cached; changes by staff (names, colours…) appear within 60 seconds (spec 03 AC-39).
       tags:
         - Catalog
       security: []
@@ -13542,6 +13580,8 @@ paths:
         - 03 AC-2
         - 03 AC-4
         - 04 AC-4
+        - 03 AC-38
+        - 03 AC-39
       responses:
         '200':
           description: The tree.
@@ -13561,7 +13601,9 @@ paths:
         `/categories/{c}`, `/categories/{c}/{s}`, `/categories/{c}/{s}/{child}` (spec 03 AC-3). Each lower
         level must belong to the level above; otherwise 404. On 404 the web asks `resolveRedirect` (an old
         slug after a staff slug change answers 301, spec 17 AC-10) before showing the 404 page. The gig
-        list of the page is `searchGigs?categoryId=`.
+        list of the page is `searchGigs?categoryId=`. `color`, `breadcrumb[].color` and `children[].color`
+        are the resolved top-level colour (spec 03 AC-38, ADR-023 §3); not cached, so a colour change shows
+        on the next request.
       tags:
         - Catalog
       security: []
@@ -13571,6 +13613,7 @@ paths:
         - 03 AC-3
         - 03 AC-4
         - 03 AC-35
+        - 03 AC-38
       parameters:
         - name: path
           in: query
@@ -13602,6 +13645,7 @@ paths:
     get:
       operationId: getCategory
       summary: Get a gig category (any level)
+      description: Same body as `lookupCategory`, including the resolved colours (spec 03 AC-38, ADR-023 §3).
       tags:
         - Catalog
       security: []
@@ -13609,6 +13653,7 @@ paths:
         audience: public
       x-covers:
         - 03 AC-3
+        - 03 AC-38
       responses:
         '200':
           description: The category.
@@ -16739,7 +16784,8 @@ paths:
         categories, random order, up to 4 gigs each, Premium owners first, AC-25, AC-5), best sellers (S-108,
         AC-26), featured categories (S-107), logo cloud (S-109) and recent articles (S-117 + S-119, spec 17
         AC-21). Blocks of switched-off settings are null (spec 17 AC-35). Not cached per user except
-        `isFavorite` on cards.
+        `isFavorite` on cards. Category rows and featured tiles carry the category colour
+        (`category.color`, spec 03 AC-38, ADR-023 §3).
       tags:
         - Content
       security:
@@ -16756,6 +16802,7 @@ paths:
         - 03 AC-26
         - 17 AC-21
         - 17 AC-35
+        - 03 AC-38
       x-settings:
         - S-107
         - S-108
@@ -19389,7 +19436,7 @@ paths:
     get:
       operationId: listProjectCategories
       summary: Project categories with their skills
-      description: Active project categories and their active skills (spec 03 AC-31, P-31), for explore chips, the post-project form (at most S-076 skills per project, spec 10) and category pages.
+      description: Active project categories and their active skills (spec 03 AC-31, P-31), for explore chips, the post-project form (at most S-076 skills per project, spec 10) and category pages. `color` is the colour of the linked top-level gig category, `null` without a link (spec 03 AC-38, ADR-023 §3).
       tags:
         - Catalog
       security: []
@@ -19397,6 +19444,7 @@ paths:
         audience: public
       x-covers:
         - 03 AC-31
+        - 03 AC-38
       x-settings:
         - S-076
       responses:
@@ -19425,6 +19473,7 @@ paths:
       x-covers:
         - 03 AC-33
         - 03 AC-34
+        - 03 AC-38
       parameters:
         - name: slug
           in: query
@@ -23022,6 +23071,8 @@ components:
         - image
         - isVisibleOnHome
         - position
+        - color
+        - resolvedColor
         - gigCount
         - childCount
         - projectCategoryCount
@@ -23065,6 +23116,16 @@ components:
           type: boolean
         position:
           type: integer
+        color:
+          oneOf:
+            - $ref: '#/components/schemas/CategoryColor'
+            - type: 'null'
+          description: The stored, editable colour (spec 16 AC-60a, ADR-023 §1). Top level only; always `null` below the top level.
+        resolvedColor:
+          oneOf:
+            - $ref: '#/components/schemas/CategoryColor'
+            - type: 'null'
+          description: The colour visitors see (spec 16 AC-61a, ADR-023 §3) — `color` at the top level, the top-level ancestor's colour below it; `null` → brand values.
         gigCount:
           type: integer
           minimum: 0
@@ -24939,6 +25000,7 @@ components:
         - name
         - seoDescription
         - gigCategory
+        - color
         - image
         - position
         - isActive
@@ -24962,6 +25024,11 @@ components:
             - $ref: '#/components/schemas/CategoryRef'
             - type: 'null'
           description: The linked top-level gig category used for "notify freelancers in the category" (spec 03 R-S8, P-31; BR-053).
+        color:
+          oneOf:
+            - $ref: '#/components/schemas/CategoryColor'
+            - type: 'null'
+          description: The inherited colour shown read-only (spec 16 AC-61a, ADR-023 §3) — the colour of `gigCategory`; `null` when there is no link or it has no colour → brand values.
         image:
           oneOf:
             - $ref: '#/components/schemas/ImageVariants'
@@ -27331,6 +27398,50 @@ components:
         itemCount:
           type: integer
           minimum: 0
+    CategoryColor:
+      type: string
+      pattern: ^#[0-9A-F]{6}$
+      description: |
+        A category colour as returned by the API: `#` + 6 upper-case hex digits (ADR-023, spec 3X R-1.1). Only the
+        base colour is sent; every shade (text on the colour, tints, gradient ends, dark-mode variants, indicator)
+        is derived by the client with `deriveCategoryColor` from `packages/tokens` (spec 3X R-1.4).
+      examples:
+        - '#7C3AED'
+    CategoryColorInput:
+      type: string
+      pattern: ^#[0-9A-Fa-f]{6}$
+      description: |
+        A category colour sent by staff: `#RRGGBB`, any case; the API stores and returns it upper-case (ADR-023 §1).
+        Another value → 400 `VALIDATION_FAILED`, field `color`, code `pattern`, messageKey `t_category_color_invalid`.
+      examples:
+        - '#7c3aed'
+    CategoryColorRef:
+      type: object
+      description: |
+        The shared `CategoryRef` fields plus the **resolved** colour (ADR-023 §3): the colour of the category's
+        top-level gig category (its own colour at the top level), or `null` when that category has none (clients use
+        the brand values). Used where spec 3X R-1.6 shows a gig category in colour: breadcrumb, category page
+        children, home rows and tiles. A flat superset of `CategoryRef` (not `allOf`), so the change stays additive
+        for oasdiff.
+      required:
+        - id
+        - slug
+        - name
+        - contentLocale
+        - color
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        slug:
+          type: string
+        name:
+          type: string
+        contentLocale:
+          $ref: '#/components/schemas/ContentLocale'
+        color:
+          oneOf:
+            - $ref: '#/components/schemas/CategoryColor'
+            - type: 'null'
     CategoryCreateRequest:
       type: object
       required:
@@ -27376,6 +27487,13 @@ components:
         position:
           type: integer
           minimum: 0
+        color:
+          $ref: '#/components/schemas/CategoryColorInput'
+          description: |
+            Top level only (spec 16 AC-60a, ADR-023 §4, §5). Omitted on a top-level category → the first starter colour
+            (packages/tokens `categoryStarter`, in order) that no top-level category uses, or `null` when all are used.
+            Sent with a `parentId` → 400 `VALIDATION_FAILED` (field `color`, code `top_level_only`). Used by another
+            top-level category → 409 `DUPLICATE`.
     CategoryDepth:
       type: integer
       enum:
@@ -27413,6 +27531,7 @@ components:
         - hasEnglish
         - icon
         - image
+        - color
         - breadcrumb
         - children
         - updatedAt
@@ -27452,15 +27571,21 @@ components:
           oneOf:
             - $ref: '#/components/schemas/ImageVariants'
             - type: 'null'
+        color:
+          oneOf:
+            - $ref: '#/components/schemas/CategoryColor'
+            - type: 'null'
+          description: Resolved colour of the page (spec 03 AC-38, ADR-023 §3) — the top-level ancestor's colour; `null` → brand values.
         breadcrumb:
           type: array
-          description: Ancestors from the top level down to and including this category.
+          description: Ancestors from the top level down to and including this category, each with the resolved colour (the same value as `color`).
           items:
-            $ref: '#/components/schemas/CategoryRef'
+            $ref: '#/components/schemas/CategoryColorRef'
         children:
           type: array
+          description: Direct children, each with the resolved colour (the same value as `color`).
           items:
-            $ref: '#/components/schemas/CategoryRef'
+            $ref: '#/components/schemas/CategoryColorRef'
         updatedAt:
           $ref: '#/components/schemas/Timestamp'
     CategoryNameInput:
@@ -27493,6 +27618,7 @@ components:
         - image
         - isVisibleOnHome
         - position
+        - color
         - children
       properties:
         id:
@@ -27523,6 +27649,11 @@ components:
           description: Top level only (spec 03 AC-5); always true below the top level.
         position:
           type: integer
+        color:
+          oneOf:
+            - $ref: '#/components/schemas/CategoryColor'
+            - type: 'null'
+          description: Resolved colour (spec 03 AC-38, ADR-023 §3) — the top-level ancestor's colour on every level; `null` → brand values.
         children:
           type: array
           items:
@@ -27592,6 +27723,12 @@ components:
         position:
           type: integer
           minimum: 0
+        color:
+          $ref: '#/components/schemas/CategoryColorInput'
+          description: |
+            Top level only; it can be changed but not cleared (spec 16 AC-60a, ADR-023 §2, §5). On a sub-/child
+            category → 400 `VALIDATION_FAILED` (field `color`, code `top_level_only`). Used by another top-level
+            category → 409 `DUPLICATE`. Saving the category's own colour again is not a duplicate.
     CheckoutMethodQuote:
       type: object
       description: The complete breakdown if the buyer pays with this method. Clients show these numbers only (spec 05 AC-5).
@@ -31757,7 +31894,8 @@ components:
         - gigs
       properties:
         category:
-          $ref: '#/components/schemas/CategoryRef'
+          $ref: '#/components/schemas/CategoryColorRef'
+          description: The top-level category with its colour (spec 03 AC-38).
         gigs:
           type: array
           maxItems: 4
@@ -31770,7 +31908,8 @@ components:
         - image
       properties:
         category:
-          $ref: '#/components/schemas/CategoryRef'
+          $ref: '#/components/schemas/CategoryColorRef'
+          description: The top-level category with its colour (spec 03 AC-38).
         image:
           oneOf:
             - $ref: '#/components/schemas/ImageVariants'
@@ -35249,6 +35388,7 @@ components:
         - hasEnglish
         - image
         - position
+        - color
         - skills
       properties:
         id:
@@ -35271,6 +35411,11 @@ components:
             - type: 'null'
         position:
           type: integer
+        color:
+          oneOf:
+            - $ref: '#/components/schemas/CategoryColor'
+            - type: 'null'
+          description: The colour of the linked top-level gig category (spec 03 AC-38, ADR-023 §3); `null` when there is no link or it has no colour → brand values.
         skills:
           type: array
           items:

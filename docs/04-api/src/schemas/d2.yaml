@@ -36,10 +36,44 @@ CategoryDepth:
   enum: [1, 2, 3]
   description: 1 = category, 2 = sub-category, 3 = child category (data-model §3.C).
 
+CategoryColor:
+  type: string
+  pattern: '^#[0-9A-F]{6}$'
+  description: |
+    A category colour as returned by the API: `#` + 6 upper-case hex digits (ADR-023, spec 3X R-1.1). Only the
+    base colour is sent; every shade (text on the colour, tints, gradient ends, dark-mode variants, indicator)
+    is derived by the client with `deriveCategoryColor` from `packages/tokens` (spec 3X R-1.4).
+  examples: ['#7C3AED']
+
+CategoryColorInput:
+  type: string
+  pattern: '^#[0-9A-Fa-f]{6}$'
+  description: |
+    A category colour sent by staff: `#RRGGBB`, any case; the API stores and returns it upper-case (ADR-023 §1).
+    Another value → 400 `VALIDATION_FAILED`, field `color`, code `pattern`, messageKey `t_category_color_invalid`.
+  examples: ['#7c3aed']
+
+CategoryColorRef:
+  type: object
+  description: |
+    The shared `CategoryRef` fields plus the **resolved** colour (ADR-023 §3): the colour of the category's
+    top-level gig category (its own colour at the top level), or `null` when that category has none (clients use
+    the brand values). Used where spec 3X R-1.6 shows a gig category in colour: breadcrumb, category page
+    children, home rows and tiles. A flat superset of `CategoryRef` (not `allOf`), so the change stays additive
+    for oasdiff.
+  required: [id, slug, name, contentLocale, color]
+  properties:
+    id: {$ref: '../components/schemas.yaml#/Uuid'}
+    slug: {type: string}
+    name: {type: string}
+    contentLocale: {$ref: '../components/schemas.yaml#/ContentLocale'}
+    color:
+      oneOf: [{$ref: '#/CategoryColor'}, {type: 'null'}]
+
 CategoryNode:
   type: object
   description: One node of the public gig category tree (spec 03 AC-1, AC-2). Names resolved in the request language (Georgian fallback, AC-4).
-  required: [id, slug, path, depth, name, contentLocale, icon, image, isVisibleOnHome, position, children]
+  required: [id, slug, path, depth, name, contentLocale, icon, image, isVisibleOnHome, position, color, children]
   properties:
     id: {$ref: '../components/schemas.yaml#/Uuid'}
     slug: {type: string}
@@ -59,6 +93,9 @@ CategoryNode:
       type: boolean
       description: Top level only (spec 03 AC-5); always true below the top level.
     position: {type: integer}
+    color:
+      oneOf: [{$ref: '#/CategoryColor'}, {type: 'null'}]
+      description: Resolved colour (spec 03 AC-38, ADR-023 §3) — the top-level ancestor's colour on every level; `null` → brand values.
     children:
       type: array
       items: {$ref: '#/CategoryNode'}
@@ -74,7 +111,7 @@ CategoryTree:
 CategoryDetail:
   type: object
   description: A category page (spec 03 AC-3, AC-4). `description`, `contentTop` and `contentBottom` are the SEO texts (sanitised HTML, profile `staff_content`, CONVENTIONS §19, for the two content blocks).
-  required: [id, slug, path, depth, name, description, contentTop, contentBottom, contentLocale, hasEnglish, icon, image, breadcrumb, children, updatedAt]
+  required: [id, slug, path, depth, name, description, contentTop, contentBottom, contentLocale, hasEnglish, icon, image, color, breadcrumb, children, updatedAt]
   properties:
     id: {$ref: '../components/schemas.yaml#/Uuid'}
     slug: {type: string}
@@ -92,13 +129,17 @@ CategoryDetail:
       oneOf: [{$ref: '../components/schemas.yaml#/ImageVariants'}, {type: 'null'}]
     image:
       oneOf: [{$ref: '../components/schemas.yaml#/ImageVariants'}, {type: 'null'}]
+    color:
+      oneOf: [{$ref: '#/CategoryColor'}, {type: 'null'}]
+      description: Resolved colour of the page (spec 03 AC-38, ADR-023 §3) — the top-level ancestor's colour; `null` → brand values.
     breadcrumb:
       type: array
-      description: Ancestors from the top level down to and including this category.
-      items: {$ref: '../components/schemas.yaml#/CategoryRef'}
+      description: Ancestors from the top level down to and including this category, each with the resolved colour (the same value as `color`).
+      items: {$ref: '#/CategoryColorRef'}
     children:
       type: array
-      items: {$ref: '../components/schemas.yaml#/CategoryRef'}
+      description: Direct children, each with the resolved colour (the same value as `color`).
+      items: {$ref: '#/CategoryColorRef'}
     updatedAt: {$ref: '../components/schemas.yaml#/Timestamp'}
 
 CategoryNameInput:
@@ -129,7 +170,7 @@ CategorySlug:
 AdminCategory:
   type: object
   description: A gig category of any level as edited by staff (both languages, usage counts).
-  required: [id, parentId, depth, slug, name, description, contentTop, contentBottom, icon, image, isVisibleOnHome, position, gigCount, childCount, projectCategoryCount, previousSlugs, createdAt, updatedAt]
+  required: [id, parentId, depth, slug, name, description, contentTop, contentBottom, icon, image, isVisibleOnHome, position, color, resolvedColor, gigCount, childCount, projectCategoryCount, previousSlugs, createdAt, updatedAt]
   properties:
     id: {$ref: '../components/schemas.yaml#/Uuid'}
     parentId:
@@ -149,6 +190,12 @@ AdminCategory:
       oneOf: [{$ref: '../components/schemas.yaml#/ImageVariants'}, {type: 'null'}]
     isVisibleOnHome: {type: boolean}
     position: {type: integer}
+    color:
+      oneOf: [{$ref: '#/CategoryColor'}, {type: 'null'}]
+      description: The stored, editable colour (spec 16 AC-60a, ADR-023 §1). Top level only; always `null` below the top level.
+    resolvedColor:
+      oneOf: [{$ref: '#/CategoryColor'}, {type: 'null'}]
+      description: The colour visitors see (spec 16 AC-61a, ADR-023 §3) — `color` at the top level, the top-level ancestor's colour below it; `null` → brand values.
     gigCount: {type: integer, minimum: 0, description: Non-deleted gigs using this node at any level.}
     childCount: {type: integer, minimum: 0}
     projectCategoryCount: {type: integer, minimum: 0, description: Project categories linked to this top-level category (P-31).}
@@ -193,6 +240,13 @@ CategoryCreateRequest:
       description: A `ready` `category_image` file (top level only).
     isVisibleOnHome: {type: boolean, default: true}
     position: {type: integer, minimum: 0}
+    color:
+      $ref: '#/CategoryColorInput'
+      description: |
+        Top level only (spec 16 AC-60a, ADR-023 §4, §5). Omitted on a top-level category → the first starter colour
+        (packages/tokens `categoryStarter`, in order) that no top-level category uses, or `null` when all are used.
+        Sent with a `parentId` → 400 `VALIDATION_FAILED` (field `color`, code `top_level_only`). Used by another
+        top-level category → 409 `DUPLICATE`.
 
 CategoryUpdateRequest:
   type: object
@@ -212,6 +266,12 @@ CategoryUpdateRequest:
       oneOf: [{$ref: '../components/schemas.yaml#/Uuid'}, {type: 'null'}]
     isVisibleOnHome: {type: boolean}
     position: {type: integer, minimum: 0}
+    color:
+      $ref: '#/CategoryColorInput'
+      description: |
+        Top level only; it can be changed but not cleared (spec 16 AC-60a, ADR-023 §2, §5). On a sub-/child
+        category → 400 `VALIDATION_FAILED` (field `color`, code `top_level_only`). Used by another top-level
+        category → 409 `DUPLICATE`. Saving the category's own colour again is not a duplicate.
 
 SkillSummary:
   type: object
@@ -226,7 +286,7 @@ SkillSummary:
 ProjectCategory:
   type: object
   description: A project category with its skills (spec 03 AC-31).
-  required: [id, slug, name, seoDescription, contentLocale, hasEnglish, image, position, skills]
+  required: [id, slug, name, seoDescription, contentLocale, hasEnglish, image, position, color, skills]
   properties:
     id: {$ref: '../components/schemas.yaml#/Uuid'}
     slug: {type: string}
@@ -237,6 +297,9 @@ ProjectCategory:
     image:
       oneOf: [{$ref: '../components/schemas.yaml#/ImageVariants'}, {type: 'null'}]
     position: {type: integer}
+    color:
+      oneOf: [{$ref: '#/CategoryColor'}, {type: 'null'}]
+      description: The colour of the linked top-level gig category (spec 03 AC-38, ADR-023 §3); `null` when there is no link or it has no colour → brand values.
     skills:
       type: array
       items: {$ref: '#/SkillSummary'}
@@ -260,7 +323,7 @@ ProjectCategoryLookupResult:
 
 AdminProjectCategory:
   type: object
-  required: [id, slug, name, seoDescription, gigCategory, image, position, isActive, skillCount, projectCount, createdAt, updatedAt]
+  required: [id, slug, name, seoDescription, gigCategory, color, image, position, isActive, skillCount, projectCount, createdAt, updatedAt]
   properties:
     id: {$ref: '../components/schemas.yaml#/Uuid'}
     slug: {type: string}
@@ -270,6 +333,9 @@ AdminProjectCategory:
     gigCategory:
       oneOf: [{$ref: '../components/schemas.yaml#/CategoryRef'}, {type: 'null'}]
       description: The linked top-level gig category used for "notify freelancers in the category" (spec 03 R-S8, P-31; BR-053).
+    color:
+      oneOf: [{$ref: '#/CategoryColor'}, {type: 'null'}]
+      description: The inherited colour shown read-only (spec 16 AC-61a, ADR-023 §3) — the colour of `gigCategory`; `null` when there is no link or it has no colour → brand values.
     image:
       oneOf: [{$ref: '../components/schemas.yaml#/ImageVariants'}, {type: 'null'}]
     position: {type: integer}
@@ -1771,7 +1837,9 @@ HomeCategoryRow:
   type: object
   required: [category, gigs]
   properties:
-    category: {$ref: '../components/schemas.yaml#/CategoryRef'}
+    category:
+      $ref: '#/CategoryColorRef'
+      description: The top-level category with its colour (spec 03 AC-38).
     gigs:
       type: array
       maxItems: 4
@@ -1781,7 +1849,9 @@ HomeFeaturedCategory:
   type: object
   required: [category, image]
   properties:
-    category: {$ref: '../components/schemas.yaml#/CategoryRef'}
+    category:
+      $ref: '#/CategoryColorRef'
+      description: The top-level category with its colour (spec 03 AC-38).
     image:
       oneOf: [{$ref: '../components/schemas.yaml#/ImageVariants'}, {type: 'null'}]
 
