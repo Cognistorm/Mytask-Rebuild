@@ -1,17 +1,17 @@
 # Slice 2 (spec 03 Categories and search): Owner click-through, ROADMAP 4.2.20
 
-About 30 minutes. Web and admin on staging (addresses from devops when it is deployed) · App: Expo Go pointed at staging (SETUP-LOCAL §4).
+About 30 minutes. Web https://mytask.1kk.ge · Admin https://mytask.1kk.ge/admin · App: Expo Go with `EXPO_PUBLIC_API_URL=https://mytask.1kk.ge/api/v1` in your `.env` (SETUP-LOCAL §4).
 
 Gigs can only be created from slice 3 on, so the gig lists on staging are **empty** for now. You will see
 the empty states ("გთხოვთ სცადეთ ხელახლა") and the empty home rows are hidden. The lists with gig cards were
 tested with sample data in the browser tests.
 
-**Where:** on the staging subdomain **https://mytask.1kk.ge** (Owner 2026-10-06), once this branch is deployed there.
+**Where:** on the staging subdomain **https://mytask.1kk.ge** (Owner 2026-10-06), deployed 2026-10-06. No general password. Emails (e.g. the admin login code) land in the test inbox https://mytask.1kk.ge/__mail/ (that page alone keeps the staging password).
 BUG-01 (the `pnpm local` loop of the Georgian pages) does not apply to staging, which runs the production build.
 
 Tick each line. Anything that looks wrong: write one line under "Notes" at the bottom (what, where, what you expected).
 
-## Admin (http://localhost:3200): the catalogue
+## Admin (https://mytask.1kk.ge/admin): the catalogue
 - [ ] Top bar: **სარჩევი** (Categories), **პროექტის კატეგორიები** (Project categories), **უნარები** (Skills).
 - [ ] **Categories**: the tree shows the live site's categories, indented by level, with counts.
 - [ ] "შექმენი კატეგორია": create a test category with a Georgian and an English name, a slug (e.g. `test-owner`), an "SEO text above the list" and an icon + image (JPG/PNG). Save: "ოპერაცია წარმატებით შესრულდა".
