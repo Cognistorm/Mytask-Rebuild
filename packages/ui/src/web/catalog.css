@@ -322,8 +322,11 @@
   grid-auto-flow: column;
   grid-auto-columns: 80%;
   gap: var(--mt-space-4);
-  margin: 0;
-  padding: 0 0 var(--mt-space-2);
+  /* Room inside the scroll box for a hovered card's lift and glow (3X.11), given back by the negative margin, so the
+     row keeps its place (bottom: the former space-2 padding stays). */
+  margin: calc(-1 * var(--mt-space-1)) calc(-1 * var(--mt-space-1)) calc(-1 * var(--mt-space-3));
+  padding: var(--mt-space-1) var(--mt-space-1) var(--mt-space-5);
+  scroll-padding-inline: var(--mt-space-1);
   overflow-x: auto;
   scroll-snap-type: x mandatory;
   list-style: none;
@@ -334,15 +337,19 @@
   scroll-snap-align: start;
 }
 
-/* Category tile: admin artwork with a gradient and a white title (contrast by the gradient token, Q-077). */
+/* Category tile: the admin artwork with the name on a solid band of the category gradient (visual-refresh.md §8.5,
+   3X.11), so the contrast never depends on the photo (on-solid text ≥ 4.5:1 on both gradient ends). The tile carries
+   its category theme (`categoryThemeProps`); without artwork it shows the category tint. Size unchanged. */
 .mt-category-tile {
   position: relative;
   display: block;
   overflow: hidden;
   aspect-ratio: var(--mt-size-layout-card-image-ratio);
+  border: var(--mt-border-width-hairline) solid var(--mt-border-default);
   border-radius: var(--mt-radius-card);
-  background: var(--mt-bg-hero);
-  color: var(--mt-text-on-image);
+  background: linear-gradient(135deg, var(--mt-cat-tint) 0%, var(--mt-cat-tint-strong) 100%);
+  box-shadow: var(--mt-elevation-sm);
+  color: var(--mt-cat-on-solid);
   text-decoration: none;
 }
 
@@ -356,13 +363,16 @@
 .mt-category-tile span {
   position: absolute;
   inset: auto 0 0;
-  padding: var(--mt-space-6) var(--mt-space-3) var(--mt-space-3);
-  background: linear-gradient(
-    to top,
-    var(--mt-color-alpha-image-gradient-end),
-    var(--mt-color-alpha-image-gradient-start)
-  );
+  padding: var(--mt-space-2) var(--mt-space-3);
+  background: var(--mt-gradient-category);
   font-weight: var(--mt-font-weight-semibold);
+}
+
+/* Hover (on top of the card hover in surfaces.css): the glow takes the category colour. */
+@media (hover: hover) {
+  a.mt-category-tile:hover {
+    box-shadow: var(--mt-elevation-md), var(--mt-glow-category);
+  }
 }
 
 .mt-category-tile:focus-visible {

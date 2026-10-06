@@ -122,10 +122,16 @@ body::before {
   animation: mt-motion-enter var(--mt-motion-duration-base) var(--mt-motion-easing-enter) both;
 }
 
-/* M-10 first-view entrance: inert until a script sets `<html data-motion="ready">` (the home and grid screens add it
-   with the CSP nonce, 3X.11), so server-rendered content is never hidden by CSS alone. Items set their place with
-   `--mt-motion-index` (0-based); from the 8th item (stagger-max) on there is no further delay. */
-html[data-motion='ready'] .mt-motion-entrance {
+/* M-10 first-view entrance: inert until MOTION_ENTRANCE_SCRIPT (@mytask/ui/web, run with the CSP nonce, 3X.11) marks
+   its container `data-motion="ready"`, so server-rendered content is never hidden by CSS alone (no JS, no
+   IntersectionObserver or reduced motion → nothing is hidden). Inside it, an item waits until it scrolls into view
+   (`data-seen`), then rises in once. Items set their place with `--mt-motion-index` (0-based); from the 8th item
+   (stagger-max) on there is no further delay. */
+[data-motion='ready'] .mt-motion-entrance:not([data-seen]) {
+  opacity: 0;
+}
+
+[data-motion='ready'] .mt-motion-entrance[data-seen] {
   animation: mt-motion-enter var(--mt-motion-duration-slow) var(--mt-motion-easing-enter) both;
   animation-delay: calc(
     min(var(--mt-motion-index, 0), var(--mt-motion-stagger-max) - 1) * var(--mt-motion-stagger-step)
@@ -135,7 +141,11 @@ html[data-motion='ready'] .mt-motion-entrance {
 /* Reduced motion: the variables above already remove distance and scale; the entrance is dropped entirely
    (content shown at once, §7 M-10) and appear animations become a short fade. */
 @media (prefers-reduced-motion: reduce) {
-  html[data-motion='ready'] .mt-motion-entrance {
+  [data-motion='ready'] .mt-motion-entrance:not([data-seen]) {
+    opacity: 1;
+  }
+
+  [data-motion='ready'] .mt-motion-entrance[data-seen] {
     animation: none;
   }
 

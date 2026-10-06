@@ -50,5 +50,6 @@ export {
   type GigCardLabels,
 } from './catalog';
 export { categoryThemeProps, type CategoryThemeProps } from './category';
+export { MOTION_ENTRANCE_SCRIPT, motionEntrance } from './motion';
 export { formatMoney } from './money';
 export { Carousel } from './carousel';

@@ -103,3 +103,37 @@ test('header category bar: each pill and the mega-menu take their category colou
   await page.keyboard.press('Enter');
   await expect(page.getByTestId('mega-menu')).toHaveAttribute('data-category-theme', '#7C3AED');
 });
+
+test('home: tiles and rows take their category colour; cards rise in once seen, never under reduced motion', async ({
+  browser,
+}) => {
+  for (const reducedMotion of ['no-preference', 'reduce'] as const) {
+    const context = await browser.newContext({ reducedMotion });
+    const page = await context.newPage();
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto('/en');
+    const featured = page.getByTestId('featured-categories');
+    await expect(featured.getByRole('link', { name: 'Design' })).toHaveAttribute(
+      'data-category-theme',
+      '#7C3AED',
+    );
+    await expect(page.getByTestId('category-row')).toHaveAttribute(
+      'data-category-theme',
+      '#7C3AED',
+    );
+
+    const main = page.getByRole('main');
+    const lastSeller = page.locator('.mt-seller-grid > li').last();
+    if (reducedMotion === 'reduce') {
+      // Nothing is hidden: the script does not arm itself.
+      await expect(main).not.toHaveAttribute('data-motion');
+      expect(await lastSeller.evaluate((el) => getComputedStyle(el).opacity)).toBe('1');
+    } else {
+      await expect(main).toHaveAttribute('data-motion', 'ready');
+      await lastSeller.scrollIntoViewIfNeeded();
+      await expect(lastSeller).toHaveAttribute('data-seen', '');
+      await expect.poll(() => lastSeller.evaluate((el) => getComputedStyle(el).opacity)).toBe('1');
+    }
+    await context.close();
+  }
+});

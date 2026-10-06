@@ -277,7 +277,13 @@ const PROJECT_CATEGORIES = [
 /** getHome: 4 top gigs, two category rows (the second empty: hidden), featured tiles, best sellers. */
 function home(locale) {
   const tree = categoryTree(locale);
-  const ref = (n) => ({ id: n.id, slug: n.slug, name: n.name, contentLocale: locale });
+  const ref = (n) => ({
+    id: n.id,
+    slug: n.slug,
+    name: n.name,
+    contentLocale: locale,
+    color: n.color,
+  });
   return {
     topGigs: GIGS.slice(0, 4),
     categoryRows: [

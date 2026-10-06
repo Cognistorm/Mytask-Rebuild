@@ -10,7 +10,8 @@
                 site.css)
    - Danger:    .mt-button-danger
    - Ghost:     .auth-link-button, .mt-pf-link-button (actions, not links), .mt-menu-button (header menu triggers; the
-                search pill's category trigger stays flush inside the pill, site.css), .mt-dialog-close, .mt-info-button
+                search pill's category trigger stays flush inside the pill, site.css), .mt-home-see-more (home rows,
+                in the row's category ink, home.css), .mt-dialog-close, .mt-info-button
    - Accent:    .mt-button-accent (reserved for Premium/invite, later slices)
    .mt-link-button (ExpandableText "more/less" inside prose) stays a text link. */
 
@@ -25,6 +26,7 @@
   .auth-link-button,
   .mt-pf-link-button,
   .mt-menu-button,
+  .mt-home-see-more,
   .mt-dialog-close,
   .mt-info-button
 ) {
@@ -62,6 +64,7 @@
   .auth-link-button,
   .mt-pf-link-button,
   .mt-menu-button,
+  .mt-home-see-more,
   .mt-dialog-close,
   .mt-info-button
 )::before {
@@ -111,7 +114,14 @@
 
 /* Ghost: the quiet button (Cancel, Resend, Load more, Edit/Delete in admin rows, the header's menu triggers). A subtle
    border, no fill at rest. */
-:is(.auth-link-button, .mt-pf-link-button, .mt-menu-button, .mt-dialog-close, .mt-info-button) {
+:is(
+  .auth-link-button,
+  .mt-pf-link-button,
+  .mt-menu-button,
+  .mt-home-see-more,
+  .mt-dialog-close,
+  .mt-info-button
+) {
   --mt-btn-bg: transparent;
   --mt-btn-bg-hover: var(--mt-gradient-action-ghost-hover);
   --mt-btn-border: var(--mt-border-action-ghost);
@@ -156,6 +166,7 @@
       .auth-link-button,
       .mt-pf-link-button,
       .mt-menu-button,
+      .mt-home-see-more,
       .mt-dialog-close,
       .mt-info-button
     ):hover:not(:disabled, [aria-disabled='true']) {
@@ -174,6 +185,7 @@
       .auth-link-button,
       .mt-pf-link-button,
       .mt-menu-button,
+      .mt-home-see-more,
       .mt-dialog-close,
       .mt-info-button
     ):hover:not(:disabled, [aria-disabled='true'])::before {
@@ -192,6 +204,7 @@
   .auth-link-button,
   .mt-pf-link-button,
   .mt-menu-button,
+  .mt-home-see-more,
   .mt-dialog-close,
   .mt-info-button
 ):focus-visible {
@@ -209,6 +222,7 @@
     .auth-link-button,
     .mt-pf-link-button,
     .mt-menu-button,
+    .mt-home-see-more,
     .mt-dialog-close,
     .mt-info-button
   ):active:not(:disabled, [aria-disabled='true']) {
@@ -227,6 +241,7 @@
     .auth-link-button,
     .mt-pf-link-button,
     .mt-menu-button,
+    .mt-home-see-more,
     .mt-dialog-close,
     .mt-info-button
   ):active::before {
@@ -245,6 +260,7 @@
   .auth-link-button,
   .mt-pf-link-button,
   .mt-menu-button,
+  .mt-home-see-more,
   .mt-dialog-close,
   .mt-info-button
 ):is(:disabled, [aria-disabled='true']) {

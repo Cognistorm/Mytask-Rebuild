@@ -15,7 +15,11 @@ export function Carousel(props: {
 }) {
   const list = useRef<HTMLUListElement>(null);
   const step = (dir: 1 | -1) =>
-    list.current?.scrollBy({ left: dir * list.current.clientWidth * 0.9, behavior: 'smooth' });
+    list.current?.scrollBy({
+      left: dir * list.current.clientWidth * 0.9,
+      // M-18: a smooth scroll, a jump under reduced motion.
+      behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+    });
   return (
     <div className="mt-carousel" data-testid={props.testId}>
       <div className="mt-carousel-buttons">

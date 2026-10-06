@@ -967,12 +967,11 @@
 /* ---- Header over the home hero (design 01-home.md; Owner 2026-10-06) ----
    While the home page is at the top, the header takes the hero colour so it reads as transparent over the hero
    (live site: the same coloured logo, white links, a white "Join"); once the page scrolls it fades (M-11) to the
-   translucent header: the hero colour sits on the header itself and fades out while the translucent layer fades in.
-   (A colour is not a backdrop-filter, so the drawer is not trapped.) */
+   translucent header. 3X.11: the home hero slides up under the header (home.css), so the header is transparent there
+   and the hero gradient runs on behind it (visual-refresh.md §3.3, preview 3X.3); the translucent layer fades in on
+   scroll. */
 .mt-site-header {
-  transition:
-    background-color var(--mt-motion-duration-base) var(--mt-motion-easing-standard),
-    border-color var(--mt-motion-duration-base) var(--mt-motion-easing-standard);
+  transition: border-color var(--mt-motion-duration-base) var(--mt-motion-easing-standard);
 }
 
 .mt-site-header::before {
@@ -980,10 +979,7 @@
 }
 
 .mt-site-header[data-over-hero] {
-  --mt-hero-veil: color-mix(in srgb, var(--mt-color-neutral-950) 14%, transparent);
-  --mt-hero-line: color-mix(in srgb, var(--mt-color-neutral-0) 30%, transparent);
   border-block-end-color: transparent;
-  background-color: var(--mt-bg-hero);
   color: var(--mt-text-on-hero);
 }
 
@@ -1008,14 +1004,14 @@
 .mt-site-header[data-over-hero] .mt-site-header-row > .mt-icon-button,
 .mt-site-header[data-over-hero] .mt-site-actions .mt-icon-button {
   --mt-btn-bg-hover: linear-gradient(var(--mt-color-alpha-white12), var(--mt-color-alpha-white12));
-  --mt-btn-border-hover: var(--mt-hero-line);
+  --mt-btn-border-hover: var(--mt-border-over-hero);
   --mt-btn-text: var(--mt-text-on-hero);
   --mt-btn-glow: 0 0 transparent;
   --mt-btn-glow-focus: 0 0 transparent;
 }
 
 .mt-site-header[data-over-hero] :is(.mt-site-actions, .mt-category-bar) .mt-menu-button {
-  --mt-btn-border: var(--mt-hero-line);
+  --mt-btn-border: var(--mt-border-over-hero);
 }
 
 /* §8.4 category pills over the hero: a dark veil (it darkens the hero, so white text stays ≥ 4.68:1; a white veil
@@ -1025,8 +1021,8 @@
 }
 
 .mt-site-header[data-over-hero] .mt-category-bar-item::before {
-  border-color: var(--mt-hero-line);
-  background: var(--mt-hero-veil);
+  border-color: var(--mt-border-over-hero);
+  background: var(--mt-bg-over-hero);
 }
 
 .mt-site-header[data-over-hero] .mt-category-bar-item:is([aria-expanded='true'], [data-current]) {
@@ -1044,10 +1040,10 @@
   --mt-btn-bg: var(--mt-gradient-action-secondary);
   --mt-btn-bg-hover: var(--mt-gradient-action-secondary-hover);
   --mt-btn-border: transparent;
-  --mt-btn-border-hover: var(--mt-hero-line);
+  --mt-btn-border-hover: var(--mt-border-over-hero);
   --mt-btn-text: var(--mt-text-brand);
   --mt-btn-highlight: var(--mt-highlight-secondary);
-  --mt-btn-glow: 0 0 0 4px var(--mt-hero-line);
+  --mt-btn-glow: 0 0 0 4px var(--mt-border-over-hero);
 }
 
 /* White focus rings on the hero; the search pill and the menus are light surfaces and keep the normal ring. */
