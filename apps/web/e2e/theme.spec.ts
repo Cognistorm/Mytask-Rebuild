@@ -97,8 +97,20 @@ test('switch in the account side card: applies at once, saves cookie and account
   await expect(group.getByRole('group', { name: 'Theme' })).toBeVisible();
   await expect(group.getByLabel('Light mode')).toBeChecked();
 
+  // F-3X18-1: transitions are off for the frame of the switch only (set with the theme, removed after it).
+  await page.evaluate(() => {
+    const w = window as unknown as { switching: (string | null)[] };
+    w.switching = [];
+    new MutationObserver(() =>
+      w.switching.push(document.documentElement.getAttribute('data-theme-switching')),
+    ).observe(document.documentElement, { attributeFilter: ['data-theme-switching'] });
+  });
   await group.getByLabel('Dark mode').check();
   await expect(html(page)).toHaveAttribute('data-theme', 'dark');
+  await expect(html(page)).not.toHaveAttribute('data-theme-switching');
+  expect(
+    await page.evaluate(() => (window as unknown as { switching: unknown[] }).switching),
+  ).toEqual(['', null]);
   await expect.poll(() => sent).toEqual([{ theme: 'dark' }]);
   const cookie = (await context.cookies(BASE)).find((c) => c.name === 'mt_theme');
   expect(cookie?.value).toBe('dark');

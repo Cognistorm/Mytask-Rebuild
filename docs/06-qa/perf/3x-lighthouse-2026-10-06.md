@@ -84,6 +84,18 @@ Same clicks on both builds after hydration, CPU 4× slower. The number is the wo
 2. Suppress transitions for the one frame of the switch: add a `data-theme-switching` attribute that sets `transition: none` and remove it on the next frame. This saves about 16 ms.
 3. Reduce the style cost further: fewer `:is()`/`:has()` selectors on the surfaces, and fewer layered gradients per card.
 
+### F-3X18-1 — re-measured after 3X.21d (2026-10-06)
+
+The Owner chose option 2. `applyTheme` (`apps/web/src/lib/theme-client.ts`) now sets `data-theme-switching` on `<html>` together with the new theme and removes it two frames later; `foundation.css` turns every transition off while it is set. Same set-up as above (3X build with the change, pre-3X `../mt-pre3x`), `node docs/06-qa/perf/3x-inp.mjs 7`:
+
+| Page | pre-3X | 3X before 3X.21d | 3X after 3X.21d |
+|---|---|---|---|
+| home (theme switch) | 24 ms | 88 ms (80–96) | **80 ms (64–80)** |
+| category | 24 ms | — | 32 ms (OK) |
+| search | 24 ms | — | 32 ms (OK) |
+
+As the trace predicted, this wins about 8–16 ms. The rest is style recalculation and paint of the gradient surfaces (option 3). Home stays well under the 200 ms "good" limit. Going further means option 3 (lighter surfaces), which changes the approved look.
+
 ## Re-run
 
 ```

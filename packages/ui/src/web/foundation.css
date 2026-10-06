@@ -22,6 +22,15 @@ body::before {
    under `prefers-reduced-motion: reduce`, so these classes stop moving there and only short fades remain.
    Only transform, opacity and box-shadow animate (no layout shift). */
 
+/* Theme switch (F-3X18-1, 3X.21d): while `data-theme-switching` is on `<html>` (one frame, set by the web app's
+   applyTheme) nothing transitions, so the new theme's colours, borders and shadows apply at once. */
+[data-theme-switching],
+[data-theme-switching] *,
+[data-theme-switching] *::before,
+[data-theme-switching] *::after {
+  transition: none !important;
+}
+
 /* M-1 / M-5: a control rises 1 px and glows on hover; M-2: it presses in. */
 .mt-motion-control {
   transition:
