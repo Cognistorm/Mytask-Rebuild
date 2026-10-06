@@ -2,6 +2,7 @@
 // the gig search answer from the stand-in API (e2e/fake-catalog.mjs); `/__last-search` returns the last
 // searchGigs query the web server sent.
 import { expect, test } from '@playwright/test';
+import { hydrated } from './base';
 
 const DESIGN = '01900000-0000-7000-8000-0000000c0001';
 const lastSearch = async () => {
@@ -111,9 +112,12 @@ test('filters and sort live in the URL with the legacy names; GEL → tetri for 
   expect(query.get('deliveryTime')).toBe('7');
   expect(query.get('page')).toBe('1');
 
+  // The Filter form loaded a new document (plain submit): the sort menu needs it hydrated. Its link is a client
+  // navigation that waits for the server, which on a full parallel run is busy with the 42 cards' prefetches.
+  await hydrated(page);
   await page.getByTestId('sort-menu').click();
   await page.getByRole('link', { name: 'Price: Low to High' }).click();
-  await expect(page).toHaveURL(/sort_by=price_low_high/);
+  await expect(page).toHaveURL(/sort_by=price_low_high/, { timeout: 20_000 });
   query = await lastSearch();
   expect(query.get('sort')).toBe('price_asc');
   await expect(page.getByTestId('filters').getByLabel('4+ stars')).toBeChecked();

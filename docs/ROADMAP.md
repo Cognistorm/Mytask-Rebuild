@@ -198,6 +198,12 @@ Remaining:
 
 ### 3X.F Verify, review, merge (standard tail)
 - [ ] 3X.18 E2E + visual checks: the full web + admin E2E unchanged and green; new Playwright screenshot checks of the key screens (light, dark, phone width) and a reduced-motion check; axe contrast check; Lighthouse CLS/INP no worse than before 3X.
+  Split 2026-10-06 (four independent checks):
+  - [x] 3X.18a Full web + admin E2E on fresh production builds, unchanged and green (fix only what 3X broke).
+    Done 2026-10-06: fresh builds; web **147 passed / 3 skipped**, admin **21 passed / 6 skipped** (full-stack tests, need `pnpm preview` + `PW_REUSE=1`). No 3X regression found. The one repeatable failure, category "filters and sort", fails the same way on the pre-3X build (`main` 61c4e777, 10–13 of 14 under a stress run): the Filter form submits before hydration, and on a loaded run the sort link's client navigation waits for the server, which is busy with the 42 cards' prefetches. Test fix: new `hydrated(page)` in `e2e/base.ts` (waits for the app router's `__NA` history mark) + 20 s on that one URL check. On this PC, full runs vary from 25 s to 90 s with the load from other apps. The slow runs show unrelated `page.goto` 30 s timeouts. A server load test (300 requests, 24 at a time, catalog/home/search/login) gives the same p50 ≈ 400 ms with no errors on pre-3X and 3X, so 3X did not slow the server. Pre-3X worktree kept at `../mt-pre3x` (built) for 3X.18d.
+  - [ ] 3X.18b Playwright screenshot checks of the key screens (home, category page, search, profile, dashboard, login, admin category form) in light, dark and at phone width (360 px, no horizontal scroll), plus a reduced-motion check (no move, zoom, drift, shimmer or hidden content).
+  - [ ] 3X.18c axe contrast check (`@axe-core/playwright`, `color-contrast` rule) on the same screens, light + dark, 0 violations.
+  - [ ] 3X.18d Lighthouse CLS/INP (TBT as the lab stand-in for INP) on home, category page and search: the commit before 3X vs now, no worse (spec 3X AC-14).
 - [ ] 3X.19 QA report `docs/06-qa/reports/3x-visual-refresh-<date>.md`: structure parity against the screens before 3X (nothing moved), R-1…R-4 met, accessibility, dark mode, reduced motion, web ↔ app consistency.
 - [ ] 3X.20 Security check (short): the admin colour input (enum/validation, no CSS injection), CSP unchanged (no `unsafe-inline` styles), audit entry.
 - [ ] 3X.21 Fix findings from 3X.19/3X.20, then re-check (split into a/b/… when needed).
