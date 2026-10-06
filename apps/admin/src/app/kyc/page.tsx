@@ -7,7 +7,7 @@
 import { useCallback, useState } from 'react';
 import type { components } from '@mytask/types';
 import { Alert, Select, TextArea } from '@mytask/ui/web';
-import { AdminNav } from '../../components/nav';
+import { AdminShell } from '../../components/shell';
 import {
   adminDate,
   decisionError,
@@ -175,8 +175,7 @@ export default function KycQueuePage() {
   const { general } = splitErrors(list.err);
 
   return (
-    <main className="admin-page">
-      <AdminNav onMe={setMe} />
+    <AdminShell onMe={setMe}>
       <h1 className="mt-text-h2">
         {t('t_verifications')}
         {list.total !== null && ` (${list.total})`}
@@ -224,6 +223,6 @@ export default function KycQueuePage() {
           )}
         </section>
       )}
-    </main>
+    </AdminShell>
   );
 }

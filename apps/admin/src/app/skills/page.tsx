@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { components } from '@mytask/types';
 import { Alert, Field, Select } from '@mytask/ui/web';
-import { AdminNav } from '../../components/nav';
+import { AdminShell } from '../../components/shell';
 import { Checkbox, formText, LangPair, saveText } from '../../components/catalog';
 import { splitErrors, t, useAdminApi, type ApiErrorBody } from '../../lib/client';
 
@@ -109,8 +109,7 @@ export default function SkillsPage() {
   const categoryOptions = categories.map((c) => ({ value: c.id, label: c.name.ka }));
 
   return (
-    <main className="admin-page">
-      <AdminNav />
+    <AdminShell>
       <div className="admin-header">
         <h1 className="mt-text-h2">{t('t_skills')}</h1>
         <button
@@ -241,6 +240,6 @@ export default function SkillsPage() {
           </button>
         )}
       </section>
-    </main>
+    </AdminShell>
   );
 }

@@ -2,7 +2,7 @@
 // Banned IPs of the staff login (spec 01 AC-52, P-20): list, add by hand, remove (resets the counter).
 import { useCallback, useEffect, useState } from 'react';
 import type { components } from '@mytask/types';
-import { AdminNav } from '../../components/nav';
+import { AdminShell } from '../../components/shell';
 import { Alert, Field } from '@mytask/ui/web';
 import { splitErrors, t, useAdminApi, type ApiErrorBody } from '../../lib/client';
 
@@ -41,8 +41,7 @@ export default function SecurityPage() {
   }
 
   return (
-    <main className="admin-page">
-      <AdminNav />
+    <AdminShell>
       <h1 className="mt-text-h2">{t('t_banned_ips')}</h1>
       {general && <Alert kind="error">{general}</Alert>}
       <form className="admin-section admin-inline-form" onSubmit={add} noValidate>
@@ -73,6 +72,6 @@ export default function SecurityPage() {
           </ul>
         )}
       </section>
-    </main>
+    </AdminShell>
   );
 }

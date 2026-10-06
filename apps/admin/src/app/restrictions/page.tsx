@@ -6,7 +6,7 @@
 // adminGetRestrictionAppealFileDownload (audited, short-lived signed URL; spec 16 AC-29, R-A8).
 import { useCallback, useEffect, useState } from 'react';
 import type { components } from '@mytask/types';
-import { AdminNav } from '../../components/nav';
+import { AdminShell } from '../../components/shell';
 import { Alert, Field, TextArea } from '@mytask/ui/web';
 import { splitErrors, t, useAdminApi, type ApiErrorBody } from '../../lib/client';
 
@@ -167,8 +167,7 @@ export default function RestrictionsPage() {
   }
 
   return (
-    <main className="admin-page">
-      <AdminNav onMe={setMe} />
+    <AdminShell onMe={setMe}>
       <h1 className="mt-text-h2">{t('t_user_restrictions')}</h1>
 
       {can('users.restrict') && (
@@ -260,6 +259,6 @@ export default function RestrictionsPage() {
           </ul>
         )}
       </section>
-    </main>
+    </AdminShell>
   );
 }

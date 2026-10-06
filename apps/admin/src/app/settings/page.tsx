@@ -4,7 +4,7 @@
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import type { components } from '@mytask/types';
-import { AdminNav } from '../../components/nav';
+import { AdminShell } from '../../components/shell';
 import { Alert, Field, Submit } from '@mytask/ui/web';
 import { AuthCard } from '../../components/ui';
 import { splitErrors, t, useAdminApi, type ApiErrorBody } from '../../lib/client';
@@ -98,8 +98,7 @@ export default function SettingsPage() {
   const areas = [...new Set(rows.map((r) => r.area))];
   const valueOf = (registerId: string) => rows.find((r) => r.registerId === registerId)?.value;
   return (
-    <main className="admin-page">
-      <AdminNav />
+    <AdminShell>
       <h1 className="mt-text-h2">{t('t_settings')}</h1>
       {notice && <Alert kind="success">{notice}</Alert>}
       {err && err.code !== 'REAUTH_REQUIRED' && <Alert kind="error">{err.message}</Alert>}
@@ -125,7 +124,7 @@ export default function SettingsPage() {
           </ul>
         </section>
       ))}
-    </main>
+    </AdminShell>
   );
 }
 

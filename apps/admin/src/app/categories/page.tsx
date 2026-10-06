@@ -9,7 +9,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { nextStarterColor } from '@mytask/tokens/color';
 import type { components } from '@mytask/types';
 import { Alert, Field } from '@mytask/ui/web';
-import { AdminNav } from '../../components/nav';
+import { AdminShell } from '../../components/shell';
 import {
   Checkbox,
   checkColor,
@@ -184,8 +184,7 @@ export default function CategoriesPage() {
     t(depth === 1 ? 't_category' : depth === 2 ? 't_subcategory' : 't_childcategory');
 
   return (
-    <main className="admin-page">
-      <AdminNav />
+    <AdminShell>
       <div className="admin-header">
         <h1 className="mt-text-h2">{t('t_categories')}</h1>
         <button type="button" className="auth-button" onClick={() => open(empty(null))}>
@@ -362,6 +361,6 @@ export default function CategoriesPage() {
           </ul>
         )}
       </section>
-    </main>
+    </AdminShell>
   );
 }

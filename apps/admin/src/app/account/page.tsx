@@ -1,7 +1,7 @@
 'use client';
 // The staff member's own password (spec 16 AC-6): other sessions end, this one stays.
 import { useState } from 'react';
-import { AdminNav } from '../../components/nav';
+import { AdminShell } from '../../components/shell';
 import { Alert, Field, Submit } from '@mytask/ui/web';
 import { splitErrors, t, useAdminApi, type ApiErrorBody } from '../../lib/client';
 
@@ -37,8 +37,7 @@ export default function AccountPage() {
     hideLabel: t('t_ui_hide_password'),
   };
   return (
-    <main className="admin-page">
-      <AdminNav />
+    <AdminShell>
       <h1 className="mt-text-h2">{t('t_change_password')}</h1>
       {done && <Alert kind="success">{t('t_ur_account_password_updated')}</Alert>}
       {general && <Alert kind="error">{general}</Alert>}
@@ -73,6 +72,6 @@ export default function AccountPage() {
         />
         <Submit busy={busy}>{t('t_change_password')}</Submit>
       </form>
-    </main>
+    </AdminShell>
   );
 }

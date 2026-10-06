@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { components } from '@mytask/types';
 import { Alert, Field, Select } from '@mytask/ui/web';
-import { AdminNav } from '../../components/nav';
+import { AdminShell } from '../../components/shell';
 import {
   Checkbox,
   ColorDot,
@@ -115,8 +115,7 @@ export default function ProjectCategoriesPage() {
   }
 
   return (
-    <main className="admin-page">
-      <AdminNav />
+    <AdminShell>
       <div className="admin-header">
         <h1 className="mt-text-h2">{t('t_project_categories')}</h1>
         <button type="button" className="auth-button" onClick={() => open(EMPTY)}>
@@ -246,6 +245,6 @@ export default function ProjectCategoriesPage() {
           </ul>
         )}
       </section>
-    </main>
+    </AdminShell>
   );
 }
