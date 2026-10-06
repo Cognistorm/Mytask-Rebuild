@@ -138,9 +138,26 @@
   text-decoration: none;
 }
 
+/* 3X.14c: the tile responds like the cards (brand tint, soft glow, 3 px lift on pointer devices). */
+.mt-pf-add a {
+  transition:
+    transform var(--mt-motion-duration-base) var(--mt-motion-easing-standard),
+    box-shadow var(--mt-motion-duration-base) var(--mt-motion-easing-standard),
+    border-color var(--mt-motion-duration-base) var(--mt-motion-easing-standard),
+    color var(--mt-motion-duration-base) var(--mt-motion-easing-standard);
+}
+
 .mt-pf-add a:hover {
   color: var(--mt-text-link);
   border-color: var(--mt-border-brand);
+  background: linear-gradient(180deg, var(--mt-cat-tint) 0%, var(--mt-cat-tint-strong) 100%);
+  box-shadow: var(--mt-glow-brand-soft);
+}
+
+@media (hover: hover) {
+  .mt-pf-add a:hover {
+    transform: translateY(calc(-1 * var(--mt-motion-distance-lift-card)));
+  }
 }
 
 .mt-pf-add a:focus-visible {

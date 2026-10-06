@@ -11,7 +11,7 @@
    - Danger:    .mt-button-danger
    - Ghost:     .auth-link-button, .mt-pf-link-button (actions, not links), .mt-menu-button (header menu triggers; the
                 search pill's category trigger stays flush inside the pill, site.css), .mt-home-see-more (home rows,
-                in the row's category ink, home.css), .mt-dialog-close, .mt-info-button
+                in the row's category ink, home.css), button.mt-edit-link (edit pages, 3X.14c), .mt-dialog-close, .mt-info-button
    - Accent:    .mt-button-accent (reserved for Premium/invite, later slices)
    .mt-link-button (ExpandableText "more/less" inside prose) stays a text link. */
 
@@ -27,6 +27,7 @@
   .mt-pf-link-button,
   .mt-menu-button,
   .mt-home-see-more,
+  .mt-edit-link:where(button):not(:where(.mt-edit-links *)),
   .mt-dialog-close,
   .mt-info-button
 ) {
@@ -65,6 +66,7 @@
   .mt-pf-link-button,
   .mt-menu-button,
   .mt-home-see-more,
+  .mt-edit-link:where(button):not(:where(.mt-edit-links *)),
   .mt-dialog-close,
   .mt-info-button
 )::before {
@@ -119,6 +121,7 @@
   .mt-pf-link-button,
   .mt-menu-button,
   .mt-home-see-more,
+  .mt-edit-link:where(button):not(:where(.mt-edit-links *)),
   .mt-dialog-close,
   .mt-info-button
 ) {
@@ -134,6 +137,16 @@
 /* Menu triggers (Explore, Sort, "More") label with the normal text colour: they name a menu, not an action. */
 .mt-menu-button {
   --mt-btn-text: var(--mt-text-primary);
+}
+
+/* Edit-page row and block actions ("Edit", "Delete", 3X.14c): compact Ghost buttons; Delete in the danger colour.
+   (The same class on a link, or inside the account card's link list, keeps its link look: edit.css.) */
+.mt-edit-link-danger {
+  --mt-btn-text: var(--mt-text-danger);
+  --mt-btn-border-hover: var(--mt-border-danger);
+  --mt-btn-bg-hover: linear-gradient(var(--mt-feedback-danger-bg), var(--mt-feedback-danger-bg));
+  --mt-btn-glow: var(--mt-glow-danger);
+  --mt-btn-glow-focus: var(--mt-glow-danger);
 }
 
 /* Icon-only ghosts keep their quieter icon colour. */
@@ -167,6 +180,7 @@
       .mt-pf-link-button,
       .mt-menu-button,
       .mt-home-see-more,
+      .mt-edit-link:where(button):not(:where(.mt-edit-links *)),
       .mt-dialog-close,
       .mt-info-button
     ):hover:not(:disabled, [aria-disabled='true']) {
@@ -186,6 +200,7 @@
       .mt-pf-link-button,
       .mt-menu-button,
       .mt-home-see-more,
+      .mt-edit-link:where(button):not(:where(.mt-edit-links *)),
       .mt-dialog-close,
       .mt-info-button
     ):hover:not(:disabled, [aria-disabled='true'])::before {
@@ -205,6 +220,7 @@
   .mt-pf-link-button,
   .mt-menu-button,
   .mt-home-see-more,
+  .mt-edit-link:where(button):not(:where(.mt-edit-links *)),
   .mt-dialog-close,
   .mt-info-button
 ):focus-visible {
@@ -223,6 +239,7 @@
     .mt-pf-link-button,
     .mt-menu-button,
     .mt-home-see-more,
+    .mt-edit-link:where(button):not(:where(.mt-edit-links *)),
     .mt-dialog-close,
     .mt-info-button
   ):active:not(:disabled, [aria-disabled='true']) {
@@ -242,6 +259,7 @@
     .mt-pf-link-button,
     .mt-menu-button,
     .mt-home-see-more,
+    .mt-edit-link:where(button):not(:where(.mt-edit-links *)),
     .mt-dialog-close,
     .mt-info-button
   ):active::before {
@@ -261,6 +279,7 @@
   .mt-pf-link-button,
   .mt-menu-button,
   .mt-home-see-more,
+  .mt-edit-link:where(button):not(:where(.mt-edit-links *)),
   .mt-dialog-close,
   .mt-info-button
 ):is(:disabled, [aria-disabled='true']) {
@@ -272,10 +291,15 @@
 }
 
 /* Ghosts stay transparent when disabled ("Resend code in 30 s"): only the text and border fade. */
-:is(.auth-link-button, .mt-pf-link-button, .mt-menu-button, .mt-dialog-close, .mt-info-button):is(
-  :disabled,
-  [aria-disabled='true']
-) {
+:is(
+  .auth-link-button,
+  .mt-pf-link-button,
+  .mt-menu-button,
+  .mt-home-see-more,
+  .mt-edit-link:where(button):not(:where(.mt-edit-links *)),
+  .mt-dialog-close,
+  .mt-info-button
+):is(:disabled, [aria-disabled='true']) {
   background: transparent;
   color: var(--mt-text-disabled);
 }

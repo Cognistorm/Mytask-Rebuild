@@ -38,6 +38,20 @@
     var(--mt-gradient-surface);
 }
 
+/* M-14 (3X.14c): a form card or edit block that has just saved (its success alert appears) glows success once, so
+   the eye finds the block that changed; the alert itself fades in (M-15). Under reduced motion the glow only fades
+   (durations capped). */
+:is(.mt-edit-block, .mt-edit-card, .mt-pf-card, .auth-card):has(.auth-alert-success) {
+  animation: mt-saved-glow calc(2 * var(--mt-motion-duration-slower))
+    var(--mt-motion-easing-standard);
+}
+
+@keyframes mt-saved-glow {
+  30% {
+    box-shadow: var(--mt-glow-success), var(--mt-elevation-sm);
+  }
+}
+
 /* ---- Interactive cards (M-3, M-4): lift 3 px, a stronger shadow with a soft brand glow, a brand-tinted border; the
    media zooms inside its frame. Box-shadow transitions directly: these cards clip their media (`overflow: hidden`),
    which would also clip a separate outside shadow layer. Reduced motion: the lift and zoom are 0 (motion variables),

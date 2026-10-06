@@ -5,16 +5,28 @@
   text-align: start;
 }
 
-/* Legacy sidebar: the current page is marked with the brand colour and a start border. */
+/* Legacy sidebar: the current page is marked with a start bar. 3X.14c: as the dashboard sidebar (brand tint fading
+   out towards the end, 3 px brand bar; the ghost gradient on hover). */
 .mt-account-nav .mt-edit-links a {
   padding-inline-start: var(--mt-space-3);
-  border-inline-start: var(--mt-border-width-strong) solid transparent;
+  border-inline-start: calc(3 * var(--mt-border-width-hairline)) solid transparent;
+  border-radius: var(--mt-radius-control);
+  transition: background-color var(--mt-motion-duration-fast) var(--mt-motion-easing-standard);
+}
+
+.mt-account-nav .mt-edit-links a:hover {
+  background: var(--mt-gradient-action-ghost-hover);
 }
 
 .mt-account-nav .mt-edit-links a[aria-current='page'] {
   border-inline-start-color: var(--mt-border-brand);
+  background: linear-gradient(90deg, var(--mt-cat-tint-strong) 0%, var(--mt-cat-tint) 100%);
   color: var(--mt-text-primary);
   font-weight: var(--mt-font-weight-semibold);
+}
+
+[dir='rtl'] .mt-account-nav .mt-edit-links a[aria-current='page'] {
+  background: linear-gradient(270deg, var(--mt-cat-tint-strong) 0%, var(--mt-cat-tint) 100%);
 }
 
 .mt-account-nav .mt-edit-link {
