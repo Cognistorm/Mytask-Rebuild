@@ -108,13 +108,20 @@ Remaining:
   - how strong the motion should be;
   - does dark mode get its own gradients.
   Done 2026-10-06: brief **approved** in `docs/02-specs/3x-visual-refresh.md` (R-1…R-4, AC-1…AC-16, EC-1…EC-5, must-not-change list, screen inventory → task per screen). Owner answers the same day, Q-169…Q-173: free colour picker (readability guaranteed by derived shades from one shared function in `packages/tokens`); unique top-level colours (exact duplicate refused, very similar warned); sub-categories and project categories inherit; moderate motion (≤ 400 ms, lift ≤ 4 px, scale ≤ 1.03); own dark-mode gradients. Handoff `docs/handoffs/2026-10-06-orchestrator-to-ui-ux-designer-3x-1-visual-refresh-brief.md`.
-- [ ] 3X.2 Designer: visual language `docs/05-design/visual-refresh.md`. It defines:
+- [x] 3X.2 Designer: visual language `docs/05-design/visual-refresh.md`. It defines:
   - the gradient system (page canvas, surfaces, hero, cards);
   - buttons (primary / secondary / accent / danger / ghost / icon): border plus inner gradient, with hover, pressed, focus-glow, disabled and loading states;
   - chips, tabs, inputs, switches;
   - the glow states;
   - the motion catalogue (hover lift, press, card entrance + stagger, skeleton shimmer, menu and dialog transitions, toast, success feedback), with durations and easings and the reduced-motion version of each;
   - the category colour rules: the starter palette (distinct colours, one per existing top-level category, plus spares), the derivation function spec (text-on colour, soft tint, gradient ends, dark variants, indicator shade — spec 3X R-1.4) and the "very similar" threshold (R-1.3).
+  Done 2026-10-06: `docs/05-design/visual-refresh.md` (proposed; Owner approves the look in 3X.4). Contents:
+  - "teal, lit from within": fixed-layer canvas gradients light + dark, near-solid cards with radius 16, translucent blurred header, hero gradient with an optional 18 s drift;
+  - buttons: border + inner gradient + highlight for primary / secondary / accent / danger / ghost / icon / social, every state, mapped onto the existing classes (no renames);
+  - glows, chips/tabs/switcher/forms/overlays, motion catalogue M-1…M-18 within the brief's bounds, with one reduced-motion switch;
+  - category colours: a starter palette of 7 + 5 spares (ΔE ≥ 0.124 between the starters), `deriveCategoryColor` (OKLCH; text ≥ 4.5 on both gradient ends, ink ≥ 4.5, indicator ≥ 3, light + dark; 4,096-colour stress test 0 failures), similar warning ΔE < 0.08, reserved-colour warning ΔE < 0.06, the category bar / mega-menu / tile / page header treatments, the admin picker;
+  - mobile notes, tokens to add in 3X.6.
+  Evidence scripts in `docs/05-design/refresh/` (button/canvas/hero contrast 0 failures). Handoff `docs/handoffs/2026-10-06-ui-ux-designer-to-ui-ux-designer-3x-2-visual-language.md`.
 - [ ] 3X.3 Designer: interactive preview `docs/05-design/preview/refresh.html`. Old vs new for the header + category bar + mega-menu, home (hero, featured categories, gig cards, category rows), category page, search, profile, dashboard, auth card and the admin category form with the colour picker (hex field, starter swatches, live light/dark preview, duplicate/similar messages). It also includes a light/dark switch, a reduced-motion switch and a phone-width view. Contrast and no-horizontal-scroll checks run in headless Chromium.
 - [ ] 3X.4 **Owner review of the look** (preview + answers to the 3X.1 questions). Adjust until approved. Nothing below starts before this approval.
 
