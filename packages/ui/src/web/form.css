@@ -58,8 +58,13 @@
   cursor: pointer;
 }
 
-/* The Primary look and its states: buttons.css (3X.9a). */
+/* The Primary look and its states: buttons.css (3X.9a). Busy (a request on its way) shows progress; not ready yet
+   (`ready={false}`) is simply not pressable (3X.14a). */
 .auth-button[disabled] {
+  cursor: not-allowed;
+}
+
+.auth-button[aria-busy='true'] {
   cursor: progress;
 }
 

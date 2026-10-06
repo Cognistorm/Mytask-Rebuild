@@ -279,3 +279,42 @@
   background: transparent;
   color: var(--mt-text-disabled);
 }
+
+/* Busy (§4.3, 3X.14a): the Submit component marks a request on its way with `aria-busy`. The button keeps its own look
+   (not the flat disabled one) and its label (the width does not change), with a small spinner at the start; it is
+   not pressable. The spinner turns in 800 ms; under reduced motion it stands still (a partial ring). A Submit that is
+   only not ready yet (`ready={false}`) keeps the disabled look above. */
+.auth-button[aria-busy='true']:disabled {
+  border-color: var(--mt-btn-border);
+  background: var(--mt-btn-bg);
+  color: var(--mt-btn-text);
+  box-shadow: var(--mt-btn-rest), var(--mt-btn-highlight);
+  cursor: progress;
+}
+
+.auth-button[aria-busy='true']::after {
+  content: '';
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-start: var(--mt-space-3);
+  box-sizing: border-box;
+  inline-size: var(--mt-space-4);
+  block-size: var(--mt-space-4);
+  margin-block-start: calc(-0.5 * var(--mt-space-4));
+  border: var(--mt-border-width-strong) solid currentColor;
+  border-inline-end-color: transparent;
+  border-radius: var(--mt-radius-full);
+  animation: mt-button-spin calc(2 * var(--mt-motion-duration-slower)) linear infinite;
+}
+
+@keyframes mt-button-spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-button[aria-busy='true']::after {
+    animation: none;
+  }
+}

@@ -227,7 +227,7 @@ export default function SessionsPage() {
             )
           )}
           {(me?.hasPassword || challenge) && (
-            <Submit busy={busy || (!!challenge && code.length !== 6)}>
+            <Submit busy={busy} ready={!challenge || code.length === 6}>
               {t('t_logout_other_browser_sessions')}
             </Submit>
           )}

@@ -239,7 +239,7 @@ export function AccountSettings() {
                 </div>
               )}
               <div className="mt-edit-buttons">
-                <Submit busy={busy || (needsCode && (!challenge || code.length !== 6))}>
+                <Submit busy={busy} ready={!needsCode || (!!challenge && code.length === 6)}>
                   {t('t_update')}
                 </Submit>
               </div>

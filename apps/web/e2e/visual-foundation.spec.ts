@@ -161,3 +161,23 @@ test('catalog: the category page carries its colour (band, breadcrumb chips); ex
   const chip = page.getByRole('link', { name: 'Web development' });
   await expect(chip).toHaveAttribute('data-category-theme', '#2563EB');
 });
+
+test('Submit: busy shows a spinner on the button look; an incomplete form is only not ready', async ({
+  page,
+}) => {
+  await page.goto('/auth/login');
+  // Hold the login request so the busy state stays.
+  await page.route('**/auth/login', (route) =>
+    route.request().method() === 'POST' ? undefined : route.continue(),
+  );
+  await page.getByLabel('ელ-ფოსტა').fill('a@b.ge');
+  await page.getByLabel('პაროლი', { exact: true }).fill('password123');
+  const submit = page.getByRole('button', { name: 'ავტორიზაცია' });
+  await submit.click();
+  await expect(submit).toHaveAttribute('aria-busy', 'true');
+  await expect(submit).toBeDisabled();
+  expect(await submit.evaluate((el) => getComputedStyle(el, '::after').content)).not.toBe('none');
+  expect(await submit.evaluate((el) => getComputedStyle(el).backgroundImage)).toContain(
+    'linear-gradient',
+  );
+});

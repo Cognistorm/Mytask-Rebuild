@@ -4,7 +4,7 @@
   display: grid;
   place-items: start center;
   padding: var(--mt-space-8) var(--mt-space-4);
-  background: var(--mt-bg-canvas);
+  /* No own background: the gradient page canvas (foundation.css, 3X.8) shows behind the card (3X.14a). */
 }
 
 .auth-card {

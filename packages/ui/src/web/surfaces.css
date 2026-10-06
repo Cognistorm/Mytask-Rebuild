@@ -30,6 +30,14 @@
   box-shadow: var(--mt-elevation-sm), var(--mt-highlight-surface);
 }
 
+/* The auth card (login, register, 2FA, reset, verify; web and admin) carries the 4 px brand gradient strip along its
+   top, as the dialogs do (visual-refresh.md §12, 3X.14a). A background layer, so it follows the rounded corners. */
+.auth-card {
+  background:
+    var(--mt-gradient-brand-strip) top / 100% var(--mt-space-1) no-repeat,
+    var(--mt-gradient-surface);
+}
+
 /* ---- Interactive cards (M-3, M-4): lift 3 px, a stronger shadow with a soft brand glow, a brand-tinted border; the
    media zooms inside its frame. Box-shadow transitions directly: these cards clip their media (`overflow: hidden`),
    which would also clip a separate outside shadow layer. Reduced motion: the lift and zoom are 0 (motion variables),
