@@ -89,7 +89,8 @@ test('guest sees the full profile (en): card, notice, ratings, about, portfolio 
   await expect(page.getByTestId('rating-client')).toContainText('No reviews yet');
 
   // About me folds with More / Less (AC-18).
-  const more = page.getByRole('button', { name: 'More' });
+  // (Scoped to the page content: the header's category bar may show its own "More ▾", 3X.10.)
+  const more = page.locator('#mt-content').getByRole('button', { name: 'More' });
   await expect(more).toHaveAttribute('aria-expanded', 'false');
   await more.click();
   await expect(page.getByRole('button', { name: 'Less' })).toHaveAttribute('aria-expanded', 'true');

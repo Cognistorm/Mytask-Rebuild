@@ -166,7 +166,9 @@ export default function AccountPage() {
               <Alert kind="info">{challenge.notice.message}</Alert>
               <CodeInput label={t('t_ui_verification_code')} value={code} onChange={setCode} />
               {fields.code && <p className="auth-error">{fields.code}</p>}
-              <Submit busy={busy || code.length !== 6}>{t('t_submit')}</Submit>
+              <Submit busy={busy} ready={code.length === 6}>
+                {t('t_submit')}
+              </Submit>
               <div className="auth-row">
                 <button
                   type="button"

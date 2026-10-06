@@ -59,7 +59,9 @@ export function TwoFactorStep({
       {err && <Alert kind="error">{err.message}</Alert>}
       <form onSubmit={onVerify} noValidate>
         <CodeInput label={t('t_ui_verification_code')} value={code} onChange={setCode} />
-        <Submit busy={busy || code.length !== 6}>{t('t_continue')}</Submit>
+        <Submit busy={busy} ready={code.length === 6}>
+          {t('t_continue')}
+        </Submit>
       </form>
       <div className="auth-row">
         <button type="button" className="auth-link-button" disabled={wait > 0} onClick={onResend}>

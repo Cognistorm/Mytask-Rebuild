@@ -24,6 +24,7 @@
     "@aws-sdk/s3-request-presigner": "3.1144.0",
     "@mytask/i18n": "workspace:*",
     "@mytask/rich-text": "workspace:*",
+    "@mytask/tokens": "workspace:*",
     "@nestjs/common": "11.2.7",
     "@nestjs/core": "11.2.7",
     "@nestjs/platform-express": "11.2.7",

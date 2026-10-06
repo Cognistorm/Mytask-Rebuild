@@ -3,7 +3,7 @@
 
 **Status: approved by the Owner on 2026-09-30 as the contract (Phase 2 gate), version 1.0.0.** From now on **every change to the contract needs an ADR** in `docs/03-architecture/adr/` (Context / Decision / Alternatives / Consequences) **and a handoff to the backend, web and mobile engineers** (CLAUDE.md golden rule 2). Additive changes only within `/api/v1` (ADR-014 §5); breaking changes are checked with `oasdiff` in CI. The approved 1.0.0 baseline already contains the Owner's gate answers (Q-109…Q-121, Q-137, Q-144…Q-146) and the P2-B5 re-check fixes SEC-30, SEC-31 and SEC-32, applied on 2026-09-30 (`docs/handoffs/2026-09-30-solution-architect-to-orchestrator-gate-answers.md`).
 
-Changes after approval (additive, each with an ADR and a handoff): **1.1.0** mobile version gate (ADR-018, Q-153); **1.2.0** social-login settings S-065…S-069 as `structured` values `SettingSocialProviderValue` / `SettingSocialProviderUpdate` / `SettingSecretStatus` (ADR-005 §8, Q-155) and the trusted-email rule in `completeSocialLogin` (ADR-002 §7, Q-156) — `docs/handoffs/2026-09-30-solution-architect-to-backend-engineer-social-settings-contract.md`.
+Changes after approval (additive, each with an ADR and a handoff): **1.1.0** mobile version gate (ADR-018, Q-153); **1.2.0** social-login settings S-065…S-069 as `structured` values `SettingSocialProviderValue` / `SettingSocialProviderUpdate` / `SettingSecretStatus` (ADR-005 §8, Q-155) and the trusted-email rule in `completeSocialLogin` (ADR-002 §7, Q-156) — `docs/handoffs/2026-09-30-solution-architect-to-backend-engineer-social-settings-contract.md`. Later versions are listed in `src/openapi.base.yaml` (`info.description`); the latest is **1.4.0** category colours (ADR-023, spec 3X R-1; NEW spec 03 AC-38, AC-39 and spec 16 AC-60a, AC-61a → 719 ACs) — `docs/handoffs/2026-10-06-solution-architect-to-ui-ux-designer-3x-5-category-colours.md`.
 
 Status (2026-09-30): **approved, 1.0.0** — P2-B4 (foundation, six group runs D1…D6, integration run), the P2-B5 security fixes and the Owner's gate answers. The contract has **477 operations on 398 paths, 768 component schemas, 34 realtime events** (+ `file.processed`), and covers **all 715 acceptance criteria of the 18 specs** (707 at P2-B4 + NEW 01 AC-53…AC-55, 02 AC-42, 14 AC-21…AC-23, 16 AC-74a). P-135, P-136 and P-137 are accepted. `npm run verify:final`: 0 errors, 0 warnings.
 
@@ -60,7 +60,7 @@ Gate item 7: every approved AC is covered exactly once per coverage file — `AP
 | 00 | Platform rules (cross-cutting) | D1 | 26 | 15 | 11 | 0 | 0 | [coverage/00.md](coverage/00.md) |
 | 01 | Auth and accounts | D1 | 55 | 55 | 0 | 0 | 0 | [coverage/01.md](coverage/01.md) |
 | 02 | Profiles and dashboards | D1 | 42 | 35 | 7 | 0 | 0 | [coverage/02.md](coverage/02.md) |
-| 03 | Categories and search | D2 | 37 | 33 | 4 | 0 | 0 | [coverage/03.md](coverage/03.md) |
+| 03 | Categories and search | D2 | 39 | 35 | 4 | 0 | 0 | [coverage/03.md](coverage/03.md) |
 | 04 | Gigs | D2 | 39 | 37 | 2 | 0 | 0 | [coverage/04.md](coverage/04.md) |
 | 05 | Payments and wallet | D3 | 47 | 46 | 1 | 0 | 0 | [coverage/05.md](coverage/05.md) |
 | 06 | Gig orders | D4 | 45 | 43 | 2 | 0 | 0 | [coverage/06.md](coverage/06.md) |
@@ -73,9 +73,9 @@ Gate item 7: every approved AC is covered exactly once per coverage file — `AP
 | 13 | Refunds, disputes and unblock requests | D4 | 34 | 32 | 2 | 0 | 0 | [coverage/13.md](coverage/13.md) |
 | 14 | Withdrawals | D3 | 23 | 23 | 0 | 0 | 0 | [coverage/14.md](coverage/14.md) |
 | 15 | Notifications (catalogue, channels, notification centre, preferences, push) | D6 | 39 | 19 | 20 | 0 | 0 | [coverage/15.md](coverage/15.md) |
-| 16 | Admin panel (admin.mytask.ge): staff, RBAC, audit, moderation, users, money, fees, settings, content, analytics, logs | D6 | 79 | 74 | 5 | 0 | 0 | [coverage/16.md](coverage/16.md) |
+| 16 | Admin panel (admin.mytask.ge): staff, RBAC, audit, moderation, users, money, fees, settings, content, analytics, logs | D6 | 81 | 76 | 5 | 0 | 0 | [coverage/16.md](coverage/16.md) |
 | 17 | Content and SEO: CMS pages, Terms & Privacy, blog, contact, newsletter, home content, `/gita`, SEO meta, sitemap, robots, redirects | D2 | 47 | 35 | 12 | 0 | 0 | [coverage/17.md](coverage/17.md) |
-| **All** | | | **715** | **629** | **86** | **0** | **0** | |
+| **All** | | | **719** | **633** | **86** | **0** | **0** | |
 
 Breakdown by coverage kind (gate answers applied 2026-09-30):
 
@@ -84,7 +84,7 @@ Breakdown by coverage kind (gate answers applied 2026-09-30):
 | 00 | 26 | 13 | 2 | – | 2 | – | 3 | 1 | 4 | 1 |
 | 01 | 55 | 55 | – | – | – | – | – | – | – | – |
 | 02 | 42 | 34 | 1 | 6 | – | – | – | – | 1 | – |
-| 03 | 37 | 33 | – | 3 | – | – | 1 | – | – | – |
+| 03 | 39 | 35 | – | 3 | – | – | 1 | – | – | – |
 | 04 | 39 | 37 | – | 2 | – | – | – | – | – | – |
 | 05 | 47 | 38 | 8 | – | – | – | 1 | – | – | – |
 | 06 | 45 | 38 | 5 | 1 | – | 1 | – | – | – | – |
@@ -97,8 +97,8 @@ Breakdown by coverage kind (gate answers applied 2026-09-30):
 | 13 | 34 | 29 | 3 | – | – | 1 | – | 1 | – | – |
 | 14 | 23 | 22 | 1 | – | – | – | – | – | – | – |
 | 15 | 39 | 17 | 2 | 4 | 5 | 4 | 1 | 1 | 5 | – |
-| 16 | 79 | 73 | 1 | – | – | – | 1 | 1 | 3 | – |
+| 16 | 81 | 75 | 1 | – | – | – | 1 | 1 | 3 | – |
 | 17 | 47 | 35 | – | 5 | 1 | – | 4 | 2 | – | – |
-| **All** | **715** | **594** | **35** | **24** | **14** | **7** | **12** | **11** | **16** | **2** |
+| **All** | **719** | **598** | **35** | **24** | **14** | **7** | **12** | **11** | **16** | **2** |
 
 Spec 05 AC-44…AC-47 (reconciliation), the S-128 setting (area `payments`), spec 00 R-5.3a / spec 04 AC-5 / spec 10 AC-3…AC-4 (Georgian-field rule) and spec 04 AC-32 ("You may also like") follow P-135, P-136 and P-137, **accepted by the Owner on 2026-09-30** (Q-109…Q-111, Q-137); their operations are binding.

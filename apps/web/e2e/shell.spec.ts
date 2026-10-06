@@ -18,6 +18,16 @@ test('/ka is not a public URL: 301 to the unprefixed page', async ({ request }) 
   expect(new URL(res.headers()['location']!, 'http://x').pathname).toBe('/');
 });
 
+test('a guessed internal rewrite marker does not skip the proxy (3X.15b)', async ({ request }) => {
+  const res = await request.get('/ka/login', {
+    maxRedirects: 0,
+    headers: { 'x-mt-rewritten': 'guess' },
+  });
+  expect(res.status()).toBe(301);
+  const page = await request.get('/', { headers: { 'x-mt-rewritten': 'guess' } });
+  expect(page.headers()['content-security-policy']).toContain("'nonce-");
+});
+
 test('trailing slash and /ka prefix are fixed in one 301 hop (url-map §1, QA P3 BUG-11)', async ({
   request,
 }) => {

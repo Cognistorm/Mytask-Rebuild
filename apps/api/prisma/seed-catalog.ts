@@ -4,6 +4,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Prisma, PrismaClient } from '../src/generated/prisma/client';
+import { firstUnusedStarter } from '../src/modules/catalog/category-colors';
 
 type SeedName = { slug: string; ka: string; en: string };
 type SeedCategory = SeedName & { children?: SeedCategory[] };
@@ -28,16 +29,28 @@ async function addCategories(
   nodes: SeedCategory[],
   parentId: string | null,
   topIds: Map<string, string>,
+  usedColors: Set<string | null>,
 ): Promise<number> {
   let count = 0;
   for (const [position, c] of nodes.entries()) {
     const row = await tx.gigCategory.create({
-      // `depth` is set by the database trigger from the parent.
-      data: { parentId, depth: 1, slug: c.slug, position, translations: names(c) },
+      // `depth` is set by the database trigger from the parent. Top-level categories get the first unused starter
+      // colour: in an empty catalogue that is position order, as the 3X.7 migration does (ADR-023 §4).
+      data: {
+        parentId,
+        depth: 1,
+        slug: c.slug,
+        position,
+        color: parentId ? null : firstUnusedStarter(usedColors),
+        translations: names(c),
+      },
     });
     count += 1;
-    if (!parentId) topIds.set(c.slug, row.id);
-    if (c.children) count += await addCategories(tx, c.children, row.id, topIds);
+    if (!parentId) {
+      topIds.set(c.slug, row.id);
+      usedColors.add(row.color);
+    }
+    if (c.children) count += await addCategories(tx, c.children, row.id, topIds, usedColors);
   }
   return count;
 }
@@ -48,7 +61,17 @@ export async function loadCatalog(
   catalog: SeedCatalog,
 ): Promise<number> {
   const topIds = new Map<string, string>();
-  const count = await addCategories(tx, catalog.gigCategories, null, topIds);
+  const used = await tx.gigCategory.findMany({
+    where: { depth: 1, color: { not: null } },
+    select: { color: true },
+  });
+  const count = await addCategories(
+    tx,
+    catalog.gigCategories,
+    null,
+    topIds,
+    new Set(used.map((r) => r.color)),
+  );
   for (const [position, p] of catalog.projectCategories.entries()) {
     await tx.projectCategory.create({
       data: {

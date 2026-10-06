@@ -17,6 +17,7 @@ import {
   MenuButton,
   NavDrawer,
   SiteIcon,
+  type LinkComponent,
   type NavNode,
 } from '@mytask/ui/web';
 import { localePath } from '../../lib/category-nav';
@@ -25,6 +26,12 @@ import type { PublicConfig, Viewer } from '../../lib/site-data';
 import type { ThemeChoice } from '../../lib/theme';
 import { applyTheme } from '../../lib/theme-client';
 import { dashboardHome } from '../dashboard/nav';
+
+/**
+ * The category bar's names are links (Owner 2026-10-06). Prefetching every top-level category page on each page
+ * view queued a dozen requests ahead of the visitor's own clicks, so these links fetch only when clicked.
+ */
+const BarLink: LinkComponent = (props) => <Link prefetch={false} {...props} />;
 
 export interface HeaderProps {
   locale: Locale;
@@ -84,6 +91,9 @@ export function SiteHeaderClient(props: HeaderProps) {
     window.addEventListener('scroll', update, { passive: true });
     return () => window.removeEventListener('scroll', update);
   }, [home]);
+  // The top-level category whose pages are shown gets the filled pill in the category bar (visual-refresh.md §8.4).
+  const currentCategory =
+    categories.find((c) => pathname === c.href || pathname?.startsWith(`${c.href}/`))?.id ?? null;
   const desktopInput = useRef<HTMLInputElement>(null);
   useEffect(() => {
     const q = /\/search$/.test(pathname ?? '')
@@ -258,9 +268,9 @@ export function SiteHeaderClient(props: HeaderProps) {
         <CategoryBar
           label={t('t_categories')}
           moreLabel={t('t_more')}
-          browseLabel={(category) => t('t_browse_parent_category', { category })}
           items={categories}
-          Link={Link}
+          currentId={currentCategory}
+          Link={BarLink}
         />
       )}
 

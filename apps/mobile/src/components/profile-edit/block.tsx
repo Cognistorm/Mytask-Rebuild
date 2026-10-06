@@ -5,6 +5,7 @@ import { useCallback, useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { lightTheme as theme } from '@mytask/tokens/native';
+import { Card, Radio } from '../../ui';
 import { Notice } from '../form';
 import type { ApiError } from '../reauth';
 
@@ -16,7 +17,7 @@ export function Block(props: {
   testID?: string;
 }) {
   return (
-    <View style={s.block} testID={props.testID}>
+    <Card style={s.block} testID={props.testID}>
       <View style={s.head}>
         <View style={s.headText}>
           <Text style={s.title} accessibilityRole="header">
@@ -27,7 +28,7 @@ export function Block(props: {
         {props.action}
       </View>
       {props.children}
-    </View>
+    </Card>
   );
 }
 
@@ -66,7 +67,11 @@ export function BlockMessage({ ok, general }: { ok?: string; general?: string })
 const PENCIL =
   'm227.31 73.37-44.68-44.69a16 16 0 0 0-22.63 0L36.69 152A15.86 15.86 0 0 0 32 163.31V208a16 16 0 0 0 16 16h44.69a15.86 15.86 0 0 0 11.31-4.69L227.31 96a16 16 0 0 0 0-22.63ZM92.69 208H48v-44.69l88-88L180.69 120ZM192 108.68 147.31 64l24-24L216 84.68Z';
 
-/** Small text button with a pencil (legacy "Edit" / "Set availability" links in the block head). */
+/**
+ * Small button with a pencil (legacy "Edit" / "Set availability" links in the block head). 3X look (as the web
+ * `button.mt-edit-link`, 3X.14c): a compact Ghost button, 36 high with a 44 hit area; Delete in the danger colour
+ * with a danger tint while pressed.
+ */
 export function EditLink(props: {
   label: string;
   onPress: () => void;
@@ -79,13 +84,18 @@ export function EditLink(props: {
   const color = props.danger ? theme.colors.text.danger : theme.colors.text.link;
   return (
     <Pressable
-      style={s.link}
+      style={({ pressed }) => [
+        s.link,
+        props.danger ? s.linkDanger : null,
+        pressed ? (props.danger ? s.linkDangerPressed : s.linkPressed) : null,
+        props.disabled ? s.linkDisabled : null,
+      ]}
       onPress={props.onPress}
       disabled={props.disabled}
       accessibilityRole="button"
       accessibilityLabel={props.accessibilityLabel}
       accessibilityState={{ disabled: !!props.disabled }}
-      hitSlop={theme.space[2]}
+      hitSlop={(theme.size.touchTarget.min - theme.size.control.sm) / 2}
       testID={props.testID}
     >
       {props.danger ? null : (
@@ -119,9 +129,7 @@ export function RadioGroup<V extends string>(props: {
             accessibilityRole="radio"
             accessibilityState={{ checked }}
           >
-            <View style={[s.radioOuter, checked ? s.radioOuterOn : null]}>
-              {checked ? <View style={s.radioInner} /> : null}
-            </View>
+            <Radio checked={checked} />
             <Text style={s.radioText}>{o.label}</Text>
           </Pressable>
         );
@@ -146,10 +154,6 @@ export const ButtonCell = ({ children }: { children: ReactNode }) => (
 
 const s = StyleSheet.create({
   block: {
-    backgroundColor: theme.colors.bg.surface,
-    borderWidth: theme.borderWidth.hairline,
-    borderColor: theme.colors.border.default,
-    borderRadius: theme.radius.card,
     padding: theme.space[4],
     gap: theme.space[3],
   },
@@ -161,8 +165,16 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: theme.space[1],
-    minHeight: theme.space[6],
+    minHeight: theme.size.control.sm,
+    paddingHorizontal: theme.space[2],
+    borderWidth: theme.borderWidth.hairline,
+    borderColor: theme.colors.border.action.ghost,
+    borderRadius: theme.radius.control,
   },
+  linkPressed: { backgroundColor: theme.colors.action.ghostHover },
+  linkDanger: { borderColor: theme.colors.feedback.dangerBorder },
+  linkDangerPressed: { backgroundColor: theme.colors.feedback.dangerBg },
+  linkDisabled: { opacity: 0.6 },
   linkText: { ...theme.text.label },
   radios: { gap: theme.space[1] },
   radioLegend: { ...theme.text.label, color: theme.colors.text.primary },
@@ -171,22 +183,6 @@ const s = StyleSheet.create({
     alignItems: 'center',
     gap: theme.space[3],
     minHeight: theme.size.touchTarget.min,
-  },
-  radioOuter: {
-    width: theme.size.checkbox,
-    height: theme.size.checkbox,
-    borderRadius: theme.radius.full,
-    borderWidth: theme.borderWidth.strong,
-    borderColor: theme.colors.border.strong,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  radioOuterOn: { borderColor: theme.colors.action.primary },
-  radioInner: {
-    width: theme.space[2] + theme.space['0.5'],
-    height: theme.space[2] + theme.space['0.5'],
-    borderRadius: theme.radius.full,
-    backgroundColor: theme.colors.action.primary,
   },
   radioText: { ...theme.text.body, color: theme.colors.text.primary },
   error: { ...theme.text.bodySm, color: theme.colors.text.danger },

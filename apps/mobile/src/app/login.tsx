@@ -52,7 +52,7 @@ export default function Login() {
   }
 
   return (
-    <Screen title={t('t_welcome_back')} subtitle={t('t_pls_login_to_continue')}>
+    <Screen card title={t('t_welcome_back')} subtitle={t('t_pls_login_to_continue')}>
       {verified ? (
         <Notice kind="success" text={t('t_ur_account_has_been_successfully_verified_email')} />
       ) : null}

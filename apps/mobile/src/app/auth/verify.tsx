@@ -34,7 +34,7 @@ export default function VerifyEmail() {
   }, [token, email]);
 
   return (
-    <Screen title={t('t_verify_email')}>
+    <Screen card title={t('t_verify_email')}>
       {error ? (
         <>
           <Notice kind="error" text={error} />

@@ -11,6 +11,7 @@ import { Button, Input, LinkButton, Notice, Screen } from '../components/form';
 import { clearSession, mobileApi } from '../lib/api';
 import { createT } from '../lib/i18n';
 import { usePublicConfig } from '../lib/public-config';
+import { Card } from '../ui';
 
 type Restriction = components['schemas']['Restriction'];
 interface ApiError {
@@ -22,11 +23,28 @@ const locale = 'ka' as const;
 const t = createT(locale);
 const api = mobileApi(locale);
 
-const STATUS: Record<Restriction['status'], { key: string; color: string }> = {
-  pending: { key: 't_pending', color: theme.colors.feedback.warningText },
-  submitted: { key: 't_restriction_submitted', color: theme.colors.feedback.warningText },
-  approved: { key: 't_restriction_resolved', color: theme.colors.feedback.successText },
-  rejected: { key: 't_restriction_rejected', color: theme.colors.feedback.dangerText },
+// `bar`: the 4 px start bar of the restriction card (3X look, as the web 3X.14b: amber / green / red).
+const STATUS: Record<Restriction['status'], { key: string; color: string; bar: string }> = {
+  pending: {
+    key: 't_pending',
+    color: theme.colors.feedback.warningText,
+    bar: theme.colors.feedback.warningIcon,
+  },
+  submitted: {
+    key: 't_restriction_submitted',
+    color: theme.colors.feedback.warningText,
+    bar: theme.colors.feedback.warningIcon,
+  },
+  approved: {
+    key: 't_restriction_resolved',
+    color: theme.colors.feedback.successText,
+    bar: theme.colors.feedback.successIcon,
+  },
+  rejected: {
+    key: 't_restriction_rejected',
+    color: theme.colors.feedback.dangerText,
+    bar: theme.colors.feedback.dangerIcon,
+  },
 };
 
 function Appeal({ restriction, onDone }: { restriction: Restriction; onDone: () => void }) {
@@ -107,7 +125,7 @@ export default function Restricted() {
         <>
           {open ? <Notice kind="info" text={t('t_account_restricted_notice')} /> : null}
           {items.map((r) => (
-            <View key={r.id} style={s.card}>
+            <Card key={r.id} style={[s.card, { borderLeftColor: STATUS[r.status].bar }]}>
               <Text style={[s.status, { color: STATUS[r.status].color }]}>
                 {t(STATUS[r.status].key)}
               </Text>
@@ -117,7 +135,7 @@ export default function Restricted() {
               <Text style={s.label}>{t('t_reason')}</Text>
               <Text style={s.body}>{r.message}</Text>
               {r.canAppeal ? <Appeal restriction={r} onDone={load} /> : null}
-            </View>
+            </Card>
           ))}
           {!open ? <LinkButton label={t('t_home')} onPress={() => router.replace('/')} /> : null}
           <LinkButton label={t('t_logout')} onPress={logout} />
@@ -129,14 +147,7 @@ export default function Restricted() {
 
 const s = StyleSheet.create({
   gap: { gap: theme.space[3] },
-  card: {
-    gap: theme.space[2],
-    padding: theme.space[3],
-    borderWidth: theme.borderWidth.hairline,
-    borderColor: theme.colors.border.default,
-    borderRadius: theme.radius.control,
-    backgroundColor: theme.colors.bg.surface,
-  },
+  card: { gap: theme.space[2], padding: theme.space[3], borderLeftWidth: theme.space[1] },
   status: { ...theme.text.label },
   muted: { ...theme.text.bodySm, color: theme.colors.text.secondary },
   label: { ...theme.text.label, color: theme.colors.text.primary },

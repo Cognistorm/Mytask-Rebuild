@@ -861,3 +861,60 @@ Options:
 Recommendation: (a). The live site is what visitors see today, and the block is part of the current layout the Owner wants kept.
 When: before Phase 5 (settings migration). Not blocking slice 2.
 **Answer (Owner, 2026-10-06): (a), as recommended.** Keep the "Featured categories" block ON, matching the live site. Spec 00 register and the S-107 default updated in ROADMAP 4.2.18a/b.
+
+## Phase 3X visual refresh (orchestrator, ROADMAP 3X.1, 2026-10-06) — answered by Owner 2026-10-06
+
+### Q-169
+**Category colours: curated palette or free colour picker?**
+**Answer (Owner, 2026-10-06):** free colour picker in the admin panel, so the Owner can change any colour later; Claude chooses the starting colours. Readability for any colour is guaranteed by derived shades (spec 3X R-1.4).
+
+### Q-170
+**Must every top-level category colour be unique?**
+**Answer (Owner, 2026-10-06):** yes, every top-level category has its own distinct colour (spec 3X R-1.3: exact duplicates refused, very similar colours warned).
+
+### Q-171
+**Do sub-categories and project categories inherit the top-level colour?**
+**Answer (Owner, 2026-10-06):** yes (spec 3X R-1.2).
+
+### Q-172
+**How strong should the motion be?**
+**Answer (Owner, 2026-10-06):** elegant and moderate — subtle, engaging micro-interactions and smooth transitions, never aggressive (spec 3X R-4.1 bounds).
+
+### Q-173
+**Does dark mode get its own gradients?**
+**Answer (Owner, 2026-10-06):** yes, tailored dark-mode gradients, as polished as light mode (spec 3X R-1.4, R-3.1).
+
+## Phase 3X look decisions (designer, ROADMAP 3X.2 §13 → 3X.4, 2026-10-06) — answered by Owner 2026-10-06
+
+### Q-174
+**Starter category colours** (violet design, rose music, blue programming, gold marketing, sky video, navy business, leaf-green photography; 5 spares)?
+**Answer (Owner, 2026-10-06):** yes, as proposed (`docs/05-design/visual-refresh.md` §8.1).
+
+### Q-175
+**Card corner radius 12 → 16 px?**
+**Answer (Owner, 2026-10-06):** yes.
+
+### Q-176
+**Semi-transparent header with frosted-glass blur?**
+**Answer (Owner, 2026-10-06):** yes (§3.3; solid fallback where blur is unsupported; still transparent over the home hero).
+
+### Q-177
+**Slow hero background drift (M-12)?**
+**Answer (Owner, 2026-10-06):** yes (18 s, off with reduced motion).
+
+### Q-178
+**Admin warning when a category colour is close to error red, success green, Featured orange or brand teal?**
+**Answer (Owner, 2026-10-06):** yes — warning only, saving stays allowed (spec 3X R-1.3, OKLab ΔE < 0.06).
+
+### Q-179
+**Buying/Selling switcher thumb: role colours (Q-092) or brand teal (visual-refresh.md §6.2)?** visual-refresh.md §6.2 gives the selected item "a sliding thumb with the Primary button gradient" (teal), and the approved 3X.3 preview showed it teal. But the preview's "Now" column also showed today's switcher as teal, while the real one uses the role colours the Owner kept in Q-092 (Buying = blue, Selling = green). So the approval did not knowingly reverse Q-092.
+Recommendation: keep the role colours (Q-092) on the new sliding thumb, with the new border, highlight and slide. This is what 3X.9c built (`packages/ui/src/web/dashboard.css`). If the Owner prefers teal, it is a one-rule change.
+**Status:** open (built as recommended, 2026-10-06; Owner to confirm in the 3X.23 click-through or earlier).
+
+### Q-180
+**Category bar at narrow desktop widths: accept more categories under "More ▾", or make the pills tighter?** The 3X.10 fit check (visual-refresh.md §8.4) measured the 7 seeded Georgian names at 1024 px. The bar has 960 px there. The names never fitted: the old flat look needed 999 px, so one category was already under "More ▾" at 1024 px. The new pills (8 px dot, semibold text, a gap between pills) need 1169 px. Following the design rule, the gap was lowered from 8 to 4 px first, which brings it to 1145 px. Result:
+- all 7 show from about **1210 px** window width (before: about 1065 px);
+- at 1024 px about 3 show and the rest are under "More ▾" (before: about 5). Nothing is cut off, and "More ▾" lists the rest with their colour dots.
+Options: (a) keep it as built; (b) inner padding 12 → 8 px (measured: 1089 px, so all 7 show from about 1155 px); (c) also drop the bold weight (about 10 px less per pill).
+Recommendation: (b), a one-line change; the pills still read as buttons.
+**Answer (Owner, 2026-10-06):** (b) as recommended — pill padding 12 → 8 px (built the same day). The Owner reviews it on staging (https://mytask.1kk.ge) and may ask for changes to this part of the design.

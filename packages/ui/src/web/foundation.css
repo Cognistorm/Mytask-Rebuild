@@ -1,0 +1,191 @@
+/* Visual refresh foundation (visual-refresh.md §3.1, §7, §8.3; ROADMAP 3X.8). Imported once by the root layouts of
+   apps/web and apps/admin, after @mytask/tokens/tokens.css. Tokens only: no raw colours, sizes or durations here. */
+
+/* ---- Page canvas (§3.1, R-3) ------------------------------------------------------------------------------------
+   A fixed layer behind the page, so it never repaints on scroll (no `background-attachment: fixed`, slow on phones).
+   `body` keeps the flat canvas colour as the fallback; it propagates to the root canvas, below this layer. */
+body {
+  background-color: var(--mt-bg-canvas);
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: var(--mt-gradient-canvas);
+}
+
+/* ---- Motion utilities (§7, R-4) ---------------------------------------------------------------------------------
+   Every distance, scale and duration comes from the --mt-motion-* variables. tokens.css sets them to 0 / 1 / ≤ fast
+   under `prefers-reduced-motion: reduce`, so these classes stop moving there and only short fades remain.
+   Only transform, opacity and box-shadow animate (no layout shift). */
+
+/* Theme switch (F-3X18-1, 3X.21d): while `data-theme-switching` is on `<html>` (one frame, set by the web app's
+   applyTheme) nothing transitions, so the new theme's colours, borders and shadows apply at once. */
+[data-theme-switching],
+[data-theme-switching] *,
+[data-theme-switching] *::before,
+[data-theme-switching] *::after {
+  transition: none !important;
+}
+
+/* M-1 / M-5: a control rises 1 px and glows on hover; M-2: it presses in. */
+.mt-motion-control {
+  transition:
+    transform var(--mt-motion-duration-fast) var(--mt-motion-easing-standard),
+    box-shadow var(--mt-motion-duration-fast) var(--mt-motion-easing-standard),
+    opacity var(--mt-motion-duration-fast) var(--mt-motion-easing-standard);
+}
+
+/* M-3: a card rises 3 px on hover. */
+.mt-motion-card {
+  transition:
+    transform var(--mt-motion-duration-base) var(--mt-motion-easing-standard),
+    box-shadow var(--mt-motion-duration-base) var(--mt-motion-easing-standard),
+    border-color var(--mt-motion-duration-base) var(--mt-motion-easing-standard);
+}
+
+/* M-4: media inside a card zooms within its frame (the frame has `overflow: hidden`). */
+.mt-motion-zoom-media {
+  transition: transform var(--mt-motion-duration-slow) var(--mt-motion-easing-enter);
+}
+
+/* Hover only on pointer devices, so touch never leaves an element stuck in its hover state. */
+@media (hover: hover) {
+  .mt-motion-control:hover {
+    transform: translateY(calc(-1 * var(--mt-motion-distance-lift-control)));
+  }
+
+  .mt-motion-card:hover {
+    transform: translateY(calc(-1 * var(--mt-motion-distance-lift-card)));
+  }
+
+  .mt-motion-card:hover .mt-motion-zoom-media {
+    transform: scale(var(--mt-motion-scale-hover));
+  }
+
+  .mt-motion-glow:hover {
+    box-shadow: var(--mt-glow-brand);
+  }
+
+  .mt-motion-glow-soft:hover {
+    box-shadow: var(--mt-glow-brand-soft);
+  }
+
+  .mt-motion-glow-category:hover {
+    box-shadow: var(--mt-glow-category);
+  }
+}
+
+/* Focus keeps the existing focus ring (set by each component); the glow is added outside it. */
+.mt-motion-glow:focus-visible,
+.mt-motion-glow-soft:focus-visible {
+  box-shadow: var(--mt-glow-brand);
+}
+
+.mt-motion-glow-category:focus-visible {
+  box-shadow: var(--mt-glow-category);
+}
+
+/* M-2: press in quickly (80 ms), release at the normal speed. */
+.mt-motion-control:active {
+  transform: scale(var(--mt-motion-scale-pressed));
+  transition-duration: var(--mt-motion-duration-press);
+}
+
+.mt-motion-card:active {
+  transform: scale(calc((1 + var(--mt-motion-scale-pressed)) / 2));
+  transition-duration: var(--mt-motion-duration-press);
+}
+
+/* M-6 / M-15: a panel, alert or toast that appears fades in and settles from a few px above. */
+@keyframes mt-motion-enter {
+  from {
+    opacity: 0;
+    transform: translateY(var(--mt-motion-distance-enter));
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes mt-motion-fade {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.mt-motion-fade-in {
+  animation: mt-motion-fade var(--mt-motion-duration-base) var(--mt-motion-easing-enter) both;
+}
+
+.mt-motion-slide-in {
+  animation: mt-motion-enter var(--mt-motion-duration-base) var(--mt-motion-easing-enter) both;
+}
+
+/* M-10 first-view entrance: inert until MOTION_ENTRANCE_SCRIPT (@mytask/ui/web, run with the CSP nonce, 3X.11) marks
+   its container `data-motion="ready"`, so server-rendered content is never hidden by CSS alone (no JS, no
+   IntersectionObserver or reduced motion → nothing is hidden). Inside it, an item waits until it scrolls into view
+   (`data-seen`), then rises in once. Items set their place with `--mt-motion-index` (0-based); from the 8th item
+   (stagger-max) on there is no further delay. */
+[data-motion='ready'] .mt-motion-entrance:not([data-seen]) {
+  opacity: 0;
+}
+
+[data-motion='ready'] .mt-motion-entrance[data-seen] {
+  animation: mt-motion-enter var(--mt-motion-duration-slow) var(--mt-motion-easing-enter) both;
+  animation-delay: calc(
+    min(var(--mt-motion-index, 0), var(--mt-motion-stagger-max) - 1) * var(--mt-motion-stagger-step)
+  );
+}
+
+/* Reduced motion: the variables above already remove distance and scale; the entrance is dropped entirely
+   (content shown at once, §7 M-10) and appear animations become a short fade. */
+@media (prefers-reduced-motion: reduce) {
+  [data-motion='ready'] .mt-motion-entrance:not([data-seen]) {
+    opacity: 1;
+  }
+
+  [data-motion='ready'] .mt-motion-entrance[data-seen] {
+    animation: none;
+  }
+
+  .mt-motion-slide-in {
+    animation-name: mt-motion-fade;
+  }
+}
+
+/* ---- Category themes (§8.3, R-1) --------------------------------------------------------------------------------
+   tokens.css maps `.mt-cat` / `[data-category-theme]` to --mt-cat-* (light and dark) from the inline --mt-cat-l-* /
+   --mt-cat-d-* that categoryThemeProps() writes; without a colour they fall back to brand teal. These helpers paint
+   with that set, so a component only adds the class and the props. */
+.mt-cat-fill {
+  background: var(--mt-gradient-category);
+  color: var(--mt-cat-on-solid);
+}
+
+.mt-cat-tinted {
+  background: linear-gradient(180deg, var(--mt-cat-tint) 0%, var(--mt-cat-tint-strong) 100%);
+  color: var(--mt-cat-ink);
+}
+
+.mt-cat-ink {
+  color: var(--mt-cat-ink);
+}
+
+.mt-cat-dot {
+  display: inline-block;
+  inline-size: var(--mt-space-2);
+  block-size: var(--mt-space-2);
+  flex: none;
+  border-radius: var(--mt-radius-full);
+  background: var(--mt-cat-indicator);
+}

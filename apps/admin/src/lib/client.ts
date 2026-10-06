@@ -24,7 +24,8 @@ export function useAdminApi(): ApiClient {
 export interface ApiErrorBody {
   code: string;
   message: string;
-  details?: { fields?: { field: string; message: string }[]; stepUpFor?: string };
+  /** `field`: the one field a 409 DUPLICATE is about (e.g. a category colour, ADR-023 §5). */
+  details?: { fields?: { field: string; message: string }[]; field?: string; stepUpFor?: string };
 }
 
 export function splitErrors(err: ApiErrorBody | undefined) {

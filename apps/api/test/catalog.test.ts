@@ -218,7 +218,8 @@ describe('lookupCategory / getCategory', () => {
     expect(one.body).toMatchObject({ id: top.id, depth: 1, path: top.slug, name: 'გრაფიკა' });
     expect(one.body.breadcrumb.map((b: { id: string }) => b.id)).toEqual([top.id]);
     expect(one.body.children).toEqual([
-      { id: sub.id, slug: sub.slug, name: 'ლოგო', contentLocale: 'ka' },
+      // Rows made here directly have no colour: the resolved top-level colour is null (ADR-023 §3).
+      { id: sub.id, slug: sub.slug, name: 'ლოგო', contentLocale: 'ka', color: null },
     ]);
 
     const three = await http()
@@ -236,9 +237,9 @@ describe('lookupCategory / getCategory', () => {
       children: [],
     });
     expect(three.body.breadcrumb).toEqual([
-      { id: top.id, slug: top.slug, name: 'Graphics', contentLocale: 'en' },
-      { id: sub.id, slug: sub.slug, name: 'Logo', contentLocale: 'en' },
-      { id: child.id, slug: child.slug, name: 'მინიმალისტური', contentLocale: 'ka' },
+      { id: top.id, slug: top.slug, name: 'Graphics', contentLocale: 'en', color: null },
+      { id: sub.id, slug: sub.slug, name: 'Logo', contentLocale: 'en', color: null },
+      { id: child.id, slug: child.slug, name: 'მინიმალისტური', contentLocale: 'ka', color: null },
     ]);
 
     const byId = await http().get(`/api/v1/categories/${sub.id}`).set(en);

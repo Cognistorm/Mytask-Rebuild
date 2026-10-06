@@ -36,6 +36,7 @@ export default function ResendVerification() {
 
   return (
     <Screen
+      card
       title={t('t_resend_verification_email')}
       subtitle={t('t_resend_verification_email_subtitle')}
     >

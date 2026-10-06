@@ -278,6 +278,8 @@ test('headline and About me save on their own with their own message; empty is r
   await about.getByRole('button', { name: 'Update' }).click();
   await expect(about).toContainText('Your profile description has been successfully updated');
   await expect(about.getByText('I draw logos.')).toBeVisible();
+  // M-14 (3X.14c): the block that saved glows once.
+  expect(await about.evaluate((el) => getComputedStyle(el).animationName)).toBe('mt-saved-glow');
   // One block's message does not show in another.
   await expect(headline).not.toContainText('description');
   expect(sent.profile.at(-1)).toEqual({ about: 'I draw logos.\nAnd icons.' });

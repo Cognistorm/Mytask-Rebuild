@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="ka" data-theme="light" data-motion="full" data-width="desktop" data-compare="both">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MyTask visual refresh</title>
+<meta name="description" content="Phase 3X visual refresh preview: the current look next to the new look, for the Owner's approval (ROADMAP 3X.3/3X.4).">
+<link rel="icon" type="image/svg+xml" href="../../../packages/assets/brand/proposal-favicon.svg">
+<!-- Real design tokens, referenced in place so the preview never drifts from packages/tokens. -->
+<link rel="stylesheet" href="../../../packages/tokens/dist/tokens.css">
+<link rel="stylesheet" href="refresh.css">
+<script>
+/* Theme before first paint (no flash). */
+(function () {
+  var t = 'light';
+  try { t = window.localStorage.getItem('mt-refresh-theme') || 'light'; } catch (e) {}
+  document.documentElement.setAttribute('data-theme', t === 'dark' ? 'dark' : 'light');
+})();
+</script>
+</head>
+<body>
+<div class="pv-bar" role="toolbar" aria-label="Preview settings">
+  <strong>MyTask · visual refresh preview (3X.3)</strong>
+  <span class="pv-group"><span>Theme</span><span class="pv-seg" data-pref="theme"><button type="button" data-val="light">Light</button><button type="button" data-val="dark">Dark</button></span></span>
+  <span class="pv-group"><span>Motion</span><span class="pv-seg" data-pref="motion"><button type="button" data-val="full">Full</button><button type="button" data-val="reduced">Reduced</button></span></span>
+  <span class="pv-group"><span>Width</span><span class="pv-seg" data-pref="width"><button type="button" data-val="desktop">Desktop</button><button type="button" data-val="phone">Phone 360</button></span></span>
+  <span class="pv-group"><span>Show</span><span class="pv-seg" data-pref="compare"><button type="button" data-val="both">Now + New</button><button type="button" data-val="new">New only</button></span></span>
+</div>
+
+<main class="pv-main">
+  <section class="pv-intro" aria-labelledby="intro-title">
+    <h1 id="intro-title">The new look, next to today's</h1>
+    <p>Each block shows <strong>Now</strong> (today's styles, condensed from <code>packages/ui</code>) above <strong>New</strong> (<code>docs/05-design/visual-refresh.md</code>). The structure, order and texts are identical; only the look and motion change. Hover, click and tab through everything: the category bar opens its menu, the Buying/Selling switch slides, the buttons react, and the admin colour picker works with the real colour function.</p>
+    <p>Use the toolbar to switch <strong>Light/Dark</strong>, <strong>Reduced motion</strong> (what users who turn off animations see), <strong>Phone 360</strong> width, and <strong>New only</strong>.</p>
+    <ul>
+      <li><span class="pv-ok">✓ decided</span> Starter category colours as proposed (Owner 2026-10-06, Q-174).</li>
+      <li><span class="pv-ok">✓ decided</span> Cards slightly rounder, 12 → 16 px (Q-175).</li>
+      <li><span class="pv-ok">✓ decided</span> Semi-transparent header with frosted-glass blur (Q-176).</li>
+      <li><span class="pv-ok">✓ decided</span> Slow hero background drift (Q-177). It stops with reduced motion.</li>
+      <li><span class="pv-ok">✓ decided</span> Admin warns when a colour looks like error red, success green, Featured orange or brand teal (Q-178).</li>
+    </ul>
+    <p><strong>What 3X.4 asks:</strong> approve this look as a whole, or name what to change. Nothing in the real apps changes before that approval.</p>
+    <nav class="pv-toc" aria-label="Sections">
+      <a href="#s-header">1 Header + category bar</a><a href="#s-home">2 Home</a><a href="#s-cat">3 Category page / search</a><a href="#s-profile">4 Profile</a><a href="#s-dash">5 Dashboard</a><a href="#s-auth">6 Login</a><a href="#s-buttons">7 Buttons</a><a href="#s-controls">8 Controls + feedback</a><a href="#s-palette">9 Category colours</a><a href="#s-admin">10 Admin colour picker</a><a href="#s-motion">11 Motion list</a>
+    </nav>
+  </section>
+
+  <section class="pv-section" id="s-header" aria-labelledby="h-header">
+    <h2 id="h-header">1 · Header and category bar</h2>
+    <p>The Owner's example. Today the categories are plain grey text with an underline. New: each top-level category is a pill in its own colour with a dot. Hover or click fills it with the category gradient and opens a menu tinted in the same colour. Below 860 px the bar becomes the drawer (☰). Rows show the colour bar when open.</p>
+    <span class="pv-label pv-old">Now</span>
+    <div class="frame old frame-flush pv-old" data-render="header" data-look="old" style="min-height:330px"></div>
+    <span class="pv-label">New</span>
+    <div class="frame new frame-flush" data-render="header" data-look="new" style="min-height:330px"></div>
+  </section>
+
+  <section class="pv-section" id="s-home" aria-labelledby="h-home">
+    <h2 id="h-home">2 · Home</h2>
+    <p>The header stays transparent over the hero (as today). The hero gets a teal gradient with a slow violet drift. Featured categories get a solid colour band under the photo, so the name is always readable. Cards lift and glow on hover, and photos zoom gently inside their frame. Category rows carry their colour bar. Cards fade in one after another when they scroll into view (<button type="button" class="btn btn-sm" data-replay style="vertical-align:middle">replay</button>).</p>
+    <span class="pv-label pv-old">Now</span>
+    <div class="frame old frame-flush pv-old" data-render="home" data-look="old"></div>
+    <span class="pv-label">New</span>
+    <div class="frame new frame-flush" data-render="home" data-look="new"></div>
+  </section>
+
+  <section class="pv-section" id="s-cat" aria-labelledby="h-cat">
+    <h2 id="h-cat">3 · Category page and search</h2>
+    <p>The page header becomes a band in the category gradient; the description stays on the plain surface. Breadcrumb items become small tinted chips. Sub-categories (which inherit the parent colour, Q-171) appear as chips. Search uses the brand teal because it has no single category.</p>
+    <p><label for="catpage-which">Show: </label><select id="catpage-which" class="input" style="width:auto;display:inline-block">
+      <option value="0">დიზაინი</option><option value="1">მუსიკა და ხმა</option><option value="2" selected>პროგრამირება და ტექნოლოგიები</option><option value="3">ციფრული მარკეტინგი</option><option value="4">ვიდეო და ანიმაცია</option><option value="5">ბიზნესი</option><option value="6">ფოტოგრაფია</option><option value="search">Search results (brand)</option>
+    </select></p>
+    <span class="pv-label pv-old">Now</span>
+    <div class="frame old pv-old" data-render="catpage" data-look="old"></div>
+    <span class="pv-label">New</span>
+    <div class="frame new" data-render="catpage" data-look="new"></div>
+  </section>
+
+  <section class="pv-section" id="s-profile" aria-labelledby="h-profile">
+    <h2 id="h-profile">4 · Public profile card</h2>
+    <p>A brand gradient strip behind the avatar, an avatar ring, rating bars in the brand gradient, and bordered buttons. "Share" and "Report user" open the dialog.</p>
+    <span class="pv-label pv-old">Now</span>
+    <div class="frame old pv-old" data-render="profile" data-look="old"></div>
+    <span class="pv-label">New</span>
+    <div class="frame new" data-render="profile" data-look="new"></div>
+  </section>
+
+  <section class="pv-section" id="s-dash" aria-labelledby="h-dash">
+    <h2 id="h-dash">5 · Dashboard</h2>
+    <p>The Buying/Selling switch gets a sliding thumb (click it). The active sidebar item gets a gradient bar. The stat tiles get icon badges, lift on hover and appear one after another.</p>
+    <span class="pv-label pv-old">Now</span>
+    <div class="frame old pv-old" data-render="dashboard" data-look="old"></div>
+    <span class="pv-label">New</span>
+    <div class="frame new" data-render="dashboard" data-look="new"></div>
+  </section>
+
+  <section class="pv-section" id="s-auth" aria-labelledby="h-auth">
+    <h2 id="h-auth">6 · Login card</h2>
+    <p>A brand strip on top, glowing focus on fields, and a red glow on a field with an error. Click "ავტორიზაცია" to see loading → saved.</p>
+    <span class="pv-label pv-old">Now</span>
+    <div class="frame old pv-old" data-render="auth" data-look="old"></div>
+    <span class="pv-label">New</span>
+    <div class="frame new" data-render="auth" data-look="new"></div>
+  </section>
+
+  <section class="pv-section" id="s-buttons" aria-labelledby="h-buttons">
+    <h2 id="h-buttons">7 · Buttons: every variant and state</h2>
+    <p>Every button now has a crisp border, an inner gradient and a lit top edge. The hover, pressed and focus columns are frozen states. Hover the "rest" column to feel the real motion.</p>
+    <span class="pv-label pv-old">Now</span>
+    <div class="frame old pv-old" data-render="buttons" data-look="old"></div>
+    <span class="pv-label">New</span>
+    <div class="frame new" data-render="buttons" data-look="new"></div>
+  </section>
+
+  <section class="pv-section" id="s-controls" aria-labelledby="h-controls">
+    <h2 id="h-controls">8 · Fields, chips, tabs, switches, alerts, loading</h2>
+    <p>Tabs have a sliding gradient indicator (click them). The switch and checkbox fill with the brand gradient. Alerts slide in softly, and the loading shimmer moves (it stays still with reduced motion).</p>
+    <span class="pv-label pv-old">Now</span>
+    <div class="frame old pv-old" data-render="controls" data-look="old"></div>
+    <span class="pv-label">New</span>
+    <div class="frame new" data-render="controls" data-look="new"></div>
+  </section>
+
+  <section class="pv-section" id="s-palette" aria-labelledby="h-palette">
+    <h2 id="h-palette">9 · Category colours: starter palette and derived shades</h2>
+    <p>The admin only picks the base colour; every other shade is calculated, so text stays readable in light and dark (always ≥ 4.5:1, see the "Text on solid" column). S1–S5 are spares for new categories.</p>
+    <div class="frame new" data-render="palette"></div>
+  </section>
+
+  <section class="pv-section" id="s-admin" aria-labelledby="h-admin">
+    <h2 id="h-admin">10 · Admin: category colour picker (NEW)</h2>
+    <p>Only on top-level categories. Try a colour already used (refused), something close to another category (warning), red <code>#B91C1C</code> or teal <code>#2A8280</code> (reserved-colour warning), or white <code>#FFFFFF</code> (still readable). <strong>Save</strong> applies the colour to this whole page, as the website would within 60 s. Texts are Georgian drafts; the final i18n keys come in 3X.5.</p>
+    <div class="frame new">
+      <div class="admin" id="admin-picker">
+        <form class="card panel" onsubmit="return false" aria-labelledby="ap-title">
+          <h3 id="ap-title">კატეგორიის რედაქტირება <span class="pv-cap">(Edit category)</span></h3>
+          <div class="field"><label for="ap-cat">Category being edited (preview only)</label><select id="ap-cat" class="input" data-slot="cat-select"><option value="0">დიზაინი</option><option value="1">მუსიკა და ხმა</option><option value="2">პროგრამირება და ტექნოლოგიები</option><option value="3">ციფრული მარკეტინგი</option><option value="4">ვიდეო და ანიმაცია</option><option value="5">ბიზნესი</option><option value="6">ფოტოგრაფია</option></select></div>
+          <div class="field"><label for="ap-name">სახელი (ka)</label><input id="ap-name" class="input" data-slot="name" readonly></div>
+          <label class="cb"><input type="checkbox" checked><span class="box"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg></span>მთავარ გვერდზე ჩვენება</label>
+          <div class="field">
+            <label for="ap-hex">ფერი <span class="pv-cap">(Colour)</span></label>
+            <div class="picker"><input type="color" aria-label="ფერის არჩევა" data-slot="color"><input id="ap-hex" class="input" data-slot="hex" maxlength="7" spellcheck="false" autocomplete="off" aria-describedby="ap-help ap-msgs"></div>
+            <span class="help" id="ap-help">აირჩიე კატეგორიის ფერი. ტექსტის ფერი და ჩრდილები ავტომატურად შეირჩევა, რომ ყოველთვის იკითხებოდეს.</span>
+          </div>
+          <div class="swatches" data-slot="swatches" aria-label="საწყისი ფერები"></div>
+          <div class="msgs" id="ap-msgs" data-slot="msgs" aria-live="polite"></div>
+          <div class="pv-row"><button type="button" class="btn btn-primary" data-slot="save">შენახვა</button><button type="button" class="btn btn-ghost">გაუქმება</button></div>
+        </form>
+        <div style="display:grid;gap:16px;align-content:start">
+          <div class="card panel"><h3>Live preview <span class="pv-cap">(same function the site will use)</span></h3><div class="prev-pair" data-slot="preview"></div></div>
+          <div class="card panel"><h3>Category tree</h3><ul class="tree" data-slot="tree"></ul></div>
+          <div class="card panel"><h3>Sub-category form</h3><p class="inherit" data-slot="inherit"></p><p class="pv-cap">No picker here: sub-categories and project categories inherit (Q-171).</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="pv-section" id="s-motion" aria-labelledby="h-motion">
+    <h2 id="h-motion">11 · Motion list (visual-refresh.md §7)</h2>
+    <p>Every animation is 80–400 ms, lifts at most 4 px and scales at most 3 %. With <strong>Reduced</strong> motion nothing moves; only short fades stay.</p>
+    <div class="card" style="padding:4px 12px;overflow-x:auto">
+      <table class="mt">
+        <thead><tr><th>#</th><th>What</th><th>See it in</th><th>Reduced motion</th></tr></thead>
+        <tbody>
+          <tr><td>M-1/2</td><td>Button hover lift + glow / press</td><td>§7 buttons</td><td>colour fade only</td></tr>
+          <tr><td>M-3/4</td><td>Card lift 3 px, glow, photo zoom 1.03</td><td>§2 home cards</td><td>shadow fade only</td></tr>
+          <tr><td>M-5/6</td><td>Category pill fill + menu open/close</td><td>§1 header</td><td>fade only</td></tr>
+          <tr><td>M-7</td><td>Dialog in/out</td><td>§4 Share / §7 Dialog</td><td>fade only</td></tr>
+          <tr><td>M-9</td><td>Switch thumb / tab indicator slide</td><td>§5, §8</td><td>jumps</td></tr>
+          <tr><td>M-10</td><td>Cards appear one after another</td><td>§2, §5 (replay in §2)</td><td>shown at once</td></tr>
+          <tr><td>M-12</td><td>Hero drift (18 s)</td><td>§2 hero</td><td>off</td></tr>
+          <tr><td>M-13</td><td>Loading shimmer</td><td>§8</td><td>still</td></tr>
+          <tr><td>M-14</td><td>Saved glow</td><td>§6, §7</td><td>fade</td></tr>
+          <tr><td>M-15</td><td>Alert / toast in</td><td>§8, §7 Toast</td><td>fade</td></tr>
+          <tr><td>M-16/17</td><td>Switch, check mark, header link underline</td><td>§8, §1</td><td>jumps / colour</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<div class="scrim new bare" id="dlg" aria-hidden="true">
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dlg-title">
+    <div class="dialog-head"><h2 id="dlg-title">მომხმარებლის გასაჩივრება</h2><button type="button" class="btn btn-icon btn-ghost" data-close aria-label="დახურვა"><svg class="i" viewBox="0 0 256 256" aria-hidden="true"><path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"/></svg></button></div>
+    <div class="dialog-body"><div class="field"><label for="dlg-reason">მიზეზი</label><textarea id="dlg-reason" class="input" rows="4" style="padding:10px 12px;min-height:110px"></textarea></div></div>
+    <div class="dialog-actions"><button type="button" class="btn btn-ghost" data-close>გაუქმება</button><button type="button" class="btn btn-primary" data-close>გაგზავნა</button></div>
+  </div>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"><svg class="i" viewBox="0 0 256 256" aria-hidden="true"><path d="M173.66,98.34a8,8,0,0,1,0,11.32l-56,56a8,8,0,0,1-11.32,0l-24-24a8,8,0,0,1,11.32-11.32L112,148.69l50.34-50.35A8,8,0,0,1,173.66,98.34ZM232,128A104,104,0,1,1,128,24,104.11,104.11,0,0,1,232,128Zm-16,0a88,88,0,1,0-88,88A88.1,88.1,0,0,0,216,128Z"/></svg><span></span></div>
+
+<script src="refresh.js"></script>
+</body>
+</html>

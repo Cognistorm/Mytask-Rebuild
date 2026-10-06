@@ -20,12 +20,17 @@ test('desktop: logo, search, category bar with a keyboard mega-menu, Login + Joi
     '/auth/register',
   );
 
-  // AC-2: the second row lists the top-level categories; Enter opens the panel with sub and child categories.
+  // AC-2: the second row lists the top-level categories. Each name is a link to its category (Owner 2026-10-06);
+  // Arrow Down opens the panel with sub and child categories and moves into it.
   const bar = page.getByRole('navigation', { name: 'სარჩევი' });
-  const design = bar.getByRole('button', { name: 'დიზაინი' });
+  const design = bar.getByRole('link', { name: 'დიზაინი', exact: true });
+  await expect(design).toHaveAttribute('href', '/categories/design');
+  await expect(design).toHaveAttribute('aria-expanded', 'false');
   await design.focus();
-  await page.keyboard.press('Enter');
+  await page.keyboard.press('ArrowDown');
   const mega = page.getByTestId('mega-menu');
+  await expect(design).toHaveAttribute('aria-expanded', 'true');
+  await expect(mega.getByRole('link').first()).toBeFocused();
   await expect(mega.getByRole('link', { name: 'ლოგოს დიზაინი' })).toHaveAttribute(
     'href',
     '/categories/design/logo-design',
@@ -34,10 +39,17 @@ test('desktop: logo, search, category bar with a keyboard mega-menu, Login + Joi
     'href',
     '/categories/design/logo-design/minimal',
   );
-  await expect(mega.getByRole('link', { name: 'დაათვალიერე დიზაინი' })).toBeVisible();
+  // The panel no longer repeats the category as "Browse {category}".
+  await expect(mega.getByRole('link', { name: 'დაათვალიერე დიზაინი' })).toHaveCount(0);
   await page.keyboard.press('Escape');
   await expect(mega).toBeHidden();
   await expect(design).toBeFocused();
+
+  // Hover opens the panel too; a click on the name opens the category page.
+  await design.hover();
+  await expect(mega).toBeVisible();
+  await design.click();
+  await expect(page).toHaveURL(/\/categories\/design$/);
 
   // A category without sub-categories is a plain link.
   await expect(bar.getByRole('link', { name: 'პროგრამირება' })).toHaveAttribute(

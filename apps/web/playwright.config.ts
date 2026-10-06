@@ -5,11 +5,24 @@ import { BASE, PORT } from './e2e/base';
 // Starts the production build against e2e/fake-api.mjs for the server's own API calls (custom code, health);
 // browser API calls are routed per test. Full-stack runs reuse `pnpm preview` instead (PW_REUSE=1).
 const reuse = process.env.PW_REUSE === '1';
+const VISUAL = /(visual-screens|contrast)\.spec\.ts$/;
 
 export default defineConfig({
   testDir: 'e2e',
+  // CI: failures as GitHub annotations (readable without the logs) + the HTML report the workflow uploads.
+  reporter: process.env.CI ? [['github'], ['list'], ['html', { open: 'never' }]] : 'list',
   use: { baseURL: BASE },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  projects: [
+    { name: 'chromium', use: { ...devices['Desktop Chrome'] }, testIgnore: VISUAL },
+    // 3X.18b/c: the full-page screenshot and contrast passes are heavy; they run after the flow tests, never beside
+    // them, so the flow tests' client navigations do not wait on a busy server.
+    {
+      name: 'visual',
+      use: { ...devices['Desktop Chrome'] },
+      testMatch: VISUAL,
+      dependencies: ['chromium'],
+    },
+  ],
   webServer: [
     {
       command: 'node e2e/fake-api.mjs',

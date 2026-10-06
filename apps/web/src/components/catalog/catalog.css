@@ -13,6 +13,18 @@
   line-height: var(--mt-font-line-height-3xl);
 }
 
+/* Category pages (levels 1–3, visual-refresh.md §8.5, 3X.12): the title sits on a band of the category gradient with
+   on-solid text (≥ 4.5:1 on both ends); the description and SEO texts stay on the plain surface below. */
+.mt-catalog-band {
+  margin-block: var(--mt-space-4) var(--mt-space-4);
+  padding: var(--mt-space-6) var(--mt-space-5);
+  border-radius: var(--mt-radius-card);
+  background: var(--mt-gradient-category);
+  box-shadow: var(--mt-elevation-sm), var(--mt-highlight-filled);
+  color: var(--mt-cat-on-solid);
+  overflow-wrap: anywhere;
+}
+
 .mt-catalog-subtitle {
   margin: 0 0 var(--mt-space-4);
   color: var(--mt-text-secondary);
@@ -45,20 +57,11 @@
   margin-block-start: var(--mt-space-6);
 }
 
+/* Phones: "Filter" opens the sheet; a Secondary button (buttons.css), layout only here. */
 .mt-list-filter-open {
-  display: inline-flex;
-  align-items: center;
   justify-self: start;
   gap: var(--mt-space-2);
-  min-height: var(--mt-size-touch-target-min);
-  padding: 0 var(--mt-space-4);
-  border: var(--mt-border-width-hairline) solid var(--mt-border-default);
-  border-radius: var(--mt-radius-control);
-  background: var(--mt-bg-surface);
-  color: var(--mt-text-primary);
-  font: inherit;
   font-weight: var(--mt-font-weight-semibold);
-  cursor: pointer;
 }
 
 /* Phones: the filters are a full-screen sheet with a sticky apply bar. */
@@ -117,10 +120,7 @@
 }
 
 .mt-list-option input {
-  width: var(--mt-size-checkbox);
-  height: var(--mt-size-checkbox);
   margin: 0;
-  accent-color: var(--mt-action-primary);
 }
 
 .mt-list-stars {
@@ -145,15 +145,8 @@
   width: 100%;
   min-height: var(--mt-size-control-md);
   padding: 0 var(--mt-space-3);
-  border: var(--mt-border-width-hairline) solid var(--mt-border-default);
   border-radius: var(--mt-radius-control);
-  background: var(--mt-bg-surface);
-  color: var(--mt-text-primary);
   font: inherit;
-}
-
-.mt-list-prices input[aria-invalid='true'] {
-  border-color: var(--mt-border-danger);
 }
 
 .mt-list-filters-actions {
@@ -221,13 +214,20 @@
     display: inline;
   }
 
+  /* The filter column is a card (§3.2 surface, 3X.12). */
   .mt-list-filters,
   .mt-list-filters[data-open='true'] {
     position: static;
     display: block;
     overflow: visible;
-    border: var(--mt-border-width-hairline) solid var(--mt-border-subtle);
+    border: var(--mt-border-width-hairline) solid var(--mt-border-default);
     border-radius: var(--mt-radius-card);
+    background: var(--mt-gradient-surface);
+    box-shadow: var(--mt-elevation-sm), var(--mt-highlight-surface);
+  }
+
+  .mt-list-filters-actions {
+    background: transparent;
   }
 
   .mt-list-filters-actions {
@@ -255,16 +255,27 @@
   margin: var(--mt-space-4) 0;
 }
 
+/* A text field of §6.3: strong border, input gradient, brand border + glow on focus. */
 .mt-explore-search input {
   flex: 1;
   min-width: 0;
   min-height: var(--mt-size-control-lg);
   padding: 0 var(--mt-space-4);
-  border: var(--mt-border-width-hairline) solid var(--mt-border-default);
+  border: var(--mt-border-width-hairline) solid var(--mt-border-strong);
   border-radius: var(--mt-radius-control);
-  background: var(--mt-bg-surface);
+  background: var(--mt-gradient-input);
   color: var(--mt-text-primary);
   font: inherit;
+  transition:
+    border-color var(--mt-motion-duration-fast) var(--mt-motion-easing-standard),
+    box-shadow var(--mt-motion-duration-fast) var(--mt-motion-easing-standard);
+}
+
+.mt-explore-search input:focus {
+  outline: var(--mt-focus-ring-width) solid var(--mt-focus-ring);
+  outline-offset: var(--mt-focus-ring-offset);
+  border-color: var(--mt-border-brand);
+  box-shadow: var(--mt-glow-brand);
 }
 
 .mt-explore-chips {
@@ -279,12 +290,33 @@
   font-size: var(--mt-font-size-sm);
 }
 
-.mt-explore-chips [aria-current='page'] {
-  border-color: var(--mt-border-brand);
-  color: var(--mt-text-brand);
-}
-
 .mt-catalog-section-title {
   margin: 0 0 var(--mt-space-4);
   font-size: var(--mt-font-size-xl);
+}
+
+/* "Popular:" chips in their linked top-level category's colour (§8.5, Q-171; brand without a link): tint + ink + dot
+   at rest, the category glow on hover, the filled category gradient when selected. */
+.mt-chip.mt-chip-category {
+  gap: var(--mt-space-2);
+  border-color: var(--mt-cat-tint-strong);
+  background: linear-gradient(180deg, var(--mt-cat-tint) 0%, var(--mt-cat-tint-strong) 100%);
+  color: var(--mt-cat-ink);
+}
+
+@media (hover: hover) {
+  .mt-chip.mt-chip-category:hover {
+    border-color: var(--mt-cat-indicator);
+    box-shadow: var(--mt-glow-category);
+  }
+}
+
+.mt-chip.mt-chip-category[aria-current='page'] {
+  border-color: transparent;
+  background: var(--mt-gradient-category);
+  color: var(--mt-cat-on-solid);
+}
+
+.mt-chip.mt-chip-category[aria-current='page'] .mt-cat-dot {
+  background: var(--mt-cat-on-solid);
 }

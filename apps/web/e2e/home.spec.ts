@@ -26,15 +26,22 @@ test('home: hero with search and shortcuts, featured categories, Top gigs, categ
   await page.goto('/en');
 
   // Owner 2026-10-06: the header sits over the hero in the hero colour, and turns white once the page scrolls.
+  // 3X.11 (visual-refresh.md §3.3): the header is transparent there and the hero gradient runs on behind it; on
+  // scroll its translucent surface layer fades in.
   const header = page.getByTestId('site-header');
-  const heroColour = await page
-    .locator('.mt-home-hero')
-    .evaluate((el) => getComputedStyle(el).backgroundColor);
+  const surface = () => header.evaluate((el) => getComputedStyle(el, '::before').opacity);
   await expect(header).toHaveAttribute('data-over-hero', '');
-  await expect(header).toHaveCSS('background-color', heroColour);
+  await expect(header).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+  await expect.poll(surface).toBe('0');
+  const [bar, hero] = await Promise.all([
+    header.boundingBox(),
+    page.locator('.mt-home-hero').boundingBox(),
+  ]);
+  expect(hero!.y).toBeLessThanOrEqual(bar!.y);
+  expect(hero!.y + hero!.height).toBeGreaterThan(bar!.y + bar!.height);
   await page.mouse.wheel(0, 600);
   await expect(header).not.toHaveAttribute('data-over-hero');
-  await expect(header).not.toHaveCSS('background-color', heroColour);
+  await expect.poll(surface).toBe('1');
   await page.mouse.wheel(0, -2000);
   await expect(header).toHaveAttribute('data-over-hero', '');
 

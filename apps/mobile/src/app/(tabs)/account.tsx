@@ -6,7 +6,7 @@
 // (username, email) shows here at once.
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text } from 'react-native';
 import { lightTheme as theme } from '@mytask/tokens/native';
 import { RoleSwitcher } from '../../components/dashboard';
 import { Button, LinkButton, Screen } from '../../components/form';
@@ -14,6 +14,7 @@ import { clearSession, mobileApi } from '../../lib/api';
 import { useDashboardSide } from '../../lib/dashboard';
 import { createT } from '../../lib/i18n';
 import { RequireMe, useMe, useSwitchDashboard } from '../../lib/me';
+import { BrandStrip, Card } from '../../ui';
 
 const locale = 'ka' as const;
 const t = createT(locale);
@@ -62,12 +63,13 @@ function AccountTabScreen() {
           router.navigate('/dashboard');
         }}
       />
-      <View style={s.card}>
+      <Card style={s.card}>
+        <BrandStrip />
         <Text style={s.name}>{me.fullName}</Text>
         <Text style={s.line}>{me.username}</Text>
         <Text style={s.line}>{me.email}</Text>
         <Text style={s.line}>{t(me.twoFactorEnabled ? 't_2fa_enabled' : 't_2fa_disabled')}</Text>
-      </View>
+      </Card>
       <LinkButton
         label={t('t_account_settings')}
         onPress={() => router.push('/account/settings')}
@@ -93,14 +95,8 @@ function AccountTabScreen() {
 }
 
 const s = StyleSheet.create({
-  card: {
-    backgroundColor: theme.colors.bg.surface,
-    borderWidth: theme.borderWidth.hairline,
-    borderColor: theme.colors.border.default,
-    borderRadius: theme.radius.card,
-    padding: theme.space[4],
-    gap: theme.space[1],
-  },
+  // The top padding clears the 4 px brand strip.
+  card: { padding: theme.space[4], paddingTop: theme.space[5], gap: theme.space[1] },
   name: { ...theme.text.title, color: theme.colors.text.primary },
   line: { ...theme.text.body, color: theme.colors.text.secondary },
 });

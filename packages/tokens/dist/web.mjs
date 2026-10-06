@@ -154,6 +154,7 @@ export const vars = {
     "strong": "var(--mt-border-width-strong)"
   },
   "shadow": {
+    "control": "var(--mt-elevation-control)",
     "sm": "var(--mt-elevation-sm)",
     "md": "var(--mt-elevation-md)",
     "lg": "var(--mt-elevation-lg)"
@@ -238,11 +239,13 @@ export const vars = {
   "motion": {
     "duration": {
       "instant": "var(--mt-motion-duration-instant)",
+      "press": "var(--mt-motion-duration-press)",
       "fast": "var(--mt-motion-duration-fast)",
       "base": "var(--mt-motion-duration-base)",
       "slow": "var(--mt-motion-duration-slow)",
       "slower": "var(--mt-motion-duration-slower)",
-      "shimmer": "var(--mt-motion-duration-shimmer)"
+      "shimmer": "var(--mt-motion-duration-shimmer)",
+      "drift": "var(--mt-motion-duration-drift)"
     },
     "easing": {
       "standard": "var(--mt-motion-easing-standard)",
@@ -253,6 +256,15 @@ export const vars = {
     "scale": {
       "hover": "var(--mt-motion-scale-hover)",
       "pressed": "var(--mt-motion-scale-pressed)"
+    },
+    "distance": {
+      "liftControl": "var(--mt-motion-distance-lift-control)",
+      "liftCard": "var(--mt-motion-distance-lift-card)",
+      "enter": "var(--mt-motion-distance-enter)"
+    },
+    "stagger": {
+      "step": "var(--mt-motion-stagger-step)",
+      "max": "var(--mt-motion-stagger-max)"
     }
   },
   "focus": {
@@ -276,7 +288,9 @@ export const vars = {
     "promo": "var(--mt-bg-promo)",
     "scrim": "var(--mt-bg-scrim)",
     "skeleton": "var(--mt-bg-skeleton)",
-    "skeletonHighlight": "var(--mt-bg-skeleton-highlight)"
+    "skeletonHighlight": "var(--mt-bg-skeleton-highlight)",
+    "translucent": "var(--mt-bg-translucent)",
+    "overHero": "var(--mt-bg-over-hero)"
   },
   "text": {
     "primary": "var(--mt-text-primary)",
@@ -301,7 +315,18 @@ export const vars = {
     "strong": "var(--mt-border-strong)",
     "brand": "var(--mt-border-brand)",
     "danger": "var(--mt-border-danger)",
-    "featured": "var(--mt-border-featured)"
+    "featured": "var(--mt-border-featured)",
+    "translucent": "var(--mt-border-translucent)",
+    "overHero": "var(--mt-border-over-hero)",
+    "cardHover": "var(--mt-border-card-hover)",
+    "action": {
+      "primary": "var(--mt-border-action-primary)",
+      "secondary": "var(--mt-border-action-secondary)",
+      "secondaryHover": "var(--mt-border-action-secondary-hover)",
+      "accent": "var(--mt-border-action-accent)",
+      "danger": "var(--mt-border-action-danger)",
+      "ghost": "var(--mt-border-action-ghost)"
+    }
   },
   "action": {
     "primary": "var(--mt-action-primary)",
@@ -388,6 +413,54 @@ export const vars = {
     "systemText": "var(--mt-chat-system-text)",
     "paneBg": "var(--mt-chat-pane-bg)"
   },
+  "gradient": {
+    "canvas": "var(--mt-gradient-canvas)",
+    "hero": "var(--mt-gradient-hero)",
+    "surface": "var(--mt-gradient-surface)",
+    "input": "var(--mt-gradient-input)",
+    "track": "var(--mt-gradient-track)",
+    "skeleton": "var(--mt-gradient-skeleton)",
+    "indicator": "var(--mt-gradient-indicator)",
+    "brandStrip": "var(--mt-gradient-brand-strip)",
+    "brandBanner": "var(--mt-gradient-brand-banner)",
+    "action": {
+      "primary": "var(--mt-gradient-action-primary)",
+      "primaryHover": "var(--mt-gradient-action-primary-hover)",
+      "secondary": "var(--mt-gradient-action-secondary)",
+      "secondaryHover": "var(--mt-gradient-action-secondary-hover)",
+      "accent": "var(--mt-gradient-action-accent)",
+      "accentHover": "var(--mt-gradient-action-accent-hover)",
+      "danger": "var(--mt-gradient-action-danger)",
+      "dangerHover": "var(--mt-gradient-action-danger-hover)",
+      "ghostHover": "var(--mt-gradient-action-ghost-hover)"
+    },
+    "category": "var(--mt-gradient-category)"
+  },
+  "glow": {
+    "brand": "var(--mt-glow-brand)",
+    "brandSoft": "var(--mt-glow-brand-soft)",
+    "accent": "var(--mt-glow-accent)",
+    "danger": "var(--mt-glow-danger)",
+    "success": "var(--mt-glow-success)",
+    "category": "var(--mt-glow-category)"
+  },
+  "highlight": {
+    "filled": "var(--mt-highlight-filled)",
+    "secondary": "var(--mt-highlight-secondary)",
+    "surface": "var(--mt-highlight-surface)",
+    "pressed": "var(--mt-highlight-pressed)"
+  },
+  "cat": {
+    "solid": "var(--mt-cat-solid)",
+    "onSolid": "var(--mt-cat-on-solid)",
+    "gradientStart": "var(--mt-cat-gradient-start)",
+    "gradientEnd": "var(--mt-cat-gradient-end)",
+    "tint": "var(--mt-cat-tint)",
+    "tintStrong": "var(--mt-cat-tint-strong)",
+    "ink": "var(--mt-cat-ink)",
+    "indicator": "var(--mt-cat-indicator)",
+    "glow": "var(--mt-cat-glow)"
+  },
   "textClass": {
     "display": "mt-text-display",
     "h1": "mt-text-h1",
@@ -405,5 +478,7 @@ export const vars = {
     "buttonMd": "mt-text-button-md",
     "price": "mt-text-price",
     "priceLg": "mt-text-price-lg"
-  }
+  },
+  "catClass": "mt-cat"
 };
+export { categoryStyle, deriveCategoryColor, isCategoryColor } from '../src/category-color.mjs';

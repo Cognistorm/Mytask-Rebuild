@@ -188,9 +188,21 @@ export function TextArea(props: {
   );
 }
 
-export function Submit({ busy, children }: { busy: boolean; children: ReactNode }) {
+/**
+ * The form's submit button. `busy` = the request is on its way (spinner, not pressable, visual-refresh.md §4.3);
+ * `ready={false}` = the form cannot be sent yet, e.g. the 6-digit code is incomplete (the disabled look).
+ */
+export function Submit({
+  busy,
+  ready = true,
+  children,
+}: {
+  busy: boolean;
+  ready?: boolean;
+  children: ReactNode;
+}) {
   return (
-    <button type="submit" className="auth-button" disabled={busy} aria-busy={busy}>
+    <button type="submit" className="auth-button" disabled={busy || !ready} aria-busy={busy}>
       {children}
     </button>
   );

@@ -101,3 +101,60 @@ export function contrast(a, b) {
   const lb = luminance(b);
   return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
 }
+
+// ---------- gradients (project format, docs/05-design/tokens.md 2.1) ----------
+/** A resolved gradient value: one layer { type, stops } or an array of layers (top first). */
+export const isGradient = (v) => (Array.isArray(v) ? v.length > 0 && v.every(isGradient) : isObj(v) && Array.isArray(v.stops));
+export const gradientLayers = (v) => (Array.isArray(v) ? v : [v]);
+
+/**
+ * Every colour a gradient can show, as opaque #RRGGBB (worst cases for contrast): each stop of the bottom
+ * (opaque) layer, and each overlay stop at FULL strength composited over each of those. Overlays are not
+ * stacked on each other: the canvas and hero glows sit in separate corners and never overlap at strength
+ * (tokens.md 6.10). Optional `base` is painted under everything (for translucent bottoms).
+ */
+export function gradientPoints(value, base) {
+  const layers = gradientLayers(value);
+  const bottom = layers[layers.length - 1];
+  const overlays = layers.slice(0, -1);
+  const basePts = bottom.stops.map((s) => (base ? over(s.color, base) : opaque(s.color)));
+  const pts = new Set(basePts);
+  for (const b of basePts) for (const layer of overlays) for (const s of layer.stops) pts.add(over(s.color, b));
+  return [...pts];
+}
+function opaque(hex) {
+  if (parseHex(hex).a < 1) throw new Error(`gradient: bottom layer stop ${hex} is translucent; pass a base colour`);
+  return hex.slice(0, 7).toUpperCase();
+}
+
+/** CSS for one resolved gradient value. Positions are fractions 0..1. */
+export function gradientCss(value) {
+  const pct = (p) => `${Math.round(p * 10000) / 100}%`;
+  const stops = (l) => l.stops.map((s) => `${s.color} ${pct(s.position)}`).join(', ');
+  return gradientLayers(value)
+    .map((l) => (l.type === 'radial' ? `radial-gradient(${l.shape} at ${l.at}, ${stops(l)})` : `linear-gradient(${l.angle}deg, ${stops(l)})`))
+    .join(', ');
+}
+
+/** React Native form: linear layers as expo-linear-gradient props; radial layers kept as data (web-only look). */
+export function gradientNative(value) {
+  const conv = (l) => {
+    if (l.type === 'radial') return { type: 'radial', shape: l.shape, at: l.at, colors: l.stops.map((s) => s.color), locations: l.stops.map((s) => s.position) };
+    // CSS angle: 0deg = to top, 90deg = to right, 180deg = to bottom. Unit square, scaled so corners are reached.
+    const rad = (l.angle * Math.PI) / 180;
+    let x = Math.sin(rad);
+    let y = -Math.cos(rad);
+    const k = Math.max(Math.abs(x), Math.abs(y));
+    x /= k;
+    y /= k;
+    const r = (n) => Math.round(n * 1000) / 1000 + 0;
+    return {
+      type: 'linear',
+      colors: l.stops.map((s) => s.color),
+      locations: l.stops.map((s) => s.position),
+      start: { x: r(0.5 - x / 2), y: r(0.5 - y / 2) },
+      end: { x: r(0.5 + x / 2), y: r(0.5 + y / 2) },
+    };
+  };
+  return Array.isArray(value) ? value.map(conv) : conv(value);
+}

@@ -1,6 +1,7 @@
 # 03 — Categories and search
 Status: **approved** (Owner 2026-09-28; P-14…P-37 accepted)
 Author: product-analyst (P2-A2) | Date: 2026-09-28
+Updated 2026-10-06 with ADR-023 (category colours, spec 3X R-1, Owner Q-169…Q-171): NEW AC-38, AC-39.
 Legacy reference: `docs/01-discovery/features.md` §L, BR-015, BR-023, BR-053; `routes-and-pages.md` (`/search`, `/categories/*`, `/hire/{keyword}`, `/sellers`, `/explore/projects/*`); `i18n.md`; `docs/05-design/audit.md` §3.1–3.3, §3.5. Owner decisions: Q-013, Q-014, Q-022, Q-023, Q-024, Q-069. Platform rules: `00-platform-rules.md` (§2 Premium entitlements, R-2.1, R-5.5, R-5.6, R-5.8; settings S-075, S-076, S-103, S-107, S-108).
 
 Tags: **LEGACY**, **CHANGE** (Q-ID), **NEW** (Q-ID), **PROPOSED** (P-26…P-31, see "Open questions").
@@ -91,6 +92,10 @@ Help buyers find the right gig or freelancer fast: the 3-level gig category tree
 - AC-35 Given any page of this spec, When it is requested under `/en/` (for example `/en/categories/{c}/{s}`, `/en/search?q=logo`, `/en/hire/{keyword}`, `/en/sellers`, `/en/explore/projects/{category}`), Then it works with the same slugs as the Georgian page, English UI texts, and Georgian fallback for missing English content. The Georgian page stays unprefixed. (NEW Q-024; R-5.6)
 - AC-36 Given a legacy URL with `?locale=en` or `?locale=ka` for any page of this spec, When it is requested, Then it redirects (301) to the matching new URL defined in `url-map.md` (P2-B3). (Q-024)
 - AC-37 Given a list page, When it is rendered, Then it has a canonical URL and hreflang links for ka and en as defined in `url-map.md`. Filtered or sorted variants point their canonical to the unfiltered page. (Q-024; detail owned by url-map)
+
+### Category colours (NEW, spec 3X R-1)
+- AC-38 Given a top-level gig category with a colour, When the category tree, a category page (with its breadcrumb and children), the home category rows and featured tiles, or the project categories are read, Then each category carries the **resolved** colour of its top-level gig category as `#RRGGBB` (upper-case): sub- and child categories inherit it, a project category takes it from its linked top-level gig category, and a category without a colour (for example an unlinked project category) shows the brand teal. Web and app derive every shade with the one shared function and never look the colour up in the tree themselves. (NEW Q-169, Q-171; spec 3X R-1.2, R-1.4, R-1.6, AC-4, AC-8; ADR-023)
+- AC-39 Given staff change a top-level category colour, When visitors next open a page or the app, Then the new colour shows within 60 seconds (the category cache time). (NEW spec 3X R-1.7, AC-7, EC-5; ADR-023)
 
 ---
 

@@ -9,7 +9,7 @@ import { notFound } from 'next/navigation';
 import { cache } from 'react';
 import type { components } from '@mytask/types';
 import type { Locale } from '@mytask/i18n';
-import { Breadcrumb, EmptyState, Pagination } from '@mytask/ui/web';
+import { Breadcrumb, categoryThemeProps, EmptyState, Pagination } from '@mytask/ui/web';
 import { pageParam } from '../../../../../../components/catalog/seller-list';
 import { viewerApi } from '../../../../../../lib/api';
 import { decodeSegment, href } from '../../../../../../lib/href';
@@ -27,13 +27,16 @@ type Params = {
 };
 const PAGE_SIZE = 40;
 
+/** A "Popular:" chip in its linked top-level category's colour (Q-171; null → brand). */
+type Chip = { label: string; href: string; current: boolean; color: string | null };
+
 type Loaded =
   | { disabled: true }
   | {
       disabled: false;
       category: ProjectCategory | null;
       skill: SkillSummary | null;
-      chips: { label: string; href: string; current: boolean }[];
+      chips: Chip[];
       projects: SearchProjectCard[];
       total: number;
     };
@@ -44,7 +47,7 @@ const load = cache(
     const { api } = await viewerApi(locale);
     let category: ProjectCategory | null = null;
     let skill: SkillSummary | null = null;
-    let chips: { label: string; href: string; current: boolean }[];
+    let chips: Chip[];
     if (path.length) {
       const { data, response } = await api.GET('/project-categories/lookup', {
         params: { query: { slug: path[0]!, ...(path[1] ? { skillSlug: path[1] } : {}) } },
@@ -58,6 +61,7 @@ const load = cache(
         label: s.name,
         href: href(locale, `/explore/projects/${category!.slug}/${s.slug}`),
         current: s.id === skill?.id,
+        color: category!.color,
       }));
     } else {
       const { data } = await api.GET('/project-categories');
@@ -65,6 +69,7 @@ const load = cache(
         label: c.name,
         href: href(locale, `/explore/projects/${c.slug}`),
         current: false,
+        color: c.color,
       }));
     }
     const { data, response } = await api.GET('/search/projects', {
@@ -182,7 +187,13 @@ export default async function ExploreProjectsPage(props: Params) {
           <li aria-hidden="true">{t('t_popular_categories')}</li>
           {loaded.chips.map((c) => (
             <li key={c.href}>
-              <Link href={c.href} className="mt-chip" aria-current={c.current ? 'page' : undefined}>
+              <Link
+                href={c.href}
+                className="mt-chip mt-chip-category"
+                aria-current={c.current ? 'page' : undefined}
+                {...categoryThemeProps(c.color)}
+              >
+                <span className="mt-cat-dot" aria-hidden="true" />
                 {c.label}
               </Link>
             </li>

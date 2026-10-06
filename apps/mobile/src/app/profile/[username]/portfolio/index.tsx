@@ -11,6 +11,7 @@ import { Button, Notice } from '../../../../components/form';
 import { OwnerBox, PortfolioGrid } from '../../../../components/portfolio';
 import { loadSession, mobileApi } from '../../../../lib/api';
 import { createT } from '../../../../lib/i18n';
+import { Canvas } from '../../../../ui';
 import {
   isGuestView,
   PORTFOLIO_PAGE_SIZE,
@@ -96,63 +97,65 @@ export default function PortfolioScreen() {
   };
 
   return (
-    <SafeAreaView style={s.screen}>
-      <ScrollView contentContainerStyle={s.content}>
-        {state.kind === 'loading' ? (
-          <Skeleton label={t('t_ui_loading')} tiles={4} rows={1} />
-        ) : null}
-        {state.kind === 'not-found' ? (
-          <View style={s.gap} testID="portfolio-not-found">
-            <Notice kind="info" text={t('t_user_not_found')} />
-            <SecondaryButton
-              label={t('t_go_back')}
-              onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
-            />
-          </View>
-        ) : null}
-        {state.kind === 'error' ? (
-          <View style={s.gap}>
-            <Notice kind="error" text={t('t_toast_something_went_wrong')} />
-            <SecondaryButton label={t('t_ui_retry')} onPress={() => void load()} />
-          </View>
-        ) : null}
-        {state.kind === 'ready' ? (
-          <>
-            <OwnerBox
-              user={{
-                id: state.profile.id,
-                username: state.profile.username,
-                avatar: state.profile.avatar,
-                isPremium: state.profile.isPremium,
-                isIdVerified: state.profile.isIdVerified,
-                isOnline: state.profile.isOnline,
-                countryCode: state.profile.countryCode,
-                isDeleted: false,
-              }}
-              headline={state.profile.headline}
-              t={t}
-            />
-            <Text style={s.title} accessibilityRole="header">
-              {t('t_username_portfolio', { username: state.profile.username })}
-            </Text>
-            {state.items.length === 0 ? (
-              <EmptyState title={t('t_no_portfolio_yet')} />
-            ) : (
-              <PortfolioGrid username={state.profile.username} items={state.items} t={t} />
-            )}
-            {moreFailed ? <Notice kind="error" text={t('t_toast_something_went_wrong')} /> : null}
-            {state.cursor ? (
-              <Button label={t('t_load_more')} busy={busy} onPress={() => void more()} />
-            ) : null}
-          </>
-        ) : null}
-      </ScrollView>
-    </SafeAreaView>
+    <Canvas>
+      <SafeAreaView style={s.screen}>
+        <ScrollView contentContainerStyle={s.content}>
+          {state.kind === 'loading' ? (
+            <Skeleton label={t('t_ui_loading')} tiles={4} rows={1} />
+          ) : null}
+          {state.kind === 'not-found' ? (
+            <View style={s.gap} testID="portfolio-not-found">
+              <Notice kind="info" text={t('t_user_not_found')} />
+              <SecondaryButton
+                label={t('t_go_back')}
+                onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
+              />
+            </View>
+          ) : null}
+          {state.kind === 'error' ? (
+            <View style={s.gap}>
+              <Notice kind="error" text={t('t_toast_something_went_wrong')} />
+              <SecondaryButton label={t('t_ui_retry')} onPress={() => void load()} />
+            </View>
+          ) : null}
+          {state.kind === 'ready' ? (
+            <>
+              <OwnerBox
+                user={{
+                  id: state.profile.id,
+                  username: state.profile.username,
+                  avatar: state.profile.avatar,
+                  isPremium: state.profile.isPremium,
+                  isIdVerified: state.profile.isIdVerified,
+                  isOnline: state.profile.isOnline,
+                  countryCode: state.profile.countryCode,
+                  isDeleted: false,
+                }}
+                headline={state.profile.headline}
+                t={t}
+              />
+              <Text style={s.title} accessibilityRole="header">
+                {t('t_username_portfolio', { username: state.profile.username })}
+              </Text>
+              {state.items.length === 0 ? (
+                <EmptyState title={t('t_no_portfolio_yet')} />
+              ) : (
+                <PortfolioGrid username={state.profile.username} items={state.items} t={t} />
+              )}
+              {moreFailed ? <Notice kind="error" text={t('t_toast_something_went_wrong')} /> : null}
+              {state.cursor ? (
+                <Button label={t('t_load_more')} busy={busy} onPress={() => void more()} />
+              ) : null}
+            </>
+          ) : null}
+        </ScrollView>
+      </SafeAreaView>
+    </Canvas>
   );
 }
 
 const s = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: theme.colors.bg.canvas },
+  screen: { flex: 1 },
   content: { padding: theme.space[4], gap: theme.space[4] },
   gap: { gap: theme.space[3] },
   title: { ...theme.text.h2, color: theme.colors.text.primary },

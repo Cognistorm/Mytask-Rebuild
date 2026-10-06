@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { declaredType, fileExtension, uploadFile, type ApiClient } from '@mytask/api-client';
 import { lightTheme as theme } from '@mytask/tokens/native';
+import { Card } from '../../ui';
 import type { components } from '@mytask/types';
 import { formatDate } from '../../lib/format';
 import { Button, Input } from '../form';
@@ -35,7 +36,7 @@ export function ProfileCard(props: {
 }) {
   const { t, me, profile } = props;
   return (
-    <View style={s.card} testID="profile-card">
+    <Card style={s.card} testID="profile-card">
       <AvatarEditor
         api={props.api}
         t={t}
@@ -68,7 +69,7 @@ export function ProfileCard(props: {
           <Text style={s.value}>{formatDate(me.createdAt)}</Text>
         </View>
       </View>
-    </View>
+    </Card>
   );
 }
 
@@ -259,10 +260,6 @@ function HeadlineEditor(props: {
 
 const s = StyleSheet.create({
   card: {
-    backgroundColor: theme.colors.bg.surface,
-    borderWidth: theme.borderWidth.hairline,
-    borderColor: theme.colors.border.default,
-    borderRadius: theme.radius.card,
     padding: theme.space[4],
     gap: theme.space[4],
   },

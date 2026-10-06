@@ -9,6 +9,7 @@ import { useCallback, useState } from 'react';
 import { Image, StyleSheet, Text, View } from 'react-native';
 import type { ApiClient } from '@mytask/api-client';
 import { lightTheme as theme } from '@mytask/tokens/native';
+import { Card } from '../../ui';
 import { setFlash } from '../../lib/flash';
 import type { PortfolioItem } from '../../lib/profile';
 import type { PublicConfig } from '../../lib/public-config';
@@ -149,7 +150,7 @@ export function PortfolioForm(props: {
         error={fields.videoUrl}
       />
 
-      <View style={s.card}>
+      <Card style={s.card}>
         <ImagePickerField
           api={api}
           t={t}
@@ -196,7 +197,7 @@ export function PortfolioForm(props: {
             ))}
           </View>
         ) : null}
-      </View>
+      </Card>
 
       {general ? <Notice kind="error" text={general} /> : null}
       <Button
@@ -217,10 +218,6 @@ export function PortfolioForm(props: {
 
 const s = StyleSheet.create({
   card: {
-    backgroundColor: theme.colors.bg.surface,
-    borderWidth: theme.borderWidth.hairline,
-    borderColor: theme.colors.border.default,
-    borderRadius: theme.radius.card,
     padding: theme.space[4],
     gap: theme.space[3],
   },

@@ -1,5 +1,6 @@
 # Design tokens (P2-C2)
 Status: **proposal, awaiting Owner approval** (together with the preview page, P2-C3) | Author: ui-ux-designer | Date: 2026-09-28
+**Updated 2026-10-06 (ROADMAP 3X.6, visual refresh):** gradients, glows, inset highlights, button border roles, translucent/over-hero roles, the category colour system (starter palette, brand fallback set, `deriveCategoryColor`), motion additions, card radius 12 → 16. Source: the approved `visual-refresh.md` (3X.2/3X.4) and preview `preview/refresh.html`. New sections: §6.10, §6.11; §6.2, §6.4, §6.8, §8 and §9 revised.
 Source of truth: [`packages/tokens/tokens.json`](../../packages/tokens/tokens.json). This document explains it; if the two ever disagree, the JSON wins and this document is wrong.
 Rule applied: **modernise, don't reinvent.** Every token is derived from a value the live site or `/legacy` already uses (evidence in [audit.md](audit.md)), then corrected for contrast and consistency.
 
@@ -21,11 +22,12 @@ Owner decisions applied: Q-059 (dark mode kept, light default), Q-073 (logo teal
 | Uppercase | **Never** on Georgian (`textTransform` has only `none`) | FiraGO has no Mtavruli glyphs; uppercase falls back to another font (audit 0.3) |
 | Type scale | 9 sizes: 13 / 14 / **16 body** / 18 / 20 / 24 / 28 / 32 / 40. Minimum 13. Inputs ≥ 16 | Replaces 9/10/11/12/13/14/15 px mix; Georgian needs bigger text |
 | Spacing | 4 px grid, Tailwind numbering (`space.4` = 16) | Legacy is already mostly on this grid |
-| Radius | control 8, card 12, dialog/sheet 16, hero tiles/plan cards 24, pill full | One radius per role (4 button shapes today) |
+| Radius | control 8, card **16** (12 until 3X, Owner Q-175), dialog/sheet 16, hero tiles/plan cards 24, pill full | One radius per role (4 button shapes today) |
+| Visual refresh (3X) | Gradients, glows, inset highlights and bordered buttons as tokens (§6.10); one category colour per top-level category with every shade derived by **one shared function** (§6.11) | Owner 2026-10-06: the layout is right, the look was too plain |
 | Elevation | 3 levels (sm/md/lg) + none, separate dark values | Legacy used 8 shadow utilities |
 | Touch | **44×44 minimum** hit area everywhere; controls md = 44, lg = 52 | Legacy 32 px favourites, 16 px checkboxes |
 | Focus | 2 px ring, 2 px offset, `brand.600` light / `brand.300` dark, ≥ 3:1 on every surface | Legacy removed focus 493×, and `#35A29F` is only 2.95:1 on #FAFAFA |
-| Contrast | **81 pairs × 2 themes = 162 checks, 0 failures** (script-verified, table in §8) | WCAG 2.1 AA |
+| Contrast | **106 pairs × 2 themes = 212 checks** (gradients at every stop and glow point) **+ 728 category-theme checks, 0 failures** (script-verified, tables in §8); unit test over 4,096 + 1,500 colours | WCAG 2.1 AA, spec 3X AC-5 |
 
 ---
 
@@ -35,7 +37,7 @@ Owner decisions applied: Q-059 (dark mode kept, light default), Q-073 (logo teal
 `tokens.json` follows the **W3C Design Tokens Community Group (DTCG)** format, so Style Dictionary v4, Tokens Studio or any DTCG tool can read it later:
 - A token is an object with `$value`; `$type` is set on the token or inherited from its group; `$description` is documentation.
 - Aliases are strings `"{path.to.token}"` with an absolute path from the root (e.g. `"{color.brand.700}"`).
-- Groups: `color` (primitive palette), `font`, `text` (composite typography), `space`, `radius`, `borderWidth`, `shadow`, `breakpoint`, `size`, `zIndex`, `motion`, `focus`, `opacity`, and `theme.light` / `theme.dark` (semantic roles).
+- Groups: `color` (primitive palette), `font`, `text` (composite typography), `space`, `radius`, `borderWidth`, `shadow`, `breakpoint`, `size`, `zIndex`, `motion`, `focus`, `opacity`, `category` (category colour data, §6.11), and `theme.light` / `theme.dark` (semantic roles).
 - **Deliberate simplifications** (documented in `$metadata`):
   - Dimensions are plain numbers meaning px (React Native needs numbers). CSS output adds `px`.
   - Durations are numbers in ms.
@@ -43,26 +45,34 @@ Owner decisions applied: Q-059 (dark mode kept, light default), Q-073 (logo teal
   - Responsive text sizes: `text.<style>.$extensions["ge.mytask.lg"]` holds the size/line height used from `breakpoint.lg` (1024) up on the web. React Native uses the base `$value`.
   - Shadows: `$value` is the DTCG shadow list (for CSS); `$extensions["ge.mytask.native"]` holds the React Native iOS props + Android `elevation`.
   - Native font names per weight live in `font.native.family` (Android cannot synthesise weights for custom fonts).
+  - **Gradients (3X)**: `$type: "gradient"` with a project format, because DTCG gradients have no angle or radial shape: one layer `{ "type": "linear", "angle": 180, "stops": [{ "color", "position" 0..1 }] }` or `{ "type": "radial", "shape": "1100px 620px", "at": "8% -8%", "stops": [...] }`, or an **array of layers, top layer first** (as in CSS). Stop colours may be aliases. CSS output is the `linear-gradient()` / `radial-gradient()` list; native output is §6.10.
+  - **Inset shadows (3X)**: a shadow layer may carry `"inset": true` (the lit top edge of buttons and cards).
+  - **Loops (3X)**: `motion.duration.*.$extensions["ge.mytask.loop"]` marks looping animations (shimmer, hero drift), which reduced motion switches off.
+  - **Springs (3X)**: `$type: "spring"` (`motion.spring.default`) is native-only and not written to CSS.
 
 ### 2.2 Files in `packages/tokens`
 | File | Purpose |
 |---|---|
-| `tokens.json` | Source of truth (482 tokens) |
-| `contrast-pairs.json` | Every foreground/background pair the system defines (81), with the WCAG minimum |
-| `lib.mjs` | Alias resolution + WCAG contrast maths (no dependencies) |
-| `build.mjs` | `node packages/tokens/build.mjs` → writes `dist/`, **fails** on a broken alias, a theme-key mismatch or any contrast failure |
-| `contrast.mjs` | `node packages/tokens/contrast.mjs` (summary, exit 1 on failure) or `--md` (the table in §8) |
+| `tokens.json` | Source of truth (607 tokens) |
+| `contrast-pairs.json` | Every foreground/background pair the system defines (106), with the WCAG minimum. A background may be a gradient token: it is checked at every stop and every glow point |
+| `lib.mjs` | Alias resolution, WCAG contrast maths, gradient CSS / native / worst-point helpers (no dependencies) |
+| `build.mjs` | `node packages/tokens/build.mjs` → writes `dist/`, **fails** on a broken alias, a theme-key mismatch, any contrast failure or any category-theme failure |
+| `contrast.mjs` | `node packages/tokens/contrast.mjs` (summary, exit 1 on failure) or `--md` (the tables in §8) |
+| `src/category-color.mjs` + `.d.mts` | **`@mytask/tokens/color`**: the shared category colour function and admin helpers (§6.11). Plain ES module, no Node APIs: web, admin, mobile and API |
+| `src/category-checks.mjs` | The contrast rules of one category theme; used by the build gate and the unit test |
+| `test/category-color.test.mjs` | `pnpm --filter @mytask/tokens test` (`node --test`): spec 3X AC-5 stress test, palette rules, helpers, motion bounds |
+| `dist/category.mjs` | Generated category data read by `src/category-color.mjs`: starter palette, thresholds, reserved colours, brand fallback set, reference surfaces/canvas points |
 | `package.json`, `README.md` | Package entry points for the Phase 3 monorepo |
 | `dist/tokens.css` | Primitives as `--mt-*` variables on `:root`; light roles on `:root, [data-theme="light"]`; dark roles on `[data-theme="dark"]`; reduced-motion overrides; `.mt-text-*` text-style classes |
 | `dist/fonts.css` | `@font-face` for FiraGO 400/500/600/700 (the web app serves `packages/assets/fonts/woff2/` at `/fonts/`) |
-| `dist/web.mjs` + `.d.ts` | `vars`: the same tree as CSS variable references (`vars.bg.canvas === "var(--mt-bg-canvas)"`), for CSS-in-JS or a Tailwind preset |
-| `dist/native.mjs` + `.d.ts` | `lightTheme`, `darkTheme`: React Native theme objects (resolved hex colours, numeric sizes, text styles with per-weight `fontFamily`, RN shadow objects) |
+| `dist/web.mjs` + `.d.ts` | `vars`: the same tree as CSS variable references (`vars.bg.canvas === "var(--mt-bg-canvas)"`), for CSS-in-JS or a Tailwind preset; also re-exports `categoryStyle`, `deriveCategoryColor`, `isCategoryColor` |
+| `dist/native.mjs` + `.d.ts` | `lightTheme`, `darkTheme`: React Native theme objects (resolved hex colours, numeric sizes, text styles with per-weight `fontFamily`, RN shadow objects, `gradient` as expo-linear-gradient props, `glow`, `category` brand set, `motion.spring`); also re-exports `categoryTheme`, `deriveCategoryColor`, `isCategoryColor` |
 | `dist/tokens.mjs` + `.d.ts` | All resolved values (`primitives`, `themes`) for scripts, tests, the preview page |
 
-Reading the JSON needs no install. Running the scripts needs only Node ≥ 18 (the Owner has Node 24).
+Reading the JSON needs no install. Running the scripts needs only Node ≥ 22 (the Owner has Node 24; `node --test` with a glob).
 
 ### 2.3 Naming
-- CSS: `--mt-` + path in kebab-case. Primitives keep their group: `--mt-color-brand-700`, `--mt-space-4`, `--mt-radius-card`, `--mt-font-size-md`. Theme roles drop `theme.<name>`: `theme.light.bg.canvas` → `--mt-bg-canvas`; `theme.*.shadow.md` → `--mt-elevation-md`.
+- CSS: `--mt-` + path in kebab-case. Primitives keep their group: `--mt-color-brand-700`, `--mt-space-4`, `--mt-radius-card`, `--mt-font-size-md`. Theme roles drop `theme.<name>`: `theme.light.bg.canvas` → `--mt-bg-canvas`; `theme.*.shadow.md` → `--mt-elevation-md`; 3X: `--mt-gradient-action-primary`, `--mt-glow-brand`, `--mt-highlight-filled`, `--mt-border-action-secondary`, `--mt-cat-ink`, `--mt-motion-distance-lift-card`.
 - Role variables point to primitive variables (`--mt-bg-canvas: var(--mt-color-neutral-50)`), so the inspector shows where each colour comes from.
 - React Native: `theme.colors.bg.canvas`, `theme.text.body`, `theme.space[4]`, `theme.radius.card`, `theme.shadow.md`.
 
@@ -370,8 +380,8 @@ Rhythm: 4 between icon and label, 8 inside compact groups, 12–16 inside cards,
 | `xs` | 4 | checkbox, table thumbnails | – |
 | `sm` | 6 | tooltips, menu items | – |
 | `md` = `control` | 8 | buttons, inputs, selects, tabs, segmented control | buttons were `rounded` 4 / `rounded-md` 6 / `rounded-full` / `rounded-3xl` |
-| `lg` = `card` | 12 | cards, panels, menus, toasts, banners | cards were 8 / 12 / 6 / 24 |
-| `xl` = `dialog` | 16 | dialogs, bottom sheets, chat bubbles (tail corner 4), hero search | – |
+| `lg` | 12 | menus, toasts, banners (cards until 3X) | cards were 8 / 12 / 6 / 24 |
+| `xl` = `card` = `dialog` | 16 | **cards and panels** (since 3X.6, Owner Q-175), dialogs, bottom sheets, chat bubbles (tail corner 4), hero search | – |
 | `2xl` | 24 | hero tiles, plan cards (legacy 1.5 rem kept) | – |
 | `full` = `pill` | 9999 | avatars, badges, switch, online dot, favourite button | pills were `rounded-sm` / `rounded-3xl` |
 
@@ -385,7 +395,8 @@ Rhythm: 4 between icon and label, 8 inside compact groups, 12–16 inside cards,
 | `sm` | `0 1px 2px #1616160F, 0 1px 3px #1616161A` | resting cards (+ `border.default`) | `shadow-sm ring-1 ring-gray-200` (×424) |
 | `md` | `0 4px 12px -4px #16161614, 0 2px 4px #1616160F` | hovered cards, menus, sticky bars | plan card `0 4px 12px -4px rgba(0,0,0,.08)` |
 | `lg` | `0 24px 48px -12px #16161633` | dialogs, sheets, toasts | `shadow-xl`/`2xl` |
-Native: iOS `shadowColor/Offset/Opacity/Radius` + Android `elevation` 1 / 4 / 12.
+| `control` (3X) | `0 1px 2px #16161614` (dark `#00000066`) | buttons, pills, icon buttons at rest | – |
+Native: iOS `shadowColor/Offset/Opacity/Radius` + Android `elevation` 1 / 4 / 12 (control 1).
 
 ### 6.5 Breakpoints and layout
 | Token | px | Meaning |
@@ -407,10 +418,81 @@ Layout sizes (`size.layout.*`): container 1280, wide 1400 (home rows), prose 720
 base 0 · raised 10 · sticky 100 · header 200 · dropdown 300 · overlay 400 · drawer 410 · dialog 500 · popover 600 · toast 700 · tooltip 800.
 
 ### 6.8 Motion (`motion`)
-Durations: instant 0, fast 120 (colour/hover/focus), base 200 (menus, tabs, toasts), slow 300 (dialogs, drawers, sheets), slower 400 (page transitions), shimmer 1200. Easings: standard `(0.2,0,0,1)`, enter `(0,0,0.2,1)`, exit `(0.4,0,1,1)`, emphasized `(0.3,0,0,1)`. Hover scale max **1.02** (legacy `scale-105/110` + `rotate-3` retired), pressed scale 0.98 (mobile). **Reduced motion** (`prefers-reduced-motion`, iOS/Android Reduce Motion): durations → 0 (CSS variables do this automatically), slides/scales replaced by fades, carousels do not auto-advance.
+Durations: instant 0, **press 80** (3X), fast 120 (colour/hover/focus), base 200 (menus, tabs, toasts), slow 300 (dialogs, drawers, sheets), slower 400 (page transitions); loops: shimmer 1200, **drift 18000** (3X, hero, Q-177). Easings: standard `(0.2,0,0,1)`, enter `(0,0,0.2,1)`, exit `(0.4,0,1,1)`, emphasized `(0.3,0,0,1)`.
+3X additions (visual-refresh.md §7, bounds of spec 3X R-4.1, enforced by the unit test):
+| Token | Value | Use |
+|---|---|---|
+| `motion.scale.hover` | **1.03** (was 1.02) | card image zoom inside its frame (M-4) |
+| `motion.scale.pressed` | 0.98 | button press (cards use 0.99) |
+| `motion.distance.liftControl` / `liftCard` / `enter` | 1 / 3 / 8 px | `translateY(-n)` on hover (M-1, M-5 / M-3); first-view slide-up (M-10) |
+| `motion.stagger.step` / `max` | 40 ms / 8 | entrance stagger; items after 8 have no delay |
+| `motion.spring.default` | damping 18, stiffness 220, mass 1, `overshootClamping: true` | React Native only (Reanimated `withSpring`); no bounce |
+
+**Reduced motion** (`prefers-reduced-motion`, iOS/Android Reduce Motion) — **changed in 3X**: durations are **capped at `fast` 120 ms** instead of 0 (colour and opacity fades stay; they help orientation and WCAG 2.3.3 targets motion, not fades); loops (shimmer, drift) become 0 = off; `distance.*` become 0, `scale.*` become 1, `stagger.step` becomes 0. `tokens.css` does this in one `@media` block, so components that move through the variables (`translateY(calc(-1 * var(--mt-motion-distance-lift-card)))`, `scale(var(--mt-motion-scale-hover))`) stop moving automatically. Native passes `reduceMotion: ReduceMotion.System` to every Reanimated animation. Carousels do not auto-advance.
 
 ### 6.9 Focus (`focus`)
 Ring width 2, offset 2, colour `theme.*.focus.ring` (`brand.600` light: 4.68:1 on white, 4.49:1 on canvas; `brand.300` dark). Shown on `:focus-visible` for every interactive element; inputs also switch their border to `border.brand`. Never `outline: none` without a replacement.
+
+### 6.10 Gradients, glows and highlights (3X, `theme.<name>.gradient|glow|highlight`)
+All values are in `tokens.json`; this is the map. Light / dark differ for every token (dark mode is designed, not inverted, Q-173).
+| Token (CSS) | What | Spec |
+|---|---|---|
+| `gradient.canvas` (`--mt-gradient-canvas`) | page canvas: brand glow top-left + violet glow top-right over a vertical base; painted on a fixed `body::before` layer, `body` keeps `--mt-bg-canvas` as fallback | visual-refresh §3.1 |
+| `gradient.hero` | home hero: violet radial (drifts, M-12) over the teal diagonal | §3.4 |
+| `gradient.surface`, `gradient.input` | near-solid cards/panels and inputs | §3.2, §6.3 |
+| `gradient.track` | role switcher and switch track | §6.2 |
+| `gradient.skeleton` | skeleton shimmer (animate `background-position`) | §6.4 |
+| `gradient.indicator` | active tab indicator, rating bars, step dots (≥ 3:1 on surface at both ends) | §6.2 |
+| `gradient.brandStrip`, `gradient.brandBanner` | 4 px strip on dialogs/auth card; profile card banner | §6.4, §12 |
+| `gradient.action.{primary, primaryHover, secondary, secondaryHover, accent, accentHover, danger, dangerHover, ghostHover}` | button fills; the hover gradient is an `::before` layer whose opacity animates | §4.2 |
+| `gradient.category` (CSS only) | `135deg` category gradient from `--mt-cat-gradient-start/-end` | §8 |
+| `glow.{brand, brandSoft, accent, danger, success}` (`--mt-glow-*`) | coloured light on hover/focus/open/selected only; `brandSoft` = half strength (card hover, chip hover) | §5 |
+| `glow.category` (CSS only) | `0 0 0 3px var(--mt-cat-glow), 0 8px 22px -8px var(--mt-cat-solid)` | §5 |
+| `highlight.{filled, secondary, surface, pressed}` (`--mt-highlight-*`) | inset top edge of filled buttons / secondary buttons / cards; pressed inset. Web only | §4.1, §4.3 |
+| `shadow.control` (`--mt-elevation-control`) | buttons at rest | §4.1 |
+| `border.action.{primary, secondary, secondaryHover, accent, danger, ghost}` | button borders, always visible (R-2.1); decorative edge, the label and fill identify the button | §4.2 |
+| `border.cardHover`, `border.translucent`, `border.overHero` | card hover border; hairline under the frosted header/menus; pill border over the hero | §6.1, §3.3, §8.4 |
+| `bg.translucent`, `bg.overHero` | frosted header/menus/mega-menu (with `backdrop-filter`, solid `bg.surface` fallback); pills over the hero (darkens it so white text stays ≥ 4.5) | §3.3, §8.4 |
+
+**Canvas glows were reduced in 3X.6** from 10 % / 5 % (3X.2) to **7 % / 4 %** in light mode. The 3X.2 check measured the canvas at points where the glow had already faded. The build now composites each glow at full strength over every base stop, and at 10 % `text.muted` dropped to 4.41. At 7 % / 4 % the lowest value is 4.53. Dark values are unchanged (`text.muted` lowest 6.01). Glows are not stacked in the check: they sit in opposite top corners and fade out (62 % / 60 %) before they meet. **Rule:** nothing may be added to the canvas that the check does not cover.
+
+**Native.** `theme.gradient.*` gives linear layers as `expo-linear-gradient` props `{ type, colors, locations, start, end }` (the CSS angle converted to start/end points). The canvas and hero are arrays of layers; radial layers are kept as data `{ type: "radial", … }` and are web-only unless 3X.16 decides otherwise. `theme.glow.*` = iOS shadow props from `$extensions["ge.mytask.native"]` (the diffuse layer). On Android, use `elevation` + a 1 px border in the glow colour (visual-refresh §10). `highlight` is not in the native theme.
+
+### 6.11 Category colours (3X, spec 3X R-1, ADR-023)
+**Data** (`tokens.json` → `category`, not emitted to CSS):
+- `category.starter`: the **12 starter colours in assignment order**. These are violet `#7C3AED`, rose `#DB2777`, blue `#2563EB`, gold `#D99A00`, sky `#0EA5E9`, navy `#1E3A8A` and leaf `#4D9A1E`, then the spares fuchsia `#C026D3`, bronze `#8B5E34`, slate `#52606D`, olive `#A3A30D` and wine `#9F1239`.
+  - **The order is behaviour.** The 3X.7 migration and the API's default pick take the first unused colour (ADR-023 §4).
+  - Keys are names, never numbers, so the JSON key order holds. The API reads `Object.values(tokens.category.starter)` from `@mytask/tokens/tokens.json`; JS code can use `categoryStarter` from `@mytask/tokens/color`.
+- `category.similarDeltaE` **0.08**, `category.reservedDeltaE` **0.06**: OKLab distances for the admin warnings (R-1.3, Q-178).
+- `category.reserved`: brand teal 600 and 700, error `red.700`, success `green.700` and Featured `orange.400`. Each carries `$extensions["ge.mytask.meaning"]` (`brand` / `error` / `success` / `featured`), which selects `t_category_color_meaning_<meaning>`.
+- `theme.<name>.cat`: the **brand fallback set**, with the same keys as the function output. It is used wherever no category colour applies: search, sellers, an unlinked project category, or a `null` colour (R-1.2, ADR-023 §2). It is hand-picked from the brand ramp and passes the same checks.
+
+**The function** — `@mytask/tokens/color` (`src/category-color.mjs`, ported from the 3X.2 prototype, method in visual-refresh §8.2):
+| Export | Gives |
+|---|---|
+| `deriveCategoryColor(hex)` | `{ light, dark }`, each `{ solid, onSolid, gradientStart, gradientEnd, tint, tintStrong, ink, indicator, glow }`. `null`/`undefined` → the brand set; any other non-`#RRGGBB` input throws `TypeError`. Case-insensitive, cached, frozen |
+| `categoryStyle(hex)` (web, also from `@mytask/tokens/web`) | inline style object with **both** sets: `--mt-cat-l-solid`, `--mt-cat-l-on-solid`, … `--mt-cat-d-glow` (18 variables). `null`/invalid → `{}`. Never throws |
+| `categoryTheme(hex, mode)` (native, also from `@mytask/tokens/native`) | the set for one scheme; `null`/invalid → brand set |
+| `isCategoryColor`, `normalizeCategoryColor` | `#RRGGBB` check / upper-case |
+| `deltaE(a, b)`, `contrastRatio(a, b)` | OKLab distance, WCAG ratio (the same maths as the checks) |
+| `findSimilar(hex, rows)`, `findDuplicate(hex, rows)`, `findReserved(hex)` | admin warnings (3X.15). Similar = 0 < ΔE < 0.08, closest first (an exact match is the duplicate, refused by the API with 409). Reserved returns `{ id, color, meaning, deltaE }` |
+| `nextStarterColor(used)` | first unused starter colour, or `null` when all 12 are used (the admin pre-select and the API default) |
+| `categoryStarter`, `categoryReserved`, `categoryBrand`, `categorySimilarDeltaE`, `categoryReservedDeltaE` | the data above |
+
+**Guarantees** (checked by the build for the brand set and all 12 starters, and by the unit test for 4,096 grid colours + 1,500 random colours, both modes):
+- `onSolid` ≥ 4.5 on `solid` and on both gradient ends.
+- `ink` ≥ 4.5 on `surface`, `surfaceRaised`, every `gradient.surface` stop, `bg.canvas`, every `gradient.canvas` point, `tint` and `tintStrong`.
+- `indicator` ≥ 3 on the same surfaces and canvas points.
+
+The port checks the gradient canvas points too; the prototype checked `#FAFAFA` only. So `ink`/`indicator` can be a step stronger than in the 3X.3 preview. `solid`, `onSolid`, the gradient ends and the tints are identical (unit-tested).
+
+**Web wiring** (in `dist/tokens.css`):
+- An element with class **`mt-cat`** (or a `data-category-theme` attribute) and `style={categoryStyle(color)}` maps the active theme's inline set to `--mt-cat-solid`, `--mt-cat-on-solid`, `--mt-cat-gradient-start/-end`, `--mt-cat-tint`, `--mt-cat-tint-strong`, `--mt-cat-ink`, `--mt-cat-indicator` and `--mt-cat-glow`. It also re-declares `--mt-glow-category` and `--mt-gradient-category`.
+- Without inline variables, the brand fallback applies.
+- Descendants inherit the nearest category. Components only ever use `var(--mt-cat-*)`.
+- The CSP already allows inline styles; the value is always an API-validated `#RRGGBB`.
+
+**Native:** `const c = categoryTheme(category.color, scheme)`, then `c.solid`, `c.ink`, ….
 
 ---
 
@@ -452,7 +534,7 @@ Ring width 2, offset 2, colour `theme.*.focus.ring` (`brand.600` light: 4.68:1 o
 
 ## 8. Contrast results (WCAG 2.1 AA)
 Computed by `node packages/tokens/contrast.mjs --md` from the tokens (WCAG relative-luminance formula). `text` pairs need ≥ 4.5:1 (AA normal text; we do not rely on the large-text 3:1 exception anywhere). `ui` pairs (control borders, focus ring, icons, stars, dots) need ≥ 3:1 (WCAG 1.4.11). The category-tile gradient is composited over white (worst case).
-**Result: 81 pairs × 2 themes = 162 checks, 0 failures.** Tightest text pairs: light `text.onHero` on `bg.hero` 4.68 (white on the legacy hero teal, unchanged) and dark `text.muted` on `bg.subtle` 4.69. Tightest UI pair: light `rating.star` on `bg.canvas` 3.05.
+**Result: 106 pairs × 2 themes = 212 checks, 0 failures; category themes (brand + 12 starters × 2 modes) 728 checks, 0 failures.** A gradient background is checked at every stop and at every glow composited at full strength over every base stop; the "worst" colour is shown. Tightest text pairs: light `text.muted` on `gradient.canvas` **4.53** (3X), light `text.onHero` on `bg.hero` / `gradient.hero` 4.68 (white on the legacy hero teal, unchanged) and dark `text.muted` on `bg.subtle` 4.69. Tightest UI pairs: `bg.surface` vs `gradient.indicator` 3.08 (brand.500 end, light) and light `rating.star` on `bg.canvas` 3.05. The second table gives the lowest ratio per category theme (rules in §6.11).
 | Foreground | Background | Use | Min | Light (fg / bg) | Light ratio | Dark (fg / bg) | Dark ratio |
 |---|---|---|---|---|---|---|---|
 | `text.primary` | `bg.canvas` | Headings/body on page | 4.5 | #1E1E21 / #FAFAFA | 15.93 pass | #F4F4F5 / #161616 | 16.46 pass |
@@ -536,7 +618,47 @@ Computed by `node packages/tokens/contrast.mjs --md` from the tokens (WCAG relat
 | `status.favourite` | `bg.surface` | Filled favourite heart | 3 | #E16A54 / #FFFFFF | 3.29 pass | #E16A54 / #27272A | 4.53 pass |
 | `role.buyingAccent` | `bg.surface` | Buying active indicator | 3 | #1D4ED8 / #FFFFFF | 6.70 pass | #60A5FA / #27272A | 5.86 pass |
 | `role.sellingAccent` | `bg.surface` | Selling active indicator | 3 | #15803D / #FFFFFF | 5.02 pass | #4ADE80 / #27272A | 8.55 pass |
+| `action.onPrimary` | `gradient.action.primary` | Primary button gradient (3X) | 4.5 | #FFFFFF / worst #29807E | 4.68 pass | #161616 / worst #35A29F | 5.88 pass |
+| `action.onPrimary` | `gradient.action.primaryHover` | Primary button hover gradient (3X) | 4.5 | #FFFFFF / worst #0D696C | 6.45 pass | #161616 / worst #52B3B0 | 7.27 pass |
+| `action.onSecondary` | `gradient.action.secondary` | Secondary button gradient (3X) | 4.5 | #1E1E21 / worst #F4F4F5 | 15.13 pass | #F4F4F5 / worst #36363B | 10.93 pass |
+| `action.onSecondary` | `gradient.action.secondaryHover` | Secondary button hover gradient (3X) | 4.5 | #1E1E21 / worst #EFF8F8 | 15.40 pass | #F4F4F5 / worst #3F3F46 | 9.50 pass |
+| `action.onAccent` | `gradient.action.accent` | Accent button / Featured badge gradient (3X) | 4.5 | #161616 / worst #F48438 | 7.07 pass | #161616 / worst #F48438 | 7.07 pass |
+| `action.onAccent` | `gradient.action.accentHover` | Accent button hover gradient (3X) | 4.5 | #161616 / worst #F9A76E | 9.29 pass | #161616 / worst #F9A76E | 9.29 pass |
+| `action.onDanger` | `gradient.action.danger` | Danger button gradient (3X) | 4.5 | #FFFFFF / worst #DC2626 | 4.83 pass | #161616 / worst #EF4444 | 4.81 pass |
+| `action.onDanger` | `gradient.action.dangerHover` | Danger button hover gradient (3X) | 4.5 | #FFFFFF / worst #B91C1C | 6.47 pass | #161616 / worst #F87171 | 6.54 pass |
+| `action.onGhost` | `gradient.action.ghostHover` | Ghost button hover gradient (3X) | 4.5 | #0D696C / worst #D6EFEE | 5.36 pass | #7FCAC7 / worst #024249 | 5.95 pass |
+| `text.primary` | `gradient.canvas` | Body on the gradient canvas (3X) | 4.5 | #1E1E21 / worst #E7EFF1 | 14.26 pass | #F4F4F5 / worst #1A2727 | 14.01 pass |
+| `text.secondary` | `gradient.canvas` | Meta on the gradient canvas (3X) | 4.5 | #52525B / worst #E7EFF1 | 6.63 pass | #D4D4D8 / worst #1A2727 | 10.42 pass |
+| `text.muted` | `gradient.canvas` | Muted on the gradient canvas (3X, the limiting pair) | 4.5 | #6B6B74 / worst #E7EFF1 | 4.53 pass | #A1A1AA / worst #1A2727 | 6.01 pass |
+| `text.link` | `gradient.canvas` | Links on the gradient canvas (3X) | 4.5 | #0D696C / worst #E7EFF1 | 5.54 pass | #7FCAC7 / worst #1A2727 | 8.20 pass |
+| `text.danger` | `gradient.canvas` | Field error on the gradient canvas (3X) | 4.5 | #B91C1C / worst #E7EFF1 | 5.55 pass | #FCA5A5 / worst #1A2727 | 8.12 pass |
+| `text.primary` | `gradient.surface` | Body on gradient cards (3X) | 4.5 | #1E1E21 / worst #FCFCFD | 16.22 pass | #F4F4F5 / worst #2A2A2E | 13.00 pass |
+| `text.secondary` | `gradient.surface` | Meta on gradient cards (3X) | 4.5 | #52525B / worst #FCFCFD | 7.54 pass | #D4D4D8 / worst #2A2A2E | 9.67 pass |
+| `text.muted` | `gradient.surface` | Muted on gradient cards (3X) | 4.5 | #6B6B74 / worst #FCFCFD | 5.15 pass | #A1A1AA / worst #2A2A2E | 5.58 pass |
+| `text.link` | `gradient.surface` | Links on gradient cards (3X) | 4.5 | #0D696C / worst #FCFCFD | 6.29 pass | #7FCAC7 / worst #2A2A2E | 7.61 pass |
+| `text.muted` | `gradient.input` | Placeholder in gradient inputs (3X) | 4.5 | #6B6B74 / worst #FCFCFD | 5.15 pass | #A1A1AA / worst #2A2A2E | 5.58 pass |
+| `text.secondary` | `gradient.track` | Role switcher label on its track (3X) | 4.5 | #52525B / worst #F4F4F5 | 7.03 pass | #D4D4D8 / worst #2E2E33 | 9.14 pass |
+| `text.onHero` | `gradient.hero` | Hero text on the hero gradient incl. the violet glow (3X) | 4.5 | #FFFFFF / worst #29807E | 4.68 pass | #FFFFFF / worst #21507A | 8.42 pass |
+| `focus.ring` | `gradient.canvas` | Focus ring on the gradient canvas (3X) | 3 | #29807E / worst #E7EFF1 | 4.02 pass | #7FCAC7 / worst #1A2727 | 8.20 pass |
+| `focus.ring` | `gradient.surface` | Focus ring on gradient cards (3X) | 3 | #29807E / worst #FCFCFD | 4.57 pass | #7FCAC7 / worst #2A2A2E | 7.61 pass |
+| `border.strong` | `gradient.input` | Input boundary on its own gradient (3X) | 3 | #8A8A93 / worst #FCFCFD | 3.34 pass | #8A8A93 / worst #2A2A2E | 4.18 pass |
+| `bg.surface` | `gradient.indicator` | Tab indicator / rating bar on cards (3X; symmetric ratio) | 3 | #FFFFFF / worst #35A29F | 3.08 pass | #27272A / worst #35A29F | 4.84 pass |
 
+| Category colour | Light: lowest text / lowest UI | Dark: lowest text / lowest UI |
+|---|---|---|
+| brand `brand` | 4.68 / 4.02 | 5.88 / 4.39 |
+| violet `#7C3AED` | 4.56 / 4.89 | 4.54 / 3.02 |
+| rose `#DB2777` | 4.51 / 3.94 | 4.52 / 3.07 |
+| blue `#2563EB` | 4.54 / 4.43 | 4.52 / 3.02 |
+| gold `#D99A00` | 4.56 / 3.01 | 4.56 / 5.51 |
+| sky `#0EA5E9` | 4.62 / 3.07 | 4.51 / 4.87 |
+| navy `#1E3A8A` | 8.17 / 8.89 | 4.50 / 3.02 |
+| leaf `#4D9A1E` | 4.51 / 3.02 | 4.52 / 3.83 |
+| fuchsia `#C026D3` | 4.60 / 4.04 | 4.53 / 3.05 |
+| bronze `#8B5E34` | 4.55 / 4.81 | 4.54 / 3.04 |
+| slate `#52606D` | 5.12 / 5.54 | 4.53 / 3.06 |
+| olive `#A3A30D` | 4.61 / 3.03 | 4.59 / 5.02 |
+| wine `#9F1239` | 6.22 / 6.88 | 4.57 / 3.07 |
 Legacy vs new, key pairs:
 | Pair | Legacy | New |
 |---|---|---|
@@ -561,6 +683,8 @@ Legacy vs new, key pairs:
 7. **Typography:** use `text.*` styles, not raw sizes. Never `text-transform: uppercase`, never `truncate` on labels, clamp titles by lines, prices with tabular numerals.
 8. **Touch:** every interactive element has a ≥ 44×44 hit area. Small visuals (checkbox, heart, close ×) get padding or an invisible hit area; spacing between adjacent targets ≥ 8.
 9. **Focus:** every interactive element shows the focus ring on `:focus-visible`. Custom components must not suppress it.
-10. **Motion:** use the duration/easing tokens; respect reduced motion; no rotating/zooming gimmicks.
+10. **Motion:** use the duration/easing/distance/scale tokens through their CSS variables (so reduced motion works without extra code); no bounce, shake, rotate or parallax; only `transform`, `opacity`, `filter` and `box-shadow` animate (§6.8).
 11. **Icons** inherit `currentColor` from the text role; icon-only buttons need an accessible name (see components.md).
 12. **Money** (`₾`) always through the `Price` component (components.md), tabular numerals, amounts from the API in tetri.
+13. **Category colours:** only through `@mytask/tokens/color` (`categoryStyle` on a `.mt-cat` element on the web, `categoryTheme` on native), reading the colour exactly where ADR-023 §3 says it is sent. Never walk the category tree, never store or send derived shades, never hard-code a category hex. `null` = brand. Long text never sits on a category gradient (visual-refresh §8.5).
+14. **Glow and gradients are for responding or current elements** (hover, focus, open, selected); static content gets none. Form controls keep `border.strong` (≥ 3:1) at rest: `border.action.*` are button edges only.

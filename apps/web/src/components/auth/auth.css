@@ -4,15 +4,18 @@
   display: grid;
   place-items: start center;
   padding: var(--mt-space-8) var(--mt-space-4);
-  background: var(--mt-bg-canvas);
+  /* No own background: the gradient page canvas (foundation.css, 3X.8) shows behind the card (3X.14a). */
 }
 
 .auth-card {
+  /* Surface (gradient, border, radius, shadow): @mytask/ui surfaces.css (3X.9d). */
+  /* Border box, so the card fits a 360 px phone (it overflowed by its padding + border, 3X.18b); the max width
+     adds them back, so the desktop card keeps its width. */
+  box-sizing: border-box;
   width: 100%;
-  max-width: calc(var(--mt-space-24) * 4.5);
-  background: var(--mt-bg-surface);
-  border: var(--mt-border-width-hairline) solid var(--mt-border-default);
-  border-radius: var(--mt-radius-card);
+  max-width: calc(
+    var(--mt-space-24) * 4.5 + 2 * var(--mt-space-6) + 2 * var(--mt-border-width-hairline)
+  );
   padding: var(--mt-space-8) var(--mt-space-6);
   display: grid;
   gap: var(--mt-space-4);
@@ -38,18 +41,8 @@
   outline-offset: var(--mt-space-0-5);
 }
 
-.auth-link-button {
-  background: none;
-  border: 0;
-  padding: 0;
-  font: inherit;
-  color: var(--mt-text-link);
-  cursor: pointer;
-  text-decoration: underline;
-}
-
+/* The compact Ghost button look of .auth-link-button: @mytask/ui buttons.css (3X.9a). */
 .auth-link-button[disabled] {
-  color: var(--mt-text-disabled);
   cursor: default;
 }
 
@@ -72,9 +65,6 @@
   font-weight: var(--mt-font-weight-regular);
 }
 .auth-field .auth-check input[type='checkbox'] {
-  width: auto;
-  flex: none;
-  padding: 0;
   margin-top: var(--mt-space-1);
 }
 
@@ -155,12 +145,30 @@
   gap: var(--mt-space-3);
 }
 
+/* Restricted page (3X.14b): each restriction is a small card with a 4 px start bar in its status colour, as the alerts
+   have (§6.4). */
 .restriction-item {
+  --mt-restriction-bar: var(--mt-border-strong);
   border: var(--mt-border-width-hairline) solid var(--mt-border-default);
+  border-inline-start: var(--mt-space-1) solid var(--mt-restriction-bar);
   border-radius: var(--mt-radius-control);
   padding: var(--mt-space-3);
   display: grid;
   gap: var(--mt-space-2);
+  background: var(--mt-gradient-surface);
+  box-shadow: var(--mt-elevation-sm), var(--mt-highlight-surface);
+}
+
+.restriction-item:has([data-status='pending'], [data-status='submitted']) {
+  --mt-restriction-bar: var(--mt-feedback-warning-icon);
+}
+
+.restriction-item:has([data-status='approved']) {
+  --mt-restriction-bar: var(--mt-feedback-success-icon);
+}
+
+.restriction-item:has([data-status='rejected']) {
+  --mt-restriction-bar: var(--mt-feedback-danger-icon);
 }
 
 .restriction-status {
@@ -266,20 +274,11 @@
   font: inherit;
   font-weight: var(--mt-font-weight-medium);
   padding: var(--mt-space-2) var(--mt-space-3);
-  border: 0;
   border-radius: var(--mt-radius-control);
-  background: var(--mt-action-secondary);
-  color: var(--mt-action-on-secondary);
   cursor: pointer;
 }
 
-.auth-social-button:hover {
-  background: var(--mt-action-secondary-hover);
-}
-
-.auth-social-button:active {
-  background: var(--mt-action-secondary-pressed);
-}
+/* The Secondary look and its states: @mytask/ui buttons.css (3X.9a). */
 
 .auth-social-button:focus-visible {
   outline: var(--mt-border-width-strong) solid var(--mt-border-brand);
@@ -287,8 +286,6 @@
 }
 
 .auth-social-button[disabled] {
-  background: var(--mt-action-disabled);
-  color: var(--mt-action-on-disabled);
   cursor: progress;
 }
 

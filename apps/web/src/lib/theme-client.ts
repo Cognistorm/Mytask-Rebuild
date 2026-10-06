@@ -19,8 +19,18 @@ export function applyTheme(choice: ThemeChoice | null, defaultTheme: Theme): voi
     effective === 'dark' ||
     (effective === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
   const html = document.documentElement;
+  const theme = dark ? 'dark' : 'light';
   html.dataset.themeChoice = effective;
-  html.dataset.theme = dark ? 'dark' : 'light';
+  if (html.dataset.theme === theme) return;
+  // F-3X18-1 (3X.21d): no transitions for the frame of the switch (foundation.css), so every surface takes its
+  // new colours at once instead of starting a colour/shadow transition. Removed after that frame has painted.
+  html.dataset.themeSwitching = '';
+  html.dataset.theme = theme;
+  requestAnimationFrame(() =>
+    requestAnimationFrame(() => {
+      delete html.dataset.themeSwitching;
+    }),
+  );
 }
 
 export function savedThemeCookie(): string | undefined {

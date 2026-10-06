@@ -5,9 +5,10 @@ import Link from 'next/link';
 import type { TFunction } from 'i18next';
 import type { components } from '@mytask/types';
 import type { Locale } from '@mytask/i18n';
-import { Alert, EmptyState, GigCard, GigGrid, Pagination } from '@mytask/ui/web';
+import { Alert, EmptyState, GigCard, GigGrid, motionEntrance, Pagination } from '@mytask/ui/web';
 import { gigCardLabels, toGigCardData } from '../../lib/gig-card';
 import { hasFilters, listSearch, PAGE_SIZE, type ListQuery } from '../../lib/list-query';
+import { MotionEntrance } from '../motion-entrance';
 import { FilterPanel } from './filter-panel';
 import { SortMenu } from './sort-menu';
 import './catalog.css';
@@ -42,7 +43,9 @@ export function GigList(props: {
         keepKeyword={props.keepKeyword}
         resetHref={resetHref}
       />
-      <section className="mt-list-results" aria-label={props.label}>
+      {/* M-10: the cards rise in as they come into view (3X.12). */}
+      <section className="mt-list-results" aria-label={props.label} suppressHydrationWarning>
+        <MotionEntrance />
         <div className="mt-list-toolbar">
           <p className="mt-list-count" data-testid="result-count">
             {result ? t('t_n_results', { count: total }) : ''}
@@ -70,8 +73,8 @@ export function GigList(props: {
           />
         ) : (
           <GigGrid label={props.label}>
-            {(result.data as GigCardItem[]).map((gig) => (
-              <li key={gig.id}>
+            {(result.data as GigCardItem[]).map((gig, i) => (
+              <li key={gig.id} {...motionEntrance(i)}>
                 <GigCard gig={toGigCardData(props.locale, gig)} labels={labels} Link={Link} />
               </li>
             ))}

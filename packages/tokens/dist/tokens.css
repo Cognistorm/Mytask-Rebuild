@@ -149,7 +149,7 @@
   --mt-radius-2xl: 24px;
   --mt-radius-full: 9999px;
   --mt-radius-control: var(--mt-radius-md);
-  --mt-radius-card: var(--mt-radius-lg);
+  --mt-radius-card: var(--mt-radius-xl);
   --mt-radius-dialog: var(--mt-radius-xl);
   --mt-radius-pill: var(--mt-radius-full);
   --mt-border-width-hairline: 1px;
@@ -158,6 +158,8 @@
   --mt-shadow-sm: 0px 1px 2px 0px #1616160F, 0px 1px 3px 0px #1616161A;
   --mt-shadow-md: 0px 4px 12px -4px #16161614, 0px 2px 4px 0px #1616160F;
   --mt-shadow-lg: 0px 24px 48px -12px #16161633;
+  --mt-shadow-control: 0px 1px 2px 0px #16161614;
+  --mt-shadow-control-dark: 0px 1px 2px 0px #00000066;
   --mt-shadow-sm-dark: 0px 1px 2px 0px #00000066;
   --mt-shadow-md-dark: 0px 4px 12px -2px #00000080;
   --mt-shadow-lg-dark: 0px 24px 48px -8px #000000A6;
@@ -221,17 +223,24 @@
   --mt-z-index-toast: 700;
   --mt-z-index-tooltip: 800;
   --mt-motion-duration-instant: 0ms;
+  --mt-motion-duration-press: 80ms;
   --mt-motion-duration-fast: 120ms;
   --mt-motion-duration-base: 200ms;
   --mt-motion-duration-slow: 300ms;
   --mt-motion-duration-slower: 400ms;
   --mt-motion-duration-shimmer: 1200ms;
+  --mt-motion-duration-drift: 18000ms;
   --mt-motion-easing-standard: cubic-bezier(0.2, 0, 0, 1);
   --mt-motion-easing-enter: cubic-bezier(0, 0, 0.2, 1);
   --mt-motion-easing-exit: cubic-bezier(0.4, 0, 1, 1);
   --mt-motion-easing-emphasized: cubic-bezier(0.3, 0, 0, 1);
-  --mt-motion-scale-hover: 1.02;
+  --mt-motion-scale-hover: 1.03;
   --mt-motion-scale-pressed: 0.98;
+  --mt-motion-distance-lift-control: 1px;
+  --mt-motion-distance-lift-card: 3px;
+  --mt-motion-distance-enter: 8px;
+  --mt-motion-stagger-step: 40ms;
+  --mt-motion-stagger-max: 8;
   --mt-focus-ring-width: 2px;
   --mt-focus-ring-offset: 2px;
   --mt-opacity-disabled-content: 1;
@@ -256,6 +265,8 @@
   --mt-bg-scrim: var(--mt-color-alpha-scrim-light);
   --mt-bg-skeleton: var(--mt-color-neutral-200);
   --mt-bg-skeleton-highlight: var(--mt-color-neutral-100);
+  --mt-bg-translucent: #FFFFFFD1;
+  --mt-bg-over-hero: #00000024;
   --mt-text-primary: var(--mt-color-neutral-900);
   --mt-text-secondary: var(--mt-color-neutral-600);
   --mt-text-muted: var(--mt-color-neutral-500);
@@ -277,6 +288,15 @@
   --mt-border-brand: var(--mt-color-brand-700);
   --mt-border-danger: var(--mt-color-red-700);
   --mt-border-featured: var(--mt-color-orange-400);
+  --mt-border-translucent: #1616160F;
+  --mt-border-over-hero: #FFFFFF4D;
+  --mt-border-card-hover: var(--mt-color-brand-200);
+  --mt-border-action-primary: var(--mt-color-brand-800);
+  --mt-border-action-secondary: var(--mt-color-neutral-300);
+  --mt-border-action-secondary-hover: var(--mt-color-brand-400);
+  --mt-border-action-accent: var(--mt-color-orange-600);
+  --mt-border-action-danger: var(--mt-color-red-800);
+  --mt-border-action-ghost: var(--mt-color-neutral-200);
   --mt-action-primary: var(--mt-color-brand-700);
   --mt-action-primary-hover: var(--mt-color-brand-800);
   --mt-action-primary-pressed: var(--mt-color-brand-900);
@@ -349,6 +369,43 @@
   --mt-chat-system-text: var(--mt-color-amber-800);
   --mt-chat-pane-bg: var(--mt-color-neutral-0);
   --mt-focus-ring: var(--mt-color-brand-600);
+  --mt-gradient-canvas: radial-gradient(1100px 620px at 8% -8%, #35A29F12 0%, #35A29F00 62%), radial-gradient(900px 520px at 100% 0%, #7C3AED0A 0%, #7C3AED00 60%), linear-gradient(180deg, #F3F8F8 0%, #FAFAFA 35%, #F4F5F7 100%);
+  --mt-gradient-hero: radial-gradient(circle at 85% 15%, #7C3AED47 0%, #7C3AED00 55%), linear-gradient(135deg, #29807E 0%, #0D696C 55%, #08565A 100%);
+  --mt-gradient-surface: linear-gradient(180deg, #FFFFFF 0%, #FCFCFD 100%);
+  --mt-gradient-input: var(--mt-gradient-surface);
+  --mt-gradient-track: linear-gradient(180deg, #F4F4F5 0%, #FAFAFA 100%);
+  --mt-gradient-skeleton: linear-gradient(90deg, #E4E4E7 0%, #F4F4F5 50%, #E4E4E7 100%);
+  --mt-gradient-indicator: linear-gradient(90deg, #35A29F 0%, #0D696C 100%);
+  --mt-gradient-brand-strip: linear-gradient(90deg, #35A29F 0%, #0D696C 50%, #7C3AED 100%);
+  --mt-gradient-brand-banner: linear-gradient(135deg, #29807E 0%, #08565A 60%, #4C3A9E 100%);
+  --mt-gradient-action-primary: linear-gradient(180deg, #29807E 0%, #0D696C 100%);
+  --mt-gradient-action-primary-hover: linear-gradient(180deg, #0D696C 0%, #08565A 100%);
+  --mt-gradient-action-secondary: linear-gradient(180deg, #FFFFFF 0%, #F4F4F5 100%);
+  --mt-gradient-action-secondary-hover: linear-gradient(180deg, #FFFFFF 0%, #EFF8F8 100%);
+  --mt-gradient-action-accent: linear-gradient(180deg, #F9A76E 0%, #F48438 100%);
+  --mt-gradient-action-accent-hover: linear-gradient(180deg, #FBB98A 0%, #F9A76E 100%);
+  --mt-gradient-action-danger: linear-gradient(180deg, #DC2626 0%, #B91C1C 100%);
+  --mt-gradient-action-danger-hover: linear-gradient(180deg, #B91C1C 0%, #991B1B 100%);
+  --mt-gradient-action-ghost-hover: linear-gradient(180deg, #EFF8F8 0%, #D6EFEE 100%);
+  --mt-glow-brand: 0px 0px 0px 4px #35A29F2E, 0px 8px 24px -8px #0D696C73;
+  --mt-glow-brand-soft: 0px 0px 0px 3px #35A29F1F, 0px 6px 18px -8px #0D696C4D;
+  --mt-glow-accent: 0px 0px 0px 4px #F4843833, 0px 8px 24px -8px #E56F1F73;
+  --mt-glow-danger: 0px 0px 0px 4px #DC262629, 0px 8px 24px -8px #B91C1C66;
+  --mt-glow-success: 0px 0px 0px 4px #16A34A2E, 0px 8px 24px -8px #15803D59;
+  --mt-highlight-filled: inset 0px 1px 0px 0px #FFFFFF38;
+  --mt-highlight-secondary: inset 0px 1px 0px 0px #FFFFFFE6;
+  --mt-highlight-surface: inset 0px 1px 0px 0px #FFFFFFE6;
+  --mt-highlight-pressed: inset 0px 2px 4px 0px #0000002E;
+  --mt-cat-solid: var(--mt-color-brand-600);
+  --mt-cat-on-solid: var(--mt-color-neutral-0);
+  --mt-cat-gradient-start: var(--mt-color-brand-600);
+  --mt-cat-gradient-end: var(--mt-color-brand-800);
+  --mt-cat-tint: var(--mt-color-brand-50);
+  --mt-cat-tint-strong: var(--mt-color-brand-100);
+  --mt-cat-ink: var(--mt-color-brand-700);
+  --mt-cat-indicator: var(--mt-color-brand-600);
+  --mt-cat-glow: #29807E59;
+  --mt-elevation-control: var(--mt-shadow-control);
   --mt-elevation-sm: var(--mt-shadow-sm);
   --mt-elevation-md: var(--mt-shadow-md);
   --mt-elevation-lg: var(--mt-shadow-lg);
@@ -371,6 +428,8 @@
   --mt-bg-scrim: var(--mt-color-alpha-scrim-dark);
   --mt-bg-skeleton: var(--mt-color-neutral-750);
   --mt-bg-skeleton-highlight: var(--mt-color-neutral-700);
+  --mt-bg-translucent: #27272AC7;
+  --mt-bg-over-hero: #00000024;
   --mt-text-primary: var(--mt-color-neutral-100);
   --mt-text-secondary: var(--mt-color-neutral-300);
   --mt-text-muted: var(--mt-color-neutral-400);
@@ -392,6 +451,15 @@
   --mt-border-brand: var(--mt-color-brand-400);
   --mt-border-danger: var(--mt-color-red-400);
   --mt-border-featured: var(--mt-color-orange-400);
+  --mt-border-translucent: #FFFFFF0F;
+  --mt-border-over-hero: #FFFFFF4D;
+  --mt-border-card-hover: var(--mt-color-brand-800);
+  --mt-border-action-primary: var(--mt-color-brand-300);
+  --mt-border-action-secondary: var(--mt-color-neutral-600);
+  --mt-border-action-secondary-hover: var(--mt-color-brand-400);
+  --mt-border-action-accent: var(--mt-color-orange-500);
+  --mt-border-action-danger: var(--mt-color-red-300);
+  --mt-border-action-ghost: var(--mt-color-neutral-750);
   --mt-action-primary: var(--mt-color-brand-400);
   --mt-action-primary-hover: var(--mt-color-brand-300);
   --mt-action-primary-pressed: var(--mt-color-brand-500);
@@ -464,19 +532,93 @@
   --mt-chat-system-text: var(--mt-color-amber-300);
   --mt-chat-pane-bg: var(--mt-color-neutral-900);
   --mt-focus-ring: var(--mt-color-brand-300);
+  --mt-gradient-canvas: radial-gradient(1100px 620px at 8% -8%, #35A29F1F 0%, #35A29F00 62%), radial-gradient(900px 520px at 100% 0%, #7C3AED14 0%, #7C3AED00 60%), linear-gradient(180deg, #111214 0%, #161616 40%, #131416 100%);
+  --mt-gradient-hero: radial-gradient(circle at 85% 15%, #7C3AED38 0%, #7C3AED00 55%), linear-gradient(135deg, #08565A 0%, #024249 55%, #012C31 100%);
+  --mt-gradient-surface: linear-gradient(180deg, #2A2A2E 0%, #27272A 100%);
+  --mt-gradient-input: var(--mt-gradient-surface);
+  --mt-gradient-track: linear-gradient(180deg, #2E2E33 0%, #27272A 100%);
+  --mt-gradient-skeleton: linear-gradient(90deg, #36363B 0%, #3F3F46 50%, #36363B 100%);
+  --mt-gradient-indicator: linear-gradient(90deg, #7FCAC7 0%, #35A29F 100%);
+  --mt-gradient-brand-strip: linear-gradient(90deg, #35A29F 0%, #0D696C 50%, #7C3AED 100%);
+  --mt-gradient-brand-banner: linear-gradient(135deg, #29807E 0%, #08565A 60%, #4C3A9E 100%);
+  --mt-gradient-action-primary: linear-gradient(180deg, #52B3B0 0%, #35A29F 100%);
+  --mt-gradient-action-primary-hover: linear-gradient(180deg, #7FCAC7 0%, #52B3B0 100%);
+  --mt-gradient-action-secondary: linear-gradient(180deg, #36363B 0%, #2E2E33 100%);
+  --mt-gradient-action-secondary-hover: linear-gradient(180deg, #3F3F46 0%, #36363B 100%);
+  --mt-gradient-action-accent: linear-gradient(180deg, #F9A76E 0%, #F48438 100%);
+  --mt-gradient-action-accent-hover: linear-gradient(180deg, #FBB98A 0%, #F9A76E 100%);
+  --mt-gradient-action-danger: linear-gradient(180deg, #F87171 0%, #EF4444 100%);
+  --mt-gradient-action-danger-hover: linear-gradient(180deg, #FCA5A5 0%, #F87171 100%);
+  --mt-gradient-action-ghost-hover: linear-gradient(180deg, #012C31 0%, #024249 100%);
+  --mt-glow-brand: 0px 0px 0px 4px #52B3B038, 0px 8px 26px -8px #52B3B061;
+  --mt-glow-brand-soft: 0px 0px 0px 3px #52B3B024, 0px 6px 20px -8px #52B3B042;
+  --mt-glow-accent: 0px 0px 0px 4px #F4843840, 0px 8px 24px -8px #E56F1F80;
+  --mt-glow-danger: 0px 0px 0px 4px #F8717138, 0px 8px 24px -8px #F8717159;
+  --mt-glow-success: 0px 0px 0px 4px #4ADE8038, 0px 8px 24px -8px #4ADE804D;
+  --mt-highlight-filled: inset 0px 1px 0px 0px #FFFFFF1F;
+  --mt-highlight-secondary: inset 0px 1px 0px 0px #FFFFFF0F;
+  --mt-highlight-surface: inset 0px 1px 0px 0px #FFFFFF0A;
+  --mt-highlight-pressed: inset 0px 2px 4px 0px #0000002E;
+  --mt-cat-solid: var(--mt-color-brand-400);
+  --mt-cat-on-solid: var(--mt-color-neutral-950);
+  --mt-cat-gradient-start: var(--mt-color-brand-300);
+  --mt-cat-gradient-end: var(--mt-color-brand-500);
+  --mt-cat-tint: var(--mt-color-brand-950);
+  --mt-cat-tint-strong: var(--mt-color-brand-900);
+  --mt-cat-ink: var(--mt-color-brand-300);
+  --mt-cat-indicator: var(--mt-color-brand-500);
+  --mt-cat-glow: #52B3B073;
+  --mt-elevation-control: var(--mt-shadow-control-dark);
   --mt-elevation-sm: var(--mt-shadow-sm-dark);
   --mt-elevation-md: var(--mt-shadow-md-dark);
   --mt-elevation-lg: var(--mt-shadow-lg-dark);
 }
 
-/* Reduced motion: every animated duration becomes 0. Components must also swap transforms for fades. */
+/* Category themes: brand fallback above (--mt-cat-*), per-category values from categoryStyle() inline. */
+:root,
+.mt-cat, [data-category-theme] {
+  --mt-glow-category: 0 0 0 3px var(--mt-cat-glow), 0 8px 22px -8px var(--mt-cat-solid);
+  --mt-gradient-category: linear-gradient(135deg, var(--mt-cat-gradient-start) 0%, var(--mt-cat-gradient-end) 100%);
+}
+.mt-cat, [data-category-theme] {
+  --mt-cat-solid: var(--mt-cat-l-solid, #29807E);
+  --mt-cat-on-solid: var(--mt-cat-l-on-solid, #FFFFFF);
+  --mt-cat-gradient-start: var(--mt-cat-l-gradient-start, #29807E);
+  --mt-cat-gradient-end: var(--mt-cat-l-gradient-end, #08565A);
+  --mt-cat-tint: var(--mt-cat-l-tint, #EFF8F8);
+  --mt-cat-tint-strong: var(--mt-cat-l-tint-strong, #D6EFEE);
+  --mt-cat-ink: var(--mt-cat-l-ink, #0D696C);
+  --mt-cat-indicator: var(--mt-cat-l-indicator, #29807E);
+  --mt-cat-glow: var(--mt-cat-l-glow, #29807E59);
+}
+[data-theme="dark"] .mt-cat,
+[data-theme="dark"] [data-category-theme] {
+  --mt-cat-solid: var(--mt-cat-d-solid, #52B3B0);
+  --mt-cat-on-solid: var(--mt-cat-d-on-solid, #161616);
+  --mt-cat-gradient-start: var(--mt-cat-d-gradient-start, #7FCAC7);
+  --mt-cat-gradient-end: var(--mt-cat-d-gradient-end, #35A29F);
+  --mt-cat-tint: var(--mt-cat-d-tint, #012C31);
+  --mt-cat-tint-strong: var(--mt-cat-d-tint-strong, #024249);
+  --mt-cat-ink: var(--mt-cat-d-ink, #7FCAC7);
+  --mt-cat-indicator: var(--mt-cat-d-indicator, #35A29F);
+  --mt-cat-glow: var(--mt-cat-d-glow, #52B3B073);
+}
+
+/* Reduced motion: durations capped at 'fast' (colour/opacity fades stay), loops off, lifts/slides 0, scales 1.
+   Components animate transforms through these variables, so they stop moving here. */
 @media (prefers-reduced-motion: reduce) {
   :root {
-    --mt-motion-duration-fast: 0ms;
-    --mt-motion-duration-base: 0ms;
-    --mt-motion-duration-slow: 0ms;
-    --mt-motion-duration-slower: 0ms;
+    --mt-motion-duration-base: 120ms;
+    --mt-motion-duration-slow: 120ms;
+    --mt-motion-duration-slower: 120ms;
     --mt-motion-duration-shimmer: 0ms;
+    --mt-motion-duration-drift: 0ms;
+    --mt-motion-distance-lift-control: 0;
+    --mt-motion-distance-lift-card: 0;
+    --mt-motion-distance-enter: 0;
+    --mt-motion-scale-hover: 1;
+    --mt-motion-scale-pressed: 1;
+    --mt-motion-stagger-step: 0ms;
   }
 }
 

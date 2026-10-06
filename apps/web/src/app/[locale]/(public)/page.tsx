@@ -7,7 +7,15 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import type { components } from '@mytask/types';
 import type { Locale } from '@mytask/i18n';
-import { Carousel, FreelancerCard, GigCard, GigGrid, SiteIcon } from '@mytask/ui/web';
+import {
+  Carousel,
+  categoryThemeProps,
+  FreelancerCard,
+  GigCard,
+  GigGrid,
+  motionEntrance,
+  SiteIcon,
+} from '@mytask/ui/web';
 import { viewerApi } from '../../../lib/api';
 import { categoryHref } from '../../../lib/category-nav';
 import { gigCardLabels, toGigCardData } from '../../../lib/gig-card';
@@ -15,6 +23,7 @@ import { href } from '../../../lib/href';
 import { getT, toLocale } from '../../../lib/i18n';
 import { getServerPublicConfig } from '../../../lib/site-data';
 import { alternates } from '../../../lib/seo';
+import { MotionEntrance } from '../../../components/motion-entrance';
 import { contactHref } from '../../../components/profile/parts';
 import '../../../components/catalog/catalog.css';
 import '../../../components/home/home.css';
@@ -56,8 +65,8 @@ export default async function HomePage({ params }: Params) {
   const labels = gigCardLabels(t);
   const gigs = (list: GigCardItem[], label: string) => (
     <GigGrid label={label}>
-      {list.map((g) => (
-        <li key={g.id}>
+      {list.map((g, i) => (
+        <li key={g.id} {...motionEntrance(i)}>
           <GigCard gig={toGigCardData(locale, g)} labels={labels} Link={Link} />
         </li>
       ))}
@@ -70,7 +79,9 @@ export default async function HomePage({ params }: Params) {
   );
 
   return (
-    <main className="mt-home">
+    // The entrance script marks <main> once it runs (3X.11, M-10); React does not own that attribute.
+    <main className="mt-home" suppressHydrationWarning>
+      <MotionEntrance />
       <section className="mt-home-hero" aria-labelledby="home-title">
         <div className="mt-home-hero-inner">
           <div className="mt-home-hero-text">
@@ -126,9 +137,13 @@ export default async function HomePage({ params }: Params) {
               next={t('t_page_next')}
               testId="featured-categories"
             >
-              {home.featuredCategories.map((f) => (
-                <li key={f.category.id}>
-                  <Link href={categoryHref(locale, f.category.slug)} className="mt-category-tile">
+              {home.featuredCategories.map((f, i) => (
+                <li key={f.category.id} {...motionEntrance(i)}>
+                  <Link
+                    href={categoryHref(locale, f.category.slug)}
+                    className="mt-category-tile"
+                    {...categoryThemeProps(f.category.color)}
+                  >
                     {f.image && (
                       // eslint-disable-next-line @next/next/no-img-element -- media host artwork
                       <img src={f.image.medium} alt="" loading="lazy" />
@@ -165,6 +180,7 @@ export default async function HomePage({ params }: Params) {
               className="mt-home-row"
               aria-labelledby={`home-row-${row.category.id}`}
               data-testid="category-row"
+              {...categoryThemeProps(row.category.color)}
             >
               <div className="mt-home-row-head">
                 <h2
@@ -192,8 +208,8 @@ export default async function HomePage({ params }: Params) {
               {seeMore(href(locale, '/sellers'))}
             </div>
             <ul className="mt-seller-grid" aria-label={t('t_top_sellers')}>
-              {home.bestSellers.map(({ user, skills }) => (
-                <li key={user.id}>
+              {home.bestSellers.map(({ user, skills }, i) => (
+                <li key={user.id} {...motionEntrance(i)}>
                   <FreelancerCard
                     seller={{
                       username: user.username,

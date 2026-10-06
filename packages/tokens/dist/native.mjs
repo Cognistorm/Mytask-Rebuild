@@ -17,7 +17,9 @@ export const lightTheme = {
       "promo": "#FFE6D3",
       "scrim": "#16161680",
       "skeleton": "#E4E4E7",
-      "skeletonHighlight": "#F4F4F5"
+      "skeletonHighlight": "#F4F4F5",
+      "translucent": "#FFFFFFD1",
+      "overHero": "#00000024"
     },
     "text": {
       "primary": "#1E1E21",
@@ -42,7 +44,18 @@ export const lightTheme = {
       "strong": "#8A8A93",
       "brand": "#0D696C",
       "danger": "#B91C1C",
-      "featured": "#F48438"
+      "featured": "#F48438",
+      "translucent": "#1616160F",
+      "overHero": "#FFFFFF4D",
+      "cardHover": "#AEDFDD",
+      "action": {
+        "primary": "#08565A",
+        "secondary": "#D4D4D8",
+        "secondaryHover": "#52B3B0",
+        "accent": "#C2560F",
+        "danger": "#991B1B",
+        "ghost": "#E4E4E7"
+      }
     },
     "action": {
       "primary": "#0D696C",
@@ -133,6 +146,416 @@ export const lightTheme = {
       "ring": "#29807E"
     }
   },
+  "category": {
+    "solid": "#29807E",
+    "onSolid": "#FFFFFF",
+    "gradientStart": "#29807E",
+    "gradientEnd": "#08565A",
+    "tint": "#EFF8F8",
+    "tintStrong": "#D6EFEE",
+    "ink": "#0D696C",
+    "indicator": "#29807E",
+    "glow": "#29807E59"
+  },
+  "gradient": {
+    "canvas": [
+      {
+        "type": "radial",
+        "shape": "1100px 620px",
+        "at": "8% -8%",
+        "colors": [
+          "#35A29F12",
+          "#35A29F00"
+        ],
+        "locations": [
+          0,
+          0.62
+        ]
+      },
+      {
+        "type": "radial",
+        "shape": "900px 520px",
+        "at": "100% 0%",
+        "colors": [
+          "#7C3AED0A",
+          "#7C3AED00"
+        ],
+        "locations": [
+          0,
+          0.6
+        ]
+      },
+      {
+        "type": "linear",
+        "colors": [
+          "#F3F8F8",
+          "#FAFAFA",
+          "#F4F5F7"
+        ],
+        "locations": [
+          0,
+          0.35,
+          1
+        ],
+        "start": {
+          "x": 0.5,
+          "y": 0
+        },
+        "end": {
+          "x": 0.5,
+          "y": 1
+        }
+      }
+    ],
+    "hero": [
+      {
+        "type": "radial",
+        "shape": "circle",
+        "at": "85% 15%",
+        "colors": [
+          "#7C3AED47",
+          "#7C3AED00"
+        ],
+        "locations": [
+          0,
+          0.55
+        ]
+      },
+      {
+        "type": "linear",
+        "colors": [
+          "#29807E",
+          "#0D696C",
+          "#08565A"
+        ],
+        "locations": [
+          0,
+          0.55,
+          1
+        ],
+        "start": {
+          "x": 0,
+          "y": 0
+        },
+        "end": {
+          "x": 1,
+          "y": 1
+        }
+      }
+    ],
+    "surface": {
+      "type": "linear",
+      "colors": [
+        "#FFFFFF",
+        "#FCFCFD"
+      ],
+      "locations": [
+        0,
+        1
+      ],
+      "start": {
+        "x": 0.5,
+        "y": 0
+      },
+      "end": {
+        "x": 0.5,
+        "y": 1
+      }
+    },
+    "input": {
+      "type": "linear",
+      "colors": [
+        "#FFFFFF",
+        "#FCFCFD"
+      ],
+      "locations": [
+        0,
+        1
+      ],
+      "start": {
+        "x": 0.5,
+        "y": 0
+      },
+      "end": {
+        "x": 0.5,
+        "y": 1
+      }
+    },
+    "track": {
+      "type": "linear",
+      "colors": [
+        "#F4F4F5",
+        "#FAFAFA"
+      ],
+      "locations": [
+        0,
+        1
+      ],
+      "start": {
+        "x": 0.5,
+        "y": 0
+      },
+      "end": {
+        "x": 0.5,
+        "y": 1
+      }
+    },
+    "skeleton": {
+      "type": "linear",
+      "colors": [
+        "#E4E4E7",
+        "#F4F4F5",
+        "#E4E4E7"
+      ],
+      "locations": [
+        0,
+        0.5,
+        1
+      ],
+      "start": {
+        "x": 0,
+        "y": 0.5
+      },
+      "end": {
+        "x": 1,
+        "y": 0.5
+      }
+    },
+    "indicator": {
+      "type": "linear",
+      "colors": [
+        "#35A29F",
+        "#0D696C"
+      ],
+      "locations": [
+        0,
+        1
+      ],
+      "start": {
+        "x": 0,
+        "y": 0.5
+      },
+      "end": {
+        "x": 1,
+        "y": 0.5
+      }
+    },
+    "brandStrip": {
+      "type": "linear",
+      "colors": [
+        "#35A29F",
+        "#0D696C",
+        "#7C3AED"
+      ],
+      "locations": [
+        0,
+        0.5,
+        1
+      ],
+      "start": {
+        "x": 0,
+        "y": 0.5
+      },
+      "end": {
+        "x": 1,
+        "y": 0.5
+      }
+    },
+    "brandBanner": {
+      "type": "linear",
+      "colors": [
+        "#29807E",
+        "#08565A",
+        "#4C3A9E"
+      ],
+      "locations": [
+        0,
+        0.6,
+        1
+      ],
+      "start": {
+        "x": 0,
+        "y": 0
+      },
+      "end": {
+        "x": 1,
+        "y": 1
+      }
+    },
+    "action": {
+      "primary": {
+        "type": "linear",
+        "colors": [
+          "#29807E",
+          "#0D696C"
+        ],
+        "locations": [
+          0,
+          1
+        ],
+        "start": {
+          "x": 0.5,
+          "y": 0
+        },
+        "end": {
+          "x": 0.5,
+          "y": 1
+        }
+      },
+      "primaryHover": {
+        "type": "linear",
+        "colors": [
+          "#0D696C",
+          "#08565A"
+        ],
+        "locations": [
+          0,
+          1
+        ],
+        "start": {
+          "x": 0.5,
+          "y": 0
+        },
+        "end": {
+          "x": 0.5,
+          "y": 1
+        }
+      },
+      "secondary": {
+        "type": "linear",
+        "colors": [
+          "#FFFFFF",
+          "#F4F4F5"
+        ],
+        "locations": [
+          0,
+          1
+        ],
+        "start": {
+          "x": 0.5,
+          "y": 0
+        },
+        "end": {
+          "x": 0.5,
+          "y": 1
+        }
+      },
+      "secondaryHover": {
+        "type": "linear",
+        "colors": [
+          "#FFFFFF",
+          "#EFF8F8"
+        ],
+        "locations": [
+          0,
+          1
+        ],
+        "start": {
+          "x": 0.5,
+          "y": 0
+        },
+        "end": {
+          "x": 0.5,
+          "y": 1
+        }
+      },
+      "accent": {
+        "type": "linear",
+        "colors": [
+          "#F9A76E",
+          "#F48438"
+        ],
+        "locations": [
+          0,
+          1
+        ],
+        "start": {
+          "x": 0.5,
+          "y": 0
+        },
+        "end": {
+          "x": 0.5,
+          "y": 1
+        }
+      },
+      "accentHover": {
+        "type": "linear",
+        "colors": [
+          "#FBB98A",
+          "#F9A76E"
+        ],
+        "locations": [
+          0,
+          1
+        ],
+        "start": {
+          "x": 0.5,
+          "y": 0
+        },
+        "end": {
+          "x": 0.5,
+          "y": 1
+        }
+      },
+      "danger": {
+        "type": "linear",
+        "colors": [
+          "#DC2626",
+          "#B91C1C"
+        ],
+        "locations": [
+          0,
+          1
+        ],
+        "start": {
+          "x": 0.5,
+          "y": 0
+        },
+        "end": {
+          "x": 0.5,
+          "y": 1
+        }
+      },
+      "dangerHover": {
+        "type": "linear",
+        "colors": [
+          "#B91C1C",
+          "#991B1B"
+        ],
+        "locations": [
+          0,
+          1
+        ],
+        "start": {
+          "x": 0.5,
+          "y": 0
+        },
+        "end": {
+          "x": 0.5,
+          "y": 1
+        }
+      },
+      "ghostHover": {
+        "type": "linear",
+        "colors": [
+          "#EFF8F8",
+          "#D6EFEE"
+        ],
+        "locations": [
+          0,
+          1
+        ],
+        "start": {
+          "x": 0.5,
+          "y": 0
+        },
+        "end": {
+          "x": 0.5,
+          "y": 1
+        }
+      }
+    }
+  },
   "text": {
     "display": {
       "fontFamily": "FiraGO-Bold",
@@ -238,6 +661,16 @@ export const lightTheme = {
     }
   },
   "shadow": {
+    "control": {
+      "shadowColor": "#161616",
+      "shadowOffset": {
+        "width": 0,
+        "height": 1
+      },
+      "shadowOpacity": 0.08,
+      "shadowRadius": 2,
+      "elevation": 1
+    },
     "sm": {
       "shadowColor": "#161616",
       "shadowOffset": {
@@ -269,6 +702,58 @@ export const lightTheme = {
       "elevation": 12
     }
   },
+  "glow": {
+    "brand": {
+      "shadowColor": "#0D696C",
+      "shadowOffset": {
+        "width": 0,
+        "height": 8
+      },
+      "shadowOpacity": 0.45,
+      "shadowRadius": 12,
+      "elevation": 6
+    },
+    "brandSoft": {
+      "shadowColor": "#0D696C",
+      "shadowOffset": {
+        "width": 0,
+        "height": 8
+      },
+      "shadowOpacity": 0.3,
+      "shadowRadius": 9,
+      "elevation": 4
+    },
+    "accent": {
+      "shadowColor": "#E56F1F",
+      "shadowOffset": {
+        "width": 0,
+        "height": 8
+      },
+      "shadowOpacity": 0.45,
+      "shadowRadius": 12,
+      "elevation": 6
+    },
+    "danger": {
+      "shadowColor": "#B91C1C",
+      "shadowOffset": {
+        "width": 0,
+        "height": 8
+      },
+      "shadowOpacity": 0.4,
+      "shadowRadius": 12,
+      "elevation": 6
+    },
+    "success": {
+      "shadowColor": "#15803D",
+      "shadowOffset": {
+        "width": 0,
+        "height": 8
+      },
+      "shadowOpacity": 0.35,
+      "shadowRadius": 12,
+      "elevation": 6
+    }
+  },
   "space": {
     "0": 0,
     "1": 4,
@@ -295,7 +780,7 @@ export const lightTheme = {
     "2xl": 24,
     "full": 9999,
     "control": 8,
-    "card": 12,
+    "card": 16,
     "dialog": 16,
     "pill": 9999
   },
@@ -376,11 +861,13 @@ export const lightTheme = {
   "motion": {
     "duration": {
       "instant": 0,
+      "press": 80,
       "fast": 120,
       "base": 200,
       "slow": 300,
       "slower": 400,
-      "shimmer": 1200
+      "shimmer": 1200,
+      "drift": 18000
     },
     "easing": {
       "standard": [
@@ -409,8 +896,25 @@ export const lightTheme = {
       ]
     },
     "scale": {
-      "hover": 1.02,
+      "hover": 1.03,
       "pressed": 0.98
+    },
+    "distance": {
+      "liftControl": 1,
+      "liftCard": 3,
+      "enter": 8
+    },
+    "stagger": {
+      "step": 40,
+      "max": 8
+    },
+    "spring": {
+      "default": {
+        "damping": 18,
+        "stiffness": 220,
+        "mass": 1,
+        "overshootClamping": true
+      }
     }
   },
   "focus": {
@@ -451,7 +955,9 @@ export const darkTheme = {
       "promo": "#3D1804",
       "scrim": "#000000B3",
       "skeleton": "#36363B",
-      "skeletonHighlight": "#3F3F46"
+      "skeletonHighlight": "#3F3F46",
+      "translucent": "#27272AC7",
+      "overHero": "#00000024"
     },
     "text": {
       "primary": "#F4F4F5",
@@ -476,7 +982,18 @@ export const darkTheme = {
       "strong": "#8A8A93",
       "brand": "#52B3B0",
       "danger": "#F87171",
-      "featured": "#F48438"
+      "featured": "#F48438",
+      "translucent": "#FFFFFF0F",
+      "overHero": "#FFFFFF4D",
+      "cardHover": "#08565A",
+      "action": {
+        "primary": "#7FCAC7",
+        "secondary": "#52525B",
+        "secondaryHover": "#52B3B0",
+        "accent": "#E56F1F",
+        "danger": "#FCA5A5",
+        "ghost": "#36363B"
+      }
     },
     "action": {
       "primary": "#52B3B0",
@@ -567,6 +1084,416 @@ export const darkTheme = {
       "ring": "#7FCAC7"
     }
   },
+  "category": {
+    "solid": "#52B3B0",
+    "onSolid": "#161616",
+    "gradientStart": "#7FCAC7",
+    "gradientEnd": "#35A29F",
+    "tint": "#012C31",
+    "tintStrong": "#024249",
+    "ink": "#7FCAC7",
+    "indicator": "#35A29F",
+    "glow": "#52B3B073"
+  },
+  "gradient": {
+    "canvas": [
+      {
+        "type": "radial",
+        "shape": "1100px 620px",
+        "at": "8% -8%",
+        "colors": [
+          "#35A29F1F",
+          "#35A29F00"
+        ],
+        "locations": [
+          0,
+          0.62
+        ]
+      },
+      {
+        "type": "radial",
+        "shape": "900px 520px",
+        "at": "100% 0%",
+        "colors": [
+          "#7C3AED14",
+          "#7C3AED00"
+        ],
+        "locations": [
+          0,
+          0.6
+        ]
+      },
+      {
+        "type": "linear",
+        "colors": [
+          "#111214",
+          "#161616",
+          "#131416"
+        ],
+        "locations": [
+          0,
+          0.4,
+          1
+        ],
+        "start": {
+          "x": 0.5,
+          "y": 0
+        },
+        "end": {
+          "x": 0.5,
+          "y": 1
+        }
+      }
+    ],
+    "hero": [
+      {
+        "type": "radial",
+        "shape": "circle",
+        "at": "85% 15%",
+        "colors": [
+          "#7C3AED38",
+          "#7C3AED00"
+        ],
+        "locations": [
+          0,
+          0.55
+        ]
+      },
+      {
+        "type": "linear",
+        "colors": [
+          "#08565A",
+          "#024249",
+          "#012C31"
+        ],
+        "locations": [
+          0,
+          0.55,
+          1
+        ],
+        "start": {
+          "x": 0,
+          "y": 0
+        },
+        "end": {
+          "x": 1,
+          "y": 1
+        }
+      }
+    ],
+    "surface": {
+      "type": "linear",
+      "colors": [
+        "#2A2A2E",
+        "#27272A"
+      ],
+      "locations": [
+        0,
+        1
+      ],
+      "start": {
+        "x": 0.5,
+        "y": 0
+      },
+      "end": {
+        "x": 0.5,
+        "y": 1
+      }
+    },
+    "input": {
+      "type": "linear",
+      "colors": [
+        "#2A2A2E",
+        "#27272A"
+      ],
+      "locations": [
+        0,
+        1
+      ],
+      "start": {
+        "x": 0.5,
+        "y": 0
+      },
+      "end": {
+        "x": 0.5,
+        "y": 1
+      }
+    },
+    "track": {
+      "type": "linear",
+      "colors": [
+        "#2E2E33",
+        "#27272A"
+      ],
+      "locations": [
+        0,
+        1
+      ],
+      "start": {
+        "x": 0.5,
+        "y": 0
+      },
+      "end": {
+        "x": 0.5,
+        "y": 1
+      }
+    },
+    "skeleton": {
+      "type": "linear",
+      "colors": [
+        "#36363B",
+        "#3F3F46",
+        "#36363B"
+      ],
+      "locations": [
+        0,
+        0.5,
+        1
+      ],
+      "start": {
+        "x": 0,
+        "y": 0.5
+      },
+      "end": {
+        "x": 1,
+        "y": 0.5
+      }
+    },
+    "indicator": {
+      "type": "linear",
+      "colors": [
+        "#7FCAC7",
+        "#35A29F"
+      ],
+      "locations": [
+        0,
+        1
+      ],
+      "start": {
+        "x": 0,
+        "y": 0.5
+      },
+      "end": {
+        "x": 1,
+        "y": 0.5
+      }
+    },
+    "brandStrip": {
+      "type": "linear",
+      "colors": [
+        "#35A29F",
+        "#0D696C",
+        "#7C3AED"
+      ],
+      "locations": [
+        0,
+        0.5,
+        1
+      ],
+      "start": {
+        "x": 0,
+        "y": 0.5
+      },
+      "end": {
+        "x": 1,
+        "y": 0.5
+      }
+    },
+    "brandBanner": {
+      "type": "linear",
+      "colors": [
+        "#29807E",
+        "#08565A",
+        "#4C3A9E"
+      ],
+      "locations": [
+        0,
+        0.6,
+        1
+      ],
+      "start": {
+        "x": 0,
+        "y": 0
+      },
+      "end": {
+        "x": 1,
+        "y": 1
+      }
+    },
+    "action": {
+      "primary": {
+        "type": "linear",
+        "colors": [
+          "#52B3B0",
+          "#35A29F"
+        ],
+        "locations": [
+          0,
+          1
+        ],
+        "start": {
+          "x": 0.5,
+          "y": 0
+        },
+        "end": {
+          "x": 0.5,
+          "y": 1
+        }
+      },
+      "primaryHover": {
+        "type": "linear",
+        "colors": [
+          "#7FCAC7",
+          "#52B3B0"
+        ],
+        "locations": [
+          0,
+          1
+        ],
+        "start": {
+          "x": 0.5,
+          "y": 0
+        },
+        "end": {
+          "x": 0.5,
+          "y": 1
+        }
+      },
+      "secondary": {
+        "type": "linear",
+        "colors": [
+          "#36363B",
+          "#2E2E33"
+        ],
+        "locations": [
+          0,
+          1
+        ],
+        "start": {
+          "x": 0.5,
+          "y": 0
+        },
+        "end": {
+          "x": 0.5,
+          "y": 1
+        }
+      },
+      "secondaryHover": {
+        "type": "linear",
+        "colors": [
+          "#3F3F46",
+          "#36363B"
+        ],
+        "locations": [
+          0,
+          1
+        ],
+        "start": {
+          "x": 0.5,
+          "y": 0
+        },
+        "end": {
+          "x": 0.5,
+          "y": 1
+        }
+      },
+      "accent": {
+        "type": "linear",
+        "colors": [
+          "#F9A76E",
+          "#F48438"
+        ],
+        "locations": [
+          0,
+          1
+        ],
+        "start": {
+          "x": 0.5,
+          "y": 0
+        },
+        "end": {
+          "x": 0.5,
+          "y": 1
+        }
+      },
+      "accentHover": {
+        "type": "linear",
+        "colors": [
+          "#FBB98A",
+          "#F9A76E"
+        ],
+        "locations": [
+          0,
+          1
+        ],
+        "start": {
+          "x": 0.5,
+          "y": 0
+        },
+        "end": {
+          "x": 0.5,
+          "y": 1
+        }
+      },
+      "danger": {
+        "type": "linear",
+        "colors": [
+          "#F87171",
+          "#EF4444"
+        ],
+        "locations": [
+          0,
+          1
+        ],
+        "start": {
+          "x": 0.5,
+          "y": 0
+        },
+        "end": {
+          "x": 0.5,
+          "y": 1
+        }
+      },
+      "dangerHover": {
+        "type": "linear",
+        "colors": [
+          "#FCA5A5",
+          "#F87171"
+        ],
+        "locations": [
+          0,
+          1
+        ],
+        "start": {
+          "x": 0.5,
+          "y": 0
+        },
+        "end": {
+          "x": 0.5,
+          "y": 1
+        }
+      },
+      "ghostHover": {
+        "type": "linear",
+        "colors": [
+          "#012C31",
+          "#024249"
+        ],
+        "locations": [
+          0,
+          1
+        ],
+        "start": {
+          "x": 0.5,
+          "y": 0
+        },
+        "end": {
+          "x": 0.5,
+          "y": 1
+        }
+      }
+    }
+  },
   "text": {
     "display": {
       "fontFamily": "FiraGO-Bold",
@@ -672,6 +1599,16 @@ export const darkTheme = {
     }
   },
   "shadow": {
+    "control": {
+      "shadowColor": "#000000",
+      "shadowOffset": {
+        "width": 0,
+        "height": 1
+      },
+      "shadowOpacity": 0.4,
+      "shadowRadius": 2,
+      "elevation": 1
+    },
     "sm": {
       "shadowColor": "#000000",
       "shadowOffset": {
@@ -703,6 +1640,58 @@ export const darkTheme = {
       "elevation": 12
     }
   },
+  "glow": {
+    "brand": {
+      "shadowColor": "#52B3B0",
+      "shadowOffset": {
+        "width": 0,
+        "height": 8
+      },
+      "shadowOpacity": 0.38,
+      "shadowRadius": 13,
+      "elevation": 6
+    },
+    "brandSoft": {
+      "shadowColor": "#52B3B0",
+      "shadowOffset": {
+        "width": 0,
+        "height": 8
+      },
+      "shadowOpacity": 0.26,
+      "shadowRadius": 10,
+      "elevation": 4
+    },
+    "accent": {
+      "shadowColor": "#E56F1F",
+      "shadowOffset": {
+        "width": 0,
+        "height": 8
+      },
+      "shadowOpacity": 0.5,
+      "shadowRadius": 12,
+      "elevation": 6
+    },
+    "danger": {
+      "shadowColor": "#F87171",
+      "shadowOffset": {
+        "width": 0,
+        "height": 8
+      },
+      "shadowOpacity": 0.35,
+      "shadowRadius": 12,
+      "elevation": 6
+    },
+    "success": {
+      "shadowColor": "#4ADE80",
+      "shadowOffset": {
+        "width": 0,
+        "height": 8
+      },
+      "shadowOpacity": 0.3,
+      "shadowRadius": 12,
+      "elevation": 6
+    }
+  },
   "space": {
     "0": 0,
     "1": 4,
@@ -729,7 +1718,7 @@ export const darkTheme = {
     "2xl": 24,
     "full": 9999,
     "control": 8,
-    "card": 12,
+    "card": 16,
     "dialog": 16,
     "pill": 9999
   },
@@ -810,11 +1799,13 @@ export const darkTheme = {
   "motion": {
     "duration": {
       "instant": 0,
+      "press": 80,
       "fast": 120,
       "base": 200,
       "slow": 300,
       "slower": 400,
-      "shimmer": 1200
+      "shimmer": 1200,
+      "drift": 18000
     },
     "easing": {
       "standard": [
@@ -843,8 +1834,25 @@ export const darkTheme = {
       ]
     },
     "scale": {
-      "hover": 1.02,
+      "hover": 1.03,
       "pressed": 0.98
+    },
+    "distance": {
+      "liftControl": 1,
+      "liftCard": 3,
+      "enter": 8
+    },
+    "stagger": {
+      "step": 40,
+      "max": 8
+    },
+    "spring": {
+      "default": {
+        "damping": 18,
+        "stiffness": 220,
+        "mass": 1,
+        "overshootClamping": true
+      }
     }
   },
   "focus": {
@@ -868,3 +1876,4 @@ export const darkTheme = {
   }
 };
 export const themes = { light: lightTheme, dark: darkTheme };
+export { categoryTheme, deriveCategoryColor, isCategoryColor } from '../src/category-color.mjs';

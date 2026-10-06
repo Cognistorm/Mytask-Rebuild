@@ -4,6 +4,14 @@
 // visitor's `mt_theme` cookie and S-105/S-106 (lib/theme.ts, spec 02 AC-35).
 import '@mytask/tokens/fonts.css';
 import '@mytask/tokens/tokens.css';
+// Gradient canvas, motion utilities, category theme helpers (3X.8): before every component stylesheet.
+import '@mytask/ui/web/foundation.css';
+// Every button class's look (3X.9a): global, so it applies whichever component stylesheets a route loads.
+import '@mytask/ui/web/buttons.css';
+// Text field, checkbox, radio and switch looks (3X.9b), global for the same reason.
+import '@mytask/ui/web/controls.css';
+// Card and panel surfaces and the card hover (3X.9d), global for the same reason.
+import '@mytask/ui/web/surfaces.css';
 import '../styles/globals.css';
 import type { Metadata } from 'next';
 import { cookies, headers } from 'next/headers';

@@ -8,7 +8,7 @@ import { notFound } from 'next/navigation';
 import { cache } from 'react';
 import type { components } from '@mytask/types';
 import type { Locale } from '@mytask/i18n';
-import { Breadcrumb } from '@mytask/ui/web';
+import { Breadcrumb, categoryThemeProps } from '@mytask/ui/web';
 import Link from 'next/link';
 import { GigList } from '../../../../../components/catalog/gig-list';
 import { viewerApi } from '../../../../../lib/api';
@@ -83,9 +83,15 @@ export default async function CategoryPage({ params, searchParams }: Params) {
   const lang = category.contentLocale !== locale ? category.contentLocale : undefined;
 
   return (
-    <main className="mt-catalog-page" data-testid="category-page">
+    // The page carries its category colour (visual-refresh.md §8.5; every level has the top level's colour): the
+    // title band, the breadcrumb chips and the current chips use it.
+    <main
+      className="mt-catalog-page"
+      data-testid="category-page"
+      {...categoryThemeProps(category.color)}
+    >
       <Breadcrumb label={t('t_breadcrumb')} items={crumbs} Link={Link} />
-      <h1 className="mt-catalog-title" lang={lang}>
+      <h1 className="mt-catalog-title mt-catalog-band" lang={lang}>
         {category.name}
       </h1>
       {georgianBody && <p className="mt-catalog-note">{t('t_content_shown_in_georgian')}</p>}

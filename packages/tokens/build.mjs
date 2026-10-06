@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-// @mytask/tokens build: tokens.json -> dist/ (CSS variables, fonts CSS, JS/TS object, React Native theme).
+// @mytask/tokens build: tokens.json -> dist/ (CSS variables, fonts CSS, JS/TS object, React Native theme, category data).
 // Plain Node >= 18, no dependencies:  node packages/tokens/build.mjs
-// Fails (exit 1) if an alias is broken or any contrast pair in contrast-pairs.json fails WCAG AA.
+// Fails (exit 1) if an alias is broken, the themes differ in keys, any contrast pair in contrast-pairs.json fails
+// WCAG AA (gradients: at every stop and composited point), or any category theme (brand + 12 starters) fails.
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { here, loadJson, walk, resolve, aliasOf, typeOf, getPath } from './lib.mjs';
-import { checkContrast } from './contrast.mjs';
+import { here, loadJson, walk, resolve, aliasOf, getPath, isGradient, gradientCss, gradientNative, gradientPoints } from './lib.mjs';
 
 const tokens = loadJson('tokens.json');
 const out = join(here, 'dist');
@@ -33,7 +33,8 @@ function cssValue(type, v) {
     case 'duration': return `${v}ms`;
     case 'cubicBezier': return `cubic-bezier(${v.join(', ')})`;
     case 'fontFamily': return Array.isArray(v) ? v.map(quoteFont).join(', ') : quoteFont(v);
-    case 'shadow': return v.length ? v.map((s) => `${s.offsetX}px ${s.offsetY}px ${s.blur}px ${s.spread}px ${s.color}`).join(', ') : 'none';
+    case 'shadow': return v.length ? v.map((s) => `${s.inset ? 'inset ' : ''}${s.offsetX}px ${s.offsetY}px ${s.blur}px ${s.spread}px ${s.color}`).join(', ') : 'none';
+    case 'gradient': return gradientCss(v);
     default: return String(v);
   }
 }
@@ -41,7 +42,9 @@ function cssValue(type, v) {
 // ---------- CSS ----------
 const primitiveLines = [];
 const themeLines = { };
-const skipCss = (path, type) => type === 'typography' || type === 'string' && path[0] === 'font' && (path[1] === 'native' || path[1] === 'webFiles');
+// Not CSS: composite text styles, native-only fonts and springs, and the category data (read through JS).
+const skipCss = (path, type) => type === 'typography' || type === 'spring' || path[0] === 'category' ||
+  (type === 'string' && path[0] === 'font' && (path[1] === 'native' || path[1] === 'webFiles'));
 
 for (const { path, token, type } of walk(tokens)) {
   if (skipCss(path, type)) continue;
@@ -74,7 +77,30 @@ for (const [name, tok] of Object.entries(tokens.text)) {
   }
 }
 
-const durations = Object.keys(tokens.motion.duration).filter((k) => !k.startsWith('$') && k !== 'instant');
+// Reduced motion (visual-refresh.md 7): durations capped at 'fast' (fades stay), loops off, no movement or scale.
+const tokenEntries = (group) => Object.entries(group).filter(([k]) => !k.startsWith('$'));
+const fast = tokens.motion.duration.fast.$value;
+const reducedLines = [];
+for (const [k, t] of tokenEntries(tokens.motion.duration)) {
+  if (t.$extensions?.['ge.mytask.loop']) reducedLines.push(`    --${PREFIX}-motion-duration-${seg(k)}: 0ms;`);
+  else if (t.$value > fast) reducedLines.push(`    --${PREFIX}-motion-duration-${seg(k)}: ${fast}ms;`);
+}
+for (const [k] of tokenEntries(tokens.motion.distance)) reducedLines.push(`    --${PREFIX}-motion-distance-${seg(k)}: 0;`);
+for (const [k] of tokenEntries(tokens.motion.scale)) reducedLines.push(`    --${PREFIX}-motion-scale-${seg(k)}: 1;`);
+reducedLines.push(`    --${PREFIX}-motion-stagger-step: 0ms;`);
+
+// Category themes (ADR-023, visual-refresh.md 8.3): categoryStyle() puts --mt-cat-l-* and --mt-cat-d-* inline on an
+// element with class mt-cat (or a data-category-theme attribute); this maps the active theme's set to --mt-cat-*.
+// Without inline variables the brand fallback (theme.<name>.cat) applies. Composites are re-declared on every
+// .mt-cat because var() inside a custom property resolves where it is declared.
+const CAT_SEL = `.${PREFIX}-cat, [data-category-theme]`;
+const catKeys = tokenEntries(tokens.theme.light.cat).map(([k]) => k);
+const catMap = (theme, p) => catKeys
+  .map((k) => `  --${PREFIX}-cat-${seg(k)}: var(--${PREFIX}-cat-${p}-${seg(k)}, ${resolve(tokens, tokens.theme[theme].cat[k].$value)});`)
+  .join('\n');
+const catComposites = `  --${PREFIX}-glow-category: 0 0 0 3px var(--${PREFIX}-cat-glow), 0 8px 22px -8px var(--${PREFIX}-cat-solid);
+  --${PREFIX}-gradient-category: linear-gradient(135deg, var(--${PREFIX}-cat-gradient-start) 0%, var(--${PREFIX}-cat-gradient-end) 100%);`;
+
 const css = `${BANNER}
 /* Primitives (theme-independent). */
 :root {
@@ -94,10 +120,24 @@ ${themeLines.light.join('\n')}
 ${themeLines.dark.join('\n')}
 }
 
-/* Reduced motion: every animated duration becomes 0. Components must also swap transforms for fades. */
+/* Category themes: brand fallback above (--${PREFIX}-cat-*), per-category values from categoryStyle() inline. */
+:root,
+${CAT_SEL} {
+${catComposites}
+}
+${CAT_SEL} {
+${catMap('light', 'l')}
+}
+[data-theme="dark"] .${PREFIX}-cat,
+[data-theme="dark"] [data-category-theme] {
+${catMap('dark', 'd')}
+}
+
+/* Reduced motion: durations capped at 'fast' (colour/opacity fades stay), loops off, lifts/slides 0, scales 1.
+   Components animate transforms through these variables, so they stop moving here. */
 @media (prefers-reduced-motion: reduce) {
   :root {
-${durations.map((d) => `    --${PREFIX}-motion-duration-${seg(d)}: 0ms;`).join('\n')}
+${reducedLines.join('\n')}
   }
 }
 
@@ -141,9 +181,39 @@ function varTree(node, path) {
   }
   return o;
 }
-const { font: _f, text: _t, theme: _th, ...cssPrims } = tokens;
+const { font: _f, text: _t, theme: _th, category: _c, ...cssPrims } = tokens;
 const webVars = { ...varTree(cssPrims, []), ...varTree(tokens.theme.light, ['theme', 'light']) };
+delete webVars.motion.spring; // native only
+webVars.glow.category = `var(--${PREFIX}-glow-category)`;
+webVars.gradient.category = `var(--${PREFIX}-gradient-category)`;
 webVars.textClass = Object.fromEntries(Object.keys(tokens.text).filter((k) => !k.startsWith('$')).map((k) => [k, `${PREFIX}-text-${seg(k)}`]));
+webVars.catClass = `${PREFIX}-cat`;
+
+// ---------- category data (dist/category.mjs, read by src/category-color.mjs) ----------
+const cat = tokens.category;
+const themeCat = (name) => Object.freeze(resolve(tokens, Object.fromEntries(catKeys.map((k) => [k, tokens.theme[name].cat[k].$value]))));
+const reference = Object.fromEntries(['light', 'dark'].map((name) => {
+  const t = themes[name];
+  return [name, {
+    // Every surface category ink/indicator may sit on, and every point of the gradient canvas.
+    surfaces: [...new Set([t.bg.surface, t.bg.surfaceRaised, ...gradientPoints(t.gradient.surface)])],
+    canvases: [...new Set([t.bg.canvas, ...gradientPoints(t.gradient.canvas)])],
+    textLight: primitives.color.neutral['0'],
+    textDark: primitives.color.neutral['950'],
+    glowAlpha: name === 'light' ? '59' : '73', // glow = solid at 35 % (light) / 45 % (dark), visual-refresh.md 8.2
+  }];
+}));
+const categoryData = {
+  starter: tokenEntries(cat.starter).map(([id, t]) => ({ id, color: resolve(tokens, t.$value).toUpperCase() })),
+  similarDeltaE: cat.similarDeltaE.$value,
+  reservedDeltaE: cat.reservedDeltaE.$value,
+  reserved: tokenEntries(cat.reserved).map(([id, t]) => ({ id, color: resolve(tokens, t.$value).toUpperCase(), meaning: t.$extensions['ge.mytask.meaning'] })),
+  reference,
+};
+for (const s of categoryData.starter) if (!/^#[0-9A-F]{6}$/.test(s.color)) throw new Error(`category.starter.${s.id}: ${s.color} is not #RRGGBB`);
+writeFileSync(join(out, 'category.mjs'), BANNER +
+  Object.entries(categoryData).map(([k, v]) => `export const ${k} = ${JSON.stringify(v, null, 2)};\n`).join('') +
+  `export const brand = Object.freeze({ light: Object.freeze(${JSON.stringify(themeCat('light'))}), dark: Object.freeze(${JSON.stringify(themeCat('dark'))}) });\n`);
 
 // ---------- React Native theme ----------
 function nativeText(style) {
@@ -159,23 +229,31 @@ function nativeShadow(pathStr) {
   const node = getPath(tokens, pathStr);
   return node.$extensions?.['ge.mytask.native'] ?? {};
 }
+function nativeGradients(node) {
+  return Object.fromEntries(Object.entries(node).map(([k, v]) => [k, isGradient(v) ? gradientNative(v) : nativeGradients(v)]));
+}
 function nativeTheme(name) {
   const t = themes[name];
-  const shadowRefs = tokens.theme[name].shadow;
+  const src = tokens.theme[name];
   const shadows = Object.fromEntries(
-    Object.entries(shadowRefs).filter(([k]) => !k.startsWith('$')).map(([k, v]) => [k, nativeShadow(aliasOf(v.$value))]),
+    tokenEntries(src.shadow).map(([k, v]) => [k, nativeShadow(aliasOf(v.$value))]),
   );
+  const glows = Object.fromEntries(tokenEntries(src.glow).map(([k, v]) => [k, v.$extensions?.['ge.mytask.native'] ?? {}]));
   const text = Object.fromEntries(Object.entries(primitives.text).map(([k, v]) => [k, {
     ...nativeText(v),
     ...(k.startsWith('price') ? { fontVariant: ['tabular-nums'] } : {}),
   }]));
-  const { shadow: _s, ...colors } = t;
+  // highlight = web-only inset shadows; cat = the brand fallback category theme (categoryTheme(null) gives the same).
+  const { shadow: _s, gradient, glow: _g, highlight: _h, cat: category, ...colors } = t;
   return {
     name,
     dark: name === 'dark',
     colors,
+    category,
+    gradient: nativeGradients(gradient),
     text,
     shadow: shadows,
+    glow: glows,
     space: primitives.space,
     radius: primitives.radius,
     borderWidth: primitives.borderWidth,
@@ -191,29 +269,36 @@ const native = { light: nativeTheme('light'), dark: nativeTheme('dark') };
 // ---------- write JS + d.ts ----------
 const js = (name, obj) => `export const ${name} = ${JSON.stringify(obj, null, 2)};\n`;
 const dts = (name, obj) => `export declare const ${name}: ${JSON.stringify(obj, null, 2)};\n`;
+const reexport = (names) => `export { ${names.join(', ')} } from '../src/category-color.mjs';\n`;
+const WEB_FNS = ['categoryStyle', 'deriveCategoryColor', 'isCategoryColor'];
+const NATIVE_FNS = ['categoryTheme', 'deriveCategoryColor', 'isCategoryColor'];
 
 writeFileSync(join(out, 'tokens.mjs'), BANNER + js('primitives', primitives) + js('themes', themes));
 writeFileSync(join(out, 'tokens.d.ts'), BANNER + dts('primitives', primitives) + dts('themes', themes));
 
-writeFileSync(join(out, 'web.mjs'), BANNER + js('vars', webVars));
-writeFileSync(join(out, 'web.d.ts'), BANNER + dts('vars', webVars));
+writeFileSync(join(out, 'web.mjs'), BANNER + js('vars', webVars) + reexport(WEB_FNS));
+writeFileSync(join(out, 'web.d.ts'), BANNER + dts('vars', webVars) + reexport(WEB_FNS));
 
-writeFileSync(join(out, 'native.mjs'), BANNER + js('lightTheme', native.light) + js('darkTheme', native.dark) + 'export const themes = { light: lightTheme, dark: darkTheme };\n');
+writeFileSync(join(out, 'native.mjs'), BANNER + js('lightTheme', native.light) + js('darkTheme', native.dark) + 'export const themes = { light: lightTheme, dark: darkTheme };\n' + reexport(NATIVE_FNS));
 writeFileSync(join(out, 'native.d.ts'), BANNER + dts('lightTheme', native.light) + dts('darkTheme', native.dark) +
-  'export type Theme = typeof lightTheme | typeof darkTheme;\nexport declare const themes: { light: typeof lightTheme; dark: typeof darkTheme };\n');
+  'export type Theme = typeof lightTheme | typeof darkTheme;\nexport declare const themes: { light: typeof lightTheme; dark: typeof darkTheme };\n' + reexport(NATIVE_FNS));
 
-// ---------- contrast gate ----------
+// ---------- contrast gate (loaded after dist/ is written: the category checks read dist/category.mjs) ----------
+const { checkContrast, checkCategoryThemes } = await import('./contrast.mjs');
 const rows = checkContrast(tokens);
 const fails = rows.filter((r) => !r.pass);
+const catRows = await checkCategoryThemes();
+const catFails = catRows.filter((r) => !r.pass);
 const count = [...walk(tokens)].length;
-console.log(`@mytask/tokens: ${count} tokens -> dist/tokens.css, fonts.css, tokens.mjs(.d.ts), web.mjs(.d.ts), native.mjs(.d.ts)`);
+console.log(`@mytask/tokens: ${count} tokens -> dist/tokens.css, fonts.css, tokens.mjs(.d.ts), web.mjs(.d.ts), native.mjs(.d.ts), category.mjs`);
 console.log(`Contrast: ${rows.length} checks, ${fails.length} failures.`);
 for (const f of fails) console.log(`  FAIL ${f.theme}: ${f.fg} on ${f.bg} = ${f.ratio.toFixed(2)} < ${f.min}`);
+console.log(`Category themes: ${catRows.length} checks (brand + ${categoryData.starter.length} starters x 2 modes), ${catFails.length} failures.`);
+for (const f of catFails) console.log(`  FAIL ${f.color} ${f.mode} ${f.check} = ${f.ratio.toFixed(2)} < ${f.min}`);
 // sanity: every theme defines the same role keys
-const keys = (o, p = '') => Object.entries(o).flatMap(([k, v]) => (v && typeof v === 'object' && !Array.isArray(v) ? keys(v, `${p}${k}.`) : [`${p}${k}`]));
+const keys = (o, p = '') => Object.entries(o).flatMap(([k, v]) => (v && typeof v === 'object' && !Array.isArray(v) && !isGradient(v) ? keys(v, `${p}${k}.`) : [`${p}${k}`]));
 const lk = new Set(keys(themes.light));
 const dk = new Set(keys(themes.dark));
 const diff = [...lk].filter((k) => !dk.has(k)).concat([...dk].filter((k) => !lk.has(k)));
 if (diff.length) console.log(`  Theme key mismatch: ${diff.join(', ')}`);
-process.exit(fails.length || diff.length ? 1 : 0);
-void typeOf;
+process.exit(fails.length || catFails.length || diff.length ? 1 : 0);

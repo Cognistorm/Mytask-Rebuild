@@ -1,0 +1,344 @@
+/* One button look for every button class (visual-refresh.md §4, R-2; ROADMAP 3X.9a). Imported once by the root
+   layouts of apps/web and apps/admin (after foundation.css), so it applies on every route whatever component CSS the
+   route loads. Component stylesheets keep only layout (size, margin, alignment) for these classes; the look lives
+   here. Class names are unchanged (§4.4); tokens only.
+
+   Class map (§4.4):
+   - Primary:   .mt-button-primary, .auth-button (the Submit component), .mt-pf-submit (always with .mt-button-primary),
+                .mt-not-found-home (404 page), .mt-site-join (header "Join", 3X.10)
+   - Secondary: .mt-button, .auth-social-button, .mt-icon-button (round; the header row's icons are borderless ghosts,
+                site.css)
+   - Danger:    .mt-button-danger
+   - Ghost:     .auth-link-button, .mt-pf-link-button (actions, not links), .mt-menu-button (header menu triggers; the
+                search pill's category trigger stays flush inside the pill, site.css), .mt-home-see-more (home rows,
+                in the row's category ink, home.css), button.mt-edit-link (edit pages, 3X.14c), .mt-dialog-close, .mt-info-button
+   - Accent:    .mt-button-accent (reserved for Premium/invite, later slices)
+   .mt-link-button (ExpandableText "more/less" inside prose) stays a text link. */
+
+/* ---- Anatomy (§4.1) ---- */
+:is(
+  .mt-button,
+  .auth-button,
+  .mt-not-found-home,
+  .mt-site-join,
+  .auth-social-button,
+  .mt-icon-button,
+  .auth-link-button,
+  .mt-pf-link-button,
+  .mt-menu-button,
+  .mt-home-see-more,
+  .mt-edit-link:where(button):not(:where(.mt-edit-links *)),
+  .mt-dialog-close,
+  .mt-info-button
+) {
+  --mt-btn-bg: var(--mt-gradient-action-secondary);
+  --mt-btn-bg-hover: var(--mt-gradient-action-secondary-hover);
+  --mt-btn-border: var(--mt-border-action-secondary);
+  --mt-btn-border-hover: var(--mt-border-action-secondary-hover);
+  --mt-btn-text: var(--mt-action-on-secondary);
+  --mt-btn-highlight: var(--mt-highlight-secondary);
+  --mt-btn-rest: var(--mt-elevation-control);
+  --mt-btn-glow: var(--mt-glow-brand-soft);
+  --mt-btn-glow-focus: var(--mt-glow-brand);
+  position: relative;
+  isolation: isolate;
+  border: var(--mt-border-width-hairline) solid var(--mt-btn-border);
+  background: var(--mt-btn-bg);
+  color: var(--mt-btn-text);
+  box-shadow: var(--mt-btn-rest), var(--mt-btn-highlight);
+  text-decoration: none;
+  transition:
+    transform var(--mt-motion-duration-fast) var(--mt-motion-easing-standard),
+    box-shadow var(--mt-motion-duration-fast) var(--mt-motion-easing-standard),
+    border-color var(--mt-motion-duration-fast) var(--mt-motion-easing-standard),
+    color var(--mt-motion-duration-fast) var(--mt-motion-easing-standard);
+}
+
+/* Gradients cannot transition: the hover gradient is a layer whose opacity animates; the label stays above it. */
+:is(
+  .mt-button,
+  .auth-button,
+  .mt-not-found-home,
+  .mt-site-join,
+  .auth-social-button,
+  .mt-icon-button,
+  .auth-link-button,
+  .mt-pf-link-button,
+  .mt-menu-button,
+  .mt-home-see-more,
+  .mt-edit-link:where(button):not(:where(.mt-edit-links *)),
+  .mt-dialog-close,
+  .mt-info-button
+)::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--mt-btn-bg-hover);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--mt-motion-duration-fast) var(--mt-motion-easing-standard);
+}
+
+/* ---- Variants (§4.2) ---- */
+:is(.mt-button-primary, .auth-button, .mt-not-found-home, .mt-site-join) {
+  --mt-btn-bg: var(--mt-gradient-action-primary);
+  --mt-btn-bg-hover: var(--mt-gradient-action-primary-hover);
+  --mt-btn-border: var(--mt-border-action-primary);
+  --mt-btn-border-hover: var(--mt-border-action-primary);
+  --mt-btn-text: var(--mt-action-on-primary);
+  --mt-btn-highlight: var(--mt-highlight-filled);
+  --mt-btn-glow: var(--mt-glow-brand);
+}
+
+.mt-button-danger {
+  --mt-btn-bg: var(--mt-gradient-action-danger);
+  --mt-btn-bg-hover: var(--mt-gradient-action-danger-hover);
+  --mt-btn-border: var(--mt-border-action-danger);
+  --mt-btn-border-hover: var(--mt-border-action-danger);
+  --mt-btn-text: var(--mt-action-on-danger);
+  --mt-btn-highlight: var(--mt-highlight-filled);
+  --mt-btn-glow: var(--mt-glow-danger);
+  --mt-btn-glow-focus: var(--mt-glow-danger);
+}
+
+.mt-button-accent {
+  --mt-btn-bg: var(--mt-gradient-action-accent);
+  --mt-btn-bg-hover: var(--mt-gradient-action-accent-hover);
+  --mt-btn-border: var(--mt-border-action-accent);
+  --mt-btn-border-hover: var(--mt-border-action-accent);
+  --mt-btn-text: var(--mt-action-on-accent);
+  --mt-btn-highlight: var(--mt-highlight-filled);
+  --mt-btn-glow: var(--mt-glow-accent);
+  --mt-btn-glow-focus: var(--mt-glow-accent);
+}
+
+/* Ghost: the quiet button (Cancel, Resend, Load more, Edit/Delete in admin rows, the header's menu triggers). A subtle
+   border, no fill at rest. */
+:is(
+  .auth-link-button,
+  .mt-pf-link-button,
+  .mt-menu-button,
+  .mt-home-see-more,
+  .mt-edit-link:where(button):not(:where(.mt-edit-links *)),
+  .mt-dialog-close,
+  .mt-info-button
+) {
+  --mt-btn-bg: transparent;
+  --mt-btn-bg-hover: var(--mt-gradient-action-ghost-hover);
+  --mt-btn-border: var(--mt-border-action-ghost);
+  --mt-btn-border-hover: var(--mt-border-action-secondary-hover);
+  --mt-btn-text: var(--mt-action-on-ghost);
+  --mt-btn-highlight: 0 0 transparent;
+  --mt-btn-rest: 0 0 transparent;
+}
+
+/* Menu triggers (Explore, Sort, "More") label with the normal text colour: they name a menu, not an action. */
+.mt-menu-button {
+  --mt-btn-text: var(--mt-text-primary);
+}
+
+/* Edit-page row and block actions ("Edit", "Delete", 3X.14c): compact Ghost buttons; Delete in the danger colour.
+   (The same class on a link, or inside the account card's link list, keeps its link look: edit.css.) */
+.mt-edit-link-danger {
+  --mt-btn-text: var(--mt-text-danger);
+  --mt-btn-border-hover: var(--mt-border-danger);
+  --mt-btn-bg-hover: linear-gradient(var(--mt-feedback-danger-bg), var(--mt-feedback-danger-bg));
+  --mt-btn-glow: var(--mt-glow-danger);
+  --mt-btn-glow-focus: var(--mt-glow-danger);
+}
+
+/* Icon-only ghosts keep their quieter icon colour. */
+:is(.mt-dialog-close, .mt-info-button) {
+  --mt-btn-text: var(--mt-text-secondary);
+}
+
+/* Text-sized ghost actions: a compact pill around the text, so they read as buttons (R-2.1) but keep their place. */
+:is(.auth-link-button, .mt-pf-link-button) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--mt-space-1);
+  padding: var(--mt-space-1) var(--mt-space-3);
+  border-radius: var(--mt-radius-control);
+  font: inherit;
+  font-weight: var(--mt-font-weight-medium);
+  cursor: pointer;
+}
+
+/* ---- States (§4.3) ---- */
+@media (hover: hover) {
+  :is(
+      .mt-button,
+      .auth-button,
+      .mt-not-found-home,
+      .mt-site-join,
+      .auth-social-button,
+      .mt-icon-button,
+      .auth-link-button,
+      .mt-pf-link-button,
+      .mt-menu-button,
+      .mt-home-see-more,
+      .mt-edit-link:where(button):not(:where(.mt-edit-links *)),
+      .mt-dialog-close,
+      .mt-info-button
+    ):hover:not(:disabled, [aria-disabled='true']) {
+    transform: translateY(calc(-1 * var(--mt-motion-distance-lift-control)));
+    border-color: var(--mt-btn-border-hover);
+    box-shadow: var(--mt-btn-glow), var(--mt-btn-highlight);
+  }
+
+  :is(
+      .mt-button,
+      .auth-button,
+      .mt-not-found-home,
+      .mt-site-join,
+      .auth-social-button,
+      .mt-icon-button,
+      .auth-link-button,
+      .mt-pf-link-button,
+      .mt-menu-button,
+      .mt-home-see-more,
+      .mt-edit-link:where(button):not(:where(.mt-edit-links *)),
+      .mt-dialog-close,
+      .mt-info-button
+    ):hover:not(:disabled, [aria-disabled='true'])::before {
+    opacity: 1;
+  }
+}
+
+/* The focus ring of each component stays (WCAG 2.4.7); the glow is added outside it. */
+:is(
+  .mt-button,
+  .auth-button,
+  .mt-not-found-home,
+  .mt-site-join,
+  .auth-social-button,
+  .mt-icon-button,
+  .auth-link-button,
+  .mt-pf-link-button,
+  .mt-menu-button,
+  .mt-home-see-more,
+  .mt-edit-link:where(button):not(:where(.mt-edit-links *)),
+  .mt-dialog-close,
+  .mt-info-button
+):focus-visible {
+  box-shadow: var(--mt-btn-glow-focus), var(--mt-btn-highlight);
+}
+
+/* Pressed: in fast (80 ms), back at the normal speed; bottom gradient only (the hover layer goes), inset shadow. */
+:is(
+    .mt-button,
+    .auth-button,
+    .mt-not-found-home,
+    .mt-site-join,
+    .auth-social-button,
+    .mt-icon-button,
+    .auth-link-button,
+    .mt-pf-link-button,
+    .mt-menu-button,
+    .mt-home-see-more,
+    .mt-edit-link:where(button):not(:where(.mt-edit-links *)),
+    .mt-dialog-close,
+    .mt-info-button
+  ):active:not(:disabled, [aria-disabled='true']) {
+  transform: scale(var(--mt-motion-scale-pressed));
+  box-shadow: var(--mt-highlight-pressed);
+  transition-duration: var(--mt-motion-duration-press);
+}
+
+:is(
+    .mt-button,
+    .auth-button,
+    .mt-not-found-home,
+    .mt-site-join,
+    .auth-social-button,
+    .mt-icon-button,
+    .auth-link-button,
+    .mt-pf-link-button,
+    .mt-menu-button,
+    .mt-home-see-more,
+    .mt-edit-link:where(button):not(:where(.mt-edit-links *)),
+    .mt-dialog-close,
+    .mt-info-button
+  ):active::before {
+  opacity: 0;
+}
+
+/* Disabled (and busy, which Submit marks as disabled too): flat, no highlight, glow or motion. Each component keeps
+   its own cursor (not-allowed, or progress while busy). */
+:is(
+  .mt-button,
+  .auth-button,
+  .mt-not-found-home,
+  .mt-site-join,
+  .auth-social-button,
+  .mt-icon-button,
+  .auth-link-button,
+  .mt-pf-link-button,
+  .mt-menu-button,
+  .mt-home-see-more,
+  .mt-edit-link:where(button):not(:where(.mt-edit-links *)),
+  .mt-dialog-close,
+  .mt-info-button
+):is(:disabled, [aria-disabled='true']) {
+  border-color: var(--mt-border-default);
+  background: var(--mt-action-disabled);
+  color: var(--mt-action-on-disabled);
+  box-shadow: none;
+  transform: none;
+}
+
+/* Ghosts stay transparent when disabled ("Resend code in 30 s"): only the text and border fade. */
+:is(
+  .auth-link-button,
+  .mt-pf-link-button,
+  .mt-menu-button,
+  .mt-home-see-more,
+  .mt-edit-link:where(button):not(:where(.mt-edit-links *)),
+  .mt-dialog-close,
+  .mt-info-button
+):is(:disabled, [aria-disabled='true']) {
+  background: transparent;
+  color: var(--mt-text-disabled);
+}
+
+/* Busy (§4.3, 3X.14a): the Submit component marks a request on its way with `aria-busy`. The button keeps its own look
+   (not the flat disabled one) and its label (the width does not change), with a small spinner at the start; it is
+   not pressable. The spinner turns in 800 ms; under reduced motion it stands still (a partial ring). A Submit that is
+   only not ready yet (`ready={false}`) keeps the disabled look above. */
+.auth-button[aria-busy='true']:disabled {
+  border-color: var(--mt-btn-border);
+  background: var(--mt-btn-bg);
+  color: var(--mt-btn-text);
+  box-shadow: var(--mt-btn-rest), var(--mt-btn-highlight);
+  cursor: progress;
+}
+
+.auth-button[aria-busy='true']::after {
+  content: '';
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-start: var(--mt-space-3);
+  box-sizing: border-box;
+  inline-size: var(--mt-space-4);
+  block-size: var(--mt-space-4);
+  margin-block-start: calc(-0.5 * var(--mt-space-4));
+  border: var(--mt-border-width-strong) solid currentColor;
+  border-inline-end-color: transparent;
+  border-radius: var(--mt-radius-full);
+  animation: mt-button-spin calc(2 * var(--mt-motion-duration-slower)) linear infinite;
+}
+
+@keyframes mt-button-spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-button[aria-busy='true']::after {
+    animation: none;
+  }
+}
