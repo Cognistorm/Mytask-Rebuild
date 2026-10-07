@@ -3,9 +3,9 @@
 // visitor of the request: real 404 for gigs others may not see (AC-28), 301 from an old or differently written slug
 // to the current one (AC-33). ROADMAP 4.3.11a = the frame: notices, breadcrumb, title, seller row, stats, purchase box
 // and the description; 4.3.11b = the gallery with its lightbox; 4.3.11c = the tabs Description / FAQ / Reviews /
-// Documents (stacked sections on phones) and "You may also like". Still to come: Share / Report / favourite
-// (4.3.11d); "Add to cart" and "Contact seller" stay hidden until slices 5 / 7; the visit is recorded in 4.3.12
-// (`recordGigView`).
+// Documents (stacked sections on phones) and "You may also like"; 4.3.11d = the Actions row (Share, Report,
+// favourite / the owner's "Edit gig"). "Add to cart" and "Contact seller" stay hidden until slices 5 / 7; the visit is
+// recorded in 4.3.12 (`recordGigView`).
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { permanentRedirect } from 'next/navigation';
@@ -23,6 +23,7 @@ import {
   Tabs,
   type TabItem,
 } from '@mytask/ui/web';
+import { GigActions } from '../../../../../components/gig-page/actions';
 import { loadGig, loadRelated } from '../../../../../components/gig-page/data';
 import { GigGallery } from '../../../../../components/gig-page/gallery';
 import { GigUpgrades } from '../../../../../components/gig-page/upgrades';
@@ -356,17 +357,15 @@ export default async function GigPage({ params }: Params) {
             <GigUpgrades label={t('t_upgrades')} rows={upgrades} lang={lang} />
           )}
           {/* "Add to cart" (slice 5) and "Contact seller" (slice 7) come with their slices. */}
-          {isOwner && (
-            <div className="mt-gig-box-section">
-              <p className="mt-gig-box-title">{t('t_actions')}</p>
-              <div className="mt-gig-actions">
-                {/* A private page: a full page load (ADR-019 §2). */}
-                <a className="mt-button" href={href(locale, `/seller/gigs/${gig.uid}/edit`)}>
-                  {t('t_edit_gig')}
-                </a>
-              </div>
-            </div>
-          )}
+          <GigActions
+            gigId={gig.id}
+            title={gig.title}
+            signedIn={gig.viewer !== null}
+            isOwner={isOwner}
+            isFavorite={gig.viewer?.isFavorite ?? false}
+            hasReported={gig.viewer?.hasReported ?? false}
+            editHref={href(locale, `/seller/gigs/${gig.uid}/edit`)}
+          />
         </aside>
 
         {/* Description / FAQ / Reviews / Documents: tabs from lg, stacked sections below (screen 02). */}

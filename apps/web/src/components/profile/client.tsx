@@ -13,9 +13,14 @@ type GigCardItem = components['schemas']['GigCard'];
 
 /**
  * "Share profile" / "Share this project" (design §7.4: one button opening a dialog with Facebook, X, LinkedIn,
- * WhatsApp and Copy link, 44 px targets). The URL is the page's own address.
+ * WhatsApp and Copy link, 44 px targets). The URL is the page's own address. `dialogTitle` defaults to `label`.
  */
-export function ShareButton(props: { label: string; title: string; copiedText: string }) {
+export function ShareButton(props: {
+  label: string;
+  title: string;
+  copiedText: string;
+  dialogTitle?: string;
+}) {
   const locale = useLocale();
   const t = useT(locale);
   const [open, setOpen] = useState(false);
@@ -45,7 +50,7 @@ export function ShareButton(props: { label: string; title: string; copiedText: s
       <Dialog
         open={open}
         onClose={() => setOpen(false)}
-        title={props.label}
+        title={props.dialogTitle ?? props.label}
         closeLabel={t('t_ui_close')}
         testId="share-dialog"
       >

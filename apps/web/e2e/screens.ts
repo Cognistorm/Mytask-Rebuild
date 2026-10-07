@@ -190,6 +190,13 @@ export const SCREENS: {
     ready: (p) => p.getByTestId('gig-rejected'),
     setup: gigEdit,
   },
+  // ROADMAP 4.3.11d: the gig page (screen 02) as a guest, gig 1 of e2e/fake-gigs.mjs (gallery, upgrades, FAQ,
+  // documents, related gigs).
+  {
+    name: 'gig',
+    path: '/service/logo-dizaini-giga0000000000000001',
+    ready: (p) => p.getByTestId('gig-related'),
+  },
 ];
 
 export async function open(page: Page, screen: (typeof SCREENS)[number], theme: 'light' | 'dark') {

@@ -1,9 +1,10 @@
-// Gig page frame and gallery (ROADMAP 4.3.11a, 4.3.11b; spec 04 AC-26…AC-30, AC-33; spec 17 AC-3, AC-4; screen 02). The page loads on
-// the server against e2e/fake-gigs.mjs (via e2e/fake-api.mjs); the visitor is chosen by the access cookie the test
-// sets (`owner-token` = nino_b, the owner of every fake gig). The media CDN is routed here. The API's visibility
-// rules are tested in apps/api.
+// Gig page (ROADMAP 4.3.11a…d: frame, gallery, tabs + related, Actions; spec 04 AC-26…AC-38; spec 17 AC-3, AC-4;
+// screen 02). The page loads on the server against e2e/fake-gigs.mjs (via e2e/fake-api.mjs); the visitor is chosen by
+// the access cookie the test sets (`owner-token` = nino_b, the owner of every fake gig; `viewer-token` = another
+// user). The media CDN and the browser calls (report, favourites) are routed here. The API rules are tested in
+// apps/api.
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test, type BrowserContext, type Page } from '@playwright/test';
+import { expect, test, type BrowserContext, type Page, type Route } from '@playwright/test';
 import { COOKIE_URL, hydrated } from './base';
 import { GIG_SLUG, GIG_UID } from './fake-gigs.mjs';
 
@@ -12,11 +13,11 @@ const PNG = Buffer.from(
   'base64',
 );
 
-async function asOwner(context: BrowserContext) {
+async function as(context: BrowserContext, token: 'owner-token' | 'viewer-token') {
   await context.addCookies([
     {
       name: '__Host-mt_at',
-      value: 'owner-token',
+      value: token,
       url: COOKIE_URL,
       secure: true,
       httpOnly: true,
@@ -176,7 +177,7 @@ test('owner: pending and rejected gigs with their notice, noindex and "Edit gig"
   page,
   context,
 }) => {
-  await asOwner(context);
+  await as(context, 'owner-token');
   await media(page);
   await page.goto(`/en/service/${GIG_SLUG[3]}`);
   await expect(page.getByTestId('pending-note')).toHaveText(
@@ -396,4 +397,170 @@ test('"You may also like": gig cards in a carousel; hidden without related gigs 
   await expect(page.getByRole('tab')).toHaveText(['Description', 'Reviews0']);
   await expect(page.getByTestId('gig-reviews')).toHaveText('No reviews yet');
   await expect(page.getByTestId('gig-related')).toHaveCount(0);
+});
+
+const json = (route: Route, status: number, body?: unknown) =>
+  route.fulfill({
+    status,
+    contentType: 'application/json',
+    body: body === undefined ? '' : JSON.stringify(body),
+  });
+const GIG_1 = '01900000-0000-7000-8000-0000000d0001';
+
+test('Actions, guest: Share dialog; Report and favourite ask to log in and come back (AC-35, AC-37)', async ({
+  page,
+  context,
+}) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await media(page);
+  await page.goto(`/en/service/${GIG_SLUG[1]}`);
+  await hydrated(page);
+  const actions = page.getByTestId('gig-actions');
+  await expect(actions).toContainText('Actions');
+  const next = encodeURIComponent(`/en/service/${GIG_SLUG[1]}`);
+
+  await actions.getByRole('button', { name: 'Share' }).click();
+  const share = page.getByRole('dialog', { name: 'Share this gig' });
+  await expect(share.getByRole('link', { name: 'Share on Facebook' })).toHaveAttribute(
+    'href',
+    new RegExp(`facebook\\.com/sharer/sharer\\.php\\?u=.*${GIG_SLUG[1]}`),
+  );
+  await share.getByRole('button', { name: 'Copy link' }).click();
+  await expect(share.getByRole('status')).toHaveText('Copied');
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toContain(
+    `/en/service/${GIG_SLUG[1]}`,
+  );
+  await page.keyboard.press('Escape');
+
+  await actions.getByRole('button', { name: 'Report' }).click();
+  const report = page.getByRole('dialog', { name: 'Report this gig' });
+  await expect(report).toContainText('Please login or sign up to report this gig');
+  await expect(report.getByRole('link', { name: 'Login' })).toHaveAttribute(
+    'href',
+    `/en/auth/login?next=${next}`,
+  );
+  await expect(report.getByRole('textbox')).toHaveCount(0);
+  await page.keyboard.press('Escape');
+
+  let calls = 0;
+  await page.route('**/api/v1/favorites/**', (route) => {
+    calls += 1;
+    return json(route, 401, { code: 'UNAUTHORIZED', message: 'x' });
+  });
+  await actions.getByRole('button', { name: 'Add to favorite' }).click();
+  const note = page.getByTestId('favorite-note');
+  await expect(note).toContainText(
+    'Please sign in or create an account to add this Gig to your favorite list',
+  );
+  await expect(note.getByRole('link', { name: 'Login' })).toHaveAttribute(
+    'href',
+    `/en/auth/login?next=${next}`,
+  );
+  expect(calls).toBe(0);
+});
+
+test('Actions, signed in: report with the pre-check, then "already reported"; favourite on and off (AC-35, AC-37)', async ({
+  page,
+  context,
+}) => {
+  await as(context, 'viewer-token');
+  await media(page);
+  const sent: unknown[] = [];
+  await page.route(`**/api/v1/gigs/${GIG_1}/reports`, (route) => {
+    sent.push(route.request().postDataJSON());
+    return json(route, 201, { id: '01900000-0000-7000-8000-000000000e01' });
+  });
+  const favorites: string[] = [];
+  await page.route(`**/api/v1/favorites/${GIG_1}`, (route) => {
+    favorites.push(route.request().method());
+    return route.request().method() === 'PUT'
+      ? json(route, 200, { gigId: GIG_1 })
+      : route.fulfill({ status: 204 });
+  });
+  await page.goto(`/en/service/${GIG_SLUG[1]}`);
+  await hydrated(page);
+  const actions = page.getByTestId('gig-actions');
+
+  await actions.getByRole('button', { name: 'Report' }).click();
+  const report = page.getByRole('dialog', { name: 'Report this gig' });
+  const reason = report.getByRole('textbox', { name: 'Reason' });
+  await expect(reason).toHaveAttribute(
+    'placeholder',
+    'Let us know why you would like to report this Gig',
+  );
+  await expect(reason).toHaveAttribute('maxlength', '500');
+  await report.getByRole('button', { name: 'Report' }).click();
+  await expect(report).toContainText('Field required');
+  await reason.fill(' short ');
+  await report.getByRole('button', { name: 'Report' }).click();
+  await expect(report).toContainText('Must be at least 6 characters');
+  expect(sent).toHaveLength(0);
+  await reason.fill('  Copied from another seller.  ');
+  await report.getByRole('button', { name: 'Report' }).click();
+  await expect(report).toContainText('Thank you! your request has been successfully sent');
+  expect(sent).toEqual([{ reason: 'Copied from another seller.' }]);
+  await page.keyboard.press('Escape');
+  // Opened again: no second form.
+  await actions.getByRole('button', { name: 'Report' }).click();
+  await expect(report).toContainText('It looks like you already reported this gig');
+  await page.keyboard.press('Escape');
+
+  const note = page.getByTestId('favorite-note');
+  await actions.getByRole('button', { name: 'Add to favorite' }).click();
+  await expect(note).toHaveText('Gig has been successfully added to your favorite list');
+  await actions.getByRole('button', { name: 'Remove from favorite' }).click();
+  await expect(note).toHaveText('Gig has been removed from your favorite list');
+  await expect(actions.getByRole('button', { name: 'Add to favorite' })).toBeVisible();
+  expect(favorites).toEqual(['PUT', 'DELETE']);
+});
+
+test('Actions: a 409 shows "already reported"; a gig reported and saved before opens that way', async ({
+  page,
+  context,
+}) => {
+  await as(context, 'viewer-token');
+  await media(page);
+  await page.route(`**/api/v1/gigs/${GIG_1}/reports`, (route) =>
+    json(route, 409, { code: 'DUPLICATE', message: 'dup' }),
+  );
+  await page.goto(`/en/service/${GIG_SLUG[1]}`);
+  await hydrated(page);
+  await page.getByTestId('report-gig').click();
+  const report = page.getByRole('dialog', { name: 'Report this gig' });
+  await report.getByRole('textbox', { name: 'Reason' }).fill('Spam gig text');
+  // The open report form has no WCAG 2 A/AA issue.
+  const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
+  expect(axe.violations).toEqual([]);
+  await report.getByRole('button', { name: 'Report' }).click();
+  await expect(report).toContainText('It looks like you already reported this gig');
+
+  await page.goto(`/en/service/${GIG_SLUG[2]}`);
+  await hydrated(page);
+  await page.getByTestId('report-gig').click();
+  await expect(page.getByRole('dialog', { name: 'Report this gig' })).toContainText(
+    'It looks like you already reported this gig',
+  );
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('favorite-gig')).toHaveText('Remove from favorite');
+});
+
+test('Actions, owner: "Edit gig" instead of the favourite; Report refused (AC-30, AC-37)', async ({
+  page,
+  context,
+}) => {
+  await as(context, 'owner-token');
+  await media(page);
+  await page.goto(`/en/service/${GIG_SLUG[1]}`);
+  await hydrated(page);
+  const actions = page.getByTestId('gig-actions');
+  await expect(actions.getByRole('link', { name: 'Edit gig' })).toBeVisible();
+  await expect(actions.getByTestId('favorite-gig')).toHaveCount(0);
+  await actions.getByRole('button', { name: 'Report' }).click();
+  const report = page.getByRole('dialog', { name: 'Report this gig' });
+  await expect(report).toContainText('You cannot report your own gigs');
+  await expect(report.getByRole('textbox')).toHaveCount(0);
+
+  // The open dialog has no WCAG 2 A/AA issue.
+  const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
+  expect(axe.violations).toEqual([]);
 });

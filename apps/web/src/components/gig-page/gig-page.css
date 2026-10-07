@@ -226,6 +226,45 @@ legend.mt-gig-box-title {
   gap: var(--mt-space-2);
 }
 
+.mt-gig-favorite {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mt-space-2);
+}
+
+.mt-gig-favorite svg {
+  flex: none;
+  color: var(--mt-text-brand);
+}
+
+/* Messages of the Actions row (favourite added / removed / log in), on their own line. */
+.mt-gig-action-note {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--mt-text-secondary);
+  font-size: var(--mt-font-size-sm);
+}
+
+.mt-gig-action-note:empty {
+  display: none;
+}
+
+.mt-gig-action-note-error {
+  color: var(--mt-text-danger);
+}
+
+.mt-gig-dialog {
+  display: grid;
+  gap: var(--mt-space-4);
+}
+
+.mt-gig-dialog-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--mt-space-2);
+}
+
 .mt-gig-section {
   display: grid;
   gap: var(--mt-space-4);

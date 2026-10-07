@@ -1,6 +1,7 @@
 // Gig page answers of the stand-in API (e2e/fake-api.mjs) for e2e/gig-page.spec.ts: the page loads on the server, so
 // its `lookupGig` call cannot be routed in the browser. The viewer comes from the Bearer token (fake-profiles.mjs
-// `viewerOf`): `owner-token` = nino_b, who owns every gig here. The language comes from `Accept-Language`.
+// `viewerOf`): `owner-token` = nino_b, who owns every gig here; `viewer-token` =
+// another signed-in user. The language comes from `Accept-Language`.
 import { MEDIA, viewerOf } from './fake-profiles.mjs';
 
 const image = (name) => ({
@@ -193,7 +194,12 @@ function gigFor(g, locale, viewer) {
     viewer:
       viewer === 'guest'
         ? null
-        : { isOwner: viewer === 'owner', isFavorite: false, hasReported: false },
+        : // The other signed-in user has already saved and reported gig 2.
+          {
+            isOwner: viewer === 'owner',
+            isFavorite: viewer === 'viewer' && g.n === 2,
+            hasReported: viewer === 'viewer' && g.n === 2,
+          },
   };
 }
 
