@@ -30,6 +30,3 @@ export const subscriptionUrl = (opts: { gigs?: boolean } = {}) =>
 
 /** The website's "My gigs" (url-map §4.1); the app opens it until its own list exists (ROADMAP 4.3.16). */
 export const myGigsUrl = `${appUrl}/seller/gigs`;
-
-/** The website's gig editor (url-map §4.1); the app opens it until its own wizard exists (ROADMAP 4.3.15). */
-export const gigEditUrl = (uid: string) => `${appUrl}/seller/gigs/${encodeURIComponent(uid)}/edit`;

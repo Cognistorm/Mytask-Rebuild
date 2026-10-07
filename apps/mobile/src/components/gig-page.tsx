@@ -4,6 +4,7 @@
 // and "You may also like" (4.3.11c, 4.3.14b). "Add to cart" (slice 5) and "Contact seller" (slice 7) come with their
 // slices, and with them the sticky price bar.
 import type { TFunction } from 'i18next';
+import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Animated from 'react-native-reanimated';
@@ -14,7 +15,7 @@ import type { ApiClient } from '@mytask/api-client';
 import type { components } from '@mytask/types';
 import { DELIVERY_KEYS, type DeliveryTime, type GigCard } from '../lib/catalog';
 import { formatBytes, formatDate, formatMoney } from '../lib/format';
-import { gigEditUrl, openWebPage } from '../lib/web-pages';
+import { openWebPage } from '../lib/web-pages';
 import { GigCardView, openProfile } from './catalog';
 import { Section } from './dashboard';
 import { Avatar, OnlineStatus, RatingStars, VerifiedMark } from './profile';
@@ -169,7 +170,7 @@ export function GigStats({ gig, t }: { gig: Gig; t: TFunction }) {
 /**
  * Purchase box (AC-26, P-46 no quantity): "Starting at" price, revisions (none, or "not specified" for a migrated
  * gig, Q-142), the upgrades as checkboxes read as title + price + delivery effect. The ticked ones stay here for
- * "Add to cart" (slice 5). The owner gets "Edit gig" (AC-30; the website editor until the app wizard, 4.3.15).
+ * "Add to cart" (slice 5). The owner gets "Edit gig" (AC-30) → the app's editor (4.3.15d).
  */
 export function PurchaseBox({ gig, t, lang }: { gig: Gig; t: TFunction; lang?: string }) {
   const [ticked, setTicked] = useState<ReadonlySet<string>>(new Set());
@@ -236,7 +237,9 @@ export function PurchaseBox({ gig, t, lang }: { gig: Gig; t: TFunction; lang?: s
         <Button
           variant="secondary"
           label={t('t_edit_gig')}
-          onPress={() => openWebPage(gigEditUrl(gig.uid))}
+          onPress={() =>
+            router.push({ pathname: '/seller/gigs/[uid]/edit', params: { uid: gig.uid } })
+          }
           testID="edit-gig"
         />
       ) : null}

@@ -69,7 +69,25 @@ ROADMAP 4.3.15 was split on 2026-10-07 into 4.3.15a–d. This file grows with ea
   - "Discard changes?" no longer asks.
 - No new keys.
 
+### 4.3.15d: edit mode (2026-10-07)
+- **Route `/seller/gigs/[uid]/edit`** (`app/seller/gigs/[uid]/edit.tsx`):
+  - No session, or 401 → login.
+  - `getMe` runs first. It refreshes an expired token, so the owner's pending or rejected gig is not read as a guest. A restricted account goes to `/restricted`.
+  - Then `lookupGig` + `listCategories`. Not the owner, 404 or 400 → "Page not found" + "My gigs" (website until 4.3.16).
+  - Then `getGigOwnerView`. A failure shows an error with Try again.
+  - No eligibility check: the plan limit never blocks an edit (AC-25).
+- **`GigWizard` with `gig`**:
+  - `draftFromGig` fills every field: the stored HTML turns into the app's marks (`htmlToMarkup`), and upgrades keep their `id`.
+  - Title "Edit gig". A rejected gig shows a danger notice "Has been rejected for the following reason: …" (AC-18).
+  - Stored revisions above S-041 are refused on save by the pre-check (AC-10). A migrated gig with null revisions may stay empty and is left out of the PATCH (Q-183).
+  - The gallery lists start with the stored files: thumbnail, "Images n", documents by name. Remove only drops a file from the list; Move works (AC-23).
+  - "Review & save" / "Save changes" → `updateGig` (`toUpdateRequest`, documents only while S-080 ON). Server errors behave as on create.
+- **Success** "Service updated", with the updated texts for active / pending. "View gig" goes back to the gig screen (which reloads on focus), or opens it.
+- **Gig screen**: "Edit gig" now opens this screen; `gigEditUrl` was removed.
+- No new keys.
+
 ## Files created/changed
+- `apps/mobile/src/app/seller/gigs/[uid]/edit.tsx` (new, 4.3.15d); `apps/mobile/src/components/gig-page.tsx` (Edit gig, 4.3.15d)
 - `apps/mobile/src/components/gig-wizard/gig-files.tsx` (new, 4.3.15b)
 - `apps/mobile/src/app/create.tsx` (new)
 - `apps/mobile/src/components/gig-wizard/fields.tsx` (new)
@@ -81,16 +99,17 @@ ROADMAP 4.3.15 was split on 2026-10-07 into 4.3.15a–d. This file grows with ea
 - `docs/ROADMAP.md` (split + tick), `docs/STATUS.md`
 
 ## Checks
-4.3.15c: mobile typecheck, lint and prettier are green; `expo export` bundled iOS (1702 modules) and Android (1809 modules); not run on a device.
+4.3.15d: mobile typecheck, lint and prettier are green; `expo export` bundled iOS (1720 modules) and Android (1759 modules); not run on a device.
+
+4.3.15c: 4.3.15c: mobile typecheck, lint and prettier are green; `expo export` bundled iOS (1702 modules) and Android (1809 modules); not run on a device.
 
 4.3.15b: 4.3.15b: mobile typecheck, lint and prettier are green; `expo export` bundled iOS (1710 modules) and Android (1809 modules); not run on a device.
 
 4.3.15a: Mobile typecheck, lint and prettier are green. The i18n check is OK. `expo export` bundled iOS (1718 modules) and Android (1808 modules). **Not run on a device or simulator.**
 
 ## What the next agent must do
-- **4.3.15d**: edit mode, and the gig screen's "Edit gig" opens it.
 - **No app entry point to `/create` yet.** "Create a new gig" belongs to My gigs (4.3.16). Until then, open `mytask://create` to test.
-- Mobile QA, on a device: a full create against the local stack with S-070 ON and OFF (both success screens); a server field error landing on its step (e.g. a category switched off in admin while the wizard is open); the plan-limit notice (create the last allowed gig on the website meanwhile). Also: upload progress and Try again with the network off; a 4th file waiting while 3 upload; the camera permission prompt; a PDF from iCloud / Google Drive (copied to cache first); images keep their order after Move left / right; text and uploads kept after Back / Next. Also: the category sheets with the real tree; the decimal keypad (some Android keyboards type `,`, which the price accepts); Discard on the iOS swipe back and the Android back; TalkBack / VoiceOver reading of the step change, the reset announcement and the first error.
+- Mobile QA, on a device: edit a gig made on the website with bold / lists / FAQ / upgrades / documents and save without changes (the description HTML must come back the same); edit a rejected gig (reason shown, saved → pending or active); move and remove stored images; the "Page not found" for someone else's uid. Also: a full create against the local stack with S-070 ON and OFF (both success screens); a server field error landing on its step (e.g. a category switched off in admin while the wizard is open); the plan-limit notice (create the last allowed gig on the website meanwhile). Also: upload progress and Try again with the network off; a 4th file waiting while 3 upload; the camera permission prompt; a PDF from iCloud / Google Drive (copied to cache first); images keep their order after Move left / right; text and uploads kept after Back / Next. Also: the category sheets with the real tree; the decimal keypad (some Android keyboards type `,`, which the price accepts); Discard on the iOS swipe back and the Android back; TalkBack / VoiceOver reading of the step change, the reset announcement and the first error.
 
 ## Open questions / risks
 - A web description with a literal `*` around a word (e.g. `*note*` typed as text) becomes italic if it is saved again from the app. This is rare, and the stored text is otherwise unchanged.

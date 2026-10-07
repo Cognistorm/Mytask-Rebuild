@@ -8,7 +8,9 @@
 // step 3 Extras (Upgrades + FAQ, AC-11, AC-12) and step 4 Gallery (AC-14); 4.3.15c = step 5 Review & publish
 // (every block with its status and "Edit", the SEO fields AC-15) and the submit (`createGig`: "Create" checks
 // everything and jumps to the first step with an error, AC-19; server field errors on the same fields; plan limit
-// AC-3; success screens AC-16); edit mode follows in 4.3.15d.
+// AC-3; success screens AC-16); 4.3.15d = edit mode (`gig`: the stored gig as the draft AC-21, "Edit gig" /
+// "Save changes", the rejected reason AC-18, stored revisions above S-041 refused on save AC-10, the gallery starts
+// with the stored files AC-23, `updateGig`; the plan limit never blocks an edit, AC-25).
 import type { TFunction } from 'i18next';
 import { router, useNavigation } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -35,7 +37,9 @@ import {
   fieldValue,
   formFieldName,
   SEO,
+  draftFromGig,
   toCreateRequest,
+  toUpdateRequest,
   DELIVERY_DAYS,
   EMPTY_DRAFT,
   FAQ,
@@ -56,7 +60,7 @@ import { Button, Canvas, Card, IconButton } from '../../ui';
 import { Notice } from '../form';
 import { BottomSheet } from '../profile';
 import { CompactStepper, PriceField, QuantityField, SelectField, TextField } from './fields';
-import { GigFiles } from './gig-files';
+import { GigFiles, type StoredFile } from './gig-files';
 
 type CategoryNode = components['schemas']['CategoryNode'];
 type GigOwnerView = components['schemas']['GigOwnerView'];
@@ -95,8 +99,10 @@ export function GigWizard(props: {
   categories: CategoryNode[];
   /** `undefined` while it loads (defaults of spec 00; documents hidden). */
   config: PublicConfig | undefined;
+  /** Edit mode: the owner's stored gig (`getGigOwnerView`). */
+  gig?: GigOwnerView;
 }) {
-  const { api, t, categories, config } = props;
+  const { api, t, categories, config, gig } = props;
   const maxRevisions = config?.revisions.maxAllowed ?? DEFAULT_MAX_REVISIONS;
   const imageRule = config?.uploads.gigImage;
   const documentRule = config?.uploads.gigDocument;
@@ -106,7 +112,12 @@ export function GigWizard(props: {
   const maxImages = imageRule?.maxFiles ?? DEFAULT_GIG_IMAGE.maxFiles;
   const rowKey = useRef(0);
   const navigation = useNavigation();
-  const [initial] = useState<GigDraft>(EMPTY_DRAFT);
+  /** The form as it opened: empty, or the stored gig (edit, AC-21). "Discard changes?" compares against it. */
+  const [initial] = useState<GigDraft>(() =>
+    gig ? draftFromGig(gig, () => ++rowKey.current) : EMPTY_DRAFT,
+  );
+  /** The stored files as the gallery lists show them (edit, AC-23). */
+  const [storedFiles] = useState(() => storedFilesOf(gig, t));
   const [draft, setDraft] = useState<GigDraft>(initial);
   /** Fields whose error is shown: left once, or all of a step after "Next". */
   const [shown, setShown] = useState<ReadonlySet<string>>(new Set());
@@ -133,8 +144,10 @@ export function GigWizard(props: {
   const [created, setCreated] = useState<GigOwnerView>();
 
   const clientErrors = useMemo(
-    () => validateDraft(draft, t, maxRevisions),
-    [draft, t, maxRevisions],
+    // A migrated gig may have no stored revisions: left empty, it stays so (data model `revisions_allowed`).
+    () =>
+      validateDraft(draft, t, maxRevisions, { revisionsOptional: gig?.revisionsAllowed === null }),
+    [draft, t, maxRevisions, gig],
   );
   // The pre-check wins on a field; a server error shows where the pre-check found nothing.
   const errors = useMemo(() => {
@@ -306,9 +319,16 @@ export function GigWizard(props: {
     }
 
     setSending(true);
-    const res = await api
-      .POST('/gigs', { body: toCreateRequest(draft, !!documentRule?.enabled) })
-      .catch(() => undefined);
+    const documents = !!documentRule?.enabled;
+    // AC-21…AC-23: an edit sends every field; the lists replace the stored ones in order.
+    const res = await (
+      gig
+        ? api.PATCH('/gigs/{gigId}', {
+            params: { path: { gigId: gig.id } },
+            body: toUpdateRequest(draft, documents),
+          })
+        : api.POST('/gigs', { body: toCreateRequest(draft, documents) })
+    ).catch(() => undefined);
     setSending(false);
     if (res?.data) {
       leaving.current = true;
@@ -436,7 +456,7 @@ export function GigWizard(props: {
     </Text>
   );
 
-  if (created) return <GigCreated gig={created} t={t} onClose={close} />;
+  if (created) return <GigCreated gig={created} updated={!!gig} t={t} onClose={close} />;
 
   return (
     <Canvas>
@@ -446,7 +466,7 @@ export function GigWizard(props: {
             <Text style={s.close}>{'✕'}</Text>
           </IconButton>
           <Text style={s.title} accessibilityRole="header" numberOfLines={2}>
-            {t('t_create_new_gig')}
+            {gig ? t('t_edit_gig') : t('t_create_new_gig')}
           </Text>
         </View>
         <KeyboardAvoidingView
@@ -490,6 +510,15 @@ export function GigWizard(props: {
             {waitForUploads ? (
               <View testID="gig-uploads-busy">
                 <Notice kind="info" text={t('t_pls_wait_until_uploading_finish')} />
+              </View>
+            ) : null}
+            {/* AC-18: a rejected gig shows the staff reason until it is saved again. */}
+            {gig?.status === 'rejected' && gig.rejectionReason ? (
+              <View testID="gig-rejected">
+                <Notice
+                  kind="error"
+                  text={`${t('t_has_been_rejected_for_this_reason')}: ${gig.rejectionReason}`}
+                />
               </View>
             ) : null}
             <CompactStepper
@@ -785,6 +814,7 @@ export function GigWizard(props: {
                   extensions={imageExtensions}
                   error={errorOf('thumbnailFileId')}
                   testID="gig-thumbnail"
+                  initial={storedFiles.thumbnail}
                   onChange={onThumbnail}
                 />
               </View>
@@ -802,6 +832,7 @@ export function GigWizard(props: {
                   extensions={imageExtensions}
                   error={errorOf('imageFileIds')}
                   testID="gig-images"
+                  initial={storedFiles.images}
                   onChange={onImages}
                 />
               </View>
@@ -831,6 +862,7 @@ export function GigWizard(props: {
                     extensions={documentExtensions}
                     error={errorOf('documentFileIds')}
                     testID="gig-documents"
+                    initial={storedFiles.documents}
                     onChange={onDocuments}
                   />
                 </View>
@@ -838,7 +870,7 @@ export function GigWizard(props: {
             </View>
 
             <View style={step === LAST_STEP ? s.step : s.hidden} onLayout={top(LAST_STEP)}>
-              {heading(t('t_ui_review_and_publish'))}
+              {heading(gig ? t('t_ui_review_and_save') : t('t_ui_review_and_publish'))}
               {/* Every block with its status (in text, not colour alone) and a way back to it. */}
               <Card style={s.review} testID="gig-review">
                 {BLOCKS.filter((b) => b.id !== 'seo').map((b, i) => {
@@ -924,7 +956,9 @@ export function GigWizard(props: {
               <Button label={t('t_next')} onPress={next} style={s.barButton} testID="gig-next" />
             ) : (
               <Button
-                label={sending ? t('t_please_wait_dots') : t('t_create')}
+                label={
+                  sending ? t('t_please_wait_dots') : gig ? t('t_save_changes') : t('t_create')
+                }
                 onPress={() => void submit()}
                 busy={sending}
                 style={s.barButton}
@@ -1050,16 +1084,53 @@ function AddRow(props: {
   );
 }
 
+/** The stored files of the gig being edited, named for the Remove / Move buttons and the previews (as the web). */
+function storedFilesOf(
+  gig: GigOwnerView | undefined,
+  t: TFunction,
+): Record<'thumbnail' | 'images' | 'documents', StoredFile[] | undefined> {
+  if (!gig) return { thumbnail: undefined, images: undefined, documents: undefined };
+  return {
+    thumbnail: [
+      { fileId: gig.thumbnail.fileId, name: t('t_thumbnail'), preview: gig.thumbnail.thumb },
+    ],
+    images: gig.images.map((i, n) => ({
+      fileId: i.fileId,
+      name: `${t('t_images')} ${n + 1}`,
+      preview: i.thumb,
+    })),
+    documents: gig.documents.map((d) => ({ fileId: d.fileId, name: d.fileName })),
+  };
+}
+
 /**
- * After `createGig` (AC-16): auto-approve ON (`active`) → "View gig" opens the new gig; OFF (`pending`) → the
+ * After `createGig` (AC-16) or `updateGig` (AC-22, the same card with the "updated" texts): auto-approve ON
+ * (`active`) → "View gig" (an edit opened from the gig screen goes back to it, which reloads); OFF (`pending`) → the
  * review text and "My gigs" (the website's list until the app's own, ROADMAP 4.3.16).
  */
-function GigCreated(props: { gig: GigOwnerView; t: TFunction; onClose: () => void }) {
-  const { gig, t } = props;
+function GigCreated(props: {
+  gig: GigOwnerView;
+  updated: boolean;
+  t: TFunction;
+  onClose: () => void;
+}) {
+  const { gig, t, updated } = props;
   const active = gig.status === 'active';
+  const title = updated ? t('t_gig_updated') : t('t_gig_created');
+  const text = updated
+    ? active
+      ? t('t_gig_updated_subtitle')
+      : t('t_gig_updated_subtitle_pending_approval')
+    : active
+      ? t('t_gig_created_subtitle')
+      : t('t_gig_created_subtitle_pending_approval');
+  const viewGig = () => {
+    if (updated && router.canGoBack()) router.back();
+    else router.replace({ pathname: '/service/[slug]', params: { slug: gig.slug } });
+  };
   useEffect(() => {
-    AccessibilityInfo.announceForAccessibility(t('t_gig_created'));
-  }, [t]);
+    AccessibilityInfo.announceForAccessibility(title);
+  }, [title]);
   return (
     <Canvas>
       <SafeAreaView style={s.screen} edges={['top', 'bottom']}>
@@ -1083,19 +1154,13 @@ function GigCreated(props: { gig: GigOwnerView; t: TFunction; onClose: () => voi
               </Svg>
             </View>
             <Text style={s.doneTitle} accessibilityRole="header">
-              {t('t_gig_created')}
+              {title}
             </Text>
-            <Text style={s.doneText}>
-              {active ? t('t_gig_created_subtitle') : t('t_gig_created_subtitle_pending_approval')}
-            </Text>
+            <Text style={s.doneText}>{text}</Text>
             <Button
               label={active ? t('t_view_gig') : t('t_my_gigs')}
               accessibilityRole="link"
-              onPress={() =>
-                active
-                  ? router.replace({ pathname: '/service/[slug]', params: { slug: gig.slug } })
-                  : openWebPage(myGigsUrl)
-              }
+              onPress={() => (active ? viewGig() : openWebPage(myGigsUrl))}
               testID="gig-created-action"
             />
           </Card>
