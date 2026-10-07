@@ -1,7 +1,8 @@
 // Contract: getGigCreationEligibility (ROADMAP 4.3.3a), createGig (4.3.3b), updateGig and deleteGig (4.3.3c), getGig,
 // lookupGig, getGigOwnerView and listMyGigs (4.3.4), listRelatedGigs (4.3.5a), recordGigView (4.3.5b), getGigAnalytics
 // (4.3.5c), createGigReport (4.3.6). Fixed paths (`mine`, `lookup`) come before `:gigId`. FavoritesController:
-// listFavorites, putFavorite, deleteFavorite (4.3.6).
+// listFavorites, putFavorite, deleteFavorite (4.3.6). AdminGigsController: adminListGigs, adminGetGig,
+// adminPublishGig, adminRejectGig, adminRemoveGig, adminRestoreGig (4.3.7).
 import {
   Body,
   Controller,
@@ -19,8 +20,17 @@ import type { components } from '@mytask/types';
 import type { Request } from 'express';
 import { ClientIpResolver } from '../../platform/client-ip/client-ip.resolver';
 import type { GigStatus } from '../../generated/prisma/client';
-import { CurrentAuth, OptionalAuth, OptionalUser, type AuthState } from '../auth/auth.guard';
+import {
+  CurrentAuth,
+  CurrentStaff,
+  OptionalAuth,
+  OptionalUser,
+  StaffRoute,
+  type AuthState,
+  type StaffAuthState,
+} from '../auth/auth.guard';
 import { buildContext } from '../auth/request-context';
+import { AdminGigs } from './admin-gigs.service';
 import { GigAnalytics } from './gig-analytics.service';
 import { GigFavorites } from './gig-favorites.service';
 import { GigLimits } from './gig-limits';
@@ -213,5 +223,102 @@ export class FavoritesController {
   @HttpCode(204)
   remove(@CurrentAuth() auth: AuthState, @Param('gigId') gigId: string): Promise<void> {
     return this.favorites.remove(auth.userId, gigId);
+  }
+}
+
+@Controller('admin/gigs')
+export class AdminGigsController {
+  constructor(
+    private readonly admin: AdminGigs,
+    private readonly ipResolver: ClientIpResolver,
+  ) {}
+
+  private ctx(req: Request) {
+    const { ip, userAgent } = this.ipResolver.resolve(req);
+    return buildContext(req, ip, userAgent);
+  }
+
+  @StaffRoute('gigs.moderate')
+  @Get()
+  list(
+    @Req() req: Request,
+    @Query('status') status?: GigStatus | GigStatus[],
+    @Query('categoryId') categoryId?: string,
+    @Query('q') q?: string,
+    @Query('userId') userId?: string,
+    @Query('createdFrom') createdFrom?: string,
+    @Query('createdTo') createdTo?: string,
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: string,
+  ): Promise<S['AdminGigListItemPage']> {
+    const { locale, t } = this.ctx(req);
+    return this.admin.list(
+      {
+        status: list(status),
+        categoryId,
+        q,
+        userId,
+        createdFrom,
+        createdTo,
+        cursor,
+        limit: limit === undefined ? undefined : Number(limit),
+      },
+      locale,
+      t,
+    );
+  }
+
+  @StaffRoute('gigs.moderate')
+  @Get(':gigId')
+  get(@Param('gigId') gigId: string, @Req() req: Request): Promise<S['AdminGig']> {
+    return this.admin.get(gigId, this.ctx(req).locale);
+  }
+
+  @StaffRoute('gigs.moderate')
+  @Post(':gigId/publish')
+  @HttpCode(200)
+  publish(
+    @Param('gigId') gigId: string,
+    @Body() body: S['StaffOptionalNoteRequest'] | undefined,
+    @CurrentStaff() staff: StaffAuthState,
+    @Req() req: Request,
+  ): Promise<S['AdminGig']> {
+    return this.admin.publish(gigId, body?.note ?? null, staff.staffId, this.ctx(req));
+  }
+
+  @StaffRoute('gigs.moderate')
+  @Post(':gigId/reject')
+  @HttpCode(200)
+  reject(
+    @Param('gigId') gigId: string,
+    @Body() body: S['StaffReasonRequest'],
+    @CurrentStaff() staff: StaffAuthState,
+    @Req() req: Request,
+  ): Promise<S['AdminGig']> {
+    return this.admin.reject(gigId, body.reason, staff.staffId, this.ctx(req));
+  }
+
+  @StaffRoute('gigs.moderate')
+  @Post(':gigId/remove')
+  @HttpCode(200)
+  remove(
+    @Param('gigId') gigId: string,
+    @Body() body: S['StaffReasonRequest'],
+    @CurrentStaff() staff: StaffAuthState,
+    @Req() req: Request,
+  ): Promise<S['AdminGig']> {
+    return this.admin.remove(gigId, body.reason, staff.staffId, this.ctx(req));
+  }
+
+  @StaffRoute('gigs.moderate')
+  @Post(':gigId/restore')
+  @HttpCode(200)
+  restore(
+    @Param('gigId') gigId: string,
+    @Body() body: S['StaffOptionalNoteRequest'] | undefined,
+    @CurrentStaff() staff: StaffAuthState,
+    @Req() req: Request,
+  ): Promise<S['AdminGig']> {
+    return this.admin.restore(gigId, body?.note ?? null, staff.staffId, this.ctx(req));
   }
 }

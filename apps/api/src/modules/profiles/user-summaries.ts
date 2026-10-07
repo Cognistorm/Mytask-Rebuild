@@ -1,7 +1,7 @@
 // `UserSummary` (embedded wherever a user appears) and `ModerationOwnerSummary` (next to every staff queue item,
 // spec 16 AC-19), filled from this slice's data: avatar, KYC approved, online (R-P4), country. Premium and the
-// plan come from PremiumStatus (nobody until slice 8, spec 09). Reports count user reports only until gigs, projects
-// and proposals exist.
+// plan come from PremiumStatus (nobody until slice 8, spec 09). Reports count open reports about the user and the user's
+// gigs (4.3.7) until projects and proposals exist.
 import { Inject, Injectable } from '@nestjs/common';
 import type { components } from '@mytask/types';
 import { ENV, type Env } from '../../platform/config/env';
@@ -70,7 +70,7 @@ export class UserSummaries {
 
   /** `earlierRejectionCount` is the queue's own count (items of the same kind). */
   async owner(userId: string, earlierRejectionCount: number): Promise<S['ModerationOwnerSummary']> {
-    const [user, summary, kyc, reportCount] = await Promise.all([
+    const [user, summary, kyc, [reports]] = await Promise.all([
       this.prisma.user.findUniqueOrThrow({ where: { id: userId } }),
       this.one(userId),
       this.prisma.kycVerification.findFirst({
@@ -78,9 +78,13 @@ export class UserSummaries {
         orderBy: { createdAt: 'desc' },
         select: { status: true },
       }),
-      this.prisma.report.count({
-        where: { targetType: 'user', targetId: userId, status: 'pending' },
-      }),
+      // Open reports about the user and about the user's gigs (projects and proposals join in their slices).
+      this.prisma.$queryRaw<{ n: number }[]>`
+        SELECT count(*)::int AS "n" FROM "reports" r
+        WHERE r."status" = 'pending'
+          AND ((r."target_type" = 'user' AND r."target_id" = ${userId}::uuid)
+            OR (r."target_type" = 'gig'
+              AND r."target_id" IN (SELECT g."id" FROM "gigs" g WHERE g."owner_id" = ${userId}::uuid)))`,
     ]);
     return {
       user: summary,
@@ -89,7 +93,7 @@ export class UserSummaries {
       isDeleted: user.deletedAt !== null,
       plan: summary.isPremium ? 'premium' : 'standard',
       kycStatus: kyc?.status ?? 'none',
-      reportCount,
+      reportCount: reports?.n ?? 0,
       earlierRejectionCount,
     };
   }

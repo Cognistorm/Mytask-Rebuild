@@ -373,6 +373,7 @@ NEW keys added 2026-10-07 (AC-20, EV-130, Owner Q-123 (b); English first, Georgi
 | `t_subject_gig_restored` | Your gig is visible again | თქვენი განცხადება კვლავ ხილულია |
 | `t_gig_restored_email_body` | Our team has restored your gig ":title". It is active again and visible to buyers. | ჩვენმა გუნდმა აღადგინა თქვენი განცხადება „:title“. ის კვლავ აქტიურია და შემკვეთებისთვის ხილულია. |
 | `t_ur_gig_title_has_been_restored` | Your gig :title has been restored and is visible again | განცხადება :title აღდგენილია და კვლავ ხილულია |
+| `t_gig_restore_window_expired` | A removed gig can be restored only within 30 days. | წაშლილი განცხადების აღდგენა შესაძლებელია მხოლოდ 30 დღის განმავლობაში. |
 
 ## Edge cases
 - EC-1 A staff member loses a permission while a decision form is open: the save is refused with 403; nothing changes.

@@ -1231,6 +1231,7 @@
   "t_gig_published_success": "Gig has been successfully published",
   "t_gig_removed_from_ur_favorite_list": "Gig has been removed from your favorite list",
   "t_gig_reported_successfully": "Thank you! your request has been successfully sent",
+  "t_gig_restore_window_expired": "A removed gig can be restored only within 30 days.",
   "t_gig_restored_email_body": "Our team has restored your gig \"{{title}}\". It is active again and visible to buyers.",
   "t_gig_reviews_section_subtitle": "Read customer reviews below",
   "t_gig_thumbnail": "Gig thumbnail",
