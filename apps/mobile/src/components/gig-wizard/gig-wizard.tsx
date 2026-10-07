@@ -5,8 +5,10 @@
 // "Next" checks only the current step and scrolls to its first error. Same field names, rules and message keys as
 // the web (`lib/gig-form.ts`). Every step stays mounted (only the current one is shown), so typed text and running
 // uploads survive Back / Next, as the web's hidden blocks. ROADMAP 4.3.15a = the frame and steps 1–2; 4.3.15b =
-// step 3 Extras (Upgrades + FAQ, AC-11, AC-12) and step 4 Gallery (AC-14); step 5 and the submit follow in
-// 4.3.15c, edit mode in 4.3.15d.
+// step 3 Extras (Upgrades + FAQ, AC-11, AC-12) and step 4 Gallery (AC-14); 4.3.15c = step 5 Review & publish
+// (every block with its status and "Edit", the SEO fields AC-15) and the submit (`createGig`: "Create" checks
+// everything and jumps to the first step with an error, AC-19; server field errors on the same fields; plan limit
+// AC-3; success screens AC-16); edit mode follows in 4.3.15d.
 import type { TFunction } from 'i18next';
 import { router, useNavigation } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -22,11 +24,18 @@ import {
   type LayoutChangeEvent,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Svg, { Path } from 'react-native-svg';
 import type { ApiClient } from '@mytask/api-client';
 import type { components } from '@mytask/types';
 import { lightTheme as theme } from '@mytask/tokens/native';
 import {
   blockFields,
+  BLOCKS,
+  blockStarted,
+  fieldValue,
+  formFieldName,
+  SEO,
+  toCreateRequest,
   DELIVERY_DAYS,
   EMPTY_DRAFT,
   FAQ,
@@ -42,6 +51,7 @@ import {
   type UpgradeDraft,
 } from '../../lib/gig-form';
 import type { PublicConfig } from '../../lib/public-config';
+import { myGigsUrl, openWebPage, subscriptionUrl } from '../../lib/web-pages';
 import { Button, Canvas, Card, IconButton } from '../../ui';
 import { Notice } from '../form';
 import { BottomSheet } from '../profile';
@@ -49,6 +59,15 @@ import { CompactStepper, PriceField, QuantityField, SelectField, TextField } fro
 import { GigFiles } from './gig-files';
 
 type CategoryNode = components['schemas']['CategoryNode'];
+type GigOwnerView = components['schemas']['GigOwnerView'];
+/** A submit the API refused as a whole: plan limit (AC-3) or anything that names no field. */
+type Failure = { kind: 'limit'; limit: number } | { kind: 'general'; message: string };
+type StepStatus = 'not_started' | 'in_progress' | 'complete' | 'error';
+interface ApiErrorBody {
+  code?: string;
+  message?: string;
+  details?: { limit?: number; fields?: { field: string; message: string }[] };
+}
 
 /** S-041 default (spec 00) while the public config loads. */
 const DEFAULT_MAX_REVISIONS = 10;
@@ -104,8 +123,27 @@ export function GigWizard(props: {
   /** The leave that "Discard changes?" holds back (a navigation action), or a plain close. */
   const pendingLeave = useRef<(() => void) | null>(null);
   const leaving = useRef(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [sending, setSending] = useState(false);
+  /** API field errors with the value they were given for: one goes away once its field changes (AC-19). */
+  const [serverErrors, setServerErrors] = useState<
+    Record<string, { message: string; value: string | undefined }>
+  >({});
+  const [failure, setFailure] = useState<Failure>();
+  const [created, setCreated] = useState<GigOwnerView>();
 
-  const errors = useMemo(() => validateDraft(draft, t, maxRevisions), [draft, t, maxRevisions]);
+  const clientErrors = useMemo(
+    () => validateDraft(draft, t, maxRevisions),
+    [draft, t, maxRevisions],
+  );
+  // The pre-check wins on a field; a server error shows where the pre-check found nothing.
+  const errors = useMemo(() => {
+    const live: Record<string, string> = {};
+    for (const [field, e] of Object.entries(serverErrors)) {
+      if (fieldValue(draft, field) === e.value) live[field] = e.message;
+    }
+    return { ...live, ...clientErrors };
+  }, [serverErrors, clientErrors, draft]);
   const errorOf = (field: string) => (shown.has(field) ? errors[field] : undefined);
   const touch = (field: string) => setShown((s) => (s.has(field) ? s : new Set(s).add(field)));
   const set = <K extends keyof GigDraft>(key: K, value: GigDraft[K]) =>
@@ -215,20 +253,137 @@ export function GigWizard(props: {
     goStep(step + 1);
   };
 
-  // After a refused "Next": the first invalid field of the step comes into view and its message is read out.
+  // After a refused "Next" or "Create": the first invalid field of the step comes into view and its message is read
+  // out. A step that was hidden until now has no layout yet, so the scroll waits a few frames for it.
   useEffect(() => {
     if (!scrollToFirstError.current) return;
     scrollToFirstError.current = false;
     const first = stepFields(step).find((f) => errors[f]);
     if (!first) return;
-    const y = positions.current[first];
-    const start = stepTops.current[step] ?? 0;
-    if (y !== undefined) scroll.current?.scrollTo({ y: Math.max(0, start + y - theme.space[4]) });
-    AccessibilityInfo.announceForAccessibility(errors[first]!);
+    const message = errors[first]!;
+    const shownStep = step;
+    let frames = 0;
+    const tryScroll = () => {
+      const y = positions.current[first];
+      const start = stepTops.current[shownStep];
+      if (y !== undefined && start !== undefined) {
+        scroll.current?.scrollTo({ y: Math.max(0, start + y - theme.space[4]) });
+      } else if ((frames += 1) < 10) requestAnimationFrame(tryScroll);
+    };
+    tryScroll();
+    AccessibilityInfo.announceForAccessibility(message);
   });
 
+  /** The first step with an error among `names` (else the current one). */
+  const firstErrorStep = (names: Iterable<string>) => {
+    const bad = new Set(names);
+    const i = STEPS.findIndex((_, n) => stepFields(n).some((f) => bad.has(f)));
+    return i < 0 ? step : i;
+  };
+  const showErrorsFrom = (names: string[]) => {
+    const i = firstErrorStep(names);
+    if (i !== step) {
+      // The step's old position no longer counts until it is shown again.
+      delete stepTops.current[i];
+      setStep(i);
+    }
+    scrollToFirstError.current = true;
+  };
+
+  /** "Create" (screen 03): checks everything, jumps to the first step with an error, else `createGig`. */
+  async function submit() {
+    if (sending) return;
+    setSubmitted(true);
+    setFailure(undefined);
+    setShown(new Set(Object.values(fields).flat()));
+    if (Object.keys(errors).length > 0) {
+      AccessibilityInfo.announceForAccessibility(t('t_toast_form_validation_error'));
+      return showErrorsFrom(Object.keys(errors));
+    }
+    // Files still on their way cannot be sent yet (legacy `t_pls_wait_until_uploading_finish`).
+    if (draft.gallery.busy) {
+      return AccessibilityInfo.announceForAccessibility(t('t_pls_wait_until_uploading_finish'));
+    }
+
+    setSending(true);
+    const res = await api
+      .POST('/gigs', { body: toCreateRequest(draft, !!documentRule?.enabled) })
+      .catch(() => undefined);
+    setSending(false);
+    if (res?.data) {
+      leaving.current = true;
+      setCreated(res.data);
+      return;
+    }
+    const err = res?.error as ApiErrorBody | undefined;
+    if (err?.code === 'ACCOUNT_RESTRICTED') {
+      leaving.current = true;
+      return router.replace('/restricted');
+    }
+    // AC-3: the limit was reached meanwhile (another device, a plan change); nothing was saved.
+    if (err?.code === 'PLAN_LIMIT_REACHED') {
+      return showFailure({ kind: 'limit', limit: Number(err.details?.limit ?? 0) });
+    }
+    // AC-19: every field error of the API on its own field, then the first one in view.
+    const onFields = (err?.details?.fields ?? []).filter(
+      (f) => fieldValue(draft, f.field) !== undefined,
+    );
+    const found: typeof serverErrors = {};
+    for (const f of onFields) {
+      found[formFieldName(f.field)] ??= { message: f.message, value: fieldValue(draft, f.field) };
+    }
+    // AC-14: a file the API refuses (not ready, wrong purpose, type, size) names no list.
+    if (onFields.length === 0 && err?.code?.startsWith('FILE_')) {
+      found.gallery = { message: err.message ?? '', value: fieldValue(draft, 'gallery') };
+    }
+    if (Object.keys(found).length > 0) {
+      setServerErrors(found);
+      setShown((s) => new Set([...s, ...Object.keys(found)]));
+      AccessibilityInfo.announceForAccessibility(t('t_toast_form_validation_error'));
+      return showErrorsFrom(Object.keys(found));
+    }
+    showFailure({ kind: 'general', message: err?.message ?? t('t_toast_something_went_wrong') });
+  }
+
+  /** A refused submit as a whole: its notice sits at the top, scrolled into view and read out. */
+  const showFailure = (f: Failure) => {
+    setFailure(f);
+    scroll.current?.scrollTo({ y: 0 });
+    AccessibilityInfo.announceForAccessibility(
+      f.kind === 'limit' ? t('t_plan_gig_limit_reached', { limit: f.limit }) : f.message,
+    );
+  };
+
+  // Review step (screen 03): every block with its status, written in text.
+  const status = (block: BlockId): StepStatus => {
+    const own = fields[block];
+    if (own.some((f) => shown.has(f) && errors[f])) return 'error';
+    if (!blockStarted(draft, block)) return 'not_started';
+    if (block === 'gallery' && draft.gallery.busy) return 'in_progress';
+    return own.every((f) => !errors[f]) ? 'complete' : 'in_progress';
+  };
+  const statusLabels: Record<StepStatus, string> = {
+    not_started: t('t_ui_step_not_started'),
+    in_progress: t('t_ui_step_in_progress'),
+    complete: t('t_ui_step_completed'),
+    error: t('t_ui_step_has_errors'),
+  };
+  const blockLabel: Record<BlockId, string> = {
+    overview: t('t_overview'),
+    pricing: t('t_pricing'),
+    upgrades: t('t_upgrades'),
+    faq: t('t_faq'),
+    gallery: t('t_gallery'),
+    seo: t('t_seo'),
+  };
+  const stepOf = (block: BlockId) => STEPS.findIndex((blocks) => blocks.includes(block));
+  const hasErrors = submitted && Object.keys(errors).length > 0;
+  const waitForUploads = submitted && !hasErrors && draft.gallery.busy;
+  const seoError = errorOf('seo');
+  const galleryError = errorOf('gallery');
+
   // "Discard changes?" (screen 03): leaving with something entered asks first (✕, Android back, a swipe back).
-  const dirty = JSON.stringify(draft) !== JSON.stringify(initial);
+  const dirty = !created && JSON.stringify(draft) !== JSON.stringify(initial);
   useEffect(
     () =>
       navigation.addListener('beforeRemove', (e) => {
@@ -281,6 +436,8 @@ export function GigWizard(props: {
     </Text>
   );
 
+  if (created) return <GigCreated gig={created} t={t} onClose={close} />;
+
   return (
     <Canvas>
       <SafeAreaView style={s.screen} edges={['top', 'bottom']}>
@@ -300,8 +457,41 @@ export function GigWizard(props: {
             ref={scroll}
             contentContainerStyle={s.content}
             keyboardShouldPersistTaps="handled"
+            // Read-only while the gig is being sent.
+            pointerEvents={sending ? 'none' : 'auto'}
+            accessibilityState={{ busy: sending }}
             testID="gig-wizard"
           >
+            {failure ? (
+              <View style={s.notices} testID="gig-submit-failed">
+                {failure.kind === 'limit' ? (
+                  <>
+                    <Notice
+                      kind="error"
+                      text={t('t_plan_gig_limit_reached', { limit: failure.limit })}
+                    />
+                    <Button
+                      variant="secondary"
+                      label={t('t_upgrade_to_premium')}
+                      accessibilityRole="link"
+                      onPress={() => openWebPage(subscriptionUrl({ gigs: true }))}
+                    />
+                  </>
+                ) : (
+                  <Notice kind="error" text={failure.message} />
+                )}
+              </View>
+            ) : null}
+            {hasErrors ? (
+              <View testID="gig-form-errors">
+                <Notice kind="error" text={t('t_toast_form_validation_error')} />
+              </View>
+            ) : null}
+            {waitForUploads ? (
+              <View testID="gig-uploads-busy">
+                <Notice kind="info" text={t('t_pls_wait_until_uploading_finish')} />
+              </View>
+            ) : null}
             <CompactStepper
               text={t('t_ui_step_of', { step: step + 1, total: STEPS.length })}
               index={step}
@@ -577,6 +767,11 @@ export function GigWizard(props: {
             <View style={step === 3 ? s.step : s.hidden} onLayout={top(3)}>
               {heading(`5. ${t('t_gallery')}`)}
               <Text style={s.subtitle}>{t('t_get_noticed_by_right_buyers_images')}</Text>
+              {galleryError ? (
+                <View onLayout={at('gallery')}>
+                  <Notice kind="error" text={galleryError} />
+                </View>
+              ) : null}
               <View onLayout={at('thumbnailFileId')}>
                 <GigFiles
                   api={api}
@@ -642,9 +837,74 @@ export function GigWizard(props: {
               ) : null}
             </View>
 
-            {/* Step 5 and the submit are built in ROADMAP 4.3.15c. */}
             <View style={step === LAST_STEP ? s.step : s.hidden} onLayout={top(LAST_STEP)}>
               {heading(t('t_ui_review_and_publish'))}
+              {/* Every block with its status (in text, not colour alone) and a way back to it. */}
+              <Card style={s.review} testID="gig-review">
+                {BLOCKS.filter((b) => b.id !== 'seo').map((b, i) => {
+                  const st = status(b.id);
+                  return (
+                    <View key={b.id} style={[s.reviewItem, i > 0 ? s.reviewDivider : null]}>
+                      <View style={s.reviewText}>
+                        <Text style={s.reviewName}>
+                          {blockLabel[b.id]}
+                          {b.required ? null : <Text style={s.optional}> {optional}</Text>}
+                        </Text>
+                        <Text style={[s.reviewStatus, st === 'error' ? s.reviewError : null]}>
+                          {statusLabels[st]}
+                        </Text>
+                      </View>
+                      <Button
+                        variant="ghost"
+                        label={t('t_edit')}
+                        accessibilityLabel={`${t('t_edit')}: ${blockLabel[b.id]}`}
+                        onPress={() => goStep(stepOf(b.id))}
+                        testID={`gig-review-edit-${b.id}`}
+                      />
+                    </View>
+                  );
+                })}
+              </Card>
+
+              {heading(t('t_seo'), optional)}
+              <TextField
+                label={t('t_seo_title')}
+                placeholder={t('t_enter_seo_title')}
+                maxLength={SEO.titleMax}
+                value={draft.seo.title}
+                onChangeText={(v) => set('seo', { ...draft.seo, title: v })}
+                onBlur={() => blockStarted(draft, 'seo') && touch('seo')}
+                hint={t('t_ui_char_count', {
+                  count: [...draft.seo.title].length,
+                  max: SEO.titleMax,
+                })}
+                testID="gig-seo-title"
+              />
+              <View onLayout={at('seo')}>
+                <TextField
+                  label={t('t_seo_description')}
+                  placeholder={t('t_enter_seo_description')}
+                  maxLength={SEO.descriptionMax}
+                  multiline
+                  value={draft.seo.description}
+                  onChangeText={(v) => set('seo', { ...draft.seo, description: v })}
+                  onBlur={() => blockStarted(draft, 'seo') && touch('seo')}
+                  hint={t('t_ui_char_count', {
+                    count: [...draft.seo.description].length,
+                    max: SEO.descriptionMax,
+                  })}
+                  error={seoError}
+                  testID="gig-seo-description"
+                />
+              </View>
+              {draft.seo.title.trim() && draft.seo.description.trim() ? (
+                // Legacy "Search engine Gig preview" (`create.blade.php:361`).
+                <Card style={s.seoPreview}>
+                  <Text style={s.seoPreviewLabel}>{t('t_search_engine_gig_preview')}</Text>
+                  <Text style={s.seoPreviewTitle}>{draft.seo.title}</Text>
+                  <Text style={s.subtitle}>{draft.seo.description}</Text>
+                </Card>
+              ) : null}
             </View>
           </ScrollView>
 
@@ -655,6 +915,7 @@ export function GigWizard(props: {
                 variant="secondary"
                 label={t('t_back')}
                 onPress={() => goStep(step - 1)}
+                disabled={sending}
                 style={s.barButton}
                 testID="gig-back"
               />
@@ -663,9 +924,9 @@ export function GigWizard(props: {
               <Button label={t('t_next')} onPress={next} style={s.barButton} testID="gig-next" />
             ) : (
               <Button
-                label={t('t_create')}
-                onPress={() => undefined}
-                disabled
+                label={sending ? t('t_please_wait_dots') : t('t_create')}
+                onPress={() => void submit()}
+                busy={sending}
                 style={s.barButton}
                 testID="gig-submit"
               />
@@ -721,6 +982,36 @@ const s = StyleSheet.create({
   rowCard: { padding: theme.space[4], gap: theme.space[3] },
   rowTitle: { ...theme.text.label, color: theme.colors.text.primary },
   addRow: { gap: theme.space[2] },
+  notices: { gap: theme.space[3] },
+  review: { paddingHorizontal: theme.space[4], paddingVertical: theme.space[2] },
+  reviewItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.space[3],
+    paddingVertical: theme.space[2],
+  },
+  reviewDivider: {
+    borderTopWidth: theme.borderWidth.hairline,
+    borderTopColor: theme.colors.border.default,
+  },
+  reviewText: { flex: 1, gap: theme.space[1] },
+  reviewName: { ...theme.text.label, color: theme.colors.text.primary },
+  reviewStatus: { ...theme.text.bodySm, color: theme.colors.text.secondary },
+  reviewError: { color: theme.colors.text.danger },
+  seoPreview: { padding: theme.space[4], gap: theme.space[1] },
+  seoPreviewLabel: { ...theme.text.caption, color: theme.colors.text.secondary },
+  seoPreviewTitle: { ...theme.text.body, color: theme.colors.text.link },
+  done: { padding: theme.space[6], gap: theme.space[4], alignItems: 'center' },
+  doneIcon: {
+    width: theme.size.avatar.lg,
+    height: theme.size.avatar.lg,
+    borderRadius: theme.radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.feedback.successBg,
+  },
+  doneTitle: { ...theme.text.h3, color: theme.colors.text.primary, textAlign: 'center' },
+  doneText: { ...theme.text.body, color: theme.colors.text.secondary, textAlign: 'center' },
   blockTitle: { ...theme.text.h3, color: theme.colors.text.primary },
   optional: { ...theme.text.body, color: theme.colors.text.secondary },
   subtitle: { ...theme.text.body, color: theme.colors.text.secondary },
@@ -756,5 +1047,60 @@ function AddRow(props: {
       />
       {props.full ? <Text style={s.subtitle}>{props.limitText}</Text> : null}
     </View>
+  );
+}
+
+/**
+ * After `createGig` (AC-16): auto-approve ON (`active`) → "View gig" opens the new gig; OFF (`pending`) → the
+ * review text and "My gigs" (the website's list until the app's own, ROADMAP 4.3.16).
+ */
+function GigCreated(props: { gig: GigOwnerView; t: TFunction; onClose: () => void }) {
+  const { gig, t } = props;
+  const active = gig.status === 'active';
+  useEffect(() => {
+    AccessibilityInfo.announceForAccessibility(t('t_gig_created'));
+  }, [t]);
+  return (
+    <Canvas>
+      <SafeAreaView style={s.screen} edges={['top', 'bottom']}>
+        <View style={s.header}>
+          <IconButton onPress={props.onClose} accessibilityLabel={t('t_ui_close')}>
+            <Text style={s.close}>{'✕'}</Text>
+          </IconButton>
+        </View>
+        <View style={s.content}>
+          <Card style={s.done} testID="gig-created">
+            <View style={s.doneIcon} importantForAccessibility="no" accessibilityElementsHidden>
+              <Svg width={theme.size.icon.lg} height={theme.size.icon.lg} viewBox="0 0 24 24">
+                <Path
+                  d="M5 13l4 4L19 7"
+                  fill="none"
+                  stroke={theme.colors.feedback.successText}
+                  strokeWidth={2}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </Svg>
+            </View>
+            <Text style={s.doneTitle} accessibilityRole="header">
+              {t('t_gig_created')}
+            </Text>
+            <Text style={s.doneText}>
+              {active ? t('t_gig_created_subtitle') : t('t_gig_created_subtitle_pending_approval')}
+            </Text>
+            <Button
+              label={active ? t('t_view_gig') : t('t_my_gigs')}
+              accessibilityRole="link"
+              onPress={() =>
+                active
+                  ? router.replace({ pathname: '/service/[slug]', params: { slug: gig.slug } })
+                  : openWebPage(myGigsUrl)
+              }
+              testID="gig-created-action"
+            />
+          </Card>
+        </View>
+      </SafeAreaView>
+    </Canvas>
   );
 }

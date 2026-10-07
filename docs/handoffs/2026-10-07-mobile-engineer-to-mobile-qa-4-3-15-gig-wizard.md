@@ -47,6 +47,28 @@ ROADMAP 4.3.15 was split on 2026-10-07 into 4.3.15a–d. This file grows with ea
   - At most 3 uploads at once. "n of m uploaded" is shown. `initial` (stored files, for 4.3.15d) is only dropped from the list, never deleted.
 - The route now passes the API client and the public config to the wizard. No new keys.
 
+### 4.3.15c: step 5 Review & publish and the submit (2026-10-07)
+- **Review**: a card listing Overview, Pricing, Upgrades (optional), FAQ (optional) and Gallery. Each shows its status in text (Not started / In progress / Completed / Has errors) and an "Edit" button (named with the block) that goes back to its step.
+- **SEO** (optional), inline on this step as on the web phone mode:
+  - title ≤ 100 and description ≤ 150, each with a counter;
+  - `t_seo_both_fields_required` under the description when the field is left with only one filled (AC-15);
+  - the legacy "Search engine Gig preview" once both are filled.
+- **Create** (`createGig`, AC-19):
+  - It shows every error and jumps to the first step with one. The scroll waits a few frames for the newly shown step's layout, and the top notice plus the first message are read out.
+  - While an upload is still running, it shows `t_pls_wait_until_uploading_finish`.
+  - While sending, the form is read-only, Back is disabled and the button reads "Please wait..." (busy).
+- **Refusals**:
+  - Server `details.fields` land on the same fields (kept until the value changes; the pre-check wins) and jump to the first step with an error.
+  - FILE_* naming no list shows a notice at the top of the Gallery step.
+  - PLAN_LIMIT_REACHED shows a danger notice with the limit and "Upgrade to Premium" (website) at the top (AC-3).
+  - ACCOUNT_RESTRICTED goes to `/restricted`.
+  - Anything else shows its message.
+- **Success** (AC-16) replaces the wizard:
+  - active: `t_gig_created_subtitle` + "View gig", which replaces the wizard with the gig screen;
+  - pending: `t_gig_created_subtitle_pending_approval` + "My gigs", which opens the website (`myGigsUrl`) until 4.3.16.
+  - "Discard changes?" no longer asks.
+- No new keys.
+
 ## Files created/changed
 - `apps/mobile/src/components/gig-wizard/gig-files.tsx` (new, 4.3.15b)
 - `apps/mobile/src/app/create.tsx` (new)
@@ -59,15 +81,16 @@ ROADMAP 4.3.15 was split on 2026-10-07 into 4.3.15a–d. This file grows with ea
 - `docs/ROADMAP.md` (split + tick), `docs/STATUS.md`
 
 ## Checks
-4.3.15b: mobile typecheck, lint and prettier are green; `expo export` bundled iOS (1710 modules) and Android (1809 modules); not run on a device.
+4.3.15c: mobile typecheck, lint and prettier are green; `expo export` bundled iOS (1702 modules) and Android (1809 modules); not run on a device.
+
+4.3.15b: 4.3.15b: mobile typecheck, lint and prettier are green; `expo export` bundled iOS (1710 modules) and Android (1809 modules); not run on a device.
 
 4.3.15a: Mobile typecheck, lint and prettier are green. The i18n check is OK. `expo export` bundled iOS (1718 modules) and Android (1808 modules). **Not run on a device or simulator.**
 
 ## What the next agent must do
-- **4.3.15c**: step 5 Review & publish (SEO both or none) and the submit.
 - **4.3.15d**: edit mode, and the gig screen's "Edit gig" opens it.
 - **No app entry point to `/create` yet.** "Create a new gig" belongs to My gigs (4.3.16). Until then, open `mytask://create` to test.
-- Mobile QA, on a device: upload progress and Try again with the network off; a 4th file waiting while 3 upload; the camera permission prompt; a PDF from iCloud / Google Drive (copied to cache first); images keep their order after Move left / right; text and uploads kept after Back / Next. Also: the category sheets with the real tree; the decimal keypad (some Android keyboards type `,`, which the price accepts); Discard on the iOS swipe back and the Android back; TalkBack / VoiceOver reading of the step change, the reset announcement and the first error.
+- Mobile QA, on a device: a full create against the local stack with S-070 ON and OFF (both success screens); a server field error (e.g. a Latin-only Georgian title the pre-check let through) landing on its step; the plan-limit notice (create the last allowed gig on the website meanwhile). Also: upload progress and Try again with the network off; a 4th file waiting while 3 upload; the camera permission prompt; a PDF from iCloud / Google Drive (copied to cache first); images keep their order after Move left / right; text and uploads kept after Back / Next. Also: the category sheets with the real tree; the decimal keypad (some Android keyboards type `,`, which the price accepts); Discard on the iOS swipe back and the Android back; TalkBack / VoiceOver reading of the step change, the reset announcement and the first error.
 
 ## Open questions / risks
 - A web description with a literal `*` around a word (e.g. `*note*` typed as text) becomes italic if it is saved again from the app. This is rare, and the stored text is otherwise unchanged.
