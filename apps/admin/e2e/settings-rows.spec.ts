@@ -127,3 +127,30 @@ test('phone: rows stack, no sideways scroll', async ({ page }) => {
     ),
   ).toBe(0);
 });
+
+// 4X.7: the AC-7 re-login step is a card inside the shell (the sidebar stays), focused when it opens.
+test('re-login step opens inside the shell, takes the focus, Close goes back', async ({ page }) => {
+  await page.route('**/api/v1/admin/settings/*', (route) =>
+    json(route, 403, { code: 'REAUTH_REQUIRED', message: 'reauth' }),
+  );
+  await page.goto('/settings?area=auth');
+  await page.getByRole('switch', { name: /^S-056 / }).click();
+  const card = page.getByRole('region', { name: 'გასაგრძელებლად დაადასტურეთ, რომ ეს თქვენ ხართ.' });
+  await expect(card).toBeVisible();
+  await expect(card).toBeFocused();
+  await expect(card.locator('code.admin-setting-id')).toHaveText('S-056');
+  await expect(page.getByRole('navigation', { name: 'ადმინისტრაციის ნავიგაცია' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('ავტორიზაცია და უსაფრთხოება');
+  await card.getByRole('button', { name: 'დახურვა' }).click();
+  await expect(card).toHaveCount(0);
+  await expect(page.getByRole('switch', { name: /^S-056 / })).toBeVisible();
+});
+
+test('login keeps its centred card, with the "Admin" pill under the logo', async ({ page }) => {
+  await page.goto('/login');
+  const card = page.locator('.auth-card');
+  await expect(card.locator('.admin-brand-label')).toHaveText('მართვის პანელი');
+  const box = await card.boundingBox();
+  const width = page.viewportSize()!.width;
+  expect(Math.abs(box!.x + box!.width / 2 - width / 2)).toBeLessThan(2);
+});

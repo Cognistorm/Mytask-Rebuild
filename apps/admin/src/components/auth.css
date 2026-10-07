@@ -1054,3 +1054,29 @@ button.mt-sidebar-link {
 .admin-form-card > :not(h2) {
   max-width: calc(var(--mt-space-24) * 6);
 }
+
+/* ---- Login and re-login (4X.7) ---- */
+/* The login card's logo carries the "Admin" pill under it, as the sidebar does. */
+.admin-auth-brand {
+  display: grid;
+  justify-items: start;
+  gap: var(--mt-space-2);
+}
+
+.admin-auth-brand .admin-brand-label {
+  justify-self: start;
+}
+
+/* The re-login card is focused when it opens; the ring shows only for keyboard focus. */
+.admin-reauth:focus {
+  outline: none;
+}
+
+.admin-reauth:focus-visible {
+  outline: var(--mt-focus-ring-width) solid var(--mt-focus-ring);
+  outline-offset: var(--mt-focus-ring-offset);
+}
+
+.admin-reauth .auth-button {
+  inline-size: auto;
+}

@@ -41,7 +41,7 @@ export default function AccountPage() {
       <h1 className="mt-text-h2">{t('t_change_password')}</h1>
       {done && <Alert kind="success">{t('t_ur_account_password_updated')}</Alert>}
       {general && <Alert kind="error">{general}</Alert>}
-      <form className="admin-section admin-stack" onSubmit={submit} noValidate>
+      <form className="admin-section admin-stack admin-form-card" onSubmit={submit} noValidate>
         <Field
           {...pw}
           label={t('t_current_password')}

@@ -3,11 +3,10 @@
 // first area by default; admin-refresh.md §4). Booleans are switches, numbers and choices are inputs. Rows
 // marked "re-login" ask for the password first (AC-7).
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { components } from '@mytask/types';
 import { AdminShell } from '../../components/shell';
 import { Alert, Field, Pill, Submit } from '@mytask/ui/web';
-import { AuthCard } from '../../components/ui';
 import { splitErrors, t, useAdminApi, type ApiErrorBody } from '../../lib/client';
 import { areaHref, areaTitle, areasOf } from '../../lib/settings-areas';
 
@@ -33,6 +32,7 @@ function Settings() {
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const reauthErrors = splitErrors(err);
+  const reauthRef = useRef<HTMLElement>(null);
   const areas = useMemo(() => areasOf(rows), [rows]);
   // An unknown or missing `?area=` opens the first area.
   const area = areas.find((a) => a === query) ?? areas[0];
@@ -46,6 +46,11 @@ function Settings() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // The re-login card takes the focus when it opens, so keyboard and screen-reader users land on it.
+  useEffect(() => {
+    if (pending) reauthRef.current?.focus();
+  }, [pending]);
 
   async function save(row: Entry, value: unknown) {
     setErr(undefined);
@@ -77,36 +82,60 @@ function Settings() {
     await save(next.row, next.value);
   }
 
+  const valueOf = (registerId: string) => rows.find((r) => r.registerId === registerId)?.value;
+  const shell = {
+    settingsAreas: rows.length ? areas : undefined,
+    current: area && areaHref(area),
+  };
+
+  // AC-7 re-login step: a card in the content area, the sidebar stays (4X.7).
   if (pending) {
     return (
-      <AuthCard
-        title={t('t_reauth_required')}
-        subtitle={`${pending.row.registerId} · ${pending.row.key}`}
-      >
-        {reauthErrors.general && <Alert kind="error">{reauthErrors.general}</Alert>}
-        <form onSubmit={reauth} noValidate>
-          <Field
-            label={t('t_password')}
-            name="password"
-            type="password"
-            autoComplete="current-password"
-            value={password}
-            onChange={setPassword}
-            showLabel={t('t_ui_show_password')}
-            hideLabel={t('t_ui_hide_password')}
-          />
-          <Submit busy={busy}>{t('t_continue')}</Submit>
-        </form>
-        <button type="button" className="auth-link-button" onClick={() => setPending(undefined)}>
-          {t('t_ui_close')}
-        </button>
-      </AuthCard>
+      <AdminShell {...shell}>
+        <h1 className="mt-text-h2">{area ? areaTitle(area) : t('t_settings')}</h1>
+        <section
+          ref={reauthRef}
+          tabIndex={-1}
+          className="admin-section admin-stack admin-form-card admin-reauth"
+          aria-labelledby="reauth-title"
+        >
+          <h2 id="reauth-title" className="mt-text-h3">
+            {t('t_reauth_required')}
+          </h2>
+          <p className="auth-muted">
+            <code className="admin-setting-id">{pending.row.registerId}</code>{' '}
+            {pending.row.meaning.ka}
+          </p>
+          {reauthErrors.general && <Alert kind="error">{reauthErrors.general}</Alert>}
+          <form className="admin-stack" onSubmit={reauth} noValidate>
+            <Field
+              label={t('t_password')}
+              name="password"
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={setPassword}
+              showLabel={t('t_ui_show_password')}
+              hideLabel={t('t_ui_hide_password')}
+            />
+            <div className="admin-item-actions">
+              <Submit busy={busy}>{t('t_continue')}</Submit>
+              <button
+                type="button"
+                className="auth-link-button"
+                onClick={() => setPending(undefined)}
+              >
+                {t('t_ui_close')}
+              </button>
+            </div>
+          </form>
+        </section>
+      </AdminShell>
     );
   }
 
-  const valueOf = (registerId: string) => rows.find((r) => r.registerId === registerId)?.value;
   return (
-    <AdminShell settingsAreas={rows.length ? areas : undefined} current={area && areaHref(area)}>
+    <AdminShell {...shell}>
       <h1 className="mt-text-h2">{area ? areaTitle(area) : t('t_settings')}</h1>
       {notice && <Alert kind="success">{notice}</Alert>}
       {err && err.code !== 'REAUTH_REQUIRED' && <Alert kind="error">{err.message}</Alert>}
