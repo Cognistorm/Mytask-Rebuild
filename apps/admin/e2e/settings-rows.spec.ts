@@ -50,6 +50,7 @@ const entry = (registerId: string, area: string, type: string, value: unknown, k
 
 const SETTINGS = [
   { ...entry('S-025', 'escrow', 'integer', 72, 'ავტომატური გათავისუფლება'), unit: 'hours' },
+  { ...entry('S-002', 'escrow', 'integer', null, 'Premium სერვისების ლიმიტი'), unit: null },
   { ...entry('S-056', 'auth', 'boolean', false, 'ელ-ფოსტით 2FA'), stepUpRequired: true },
   {
     ...entry(
@@ -92,6 +93,30 @@ test('a number row: meaning, register ID tag and unit, the unit inside the field
   const text = await row.locator('.admin-setting-text').boundingBox();
   const control = await row.locator('.admin-setting-control').boundingBox();
   expect(control!.x).toBeGreaterThan(text!.x + text!.width - 1);
+});
+
+// Owner 2026-10-07: limits that may be "unlimited" (S-001…S-006, "empty = unlimited") must be settable from the admin.
+test('an unlimited number row shows an empty box, and clearing a box saves null (not 0)', async ({
+  page,
+}) => {
+  const sent: unknown[] = [];
+  await page.route('**/api/v1/admin/settings/*', async (route) => {
+    sent.push(route.request().postDataJSON());
+    await json(route, 400, { code: 'VALIDATION_FAILED', message: 'x', details: {} });
+  });
+  await page.goto('/settings?area=escrow');
+  const unlimited = page.getByRole('spinbutton', { name: /^S-002 / });
+  await expect(unlimited).toHaveValue('');
+
+  const field = page.getByRole('spinbutton', { name: /^S-025 / });
+  await field.fill('');
+  await page
+    .locator('.admin-setting')
+    .filter({ hasText: 'S-025' })
+    .getByRole('button', { name: 'შენახვა' })
+    .click();
+  await expect.poll(() => sent.length).toBe(1);
+  expect(sent[0]).toMatchObject({ value: null });
 });
 
 test('a switch row keeps its "S-056 …" name; the re-login badge; the social provider card', async ({
