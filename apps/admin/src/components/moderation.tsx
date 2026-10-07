@@ -64,7 +64,8 @@ export function OwnerSummary({ owner }: { owner: S['ModerationOwnerSummary'] }) 
 
 /**
  * Status tabs above a queue (pending first): a segmented control whose thumb slides to the chosen status. The thumb
- * follows the chosen button's measured place, so labels keep their natural width (on phones the track scrolls).
+ * follows the chosen button's measured place, so labels keep their natural width and wrap onto a second line on
+ * phones, every status in view (F-4X9-4).
  */
 export function StatusTabs<T extends string>(props: {
   value: T;
@@ -81,7 +82,9 @@ export function StatusTabs<T extends string>(props: {
       if (!on) return setThumb(undefined);
       setThumb({
         '--admin-thumb-x': `${on.offsetLeft}px`,
+        '--admin-thumb-y': `${on.offsetTop}px`,
         '--admin-thumb-w': `${on.offsetWidth}px`,
+        '--admin-thumb-h': `${on.offsetHeight}px`,
       } as CSSProperties);
     };
     place();
@@ -104,11 +107,7 @@ export function StatusTabs<T extends string>(props: {
           type="button"
           className="admin-segment"
           aria-pressed={props.value === o.value}
-          onClick={(e) => {
-            // A track wider than a phone scrolls: keep the chosen status in view.
-            e.currentTarget.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-            props.onChange(o.value);
-          }}
+          onClick={() => props.onChange(o.value)}
         >
           {o.label}
         </button>

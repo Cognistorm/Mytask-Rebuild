@@ -47,9 +47,22 @@ function Settings() {
     void load();
   }, [load]);
 
-  // The re-login card takes the focus when it opens, so keyboard and screen-reader users land on it.
+  // The re-login card takes the focus when it opens, so keyboard and screen-reader users land on it; when it
+  // closes (Close or saved), the focus goes back to the setting that asked for it (F-4X9-1).
+  const opener = useRef<Entry>(undefined);
   useEffect(() => {
-    if (pending) reauthRef.current?.focus();
+    if (pending) {
+      opener.current = pending.row;
+      return reauthRef.current?.focus();
+    }
+    const row = opener.current;
+    if (!row) return;
+    opener.current = undefined;
+    const id = `setting-${row.registerId}`;
+    const target = row.isSecret
+      ? document.querySelector<HTMLElement>(`[data-testid="social-${row.registerId}"] .admin-save`)
+      : document.getElementById(id);
+    target?.focus();
   }, [pending]);
 
   async function save(row: Entry, value: unknown) {
@@ -217,10 +230,12 @@ function SocialProviderRow({
       <div className="admin-provider-head">
         <SettingText row={row} id={id} />
         <label className="admin-provider-switch">
-          {t('t_social_login_enabled')}
+          <span id={`${id}-switch`}>{t('t_social_login_enabled')}</span>
           <input
             type="checkbox"
             role="switch"
+            // Named "S-065 <enabled>": every setting control starts with its register ID (F-4X9-8).
+            aria-labelledby={`${id}-reg ${id}-switch`}
             aria-checked={enabled}
             checked={enabled}
             onChange={(e) => setEnabled(e.target.checked)}

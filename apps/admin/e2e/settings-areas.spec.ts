@@ -133,3 +133,30 @@ test('without settings.read there are no area items and the list is not loaded',
   await expect(nav(page).getByRole('link')).toHaveText(['დაბლოკილი IP მისამართები']);
   expect(api.settingsCalls()).toBe(0);
 });
+
+// QA 4X.9 F-4X9-3: while the Settings screen loads its list, no area item is marked current.
+test('no area item is current while the settings list is still loading', async ({ page }) => {
+  await page.route('**/api/v1/admin/me', (route) => json(route, 200, ME));
+  let release: () => void = () => {};
+  const gate = new Promise<void>((r) => (release = r));
+  let calls = 0;
+  await page.route('**/api/v1/admin/settings**', async (route) => {
+    // The first load (the sidebar on /security) answers at once; the Settings screen's load waits.
+    if (calls++ > 0) await gate;
+    return json(route, 200, { settings: SETTINGS });
+  });
+  await page.route('**/api/v1/admin/ip-bans**', (route) =>
+    json(route, 200, { data: [], meta: { nextCursor: null } }),
+  );
+  await page.goto('/security');
+  await expect(nav(page).getByRole('link', { name: 'სისტემა' })).toBeVisible();
+  await nav(page).getByRole('link', { name: 'სისტემა' }).click();
+  await expect(page).toHaveURL(/area=system/);
+  await expect(nav(page).locator('[aria-current="page"]')).toHaveCount(0);
+  await expect(nav(page).getByRole('button', { name: 'პარამეტრები' })).toHaveAttribute(
+    'aria-expanded',
+    'true',
+  );
+  release();
+  await expect(nav(page).locator('[aria-current="page"]')).toHaveText(['სისტემა']);
+});

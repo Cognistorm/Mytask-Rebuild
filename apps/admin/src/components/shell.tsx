@@ -136,14 +136,26 @@ export function AdminShell({
     };
   }, [drawer]);
 
+  // Close, the scrim and Escape give the focus back to the menu button once the screen is no longer inert.
+  const returnFocus = useRef(false);
   function closeDrawer() {
+    returnFocus.current = true;
     setDrawer(false);
-    burgerRef.current?.focus();
   }
+  useEffect(() => {
+    if (drawer || !returnFocus.current) return;
+    returnFocus.current = false;
+    burgerRef.current?.focus();
+  }, [drawer]);
 
   const can = (p: Permission) => !!me && (me.isSuperAdmin || me.permissions.includes(p));
   // The current item: its link is `current` when given, else the item whose path is the current path.
-  const isCurrent = (href: string) => (current ? href === current : path === href.split('?')[0]);
+  // A link with a query (a settings area) is current only when the screen names it, so no area is marked while
+  // the Settings screen is still loading its list (F-4X9-3).
+  const isCurrent = (href: string) =>
+    current ? href === current : !href.includes('?') && path === href;
+  // The screen's group: an item's path is the current path (query strings are not part of a route here).
+  const inGroup = (href: string) => path === href.split('?')[0];
   // Legacy sidebar order (admin-refresh.md §3); later slices add their screens in the same order.
   const groups: NavGroup[] = [
     {
@@ -200,7 +212,7 @@ export function AdminShell({
     .map((g) => ({ ...g, items: g.items.filter((i) => i.show) }) as NavGroup)
     .filter((g) => g.items.length > 0);
 
-  const currentGroup = groups.find((g) => g.items.some((i) => isCurrent(i.href)));
+  const currentGroup = groups.find((g) => g.items.some((i) => inGroup(i.href)));
   const isOpen = (g: NavGroup) => openGroups[g.key] ?? g === currentGroup;
 
   async function logout() {
@@ -216,6 +228,9 @@ export function AdminShell({
 
   return (
     <div className="mt-dashboard admin-shell">
+      <a className="admin-skip-link" href="#admin-content">
+        {t('t_ui_skip_to_content')}
+      </a>
       <aside className="mt-dashboard-sidebar admin-sidebar" data-open={drawer}>
         <div className="mt-dashboard-sidebar-head">
           <span className="admin-brand">
@@ -303,7 +318,8 @@ export function AdminShell({
         )}
       </aside>
       {drawer && <div className="mt-dashboard-scrim" onClick={closeDrawer} aria-hidden="true" />}
-      <div className="mt-dashboard-body">
+      {/* While the phone drawer is open, the screen behind it is inert: focus stays in the drawer (F-4X9-2). */}
+      <div className="mt-dashboard-body" inert={drawer || undefined}>
         <header className="mt-dashboard-topbar admin-topbar">
           <button
             ref={burgerRef}
@@ -317,7 +333,7 @@ export function AdminShell({
           </button>
           <span className="admin-brand">{logo}</span>
         </header>
-        <main className="admin-page">
+        <main id="admin-content" className="admin-page" tabIndex={-1}>
           {currentGroup && currentGroup.items.length > 1 && (
             <p className="admin-eyebrow">{currentGroup.label}</p>
           )}

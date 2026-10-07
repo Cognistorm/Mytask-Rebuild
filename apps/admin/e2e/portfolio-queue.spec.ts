@@ -249,3 +249,31 @@ test('queue look: segmented tabs, item card sections, action variants, empty sta
   expect(second).toBeGreaterThan(before);
   await expect(page.locator('.mt-empty')).toBeVisible();
 });
+
+// QA 4X.9 F-4X9-4: on a phone every status tab is fully in view (they wrap), and the thumb sits under the chosen one.
+test('phone: status tabs wrap, all fully visible; the thumb follows the chosen tab', async ({
+  page,
+}) => {
+  await setup(page, [[ENTRY], []]);
+  await page.setViewportSize({ width: 360, height: 800 });
+  await page.goto('/portfolio');
+  const tabs = page.getByRole('group', { name: 'სტატუსი' });
+  const track = (await tabs.boundingBox())!;
+  for (const b of await tabs.getByRole('button').all()) {
+    const box = (await b.boundingBox())!;
+    expect(box.x).toBeGreaterThanOrEqual(track.x);
+    expect(box.x + box.width).toBeLessThanOrEqual(track.x + track.width + 0.5);
+  }
+  const last = tabs.getByRole('button').last();
+  await last.click();
+  const thumb = () =>
+    tabs.evaluate((el) => {
+      const m = new DOMMatrix(getComputedStyle(el, '::before').transform);
+      return [m.m41, m.m42];
+    });
+  const at = await last.evaluate((el) => [
+    (el as HTMLElement).offsetLeft,
+    (el as HTMLElement).offsetTop,
+  ]);
+  await expect.poll(thumb).toEqual(at);
+});

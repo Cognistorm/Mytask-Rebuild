@@ -166,3 +166,39 @@ test('desktop: no menu button, the sidebar is always there', async ({ page }) =>
   await expect(nav(page)).toBeVisible();
   await expect(page.getByRole('button', { name: 'მენიუს გახსნა' })).toBeHidden();
 });
+
+// QA 4X.9 findings F-4X9-2 (drawer keeps the focus) and F-4X9-6 (skip link).
+test('phone: while the drawer is open the screen behind it is inert; Tab stays in the drawer', async ({
+  page,
+}) => {
+  await setup(page);
+  await page.setViewportSize({ width: 360, height: 800 });
+  await page.goto('/security');
+  await page.getByRole('button', { name: 'მენიუს გახსნა' }).click();
+  await expect(page.getByRole('button', { name: 'დახურვა' })).toBeFocused();
+  await expect(page.locator('.mt-dashboard-body')).toHaveAttribute('inert', '');
+  for (let i = 0; i < 12; i++) {
+    await page.keyboard.press('Tab');
+    const inBody = await page.evaluate(() =>
+      document.querySelector('.mt-dashboard-body')!.contains(document.activeElement),
+    );
+    expect(inBody).toBe(false);
+  }
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.mt-dashboard-body')).not.toHaveAttribute('inert', '');
+  await expect(page.getByRole('button', { name: 'მენიუს გახსნა' })).toBeFocused();
+});
+
+test('the first Tab stop is "Skip to content", which moves the focus to the screen', async ({
+  page,
+}) => {
+  await setup(page);
+  await page.goto('/security');
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+  await page.keyboard.press('Tab');
+  const skip = page.getByRole('link', { name: 'მთავარ შინაარსზე გადასვლა' });
+  await expect(skip).toBeFocused();
+  await expect(skip).toBeInViewport();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('main')).toBeFocused();
+});

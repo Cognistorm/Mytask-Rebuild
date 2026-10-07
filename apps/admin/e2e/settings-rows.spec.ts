@@ -105,6 +105,10 @@ test('a switch row keeps its "S-056 …" name; the re-login badge; the social pr
   const google = page.getByTestId('social-S-065');
   await expect(google.locator('.admin-provider-head')).toContainText('Google შესვლა');
   await expect(google.locator('.admin-provider-head').getByRole('switch')).not.toBeChecked();
+  // F-4X9-8: each provider switch is named by its register ID and meaning, not one shared text.
+  await expect(
+    google.getByRole('switch', { name: 'S-065 ამ პროვაიდერით შესვლა ჩართულია' }),
+  ).toBeVisible();
   await expect(google.locator('.mt-pill-success')).toHaveText('Client secret: შენახულია');
   await expect(google.getByLabel('Client ID')).toHaveValue('abc');
   const save = google.getByRole('button', { name: 'შენახვა' });
@@ -143,7 +147,8 @@ test('re-login step opens inside the shell, takes the focus, Close goes back', a
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('ავტორიზაცია და უსაფრთხოება');
   await card.getByRole('button', { name: 'დახურვა' }).click();
   await expect(card).toHaveCount(0);
-  await expect(page.getByRole('switch', { name: /^S-056 / })).toBeVisible();
+  // F-4X9-1: the focus goes back to the setting that asked for the re-login.
+  await expect(page.getByRole('switch', { name: /^S-056 / })).toBeFocused();
 });
 
 test('login keeps its centred card, with the "Admin" pill under the logo', async ({ page }) => {
