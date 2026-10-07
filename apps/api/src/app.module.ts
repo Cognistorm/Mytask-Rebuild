@@ -2,6 +2,7 @@ import { type MiddlewareConsumer, Module, type NestModule } from '@nestjs/common
 import { AuthModule } from './modules/auth/auth.module';
 import { CatalogModule } from './modules/catalog/catalog.module';
 import { FilesModule } from './modules/files/files.module';
+import { GigsModule } from './modules/gigs/gigs.module';
 import { ProfilesModule } from './modules/profiles/profiles.module';
 import { RestrictionsModule } from './modules/restrictions/restrictions.module';
 import { StaffModule } from './modules/staff/staff.module';
@@ -42,6 +43,7 @@ import { StorageModule } from './platform/storage/storage';
     FilesModule,
     ProfilesModule,
     CatalogModule,
+    GigsModule,
     PublicConfigModule,
   ],
   controllers: [HealthController],

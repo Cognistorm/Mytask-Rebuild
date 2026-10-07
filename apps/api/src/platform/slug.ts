@@ -1,7 +1,8 @@
 // URL slugs as legacy Laravel `Str::slug($text)` made them (ADR-006 §8): Georgian letters transliterated to
 // Latin, other letters stripped of accents, everything else dropped, words joined by `-`. The table matches the
 // live slugs (e.g. `/service/produqtis-sareklamo-vizualebis-sheqmna-…`, `veb-saitis-atsyoba`, `montazhi`,
-// `aghdgena`, `mkhardacheris`). Used by skills (spec 02 AC-19) and later gigs (spec 04 AC-33).
+// `aghdgena`, `mkhardacheris`). Used by skills (spec 02 AC-19), gigs (spec 04 AC-33) and portfolio items.
+import { randomBytes } from 'node:crypto';
 
 const GEORGIAN: Record<string, string> = {
   ა: 'a',
@@ -58,4 +59,17 @@ export function slugify(text: string): string {
     .replace(/[^a-z0-9\s-]+/g, '')
     .replace(/[\s-]+/g, '-')
     .replace(/^-+|-+$/g, '');
+}
+
+/** Public uid of gigs and portfolio items: 20 uppercase hex characters (legacy `uid`, url-map §4.1). */
+export function newPublicUid(): string {
+  return randomBytes(10).toString('hex').toUpperCase();
+}
+
+/**
+ * `{slug}-{uid}` of gig and portfolio URLs (spec 00 R-5.9, spec 04 AC-33): the slug of the Georgian title cut to
+ * 138 characters, then the uid. Readers take the text after the last `-` as the uid.
+ */
+export function uidSlug(title: string, uid: string): string {
+  return `${slugify(title).slice(0, 138)}-${uid}`;
 }

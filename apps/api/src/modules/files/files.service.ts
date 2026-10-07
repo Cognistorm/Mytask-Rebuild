@@ -156,6 +156,11 @@ export class FilesService {
     body: S['FileUploadRequest'],
     locale: Locale,
   ): Promise<S['FileUploadTicket']> {
+    if (policy.enabledBy && !(await this.settings.get(policy.enabledBy))) {
+      throw new ApiException(403, 'FEATURE_DISABLED', 't_feature_disabled', {
+        settingId: policy.enabledBy,
+      });
+    }
     const limits = await policy.limits(this.settings);
     const fileName = cleanFileName(body.fileName);
     const ext = extensionOf(fileName);

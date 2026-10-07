@@ -5,7 +5,6 @@
 // `active` at once, or `pending` + EV-14 to every S-100 address (legacy `EditComponent.php:186-226`).
 // Staff decisions are compare-and-set on `pending` (first decision wins); the reject reason lives on the row
 // while `rejected` and in the audit log for good.
-import { randomBytes } from 'node:crypto';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { components } from '@mytask/types';
 import type {
@@ -23,7 +22,7 @@ import { RedisService } from '../../platform/redis/redis.module';
 import { OutboxService } from '../../platform/outbox/outbox.service';
 import { afterCursor, decodeCursor, page } from '../../platform/pagination';
 import { SettingsService } from '../../platform/settings/settings.service';
-import { slugify } from '../../platform/slug';
+import { newPublicUid, uidSlug } from '../../platform/slug';
 import type { RequestContext } from '../auth/request-context';
 import { imageVariants } from '../files/image-variants';
 import { FileAttachments, FilesService } from '../files/files.service';
@@ -59,9 +58,6 @@ const invalid = (
 
 /** Contract `x-rate-limit` (ADR-022, SEC-69): createPortfolioItem + updatePortfolioItem, every attempt. */
 export const PORTFOLIO_SAVES_PER_HOUR = 30;
-
-const newUid = () => randomBytes(10).toString('hex').toUpperCase();
-const slugOf = (title: string, uid: string) => `${slugify(title).slice(0, 138)}-${uid}`;
 
 /** Every file of an item (thumbnail + gallery), once. */
 const fileIdsOf = (item: Item) => [
@@ -114,7 +110,7 @@ export class PortfolioService {
     const data = await this.checkInput(userId, input, ctx.t, null);
     const autoApprove = await this.settings.get('S-071');
     const admins = await this.settings.get('S-100');
-    const uid = newUid();
+    const uid = newPublicUid();
     const now = new Date();
     const item = await this.prisma.$transaction(async (tx) => {
       await this.markAttached(tx, [data.thumbnailFileId!, ...data.imageFileIds!]);
@@ -122,7 +118,7 @@ export class PortfolioService {
         data: {
           uid,
           userId,
-          slug: slugOf(data.title!, uid),
+          slug: uidSlug(data.title!, uid),
           title: data.title!,
           description: data.description!,
           projectUrl: data.projectUrl ?? null,
@@ -171,7 +167,7 @@ export class PortfolioService {
         where: { id: before.id },
         data: {
           title,
-          slug: slugOf(title, before.uid),
+          slug: uidSlug(title, before.uid),
           ...(data.description !== undefined ? { description: data.description } : {}),
           ...(data.thumbnailFileId ? { thumbnailFileId: data.thumbnailFileId } : {}),
           ...(data.projectUrl !== undefined ? { projectUrl: data.projectUrl } : {}),
