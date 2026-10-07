@@ -944,3 +944,10 @@ Recommendation: (b) — upgrades and FAQ counts are the ones a plan could sell; 
 **When does a gig page visit count as a new "click" (spec 04 AC-34; "Total clicks" of AC-39 and the "Most popular" sort)?** Legacy (`legacy/APP/app/Jobs/Main/Service/Track.php`) counts a visitor once ever per gig: a repeat visit by the same IP + user agent only adds to `counter_impressions`. That needs the stored IP, which Q-055 / ADR-012 forbid (only a daily-salted hash may be kept). Options: (a) once per visitor (IP + browser) per day; (b) every page load; (c) once ever, as legacy, with a permanent IP-derived code (against Q-055).
 Recommendation: (a).
 **Answer (Owner, 2026-10-07):** (a) — once per visitor per Tbilisi day and gig. Built in 4.3.5b. Follow-up: product-analyst adds the rule to spec 04 AC-34 as a CHANGE (Q-182).
+
+## Slice 3 gigs — open (web-engineer, ROADMAP 4.3.10d, 2026-10-07)
+
+### Q-183
+**May the owner of a migrated gig that has no stored number of revisions save an edit without choosing one?** New gigs must choose 0…S-041 (spec 04 AC-9, Q-056). Migrated legacy gigs may have no value (data model `gigs.revisions_allowed`: null only when `legacy_id` is set), and spec 04 does not say what the edit form does with them.
+Options: (a) the field may stay empty and the stored "no value" is kept (the API leaves fields it is not sent unchanged); (b) the owner must choose a number before saving any edit.
+Recommendation: (a) — it adds no new rule and does not block an owner who only wants to fix a typo. Built as (a) in 4.3.10d; (b) is a one-line change in the web form (and the same on mobile).

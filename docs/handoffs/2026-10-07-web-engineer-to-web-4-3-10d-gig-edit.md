@@ -68,7 +68,7 @@ I added **`/seller/gigs/{uid}/edit`** (spec 04 AC-10, AC-18, AC-21…AC-25). It 
 - The legacy id forms of the edit URL 301 to it.
 
 ## Open questions / risks
-- **Owner question (new):** may the owner of a migrated gig with no stored revisions save without choosing a number? I allowed it (the field is left unchanged), because the opposite would be a new rule. If the Owner wants it required, it is a one-line change: drop `revisionsOptional`.
+- **Owner question Q-183 (`docs/01-discovery/open-questions.md`):** may the owner of a migrated gig with no stored revisions save without choosing a number? I allowed it (the field is left unchanged), because the opposite would be a new rule. If the Owner wants it required, it is a one-line change: drop `revisionsOptional`.
 - **Security (4.3.18):**
   - Ownership is checked by the API on both reads and on PATCH. The client's `isOwner` check is only for the "not found" screen.
   - Stored HTML is rebuilt in an inert document (`cleanHtml`) before it reaches the editor.
