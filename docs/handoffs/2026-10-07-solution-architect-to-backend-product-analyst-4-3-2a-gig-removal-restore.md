@@ -9,7 +9,7 @@ From: solution-architect (+ product-analyst for the spec rows) · To: backend-en
   - `removal_reason varchar(1000) null` (internal, staff only);
   - `submitted_at timestamptz null` (last create/edit that went to `pending`; moderation queue oldest first);
   - CK `gigs_deleted_ck`: `(status = 'deleted') = (deleted_at IS NOT NULL) AND (deleted_at IS NULL) = (deleted_by IS NULL)`;
-  - CK `gigs_removal_ck`: `deleted_by = 'staff' OR (deleted_by_staff_id IS NULL AND removal_reason IS NULL)`;
+  - CK `gigs_removal_ck`: `deleted_by IS NOT DISTINCT FROM 'staff' OR (deleted_by_staff_id IS NULL AND removal_reason IS NULL)` (corrected in 4.3.2b: with a plain `=` the check is NULL while `deleted_by` is NULL and lets the row through);
   - IX `(status, submitted_at) WHERE status = 'pending'`.
   `AdminGig.removedAt` = `deleted_at`; `restoreDeadlineAt` = `deleted_at + 30 days` (computed, not stored).
   §12.2: legacy owner delete (`status = deleted` + `deleted_at`) → `deleted_by = owner`; legacy admin delete =

@@ -337,7 +337,7 @@ describe('gigs (core of §3.D)', () => {
     const zeroDays = await prisma.gig.create({ data: await gigData({ deliveryDays: 0 }) });
     await prisma.gig.update({
       where: { id: zeroDays.id },
-      data: { status: 'deleted', deletedAt: new Date() },
+      data: { status: 'deleted', deletedAt: new Date(), deletedBy: 'owner' },
     });
   });
 

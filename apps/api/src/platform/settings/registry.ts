@@ -872,6 +872,19 @@ export const settingsRegistry = {
     writePermission: 'settings.auth.write',
   }),
   // 4.11 Moderation (auto-approve)
+  'S-070': row({
+    key: 'moderation.gigs.auto_approve',
+    default: false,
+    area: 'moderation',
+    type: 'boolean',
+    meaning: {
+      en: 'New/edited gigs go live without admin review',
+      ka: 'ახალი/რედაქტირებული განცხადებები ქვეყნდება ადმინის განხილვის გარეშე',
+    },
+    source: 'BR-022',
+    tag: 'LEGACY',
+    writePermission: 'settings.moderation.write',
+  }),
   'S-071': row({
     key: 'moderation.portfolio.auto_approve',
     default: false,

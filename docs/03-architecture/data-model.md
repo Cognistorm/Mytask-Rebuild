@@ -549,12 +549,12 @@ Old category slugs (spec 16 AC-60, spec 17 AC-10) live in `slug_redirects` with 
 | deleted_by | gig_deleted_by | null | `owner` (owner deletion, spec 04 AC-24) or `staff` ("Remove", spec 16 AC-20); only staff removals can be restored, within 30 days of `deleted_at` (`restoreDeadlineAt`, computed) |
 | deleted_by_staff_id | uuid | FK→staff, null | who removed it (null for migrated staff removals) |
 | removal_reason | varchar(1000) | null | internal reason of a staff removal, shown to staff only (16 AC-20) |
-CK `gigs_deleted_ck`: `(status = 'deleted') = (deleted_at IS NOT NULL) AND (deleted_at IS NULL) = (deleted_by IS NULL)`; CK `gigs_removal_ck`: `deleted_by = 'staff' OR (deleted_by_staff_id IS NULL AND removal_reason IS NULL)`. Restore (Q-123 (b), ADR-024): status `active`, the four removal columns cleared, refused when the owner's non-deleted gigs already reach the plan limit, EV-130 to the owner. IX `(owner_id) WHERE status <> 'deleted'` (plan-limit count, R-G3); `(status, submitted_at) WHERE status = 'pending'` (moderation queue); `(status, published_at DESC)`; `category_id`, `subcategory_id`, `childcategory_id`.
+CK `gigs_deleted_ck`: `(status = 'deleted') = (deleted_at IS NOT NULL) AND (deleted_at IS NULL) = (deleted_by IS NULL)`; CK `gigs_removal_ck`: `deleted_by IS NOT DISTINCT FROM 'staff' OR (deleted_by_staff_id IS NULL AND removal_reason IS NULL)`. Restore (Q-123 (b), ADR-024): status `active`, the four removal columns cleared, refused when the owner's non-deleted gigs already reach the plan limit, EV-130 to the owner. IX `(owner_id) WHERE status <> 'deleted'` (plan-limit count, R-G3); `(status, submitted_at) WHERE status = 'pending'` (moderation queue); `(status, published_at DESC)`; `category_id`, `subcategory_id`, `childcategory_id`.
 
 **gig_translations** — PK `(gig_id, locale)` · `title varchar(100)` · `description text` (sanitised HTML) · TM. The `ka` row is required.
-**gig_upgrades** — `id` PK · `legacy_id` · `gig_id` FK · `title varchar(100)` · `price_tetri` CK ≥ 100 · `extra_days smallint` (delivery list) · `position` · `deleted_at null`. Max 10 active per gig (app rule, R-G9).
+**gig_upgrades** — `id` PK · `legacy_id` · `gig_id` FK · `title varchar(100)` · `price_tetri` CK ≥ 100 · `extra_days smallint` (delivery list) · `position` · `created_at`, `updated_at` · `deleted_at null`. Max 10 active per gig (app rule, R-G9).
 **gig_faqs** — `id` PK · `gig_id` FK · `question varchar(100)` · `answer varchar(300)` · `position`. Max 10.
-**gig_images** / **gig_documents** — `gig_id` FK · `file_id` FK · `position smallint`. PK `(gig_id, file_id)`, UK `(gig_id, position)`. Documents are public downloads (R-G11, bucket `public-media`).
+**gig_images** / **gig_documents** — `gig_id` FK · `file_id` FK · `position smallint`. PK `(gig_id, file_id)`, UK `(gig_id, position)` DEFERRABLE INITIALLY DEFERRED (reorder in one transaction, P-34). Documents are public downloads (R-G11, bucket `public-media`).
 **favorites** — `user_id` FK · `gig_id` FK · `created_at`. PK `(user_id, gig_id)`.
 
 ### 3.E Cart (spec 06 AC-1…AC-6, P-47)
@@ -1048,7 +1048,7 @@ Rules (in the service of each item type, one transaction):
 
 **analytics_events** (partitioned by month; raw rows kept 90 days): `id bigint identity` · `occurred_at` · `event_type` (`page_view`, `app_open`, `screen_view`, `registration`, `login`, `gig_view`, `gig_impression`, `project_view`, `order_paid`, …) · `platform` (`web`, `ios`, `android`, `server`) · `path_template` · `locale` · `entity_type`, `entity_id` · `user_id null` · `visitor_hash bytea` (daily-salted IP hash) · `country_code char(2)` · `city` · `device_type` · `os` · `browser` · `referrer_domain` · `utm jsonb`. No raw IP (Q-055, R-040).
 
-**analytics_daily**: `day date` · `metric` · `dimension` · `dimension_value` (default `''`) · `entity_type` (default `''`) · `entity_id uuid null` · `count bigint` · `uniques bigint`. UK `(day, metric, dimension, dimension_value, entity_type, coalesce(entity_id, zero uuid))`. Feeds the admin dashboard (registrations, country/city, device, browser) and gig analytics (spec 04 AC-39).
+**analytics_daily**: `id bigint identity` PK (surrogate, added in 4.3.2b so the ORM has an identity; the natural key is the UK below) · `day date` · `metric` · `dimension` · `dimension_value` (default `''`) · `entity_type` (default `''`) · `entity_id uuid null` · `count bigint` · `uniques bigint`. UK `(day, metric, dimension, dimension_value, entity_type, coalesce(entity_id, zero uuid))`. Feeds the admin dashboard (registrations, country/city, device, browser) and gig analytics (spec 04 AC-39).
 
 **sweeper_runs**: `job text PK` · `last_started_at` · `last_success_at` · `last_error text null` · `last_processed_count int` (monitoring, ADR-008 §8).
 
