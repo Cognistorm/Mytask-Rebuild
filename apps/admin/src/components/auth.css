@@ -366,46 +366,6 @@ button.mt-sidebar-link {
   gap: var(--mt-space-4);
 }
 
-.admin-tabs {
-  display: flex;
-  gap: var(--mt-space-4);
-  flex-wrap: wrap;
-}
-
-/* Status tabs (ghost buttons from @mytask/ui buttons.css): the selected one takes the brand tint and a 2 px gradient
-   indicator that grows in from the start edge (visual-refresh.md §6.2, M-9; it appears at once under reduced motion). */
-.admin-tabs .auth-link-button::after {
-  content: '';
-  position: absolute;
-  inset-inline: var(--mt-space-2);
-  inset-block-end: calc(-1 * var(--mt-border-width-hairline));
-  block-size: var(--mt-border-width-strong);
-  border-radius: var(--mt-radius-full);
-  background: var(--mt-gradient-indicator);
-  transform: scaleX(0);
-  transform-origin: left;
-  transition: transform var(--mt-motion-duration-base) var(--mt-motion-easing-emphasized);
-}
-
-.admin-tabs [aria-pressed='true'] {
-  --mt-btn-bg: var(--mt-gradient-action-ghost-hover);
-  --mt-btn-border: var(--mt-border-brand);
-  --mt-btn-border-hover: var(--mt-border-brand);
-  --mt-btn-text: var(--mt-text-brand);
-  font-weight: var(--mt-font-weight-semibold);
-  text-decoration: none;
-}
-
-.admin-tabs [aria-pressed='true']::after {
-  transform: scaleX(1);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .admin-tabs .auth-link-button::after {
-    transition: none;
-  }
-}
-
 .admin-owner {
   display: flex;
   align-items: center;
@@ -833,4 +793,198 @@ button.mt-sidebar-link {
   .admin-setting {
     transition: none;
   }
+}
+
+/* ---- Queues and security (4X.5, admin-refresh.md §5) ---- */
+/* Status tabs: a segmented control on the track gradient; the thumb slides to the chosen status (M-9, as the role
+   switcher). The buttons stay aria-pressed toggles; the thumb jumps under reduced motion. */
+.admin-segmented {
+  position: relative;
+  isolation: isolate;
+  display: inline-grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  justify-self: start;
+  max-inline-size: 100%;
+  box-sizing: border-box;
+  padding: var(--mt-space-1);
+  gap: var(--mt-space-1);
+  border: var(--mt-border-width-hairline) solid var(--mt-border-default);
+  border-radius: var(--mt-radius-control);
+  background: var(--mt-gradient-track);
+}
+
+.admin-segmented::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset-block: var(--mt-space-1);
+  inset-inline-start: var(--mt-space-1);
+  inline-size: calc(
+    (100% - (var(--admin-seg-count) + 1) * var(--mt-space-1)) / var(--admin-seg-count)
+  );
+  box-sizing: border-box;
+  border: var(--mt-border-width-hairline) solid var(--mt-border-brand);
+  border-radius: var(--mt-radius-control);
+  background: var(--mt-bg-surface);
+  box-shadow: var(--mt-highlight-secondary), var(--mt-elevation-sm);
+  transform: translateX(calc(var(--admin-seg-index) * (100% + var(--mt-space-1))));
+  transition: transform var(--mt-motion-duration-base) var(--mt-motion-easing-emphasized);
+}
+
+.admin-segment {
+  min-block-size: var(--mt-size-touch-target-min);
+  padding: 0 var(--mt-space-4);
+  border: 0;
+  border-radius: var(--mt-radius-control);
+  background: none;
+  color: var(--mt-text-secondary);
+  font: inherit;
+  font-weight: var(--mt-font-weight-medium);
+  cursor: pointer;
+  transition: color var(--mt-motion-duration-fast) var(--mt-motion-easing-standard);
+}
+
+@media (hover: hover) {
+  .admin-segment:not([aria-pressed='true']):hover {
+    color: var(--mt-text-primary);
+  }
+}
+
+.admin-segment[aria-pressed='true'] {
+  color: var(--mt-text-brand);
+  font-weight: var(--mt-font-weight-semibold);
+}
+
+.admin-segment:focus-visible {
+  outline: var(--mt-focus-ring-width) solid var(--mt-focus-ring);
+  outline-offset: var(--mt-focus-ring-offset);
+}
+
+/* Queue items: a card each — header (who, when), body, then the reason field and the action bar. */
+.admin-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--mt-space-4);
+}
+
+.admin-item {
+  display: grid;
+  border: var(--mt-border-width-hairline) solid var(--mt-border-default);
+  border-radius: var(--mt-radius-lg);
+  background: var(--mt-bg-surface);
+  box-shadow: var(--mt-elevation-sm);
+  overflow: hidden;
+}
+
+.admin-item-head,
+.admin-item-body,
+.admin-item-foot {
+  display: grid;
+  gap: var(--mt-space-2);
+  padding: var(--mt-space-4);
+  min-width: 0;
+}
+
+.admin-item-head {
+  border-block-end: var(--mt-border-width-hairline) solid var(--mt-border-subtle);
+  background: var(--mt-bg-subtle);
+}
+
+.admin-item-meta {
+  margin: 0;
+  color: var(--mt-text-secondary);
+  font-size: var(--mt-font-size-sm);
+  overflow-wrap: anywhere;
+}
+
+.admin-item-meta strong {
+  color: var(--mt-text-primary);
+}
+
+.admin-item-body > :is(button, a) {
+  justify-self: start;
+}
+
+.admin-item-foot {
+  border-block-start: var(--mt-border-width-hairline) solid var(--mt-border-subtle);
+}
+
+.admin-item-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mt-space-2);
+}
+
+/* Simple lists (banned IPs): text | action rows with hairlines and the hover tint. */
+.admin-list {
+  list-style: none;
+  margin: 0 calc(-1 * var(--mt-space-2));
+  padding: 0;
+  display: grid;
+}
+
+.admin-list-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--mt-space-3);
+  padding: var(--mt-space-3) var(--mt-space-2);
+  border-radius: var(--mt-radius-md);
+  transition: background-color var(--mt-motion-duration-fast) var(--mt-motion-easing-standard);
+}
+
+.admin-list-row + .admin-list-row {
+  border-block-start: var(--mt-border-width-hairline) solid var(--mt-border-subtle);
+  border-start-start-radius: 0;
+  border-start-end-radius: 0;
+}
+
+@media (hover: hover) {
+  .admin-list-row:hover {
+    background-color: var(--mt-bg-hover);
+  }
+}
+
+.admin-mono {
+  font-family: var(--mt-font-family-mono);
+}
+
+/* Inline add form: fields and the Primary button on one line, wrapping on phones. */
+.admin-add-form > .auth-field {
+  flex: 1 1 calc(var(--mt-space-24) * 2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-segmented::before,
+  .admin-segment,
+  .admin-list-row {
+    transition: none;
+  }
+}
+
+/* Phones: the status tabs take the full width; long Georgian labels shrink and may wrap. */
+@media (max-width: 639px) {
+  .admin-segmented {
+    justify-self: stretch;
+  }
+
+  .admin-segment {
+    padding-inline: var(--mt-space-2);
+    font-size: var(--mt-font-size-sm);
+    line-height: var(--mt-font-line-height-sm);
+    overflow-wrap: anywhere;
+  }
+}
+
+/* A form section is a full-width card; its fields keep a readable width. */
+.admin-form-card {
+  max-width: none;
+}
+
+.admin-form-card > :not(h2) {
+  max-width: calc(var(--mt-space-24) * 6);
 }

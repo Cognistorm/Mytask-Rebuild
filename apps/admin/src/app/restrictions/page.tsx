@@ -7,7 +7,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { components } from '@mytask/types';
 import { AdminShell } from '../../components/shell';
-import { Alert, Field, TextArea } from '@mytask/ui/web';
+import { Alert, EmptyState, Field, TextArea } from '@mytask/ui/web';
+import { ItemCard } from '../../components/moderation';
 import { splitErrors, t, useAdminApi, type ApiErrorBody } from '../../lib/client';
 
 type S = components['schemas'];
@@ -59,10 +60,46 @@ function AppealCard({
   }
 
   return (
-    <li className="admin-card" data-testid="appeal">
-      <strong>
-        {appeal.owner.user.username} · {date(appeal.createdAt)}
-      </strong>
+    <ItemCard
+      testId="appeal"
+      head={
+        <p className="admin-item-meta">
+          <strong>{appeal.owner.user.username}</strong> · {date(appeal.createdAt)}
+        </p>
+      }
+      decision={
+        <>
+          {general && <Alert kind="error">{general}</Alert>}
+          <TextArea
+            label={t('t_reason')}
+            name="reason"
+            rows={2}
+            maxLength={1000}
+            value={reason}
+            onChange={setReason}
+            error={fields.reason}
+          />
+        </>
+      }
+      actions={
+        <>
+          <button
+            type="button"
+            className="mt-button mt-button-primary"
+            onClick={() => decide('approve')}
+          >
+            {t('t_approve')}
+          </button>
+          <button
+            type="button"
+            className="mt-button mt-button-danger"
+            onClick={() => decide('reject')}
+          >
+            {t('t_reject')}
+          </button>
+        </>
+      }
+    >
       <span className="auth-muted">{t('t_restriction_details')}</span>
       <p className="admin-message">{appeal.restriction.message}</p>
       <span className="auth-muted">{t('t_restriction_response')}</span>
@@ -89,25 +126,7 @@ function AppealCard({
           </ul>
         </>
       )}
-      {general && <Alert kind="error">{general}</Alert>}
-      <TextArea
-        label={t('t_reason')}
-        name="reason"
-        rows={2}
-        maxLength={1000}
-        value={reason}
-        onChange={setReason}
-        error={fields.reason}
-      />
-      <div className="admin-inline-form">
-        <button type="button" className="auth-button" onClick={() => decide('approve')}>
-          {t('t_approve')}
-        </button>
-        <button type="button" className="auth-link-button" onClick={() => decide('reject')}>
-          {t('t_reject')}
-        </button>
-      </div>
-    </li>
+    </ItemCard>
   );
 }
 
@@ -176,9 +195,9 @@ export default function RestrictionsPage() {
             {t('t_appeal_details')} ({appeals.length})
           </h2>
           {appeals.length === 0 ? (
-            <p className="auth-muted">{t('t_admin_queue_empty')}</p>
+            <EmptyState title={t('t_admin_queue_empty')} />
           ) : (
-            <ul className="admin-rows">
+            <ul className="admin-items">
               {appeals.map((a) => (
                 <AppealCard key={a.id} appeal={a} onDone={load} />
               ))}
@@ -187,7 +206,7 @@ export default function RestrictionsPage() {
         </section>
       )}
 
-      <section className="admin-section admin-stack" aria-labelledby="add-title">
+      <section className="admin-section admin-stack admin-form-card" aria-labelledby="add-title">
         <h2 id="add-title" className="mt-text-h3">
           {t('t_add_restriction')}
         </h2>
@@ -230,14 +249,31 @@ export default function RestrictionsPage() {
           {t('t_restrictions_history')}
         </h2>
         {history.length === 0 ? (
-          <p className="auth-muted">{t('t_no_data_to_show_now')}</p>
+          <EmptyState title={t('t_no_data_to_show_now')} />
         ) : (
-          <ul className="admin-rows">
+          <ul className="admin-items">
             {history.map((r) => (
-              <li key={r.id} className="admin-card" data-testid="restriction">
-                <strong>
-                  {r.user.username} · {t(STATUS_KEY[r.status])} · {date(r.createdAt)}
-                </strong>
+              <ItemCard
+                key={r.id}
+                testId="restriction"
+                head={
+                  <p className="admin-item-meta">
+                    <strong>{r.user.username}</strong> · {t(STATUS_KEY[r.status])} ·{' '}
+                    {date(r.createdAt)}
+                  </p>
+                }
+                actions={
+                  can('users.restrict') && (
+                    <button
+                      type="button"
+                      className="auth-link-button mt-edit-link-danger"
+                      onClick={() => remove(r.id)}
+                    >
+                      {t('t_delete')}
+                    </button>
+                  )
+                }
+              >
                 <p className="admin-message">{r.message}</p>
                 {r.appeal && (
                   <p className="admin-message">
@@ -249,12 +285,7 @@ export default function RestrictionsPage() {
                     {t('t_reason')}: {r.decisionReason}
                   </p>
                 )}
-                {can('users.restrict') && (
-                  <button type="button" className="auth-link-button" onClick={() => remove(r.id)}>
-                    {t('t_delete')}
-                  </button>
-                )}
-              </li>
+              </ItemCard>
             ))}
           </ul>
         )}

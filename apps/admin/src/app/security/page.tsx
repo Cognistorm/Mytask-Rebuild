@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { components } from '@mytask/types';
 import { AdminShell } from '../../components/shell';
-import { Alert, Field } from '@mytask/ui/web';
+import { Alert, EmptyState, Field } from '@mytask/ui/web';
 import { splitErrors, t, useAdminApi, type ApiErrorBody } from '../../lib/client';
 
 type Ban = components['schemas']['IpBan'];
@@ -44,7 +44,7 @@ export default function SecurityPage() {
     <AdminShell>
       <h1 className="mt-text-h2">{t('t_banned_ips')}</h1>
       {general && <Alert kind="error">{general}</Alert>}
-      <form className="admin-section admin-inline-form" onSubmit={add} noValidate>
+      <form className="admin-section admin-inline-form admin-add-form" onSubmit={add} noValidate>
         <Field label={t('t_ip_address')} name="ip" value={ip} onChange={setIp} error={fields.ip} />
         <Field label={t('t_note')} name="note" value={note} onChange={setNote} />
         <button type="submit" className="auth-button">
@@ -53,18 +53,25 @@ export default function SecurityPage() {
       </form>
       <section className="admin-section">
         {bans.length === 0 ? (
-          <p className="auth-muted">{t('t_no_results_found')}</p>
+          <EmptyState title={t('t_no_results_found')} />
         ) : (
-          <ul className="admin-rows">
+          <ul className="admin-list">
             {bans.map((b) => (
-              <li key={b.ip} className="admin-row" data-testid="ip-ban">
-                <span className="admin-row-text">
-                  <strong>{b.ip}</strong> · {t('t_failed_attempts')}: {b.failedAttempts} ·{' '}
-                  {t(b.source === 'manual' ? 't_ip_ban_source_manual' : 't_ip_ban_source_auto')} ·{' '}
-                  {new Date(b.bannedAt).toLocaleString('ka-GE', { timeZone: 'Asia/Tbilisi' })}
-                  {b.note ? ` · ${b.note}` : ''}
+              <li key={b.ip} className="admin-list-row" data-testid="ip-ban">
+                <span className="admin-setting-text">
+                  <strong className="admin-mono">{b.ip}</strong>
+                  <span className="admin-setting-meta">
+                    {t('t_failed_attempts')}: {b.failedAttempts} ·{' '}
+                    {t(b.source === 'manual' ? 't_ip_ban_source_manual' : 't_ip_ban_source_auto')} ·{' '}
+                    {new Date(b.bannedAt).toLocaleString('ka-GE', { timeZone: 'Asia/Tbilisi' })}
+                    {b.note ? ` · ${b.note}` : ''}
+                  </span>
                 </span>
-                <button type="button" className="auth-link-button" onClick={() => remove(b.ip)}>
+                <button
+                  type="button"
+                  className="auth-link-button mt-edit-link-danger"
+                  onClick={() => remove(b.ip)}
+                >
                   {t('t_unban_ip')}
                 </button>
               </li>

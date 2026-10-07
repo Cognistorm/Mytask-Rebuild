@@ -1,7 +1,8 @@
 'use client';
-// Shared pieces of the moderation queues (spec 16 AC-19): owner summary, status tabs, the date/owner filter
-// and the cursor list loader. Used by the portfolio and KYC queues (task 4.1.21); later queues reuse them.
-import { useCallback, useEffect, useState } from 'react';
+// Shared pieces of the moderation queues (spec 16 AC-19): owner summary, status tabs, item card, the date/owner
+// filter and the cursor list loader. Used by the portfolio and KYC queues (task 4.1.21); later queues reuse them.
+// Looks (4X.5, admin-refresh.md §5): segmented status tabs with a sliding thumb, cards with header / body / action bar.
+import { useCallback, useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import type { components } from '@mytask/types';
 import { Avatar, Field, Pill } from '@mytask/ui/web';
 import { t, type ApiErrorBody } from '../lib/client';
@@ -53,19 +54,26 @@ export function OwnerSummary({ owner }: { owner: S['ModerationOwnerSummary'] }) 
   );
 }
 
-/** Status tabs above a queue (pending first). */
+/** Status tabs above a queue (pending first): a segmented control whose thumb slides to the chosen status. */
 export function StatusTabs<T extends string>(props: {
   value: T;
   options: { value: T; label: string }[];
   onChange: (v: T) => void;
 }) {
+  const thumb = {
+    '--admin-seg-count': props.options.length,
+    '--admin-seg-index': Math.max(
+      0,
+      props.options.findIndex((o) => o.value === props.value),
+    ),
+  } as CSSProperties;
   return (
-    <div className="admin-tabs" role="group" aria-label={t('t_status')}>
+    <div className="admin-segmented" role="group" aria-label={t('t_status')} style={thumb}>
       {props.options.map((o) => (
         <button
           key={o.value}
           type="button"
-          className="auth-link-button"
+          className="admin-segment"
           aria-pressed={props.value === o.value}
           onClick={() => props.onChange(o.value)}
         >
@@ -73,6 +81,35 @@ export function StatusTabs<T extends string>(props: {
         </button>
       ))}
     </div>
+  );
+}
+
+/**
+ * One queue item: header (who and when), body, then the decision area — the reason field and notices above the
+ * action bar (Approve = Primary, Reject = Danger, others Secondary).
+ */
+export function ItemCard(props: {
+  testId: string;
+  head: ReactNode;
+  meta?: ReactNode;
+  children?: ReactNode;
+  decision?: ReactNode;
+  actions?: ReactNode;
+}) {
+  return (
+    <li className="admin-item" data-testid={props.testId}>
+      <div className="admin-item-head">
+        {props.head}
+        {props.meta && <p className="admin-item-meta">{props.meta}</p>}
+      </div>
+      {props.children && <div className="admin-item-body">{props.children}</div>}
+      {(props.decision || props.actions) && (
+        <div className="admin-item-foot">
+          {props.decision}
+          {props.actions && <div className="admin-item-actions">{props.actions}</div>}
+        </div>
+      )}
+    </li>
   );
 }
 

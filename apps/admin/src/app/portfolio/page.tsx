@@ -6,12 +6,13 @@
 // published, reason kept in the audit log) deletes the item — legacy "Delete portfolio". First decision wins (409).
 import { useCallback, useState } from 'react';
 import type { components } from '@mytask/types';
-import { Alert, TextArea } from '@mytask/ui/web';
+import { Alert, EmptyState, TextArea } from '@mytask/ui/web';
 import { AdminShell } from '../../components/shell';
 import {
   adminDate,
   decisionError,
   filterQuery,
+  ItemCard,
   OwnerSummary,
   QueueFilterForm,
   StatusTabs,
@@ -63,12 +64,60 @@ function PortfolioCard({ entry, onDone }: { entry: S['AdminPortfolioItem']; onDo
     onDone();
   }
 
+  const open = item.status !== 'rejected';
   return (
-    <li className="admin-card" data-testid="portfolio-item">
-      <OwnerSummary owner={entry.owner} />
-      <strong>
-        {item.title} · {t(STATUS_KEY[item.status])} · {adminDate(item.createdAt)}
-      </strong>
+    <ItemCard
+      testId="portfolio-item"
+      head={<OwnerSummary owner={entry.owner} />}
+      meta={
+        <>
+          <strong>{item.title}</strong> · {t(STATUS_KEY[item.status])} · {adminDate(item.createdAt)}
+        </>
+      }
+      decision={
+        <>
+          {general && <Alert kind="error">{general}</Alert>}
+          {open && (
+            <TextArea
+              label={t('t_admin_reject_reason')}
+              name="reason"
+              rows={2}
+              maxLength={1000}
+              value={reason}
+              onChange={setReason}
+              error={fields.reason}
+            />
+          )}
+        </>
+      }
+      actions={
+        open && (
+          <>
+            {item.status === 'pending' && (
+              <>
+                <button
+                  type="button"
+                  className="mt-button mt-button-primary"
+                  onClick={() => decide('approve')}
+                >
+                  {t('t_approve')}
+                </button>
+                <button
+                  type="button"
+                  className="mt-button mt-button-danger"
+                  onClick={() => decide('reject')}
+                >
+                  {t('t_reject')}
+                </button>
+              </>
+            )}
+            <button type="button" className="mt-button" onClick={() => decide('remove')}>
+              {t('t_delete_portfolio')}
+            </button>
+          </>
+        )
+      }
+    >
       <div className="admin-gallery">
         {[item.thumbnail, ...item.images].map((img) => (
           <a key={img.fileId} href={img.large} target="_blank" rel="noreferrer">
@@ -99,36 +148,7 @@ function PortfolioCard({ entry, onDone }: { entry: S['AdminPortfolioItem']; onDo
           {entry.decidedBy.fullName} · {adminDate(entry.decidedAt)}
         </span>
       )}
-      {general && <Alert kind="error">{general}</Alert>}
-      {item.status !== 'rejected' && (
-        <>
-          <TextArea
-            label={t('t_admin_reject_reason')}
-            name="reason"
-            rows={2}
-            maxLength={1000}
-            value={reason}
-            onChange={setReason}
-            error={fields.reason}
-          />
-          <div className="admin-inline-form">
-            {item.status === 'pending' && (
-              <>
-                <button type="button" className="auth-button" onClick={() => decide('approve')}>
-                  {t('t_approve')}
-                </button>
-                <button type="button" className="auth-link-button" onClick={() => decide('reject')}>
-                  {t('t_reject')}
-                </button>
-              </>
-            )}
-            <button type="button" className="auth-link-button" onClick={() => decide('remove')}>
-              {t('t_delete_portfolio')}
-            </button>
-          </div>
-        </>
-      )}
-    </li>
+    </ItemCard>
   );
 }
 
@@ -169,11 +189,11 @@ export default function PortfolioQueuePage() {
           <QueueFilterForm value={filter} onApply={setFilter} />
           {general && <Alert kind="error">{general}</Alert>}
           {list.loaded && list.items.length === 0 ? (
-            <p className="auth-muted">
-              {t(status === 'pending' ? 't_admin_queue_empty' : 't_no_data_to_show_now')}
-            </p>
+            <EmptyState
+              title={t(status === 'pending' ? 't_admin_queue_empty' : 't_no_data_to_show_now')}
+            />
           ) : (
-            <ul className="admin-rows">
+            <ul className="admin-items">
               {list.items.map((e) => (
                 <PortfolioCard key={e.item.id} entry={e} onDone={list.reload} />
               ))}
