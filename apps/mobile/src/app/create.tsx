@@ -57,9 +57,7 @@ export default function CreateGigScreen() {
   if (state.kind === 'signed-out') return <Redirect href="/login" />;
   if (state.kind === 'restricted') return <Redirect href="/restricted" />;
   if (state.kind === 'ready') {
-    return (
-      <GigWizard t={t} categories={state.categories} maxRevisions={config?.revisions.maxAllowed} />
-    );
+    return <GigWizard api={api} t={t} categories={state.categories} config={config} />;
   }
 
   return (

@@ -33,7 +33,22 @@ ROADMAP 4.3.15 was split on 2026-10-07 into 4.3.15a–d. This file grows with ea
   - Steps 3–5 show only their headings, and "Create" is disabled, until 4.3.15b/c.
 - **i18n**: 1 NEW key (en + ka), `t_ui_description_format_hint`.
 
+### 4.3.15b: step 3 Extras and step 4 Gallery (2026-10-07)
+- **Steps stay mounted.** Each step is a View that is hidden (`display: none`) when it is not the current one, as the web's hidden blocks. Text and running uploads survive Back / Next. "Next" scrolls to the first error using the step's own top plus the field's position. A row's fields share the row card's position.
+- **Step 3 Extras.**
+  - Upgrades: cards "Upgrade #n" with Upgrade title (≤ 100), Price (₾, decimal keypad), Delivery time sheet with the placeholder "And an additional", and "Remove upgrade" (its screen-reader label names the row). "+ Add service upgrade" is disabled at 10, with `t_upgrades_limit_reached`.
+  - FAQ: subtitle, then cards "Question #n" with Question (≤ 100), Answer (≤ 300, counter) and Remove. "+ Add FAQ" is disabled at 10, with `t_faq_limit_reached`.
+  - Removing a row moves the shown errors up with the rows (`shiftRowFields`, as the web). The same pre-check as the web runs: title and price required, price as AC-8, extra days required, question and answer required.
+- **Step 4 Gallery**, new `components/gig-wizard/gig-files.tsx` (`GigFiles`, the web `gig-files.tsx` rules):
+  - Thumbnail: one file; a new pick replaces it.
+  - Images: 1…S-077, from "Take a photo" or "Choose from gallery". Multi-select is limited to the room left, and iOS hands over a JPEG instead of HEIC. 3:2 previews, with "Move left" / "Move right" named with the file (AC-23 order = display order).
+  - Documents: PDF from the files app, only while S-080 is ON; hidden until the public config loads (EC-8).
+  - Per file: Waiting → Uploading n % with a bar → Processing → ready, or its message. A wrong type or size is refused before any request; storage, API or scan refusals show after. Try again appears when the file can still pass, and Remove deletes the unattached file.
+  - At most 3 uploads at once. "n of m uploaded" is shown. `initial` (stored files, for 4.3.15d) is only dropped from the list, never deleted.
+- The route now passes the API client and the public config to the wizard. No new keys.
+
 ## Files created/changed
+- `apps/mobile/src/components/gig-wizard/gig-files.tsx` (new, 4.3.15b)
 - `apps/mobile/src/app/create.tsx` (new)
 - `apps/mobile/src/components/gig-wizard/fields.tsx` (new)
 - `apps/mobile/src/components/gig-wizard/gig-wizard.tsx` (new)
@@ -44,14 +59,15 @@ ROADMAP 4.3.15 was split on 2026-10-07 into 4.3.15a–d. This file grows with ea
 - `docs/ROADMAP.md` (split + tick), `docs/STATUS.md`
 
 ## Checks
-Mobile typecheck, lint and prettier are green. The i18n check is OK. `expo export` bundled iOS (1718 modules) and Android (1808 modules). **Not run on a device or simulator.**
+4.3.15b: mobile typecheck, lint and prettier are green; `expo export` bundled iOS (1710 modules) and Android (1809 modules); not run on a device.
+
+4.3.15a: Mobile typecheck, lint and prettier are green. The i18n check is OK. `expo export` bundled iOS (1718 modules) and Android (1808 modules). **Not run on a device or simulator.**
 
 ## What the next agent must do
-- **4.3.15b** (mobile engineer): step 3 Extras (Upgrades ≤ 10 and FAQ ≤ 10, add / remove, errors move with their rows via `shiftRowFields`) and step 4 Gallery. The gallery has a thumbnail and 1…S-077 images from the camera or photo library, with reorder; PDF documents only while S-080 is ON; per-file progress / error / retry / remove. Reuse the portfolio `image-picker.tsx` pattern and `uploadFile`.
 - **4.3.15c**: step 5 Review & publish (SEO both or none) and the submit.
 - **4.3.15d**: edit mode, and the gig screen's "Edit gig" opens it.
 - **No app entry point to `/create` yet.** "Create a new gig" belongs to My gigs (4.3.16). Until then, open `mytask://create` to test.
-- Mobile QA, on a device: the category sheets with the real tree; the decimal keypad (some Android keyboards type `,`, which the price accepts); Discard on the iOS swipe back and the Android back; TalkBack / VoiceOver reading of the step change, the reset announcement and the first error.
+- Mobile QA, on a device: upload progress and Try again with the network off; a 4th file waiting while 3 upload; the camera permission prompt; a PDF from iCloud / Google Drive (copied to cache first); images keep their order after Move left / right; text and uploads kept after Back / Next. Also: the category sheets with the real tree; the decimal keypad (some Android keyboards type `,`, which the price accepts); Discard on the iOS swipe back and the Android back; TalkBack / VoiceOver reading of the step change, the reset announcement and the first error.
 
 ## Open questions / risks
 - A web description with a literal `*` around a word (e.g. `*note*` typed as text) becomes italic if it is saved again from the app. This is rare, and the stored text is otherwise unchanged.
