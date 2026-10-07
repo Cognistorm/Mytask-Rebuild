@@ -2,7 +2,7 @@
 // errors at once), check the files, then in one transaction lock the owner, re-check the plan limit, mark the
 // files attached, save the gig with its children, index it for search and queue EV-19 when it waits for review
 // (S-070 OFF). Settings are read before the transaction starts (a settings read inside it would wait for a
-// second connection). updateGig/deleteGig join in 4.3.3c.
+// second connection). updateGig/deleteGig (4.3.3c) and the owner's edit-form read getGigOwnerView (4.3.4) live here too.
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { components } from '@mytask/types';
 import type {
@@ -44,7 +44,7 @@ import { GigLimits } from './gig-limits';
 type S = components['schemas'];
 type Tx = Prisma.TransactionClient;
 type Translate = RequestContext['t'];
-type FullGig = Gig & {
+export type FullGig = Gig & {
   translations: GigTranslation[];
   upgrades: GigUpgrade[];
   faqs: GigFaq[];
@@ -53,7 +53,7 @@ type FullGig = Gig & {
 };
 
 const BY_POSITION = { orderBy: { position: 'asc' } } as const;
-const FULL = {
+export const FULL = {
   translations: true,
   upgrades: { where: { deletedAt: null }, ...BY_POSITION },
   faqs: BY_POSITION,
@@ -63,7 +63,7 @@ const FULL = {
 const GIG_PURPOSES: readonly FilePurpose[] = ['gig_thumbnail', 'gig_image', 'gig_document'];
 
 const fileMismatch = () => new ApiException(422, 'FILE_PURPOSE_MISMATCH', 't_file_not_found');
-const notFound = () => new ApiException(404, 'NOT_FOUND', 't_page_not_fount');
+export const notFound = () => new ApiException(404, 'NOT_FOUND', 't_page_not_fount');
 
 /** Every file of a gig (thumbnail, gallery, documents), once. */
 const fileIdsOf = (gig: FullGig) => [
@@ -437,6 +437,11 @@ export class GigsService {
     });
   }
 
+  /** getGigOwnerView (AC-18, AC-21): the edit form's data; another user's or a deleted gig is 404. */
+  async getOwnerView(userId: string, gigId: string): Promise<S['GigOwnerView']> {
+    return this.ownerView(await this.ownGig(userId, gigId));
+  }
+
   /** The caller's own non-deleted gig; anything else is 404 (contract `x-permission`). */
   private async ownGig(userId: string, gigId: string): Promise<FullGig> {
     const gig = await this.prisma.gig.findUnique({ where: { id: gigId }, include: FULL });
@@ -543,7 +548,7 @@ export class GigsService {
       images: gig.images.flatMap((i) => image(i.fileId) ?? []),
       documents: gig.documents.flatMap((d) => {
         const f = files.get(d.fileId);
-        return f ? (this.document(f) ?? []) : [];
+        return f ? (gigDocument(f, this.env.PUBLIC_MEDIA_BASE_URL) ?? []) : [];
       }),
       seo:
         gig.seoTitle !== null && gig.seoDescription !== null
@@ -555,21 +560,21 @@ export class GigsService {
       publishedAt: gig.publishedAt?.toISOString() ?? null,
     };
   }
-
-  /** A ready public PDF (R-G11): downloaded straight from the media URL, no sign-in. */
-  private document(f: FileRow): S['GigDocument'] | null {
-    const base = this.env.PUBLIC_MEDIA_BASE_URL?.replace(/\/+$/, '');
-    if (!base || f.status !== 'ready' || f.bucket !== 'public_media') return null;
-    return {
-      fileId: f.id,
-      fileName: f.originalName,
-      sizeBytes: Number(f.sizeBytes),
-      url: `${base}/${f.objectKey}`,
-    };
-  }
 }
 
-const money = (tetri: bigint): S['Money'] => ({ amount: Number(tetri), currency: 'GEL' });
+export const money = (tetri: bigint): S['Money'] => ({ amount: Number(tetri), currency: 'GEL' });
+
+/** A ready public PDF (R-G11): downloaded straight from the media URL, no sign-in. */
+export function gigDocument(f: FileRow, mediaBaseUrl: string | undefined): S['GigDocument'] | null {
+  const base = mediaBaseUrl?.replace(/\/+$/, '');
+  if (!base || f.status !== 'ready' || f.bucket !== 'public_media') return null;
+  return {
+    fileId: f.id,
+    fileName: f.originalName,
+    sizeBytes: Number(f.sizeBytes),
+    url: `${base}/${f.objectKey}`,
+  };
+}
 
 /** AC-19: every invalid field at once; the summary is `t_toast_form_validation_error`. */
 function validationFailed(issues: FieldIssue[], t: Translate): ApiException {
