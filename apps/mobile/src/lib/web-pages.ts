@@ -20,5 +20,8 @@ export const profileUrl = (username: string) => `${appUrl}/profile/${encodeURICo
 export const portfolioItemUrl = (username: string, slug: string) =>
   `${profileUrl(username)}/portfolio/${encodeURIComponent(slug)}`;
 
-/** The website's gig page (url-map §4.1); the app opens it until the gig screen exists (slice 3). */
+/** The public web address of a gig page (url-map §4.1), shared through the native share sheet. */
 export const gigUrl = (slug: string) => `${appUrl}/service/${encodeURIComponent(slug)}`;
+
+/** The website's gig editor (url-map §4.1); the app opens it until its own wizard exists (ROADMAP 4.3.15). */
+export const gigEditUrl = (uid: string) => `${appUrl}/seller/gigs/${encodeURIComponent(uid)}/edit`;

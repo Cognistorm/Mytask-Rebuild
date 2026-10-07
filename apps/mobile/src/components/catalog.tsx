@@ -39,7 +39,6 @@ import {
   type SearchGigSort,
 } from '../lib/catalog';
 import { formatMoney } from '../lib/format';
-import { gigUrl, openWebPage } from '../lib/web-pages';
 import { EmptyState } from './dashboard';
 import { Button, Notice } from './form';
 import { Avatar, AvatarRing, BottomSheet, RatingStars } from './profile';
@@ -50,14 +49,18 @@ type SellerCard = components['schemas']['SellerCard'];
 export const openProfile = (username: string) =>
   router.push({ pathname: '/profile/[username]', params: { username } });
 
+/** The gig screen (`/service/{slug}`, ROADMAP 4.3.14). */
+export const openGig = (slug: string) =>
+  router.push({ pathname: '/service/[slug]', params: { slug } });
+
 /** A gig category screen by its slug path (`design/logo-design`). */
 export const openCategoryPath = (path: string) =>
   router.push({ pathname: '/categories/[...path]', params: { path: path.split('/') } });
 
 /**
  * One gig (§7.2): image 3:2, Featured frame + badge for Premium owners (AC-18, text + icon, never colour only),
- * seller row, 2-line title, rating or a quiet "No reviews yet", starting price. The gig page is slice 3 (the
- * website opens until then); the seller row opens the profile.
+ * seller row, 2-line title, rating or a quiet "No reviews yet", starting price. The card opens the gig screen; the
+ * seller row opens the profile.
  */
 export function GigCardView({
   gig,
@@ -75,7 +78,7 @@ export function GigCardView({
     <Card
       featured={gig.isFeatured}
       style={width ? { width } : null}
-      onPress={() => openWebPage(gigUrl(gig.slug))}
+      onPress={() => openGig(gig.slug)}
       accessibilityRole="link"
       accessibilityLabel={gig.isFeatured ? `${gig.title}, ${t('t_featured')}` : gig.title}
       testID="gig-card"
