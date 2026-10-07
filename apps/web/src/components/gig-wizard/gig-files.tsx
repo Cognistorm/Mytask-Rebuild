@@ -5,6 +5,8 @@
 // usable once the scan says `ready`. Per file: queued → uploading % → processing → ready, or the reason it cannot be
 // used with Retry (network / scan) and Remove. At most 3 uploads run at once; the rest wait as "queued". Images
 // can be reordered by keyboard ("Move left/right", AC-23 order = display order). Reports the ready ids in order.
+// In edit mode the list starts with the gig's stored files (`initial`, AC-23): they can be moved and removed (a
+// stored file is only dropped from the list, never deleted: the gig keeps it until the edit is saved).
 import { useEffect, useId, useRef, useState } from 'react';
 import { declaredType, fileExtension, uploadFile, type UploadInput } from '@mytask/api-client';
 import { useApi, useLocale, useT } from '../../lib/client';
@@ -14,8 +16,10 @@ type State = 'queued' | 'uploading' | 'processing' | 'ready' | 'failed';
 interface Item {
   key: number;
   name: string;
-  /** blob: preview of an image; documents show their name instead. */
+  /** Image preview (a blob: URL, or the CDN thumb of a stored file); documents show their name instead. */
   preview?: string;
+  /** A file the gig already has (edit mode). */
+  stored?: boolean;
   state: State;
   /** Share of the bytes sent (0…1) while uploading. */
   progress: number;
@@ -24,6 +28,13 @@ interface Item {
   /** Kept for Retry; null when the file can never pass (type or size). */
   file: File | null;
   abort: AbortController;
+}
+
+/** A file the gig already has, as the edit form shows it. */
+export interface StoredFile {
+  fileId: string;
+  name: string;
+  preview?: string;
 }
 
 const MB = 1024 * 1024;
@@ -46,6 +57,8 @@ export function GigFiles(props: {
   reorder?: boolean;
   error?: string;
   testId?: string;
+  /** Stored files to start with (edit mode). */
+  initial?: StoredFile[];
   /** Ready file ids in display order, and whether an upload is still running. */
   onChange: (fileIds: string[], busy: boolean) => void;
 }) {
@@ -54,7 +67,19 @@ export function GigFiles(props: {
   const t = useT(locale);
   const api = useApi(locale);
   const id = useId();
-  const [items, setItems] = useState<Item[]>([]);
+  const [items, setItems] = useState<Item[]>(() =>
+    (props.initial ?? []).map((f) => ({
+      key: (seq += 1),
+      name: f.name,
+      preview: f.preview,
+      stored: true,
+      state: 'ready',
+      progress: 1,
+      fileId: f.fileId,
+      file: null,
+      abort: new AbortController(),
+    })),
+  );
   const [notice, setNotice] = useState<string>();
   const input = useRef<HTMLInputElement>(null);
   const live = useRef(new Set<Item>());
@@ -77,7 +102,7 @@ export function GigFiles(props: {
     return () =>
       all.forEach((i) => {
         i.abort.abort();
-        if (i.preview) URL.revokeObjectURL(i.preview);
+        if (i.preview && !i.stored) URL.revokeObjectURL(i.preview);
       });
   }, []);
 
@@ -185,11 +210,15 @@ export function GigFiles(props: {
     setItems([...kept, ...added]);
   }
 
-  /** Stops the upload and deletes the unattached file (best effort; the API also cleans up after 24 h). */
+  /**
+   * Stops the upload and deletes the unattached file (best effort; the API also cleans up after 24 h). A stored file
+   * stays attached to the gig until the edit is saved, so it is only taken off the list.
+   */
   function discard(item: Item) {
     item.abort.abort();
-    if (item.preview) URL.revokeObjectURL(item.preview);
     live.current.delete(item);
+    if (item.stored) return;
+    if (item.preview) URL.revokeObjectURL(item.preview);
     if (item.fileId) {
       void api.DELETE('/files/{fileId}', { params: { path: { fileId: item.fileId } } });
     }

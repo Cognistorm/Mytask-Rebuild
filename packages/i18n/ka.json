@@ -2233,6 +2233,7 @@
   "t_sandbox": "Sandbox",
   "t_save": "შენახვა",
   "t_save_and_continue": "შენახვა და გაგრძელება",
+  "t_save_changes": "ცვლილებების შენახვა",
   "t_save_messages_secretly": "გამარტივებული წვდომა",
   "t_save_percent": "დაზოგე {{percent}}%",
   "t_saved_messages": "შენახული შეტყობინებები",

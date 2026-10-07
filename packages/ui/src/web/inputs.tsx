@@ -215,6 +215,17 @@ function plainText(root: HTMLElement): string {
   return text.trim();
 }
 
+/**
+ * A stored value as the editor would report it: the cleaned HTML (empty when there is no text) and its plain text,
+ * so an app can check a loaded value (edit forms) before the editor emits anything. Browser only.
+ */
+export function richTextFromHtml(html: string): { html: string; text: string } {
+  const el = document.createElement('div');
+  el.innerHTML = cleanHtml(html);
+  const text = plainText(el);
+  return { html: text ? el.innerHTML : '', text };
+}
+
 type Command = 'bold' | 'italic' | 'insertUnorderedList' | 'insertOrderedList';
 
 /**

@@ -1,6 +1,7 @@
 // Gig wizard form model and pre-check (spec 04 AC-4…AC-9; screen 03). The API checks everything again
 // (`apps/api/src/modules/gigs/gig-input.ts`); these rules only spare a round trip and use the same field names and
-// message keys, so an error from either side lands on the same field. `toCreateRequest` builds the `createGig` body.
+// message keys, so an error from either side lands on the same field. `toCreateRequest` builds the `createGig` body,
+// `draftFromGig` and `toUpdateRequest` the edit form (AC-21…AC-25).
 import type { TFunction } from 'i18next';
 import type { components } from '@mytask/types';
 import { contentLength, englishFieldIssue, georgianFieldIssue } from '@mytask/i18n';
@@ -11,9 +12,13 @@ export interface RichValue {
   text: string;
 }
 
-/** An upgrade row (AC-11); `key` only keeps React rows stable. Price as typed, extra days '' until chosen. */
+/**
+ * An upgrade row (AC-11); `key` only keeps React rows stable. Price as typed, extra days '' until chosen. `id` = a
+ * stored upgrade being edited (keeps its identity, contract `GigUpgradeInput.id`).
+ */
 export interface UpgradeDraft {
   key: number;
+  id?: string;
   title: string;
   price: string;
   extraDays: string;
@@ -192,6 +197,8 @@ export function validateDraft(
   draft: GigDraft,
   t: TFunction,
   maxRevisions: number,
+  /** Edit of a migrated gig without a stored value (data model: null only for legacy rows): empty = unchanged. */
+  opts: { revisionsOptional?: boolean } = {},
 ): Record<string, string> {
   const errors: Record<string, string> = {};
   const put = (field: string, message: string | undefined) => {
@@ -221,7 +228,9 @@ export function validateDraft(
   put('price', priceIssue(t, draft.price));
   if (!draft.deliveryDays) put('deliveryDays', required);
   const revisions = draft.revisions.trim();
-  if (!/^\d+$/.test(revisions) || Number(revisions) > maxRevisions) {
+  if (revisions === '' && opts.revisionsOptional) {
+    // Left as it is (the API keeps an omitted field).
+  } else if (!/^\d+$/.test(revisions) || Number(revisions) > maxRevisions) {
     put('revisionsAllowed', t('t_validator_revisions_range', { max: maxRevisions }));
   }
 
@@ -295,6 +304,7 @@ export function toCreateRequest(draft: GigDraft, documentsEnabled: boolean): Gig
     deliveryDays: Number(draft.deliveryDays) as GigCreateRequest['deliveryDays'],
     revisionsAllowed: Number(draft.revisions.trim()),
     upgrades: draft.upgrades.map((u) => ({
+      ...(u.id ? { id: u.id } : {}),
       title: u.title.trim(),
       price: gel(u.price),
       extraDays: Number(u.extraDays) as GigCreateRequest['deliveryDays'],
@@ -307,6 +317,59 @@ export function toCreateRequest(draft: GigDraft, documentsEnabled: boolean): Gig
       ? { title: draft.seo.title.trim(), description: draft.seo.description.trim() }
       : null,
   };
+}
+
+type GigOwnerView = components['schemas']['GigOwnerView'];
+type GigUpdateRequest = components['schemas']['GigUpdateRequest'];
+
+/** Tetri → the amount as the price fields show it ("250.50"). */
+const gelText = (amount: number) => (amount / 100).toFixed(2);
+
+/**
+ * The stored gig as a draft (AC-21). `richText` turns stored HTML into the editor's value (the shared editor's own
+ * cleaning, `richTextFromHtml`); `nextKey` numbers the rows.
+ */
+export function draftFromGig(
+  gig: GigOwnerView,
+  richText: (html: string) => RichValue,
+  nextKey: () => number,
+): GigDraft {
+  return {
+    titleKa: gig.title.ka,
+    titleEn: gig.title.en ?? '',
+    categoryId: gig.categoryId,
+    subcategoryId: gig.subcategoryId,
+    childCategoryId: gig.childCategoryId,
+    descriptionKa: richText(gig.description.ka),
+    descriptionEn: richText(gig.description.en ?? ''),
+    price: gelText(gig.price.amount),
+    deliveryDays: String(gig.deliveryDays),
+    revisions: gig.revisionsAllowed === null ? '' : String(gig.revisionsAllowed),
+    upgrades: gig.upgrades.map((u) => ({
+      key: nextKey(),
+      id: u.id,
+      title: u.title,
+      price: gelText(u.price.amount),
+      extraDays: String(u.extraDays),
+    })),
+    faqs: gig.faqs.map((f) => ({ key: nextKey(), question: f.question, answer: f.answer })),
+    seo: { title: gig.seo?.title ?? '', description: gig.seo?.description ?? '' },
+    gallery: {
+      thumbnail: [gig.thumbnail.fileId],
+      images: gig.images.map((i) => i.fileId),
+      documents: gig.documents.map((d) => d.fileId),
+      busy: false,
+    },
+  };
+}
+
+/**
+ * `updateGig` (AC-21…AC-23): every field of the form; the lists replace the stored ones in order, so a removed,
+ * added or moved image needs no re-upload. An empty revisions field of a migrated gig is left out (unchanged).
+ */
+export function toUpdateRequest(draft: GigDraft, documentsEnabled: boolean): GigUpdateRequest {
+  const { revisionsAllowed, ...body } = toCreateRequest(draft, documentsEnabled);
+  return draft.revisions.trim() === '' ? body : { ...body, revisionsAllowed };
 }
 
 /**

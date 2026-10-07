@@ -4,8 +4,8 @@
 // (Stepper) with each block's status. Opening checks the plan limit (AC-2, `getGigCreationEligibility`); guests go
 // to login and back (AC-1). ROADMAP 4.3.9 built the entry, Overview and Pricing; 4.3.10a Upgrades, FAQ and the SEO
 // dialog (AC-11, AC-12, AC-15); 4.3.10b the Gallery (AC-14); 4.3.10c the submit (`createGig`: server field errors on
-// the same fields, plan limit AC-3, success screens AC-16) and "Discard changes?" on leaving; 4.3.10d…e add edit mode
-// and the phone step mode.
+// the same fields, plan limit AC-3, success screens AC-16) and "Discard changes?" on leaving; 4.3.10d edit mode
+// (`GigEditor`, `/seller/gigs/{uid}/edit`, AC-10, AC-18, AC-21…AC-25); 4.3.10e adds the phone step mode.
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { components } from '@mytask/types';
@@ -17,6 +17,7 @@ import {
   PriceInput,
   QuantityInput,
   RichTextEditor,
+  richTextFromHtml,
   Select,
   Skeleton,
   Stepper,
@@ -26,12 +27,13 @@ import {
 } from '@mytask/ui/web';
 import { href, useApi, useLocale, useT, type ApiErrorBody } from '../../lib/client';
 import { usePublicConfig } from '../../lib/public-config';
-import { GigFiles } from './gig-files';
+import { GigFiles, type StoredFile } from './gig-files';
 import {
   blockFields,
   BLOCKS,
   blockStarted,
   DELIVERY_DAYS,
+  draftFromGig,
   EMPTY_DRAFT,
   FAQ,
   fieldValue,
@@ -42,6 +44,7 @@ import {
   shiftRowFields,
   TITLE,
   toCreateRequest,
+  toUpdateRequest,
   UPGRADE_TITLE_MAX,
   validateDraft,
   type BlockId,
@@ -135,7 +138,86 @@ export function GigWizard({ categories }: { categories: CategoryNode[] }) {
   return <GigForm categories={categories} />;
 }
 
-function GigForm({ categories }: { categories: CategoryNode[] }) {
+/**
+ * Edit an own gig `/seller/gigs/{uid}/edit` (spec 04 AC-18, AC-21…AC-25; screen 03 "Edit mode uses the same
+ * page"): the public uid → `lookupGig` (the owner also gets pending and rejected gigs) → `getGigOwnerView` (both
+ * languages, file ids, rejection reason). Someone else's gig, a deleted one or an unknown uid is "Page not found".
+ * The plan limit never blocks an edit (AC-25), so there is no eligibility check.
+ */
+export function GigEditor({ categories, uid }: { categories: CategoryNode[]; uid: string }) {
+  const locale = useLocale();
+  const t = useT(locale);
+  const api = useApi(locale);
+  const router = useRouter();
+  const [gig, setGig] = useState<GigOwnerView | null>();
+  const [failed, setFailed] = useState(false);
+
+  const load = useCallback(async () => {
+    setFailed(false);
+    const found = await api
+      .GET('/gigs/lookup', { params: { query: { uid } } })
+      .catch(() => undefined);
+    const status = found?.response.status;
+    if (status === 401) {
+      const here = `${window.location.pathname}${window.location.search}`;
+      router.replace(`${href(locale, '/auth/login')}?next=${encodeURIComponent(here)}`);
+      return;
+    }
+    if ((found?.error as { code?: string } | undefined)?.code === 'ACCOUNT_RESTRICTED') {
+      router.replace(href(locale, '/restricted'));
+      return;
+    }
+    if (status === 404 || status === 400 || (found?.data && !found.data.viewer?.isOwner)) {
+      return setGig(null);
+    }
+    if (!found?.data) return setFailed(true);
+    const own = await api
+      .GET('/gigs/{gigId}/owner-view', { params: { path: { gigId: found.data.id } } })
+      .catch(() => undefined);
+    if (own?.data) return setGig(own.data);
+    if (own?.response.status === 404) return setGig(null);
+    setFailed(true);
+  }, [api, locale, router, uid]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  if (failed) {
+    return (
+      <div className="mt-gw-state">
+        <Alert kind="error">{t('t_toast_something_went_wrong')}</Alert>
+        <button type="button" className="mt-button" onClick={() => void load()}>
+          {t('t_ui_retry')}
+        </button>
+      </div>
+    );
+  }
+  if (gig === undefined) {
+    return (
+      <div className="mt-gw-state">
+        <Skeleton label={t('t_ui_loading')} rows={6} />
+      </div>
+    );
+  }
+  if (gig === null) {
+    return (
+      <div className="mt-gw-state" data-testid="gig-not-found">
+        <EmptyState
+          title={t('t_page_not_fount')}
+          action={
+            <a className="mt-button" href={href(locale, '/seller/gigs')}>
+              {t('t_my_gigs')}
+            </a>
+          }
+        />
+      </div>
+    );
+  }
+  return <GigForm categories={categories} gig={gig} />;
+}
+
+function GigForm({ categories, gig }: { categories: CategoryNode[]; gig?: GigOwnerView }) {
   const locale = useLocale();
   const t = useT(locale);
   const api = useApi(locale);
@@ -147,7 +229,14 @@ function GigForm({ categories }: { categories: CategoryNode[] }) {
   const imageExtensions = extensionsOf(imageRule?.allowedExtensions, IMAGE_EXTENSIONS);
   const documentExtensions = extensionsOf(documentRule?.allowedExtensions, DOCUMENT_EXTENSIONS);
   const imageMb = imageRule?.maxSizeMb ?? DEFAULT_GIG_IMAGE.maxSizeMb;
-  const [draft, setDraft] = useState<GigDraft>(EMPTY_DRAFT);
+  const rowKey = useRef(0);
+  /** The form as it opened: empty, or the stored gig (edit, AC-21). "Discard changes?" compares against it. */
+  const [initial] = useState<GigDraft>(() =>
+    gig ? draftFromGig(gig, richTextFromHtml, () => ++rowKey.current) : EMPTY_DRAFT,
+  );
+  const [draft, setDraft] = useState<GigDraft>(initial);
+  /** The stored files as the gallery lists show them (edit, AC-23). */
+  const [storedFiles] = useState(() => storedFilesOf(gig, t));
   /** Fields whose error is shown: left once (blur) or all after a submit. */
   const [shown, setShown] = useState<ReadonlySet<string>>(new Set());
   const [submitted, setSubmitted] = useState(false);
@@ -158,7 +247,6 @@ function GigForm({ categories }: { categories: CategoryNode[] }) {
   const focusFirstError = useRef(false);
   /** Name of a field to focus after the next render (a row just added). */
   const focusField = useRef<string | null>(null);
-  const rowKey = useRef(0);
   const addUpgradeRef = useRef<HTMLButtonElement>(null);
   const addFaqRef = useRef<HTMLButtonElement>(null);
   const [sending, setSending] = useState(false);
@@ -174,8 +262,10 @@ function GigForm({ categories }: { categories: CategoryNode[] }) {
   const leaving = useRef(false);
 
   const clientErrors = useMemo(
-    () => validateDraft(draft, t, maxRevisions),
-    [draft, t, maxRevisions],
+    // A migrated gig may have no stored revisions: left empty, it stays so (data model `revisions_allowed`).
+    () =>
+      validateDraft(draft, t, maxRevisions, { revisionsOptional: gig?.revisionsAllowed === null }),
+    [draft, t, maxRevisions, gig],
   );
   // The pre-check wins on a field; a server error shows where the pre-check found nothing.
   const errors = useMemo(() => {
@@ -317,7 +407,7 @@ function GigForm({ categories }: { categories: CategoryNode[] }) {
 
   // "Discard changes?" (screen 03): a link inside the site asks first; closing the tab or reloading gets the
   // browser's own question. Not after the gig was created.
-  const dirty = !created && JSON.stringify(draft) !== JSON.stringify(EMPTY_DRAFT);
+  const dirty = !created && JSON.stringify(draft) !== JSON.stringify(initial);
   useEffect(() => {
     if (!dirty) return;
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -374,9 +464,16 @@ function GigForm({ categories }: { categories: CategoryNode[] }) {
     if (draft.gallery.busy) return;
 
     setSending(true);
-    const res = await api
-      .POST('/gigs', { body: toCreateRequest(draft, !!documentRule?.enabled) })
-      .catch(() => undefined);
+    const documents = !!documentRule?.enabled;
+    // AC-21…AC-23: an edit sends every field; the lists replace the stored ones in order.
+    const res = await (
+      gig
+        ? api.PATCH('/gigs/{gigId}', {
+            params: { path: { gigId: gig.id } },
+            body: toUpdateRequest(draft, documents),
+          })
+        : api.POST('/gigs', { body: toCreateRequest(draft, documents) })
+    ).catch(() => undefined);
     setSending(false);
     if (res?.data) {
       setCreated(res.data);
@@ -435,12 +532,20 @@ function GigForm({ categories }: { categories: CategoryNode[] }) {
   };
   const galleryError = errorOf('gallery');
 
-  if (created) return <GigCreated gig={created} />;
+  if (created) return <GigCreated gig={created} updated={!!gig} />;
 
   return (
     <div className="mt-gw">
       <header className="mt-gw-header">
-        <h1 className="mt-gw-title">{t('t_create_new_gig')}</h1>
+        <h1 className="mt-gw-title">{gig ? t('t_edit_gig') : t('t_create_new_gig')}</h1>
+        {/* AC-18: a rejected gig shows the staff reason until it is saved again. */}
+        {gig?.status === 'rejected' && gig.rejectionReason && (
+          <div data-testid="gig-rejected">
+            <Alert kind="error">
+              {t('t_has_been_rejected_for_this_reason')}: {gig.rejectionReason}
+            </Alert>
+          </div>
+        )}
         {/* AC-7 (Q-023): English is optional; without it English visitors see the Georgian text. */}
         <Alert kind="info">{t('t_english_fields_optional_notice_v2')}</Alert>
       </header>
@@ -759,6 +864,7 @@ function GigForm({ categories }: { categories: CategoryNode[] }) {
               extensions={imageExtensions}
               error={errorOf('thumbnailFileId')}
               testId="gig-thumbnail"
+              initial={storedFiles.thumbnail}
               onChange={onThumbnail}
             />
             <GigFiles
@@ -778,6 +884,7 @@ function GigForm({ categories }: { categories: CategoryNode[] }) {
               extensions={imageExtensions}
               error={errorOf('imageFileIds')}
               testId="gig-images"
+              initial={storedFiles.images}
               onChange={onImages}
             />
             {/* EC-8: only while S-080 is ON; hidden until the config says so. */}
@@ -803,6 +910,7 @@ function GigForm({ categories }: { categories: CategoryNode[] }) {
                 extensions={documentExtensions}
                 error={errorOf('documentFileIds')}
                 testId="gig-documents"
+                initial={storedFiles.documents}
                 onChange={onDocuments}
               />
             )}
@@ -865,7 +973,7 @@ function GigForm({ categories }: { categories: CategoryNode[] }) {
                 disabled={sending}
                 aria-busy={sending}
               >
-                {sending ? t('t_please_wait_dots') : t('t_create')}
+                {sending ? t('t_please_wait_dots') : gig ? t('t_save_changes') : t('t_create')}
               </button>
             </Stepper>
           </div>
@@ -939,11 +1047,30 @@ function GigForm({ categories }: { categories: CategoryNode[] }) {
   );
 }
 
+/** The stored files of the gig being edited, named for the Remove / Move buttons and the previews. */
+function storedFilesOf(
+  gig: GigOwnerView | undefined,
+  t: (key: string) => string,
+): Record<'thumbnail' | 'images' | 'documents', StoredFile[] | undefined> {
+  if (!gig) return { thumbnail: undefined, images: undefined, documents: undefined };
+  return {
+    thumbnail: [
+      { fileId: gig.thumbnail.fileId, name: t('t_thumbnail'), preview: gig.thumbnail.thumb },
+    ],
+    images: gig.images.map((i, n) => ({
+      fileId: i.fileId,
+      name: `${t('t_images')} ${n + 1}`,
+      preview: i.thumb,
+    })),
+    documents: gig.documents.map((d) => ({ fileId: d.fileId, name: d.fileName })),
+  };
+}
+
 /**
- * AC-16 (legacy `create.blade.php:5-34`): S-070 ON → the gig is active, "View gig"; S-070 OFF → pending, the
- * review text and "My gigs".
+ * AC-16 (legacy `create.blade.php:5-34`), AC-22 for an edit (legacy `EditComponent.php:442`, the same card with the
+ * "updated" texts): S-070 ON → the gig is active, "View gig"; S-070 OFF → pending, the review text and "My gigs".
  */
-function GigCreated({ gig }: { gig: GigOwnerView }) {
+function GigCreated({ gig, updated }: { gig: GigOwnerView; updated: boolean }) {
   const locale = useLocale();
   const t = useT(locale);
   const heading = useRef<HTMLHeadingElement>(null);
@@ -966,10 +1093,16 @@ function GigCreated({ gig }: { gig: GigOwnerView }) {
           />
         </svg>
         <h1 ref={heading} tabIndex={-1} className="mt-gw-done-title">
-          {t('t_gig_created')}
+          {updated ? t('t_gig_updated') : t('t_gig_created')}
         </h1>
         <p className="mt-gw-done-text">
-          {active ? t('t_gig_created_subtitle') : t('t_gig_created_subtitle_pending_approval')}
+          {updated
+            ? active
+              ? t('t_gig_updated_subtitle')
+              : t('t_gig_updated_subtitle_pending_approval')
+            : active
+              ? t('t_gig_created_subtitle')
+              : t('t_gig_created_subtitle_pending_approval')}
         </p>
         <a
           className="mt-button mt-button-primary mt-gw-submit"

@@ -626,6 +626,216 @@ test('"Discard changes?" before a link leaves a changed form', async ({ page }) 
   await expect(page).toHaveURL(/\/en$/);
 });
 
+// ---- Edit mode `/seller/gigs/{uid}/edit` (ROADMAP 4.3.10d; spec 04 AC-10, AC-18, AC-21…AC-25) ----
+
+const CAT = (n: number) => `01900000-0000-7000-8000-0000000c${String(n).padStart(4, '0')}`;
+const GIG_ID = '01900000-0000-7000-8000-000000000601';
+const FILE = (n: number) => `01900000-0000-7000-8000-0000000007${String(n).padStart(2, '0')}`;
+const MEDIA = 'http://media.test/public-media';
+const variants = (fileId: string) => ({
+  fileId,
+  thumb: `${MEDIA}/${fileId}-thumb.png`,
+  medium: `${MEDIA}/${fileId}-medium.png`,
+  large: `${MEDIA}/${fileId}-large.png`,
+  width: 1,
+  height: 1,
+});
+
+const ownerView = (over: Record<string, unknown> = {}) => ({
+  id: GIG_ID,
+  uid: 'k7m2p9q4r1',
+  slug: 'logos-dizaini-k7m2p9q4r1',
+  status: 'active',
+  rejectionReason: null,
+  title: { ka: 'ლოგოს დიზაინი', en: 'Logo design' },
+  description: { ka: '<p><strong>ლოგოს</strong> დიზაინი ორ დღეში</p>', en: null },
+  categoryId: CAT(1),
+  subcategoryId: CAT(101),
+  childCategoryId: CAT(1001),
+  price: { amount: 25000, currency: 'GEL' },
+  deliveryDays: 3,
+  revisionsAllowed: 2,
+  upgrades: [
+    {
+      id: '01900000-0000-7000-8000-000000000611',
+      title: 'Source file',
+      price: { amount: 2000, currency: 'GEL' },
+      extraDays: 1,
+    },
+  ],
+  faqs: [{ id: '01900000-0000-7000-8000-000000000621', question: 'Fast?', answer: 'Yes.' }],
+  thumbnail: variants(FILE(1)),
+  images: [variants(FILE(2)), variants(FILE(3))],
+  documents: [{ fileId: FILE(4), fileName: 'work.pdf', sizeBytes: 8, url: `${MEDIA}/work.pdf` }],
+  seo: { title: 'Logo design', description: 'Clean logos.' },
+  ordersInQueueCount: 0,
+  createdAt: '2026-10-01T10:00:00.000Z',
+  updatedAt: '2026-10-01T10:00:00.000Z',
+  publishedAt: '2026-10-01T10:00:00.000Z',
+  ...over,
+});
+
+/** lookupGig + getGigOwnerView + updateGig; records the PATCH bodies. */
+async function fakeEdit(
+  page: Page,
+  opts: {
+    view?: Record<string, unknown>;
+    isOwner?: boolean;
+    lookup404?: boolean;
+    status?: string;
+  } = {},
+) {
+  const view = ownerView(opts.view);
+  const patches: Record<string, unknown>[] = [];
+  await page.route('**/api/v1/gigs/lookup?*', (route) =>
+    opts.lookup404
+      ? json(route, 404, { code: 'NOT_FOUND', message: 'x' })
+      : json(route, 200, {
+          id: GIG_ID,
+          uid: view.uid,
+          slug: view.slug,
+          status: view.status,
+          viewer: { isOwner: opts.isOwner ?? true },
+        }),
+  );
+  await page.route(`**/api/v1/gigs/${GIG_ID}/owner-view`, (route) => json(route, 200, view));
+  await page.route(`**/api/v1/gigs/${GIG_ID}`, async (route) => {
+    if (route.request().method() !== 'PATCH') return route.fallback();
+    patches.push(route.request().postDataJSON());
+    await json(route, 200, { ...view, status: opts.status ?? 'pending' });
+  });
+  await page.route(`${MEDIA}/**`, (route) =>
+    route.fulfill({ status: 200, contentType: 'image/png', body: PNG }),
+  );
+  return patches;
+}
+
+test('edit: the stored gig fills the form; gallery changes only; S-070 OFF → pending (AC-21…AC-23)', async ({
+  page,
+}) => {
+  await fakeApi(page);
+  const files = await fakeFiles(page);
+  const patches = await fakeEdit(page);
+  await page.goto('/en/seller/gigs/k7m2p9q4r1/edit');
+  await hydrated(page);
+
+  await expect(page.getByRole('heading', { level: 1, name: 'Edit gig' })).toBeVisible();
+  await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', /noindex/);
+  await expect(page.getByLabel('Service title in Georgian')).toHaveValue('ლოგოს დიზაინი');
+  await expect(page.getByLabel('Service title in English')).toHaveValue('Logo design');
+  await expect(page.getByLabel('Childcategory')).toHaveValue(CAT(1001));
+  await expect(
+    page.getByRole('textbox', { name: 'Description in Georgian' }).locator('strong'),
+  ).toHaveText('ლოგოს');
+  await expect(page.locator('#gig-pricing').getByLabel('Price')).toHaveValue('250.00');
+  await expect(page.getByRole('spinbutton', { name: 'Number of revisions' })).toHaveValue('2');
+  await expect(
+    page.getByRole('group', { name: 'Upgrade #1' }).getByLabel('Upgrade title'),
+  ).toHaveValue('Source file');
+  await expect(page.getByRole('group', { name: 'Question #1' }).getByLabel('Answer')).toHaveValue(
+    'Yes.',
+  );
+  await expect(page.getByTestId('gig-documents').getByText('work.pdf')).toBeVisible();
+  const summary = page.getByRole('navigation', { name: 'Form progress' });
+  await expect(summary.getByText('3 of 3 required blocks complete')).toBeVisible();
+  await expect(page.getByTestId('gig-rejected')).toHaveCount(0);
+
+  // AC-23: reorder, remove one stored image (not deleted: the gig keeps it until saved), add one new.
+  const images = page.getByTestId('gig-images');
+  await images.getByRole('button', { name: 'Move left: Images 2' }).click();
+  await images.getByRole('button', { name: 'Remove: Images 1' }).click();
+  await images.locator('input[type=file]').setInputFiles(png('new.png'));
+  await expect(images.locator('[data-testid="gig-file"][data-state="ready"]')).toHaveCount(2);
+  await page.getByLabel('Service title in Georgian').fill('ლოგოს დიზაინი და ბრენდინგი');
+
+  await page.getByRole('button', { name: 'Save changes' }).click();
+  const done = page.getByTestId('gig-created');
+  await expect(done.getByRole('heading', { name: 'Service updated' })).toBeFocused();
+  await expect(done).toContainText('our team are reviewing it right now');
+  await expect(done.getByRole('link', { name: 'My gigs' })).toBeVisible();
+
+  expect(patches).toHaveLength(1);
+  expect(patches[0]).toMatchObject({
+    title: { ka: 'ლოგოს დიზაინი და ბრენდინგი', en: 'Logo design' },
+    childCategoryId: CAT(1001),
+    price: { amount: 25000, currency: 'GEL' },
+    revisionsAllowed: 2,
+    upgrades: [{ id: '01900000-0000-7000-8000-000000000611', title: 'Source file' }],
+    thumbnailFileId: FILE(1),
+    imageFileIds: [FILE(3), '01900000-0000-7000-8000-000000000301'],
+    documentFileIds: [FILE(4)],
+    seo: { title: 'Logo design', description: 'Clean logos.' },
+  });
+  expect(files.deleted).toEqual([]);
+});
+
+test('edit: a rejected gig shows the reason; revisions above S-041 are refused on save (AC-18, AC-10)', async ({
+  page,
+}) => {
+  await fakeApi(page, { maxRevisions: 5 });
+  const patches = await fakeEdit(page, {
+    view: { status: 'rejected', rejectionReason: 'The images are blurry.', revisionsAllowed: 8 },
+    status: 'active',
+  });
+  await page.goto('/en/seller/gigs/k7m2p9q4r1/edit');
+  await hydrated(page);
+  await expect(page.getByTestId('gig-rejected')).toContainText('The images are blurry.');
+  await expect(page.locator('[data-testid="gig-file"][data-state="ready"]')).toHaveCount(4);
+  await expectNoAxeViolations(page, 'edit', 'main');
+  const revisions = page.getByRole('spinbutton', { name: 'Number of revisions' });
+  await expect(revisions).toHaveValue('8');
+  await expect(page.getByText('Enter a whole number from 0 to 5.')).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Save changes' }).click();
+  await expect(page.getByText('Enter a whole number from 0 to 5.')).toBeVisible();
+  await expect(revisions).toBeFocused();
+  expect(patches).toHaveLength(0);
+
+  await revisions.fill('5');
+  await page.getByRole('button', { name: 'Save changes' }).click();
+  const done = page.getByTestId('gig-created');
+  await expect(done).toContainText('successfully updated');
+  await expect(done.getByRole('link', { name: 'View gig' })).toHaveAttribute(
+    'href',
+    '/en/service/logos-dizaini-k7m2p9q4r1',
+  );
+  expect(patches[0]).toMatchObject({ revisionsAllowed: 5 });
+});
+
+test('edit: a migrated gig without revisions may stay so; an unchanged form leaves freely', async ({
+  page,
+}) => {
+  await fakeApi(page);
+  const patches = await fakeEdit(page, { view: { revisionsAllowed: null } });
+  await page.goto('/en/seller/gigs/k7m2p9q4r1/edit');
+  await hydrated(page);
+  await expect(page.getByRole('spinbutton', { name: 'Number of revisions' })).toHaveValue('');
+  await page.getByRole('button', { name: 'Save changes' }).click();
+  await expect(page.getByTestId('gig-created')).toBeVisible();
+  expect(patches[0]).not.toHaveProperty('revisionsAllowed');
+
+  // Nothing changed after opening: a link leaves without asking.
+  await page.goto('/en/seller/gigs/k7m2p9q4r1/edit');
+  await hydrated(page);
+  await expect(page.getByLabel('Service title in Georgian')).toHaveValue('ლოგოს დიზაინი');
+  await page.locator('header a[href="/en"]').first().click();
+  await expect(page).toHaveURL(/\/en$/);
+});
+
+test("edit: someone else's or an unknown gig is not found", async ({ page }) => {
+  await fakeApi(page);
+  await fakeEdit(page, { isOwner: false });
+  await page.goto('/en/seller/gigs/k7m2p9q4r1/edit');
+  await expect(page.getByTestId('gig-not-found')).toBeVisible();
+  await expect(page.locator('main form')).toHaveCount(0);
+
+  await page.unrouteAll();
+  await fakeApi(page);
+  await fakeEdit(page, { lookup404: true });
+  await page.goto('/en/seller/gigs/zzz/edit');
+  await expect(page.getByTestId('gig-not-found')).toBeVisible();
+});
+
 test('the Georgian page uses the Georgian texts', async ({ page }) => {
   await fakeApi(page);
   await page.goto('/create');
