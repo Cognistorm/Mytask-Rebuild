@@ -2,23 +2,29 @@
 // `Main/Service/ServiceComponent.php`), the same data, rules and keys as the web gig page (4.3.11): `lookupGig` by
 // the uid after the last `-`, so an old slug still opens the gig (the shared link carries the current one). Others'
 // pending / rejected and unknown gigs read "Page not found" (AC-28). Opened from every GigCard and from
-// `mytask://service/{slug}` / the App Link. ROADMAP 4.3.14a = the frame: notices, breadcrumb, gallery, title, seller
-// row, stats, purchase box and the description; 4.3.14b = FAQ / Reviews / Documents, "You may also like", Share,
-// favourite, Report and the visit. Open to guests (no session gate).
+// `mytask://service/{slug}`. ROADMAP 4.3.14a = the frame: notices, breadcrumb, gallery, title, seller row, stats,
+// purchase box and the description; 4.3.14b = the header actions (Share, favourite, ⋯ Report), the sections FAQ /
+// Reviews / Documents (stacked, as the web below lg), "You may also like" and the visit (`recordGigView` once per
+// opened gig, not for the owner; an app has no referrer). Open to guests (no session gate).
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { lightTheme as theme } from '@mytask/tokens/native';
 import { openCategoryPath } from '../../components/catalog';
 import { Section, SecondaryButton, Skeleton } from '../../components/dashboard';
 import { Notice } from '../../components/form';
+import { GigActions } from '../../components/gig-actions';
 import {
+  GigDocuments,
+  GigFaq,
   GigNotices,
+  GigReviews,
   GigSeller,
   GigStats,
   GigTitle,
   PurchaseBox,
+  RelatedGigs,
   uidOfSlug,
   type Gig,
 } from '../../components/gig-page';
@@ -46,6 +52,20 @@ export default function GigScreen() {
   const { slug } = useLocalSearchParams<{ slug: string }>();
   const [state, setState] = useState<State>({ kind: 'loading' });
   const [refreshing, setRefreshing] = useState(false);
+  const counted = useRef<string | null>(null);
+
+  // AC-34: the visit is counted from the device (its user agent and IP), once per opened gig; failures are silent.
+  useEffect(() => {
+    if (state.kind !== 'ready' || state.gig.viewer?.isOwner) return;
+    if (counted.current === state.gig.id) return;
+    counted.current = state.gig.id;
+    void api
+      .POST('/gigs/{gigId}/views', {
+        params: { path: { gigId: state.gig.id } },
+        body: { referrer: null },
+      })
+      .catch(() => undefined);
+  }, [state]);
 
   const load = useCallback(async () => {
     const uid = uidOfSlug(slug ?? '');
@@ -140,6 +160,8 @@ function GigBody({ gig }: { gig: Gig }) {
 
   return (
     <>
+      {/* Remounted when the viewer changes (e.g. back from login), so favourite and report start from the API. */}
+      <GigActions key={JSON.stringify(gig.viewer)} gig={gig} t={t} api={api} />
       <GigNotices gig={gig} t={t} locale={locale} />
       <Breadcrumb label={t('t_breadcrumb')} color={null} items={crumbs} />
       {/* The gig's images as legacy; the cover only when there are none. */}
@@ -151,6 +173,10 @@ function GigBody({ gig }: { gig: Gig }) {
       <Section title={t('t_description')} testID="gig-description">
         <RichText html={gig.description} profile="user_text" lang={lang} />
       </Section>
+      <GigFaq gig={gig} t={t} lang={lang} />
+      <GigReviews gig={gig} t={t} />
+      <GigDocuments gig={gig} t={t} />
+      <RelatedGigs gig={gig} t={t} api={api} />
     </>
   );
 }

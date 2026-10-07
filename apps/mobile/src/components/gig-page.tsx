@@ -1,19 +1,24 @@
 // Gig screen pieces (spec 04 AC-26…AC-30; screen 02 "Native app"), the same data, rules and keys as the web
 // `/service/{slug}` (4.3.11a): notices, title + Featured pill, seller row, stats and the purchase box (starting
-// price, revisions, upgrade checkboxes; the owner's "Edit gig"). "Add to cart" (slice 5) and "Contact seller"
-// (slice 7) come with their slices, and with them the sticky price bar.
+// price, revisions, upgrade checkboxes; the owner's "Edit gig") (4.3.14a); the sections FAQ / Reviews / Documents
+// and "You may also like" (4.3.11c, 4.3.14b). "Add to cart" (slice 5) and "Contact seller" (slice 7) come with their
+// slices, and with them the sticky price bar.
 import type { TFunction } from 'i18next';
-import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { FlatList, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import Animated from 'react-native-reanimated';
+import Svg, { Path } from 'react-native-svg';
 import { splitLegacyLinks } from '@mytask/i18n';
 import { lightTheme as theme } from '@mytask/tokens/native';
+import type { ApiClient } from '@mytask/api-client';
 import type { components } from '@mytask/types';
-import { DELIVERY_KEYS, type DeliveryTime } from '../lib/catalog';
-import { formatDate, formatMoney } from '../lib/format';
+import { DELIVERY_KEYS, type DeliveryTime, type GigCard } from '../lib/catalog';
+import { formatBytes, formatDate, formatMoney } from '../lib/format';
 import { gigEditUrl, openWebPage } from '../lib/web-pages';
-import { openProfile } from './catalog';
+import { GigCardView, openProfile } from './catalog';
+import { Section } from './dashboard';
 import { Avatar, OnlineStatus, RatingStars, VerifiedMark } from './profile';
-import { Alert, Button, Card, Checkbox } from '../ui';
+import { Alert, Button, Card, Checkbox, enterAt } from '../ui';
 
 export type Gig = components['schemas']['Gig'];
 
@@ -239,6 +244,137 @@ export function PurchaseBox({ gig, t, lang }: { gig: Gig; t: TFunction; lang?: s
   );
 }
 
+/** Phosphor `CaretDown` (as the web accordion). */
+const CARET =
+  'm213.66 101.66-80 80a8 8 0 0 1-11.32 0l-80-80a8 8 0 0 1 11.32-11.32L128 164.69l74.34-74.35a8 8 0 0 1 11.32 11.32Z';
+
+/** FAQ (AC-26, only with FAQs): an accordion, several may be open; answers keep their line breaks. */
+export function GigFaq({ gig, t, lang }: { gig: Gig; t: TFunction; lang?: string }) {
+  const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
+  if (gig.faqs.length === 0) return null;
+  const toggle = (id: string) =>
+    setOpen((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(id)) next.add(id);
+      return next;
+    });
+  return (
+    <Section title={t('t_faq')} testID="gig-faq">
+      {gig.faqs.map((f) => {
+        const expanded = open.has(f.id);
+        return (
+          <View key={f.id} style={s.faq}>
+            <Pressable
+              style={s.faqHead}
+              onPress={() => toggle(f.id)}
+              accessibilityRole="button"
+              accessibilityState={{ expanded }}
+              accessibilityLanguage={lang}
+            >
+              <Text style={s.faqQuestion}>{f.question}</Text>
+              <View style={expanded ? s.caretOpen : null}>
+                <Svg width={theme.size.icon.sm} height={theme.size.icon.sm} viewBox="0 0 256 256">
+                  <Path d={CARET} fill={theme.colors.text.secondary} />
+                </Svg>
+              </View>
+            </Pressable>
+            {expanded ? (
+              <Text style={s.faqAnswer} accessibilityLanguage={lang}>
+                {f.answer}
+              </Text>
+            ) : null}
+          </View>
+        );
+      })}
+    </Section>
+  );
+}
+
+/** Reviews (always shown): stars, average and the count, or "No reviews yet"; the list waits for slice 7. */
+export function GigReviews({ gig, t }: { gig: Gig; t: TFunction }) {
+  const gigAverage = average(gig.rating.averageTenths);
+  return (
+    <Section title={`${t('t_reviews')} (${gig.rating.count})`} testID="gig-reviews">
+      {gigAverage === null ? (
+        <Text style={s.muted}>{t('t_no_reviews_yet')}</Text>
+      ) : (
+        <View style={s.rating}>
+          <RatingStars
+            tenths={gig.rating.averageTenths!}
+            label={t('t_ui_rating_label', { rating: gigAverage, count: gig.rating.count })}
+          />
+          <Text style={s.ratingText}>
+            <Text style={s.strong}>{gigAverage}</Text>{' '}
+            {t('t_based_on_number_reviews', { number: gig.rating.count })}
+          </Text>
+        </View>
+      )}
+    </Section>
+  );
+}
+
+/** Documents (only with documents, R-G11 public PDFs): name, size and "Download" (opens in the browser). */
+export function GigDocuments({ gig, t }: { gig: Gig; t: TFunction }) {
+  if (gig.documents.length === 0) return null;
+  return (
+    <Section title={t('t_documents')} testID="gig-documents">
+      {gig.documents.map((d) => (
+        <View key={d.fileId} style={s.document}>
+          <View style={s.documentText}>
+            <Text style={s.documentName}>{d.fileName}</Text>
+            <Text style={s.muted}>{formatBytes(d.sizeBytes)}</Text>
+          </View>
+          <Button
+            variant="secondary"
+            label={t('t_download')}
+            onPress={() => openWebPage(d.url)}
+            accessibilityLabel={`${t('t_download')}: ${d.fileName}`}
+          />
+        </View>
+      ))}
+    </Section>
+  );
+}
+
+/** "You may also like" (AC-32, `listRelatedGigs`): a row of gig cards; hidden when empty or on failure (EC-13). */
+export function RelatedGigs({ gig, t, api }: { gig: Gig; t: TFunction; api: ApiClient }) {
+  const { width } = useWindowDimensions();
+  const cardWidth = Math.round(width * 0.8);
+  const [gigs, setGigs] = useState<GigCard[]>([]);
+  useEffect(() => {
+    let live = true;
+    void api
+      .GET('/gigs/{gigId}/related', { params: { path: { gigId: gig.id } } })
+      .then((res) => live && setGigs(res.data?.gigs ?? []))
+      .catch(() => live && setGigs([]));
+    return () => {
+      live = false;
+    };
+  }, [api, gig.id]);
+  if (gigs.length === 0) return null;
+  return (
+    <View style={s.related} testID="gig-related">
+      <Text style={s.relatedTitle} accessibilityRole="header">
+        {t('t_you_may_also_like')}
+      </Text>
+      <FlatList
+        horizontal
+        data={gigs}
+        keyExtractor={(g) => g.id}
+        renderItem={({ item, index }) => (
+          <Animated.View entering={enterAt(index)}>
+            <GigCardView gig={item} t={t} width={cardWidth} />
+          </Animated.View>
+        )}
+        ItemSeparatorComponent={() => <View style={{ width: theme.space[3] }} />}
+        showsHorizontalScrollIndicator={false}
+        snapToInterval={cardWidth + theme.space[3]}
+        decelerationRate="fast"
+      />
+    </View>
+  );
+}
+
 const s = StyleSheet.create({
   noteTitle: { ...theme.text.title, color: theme.colors.text.primary },
   noteText: { ...theme.text.bodySm, color: theme.colors.text.primary },
@@ -290,4 +426,27 @@ const s = StyleSheet.create({
   upgradeTitle: { ...theme.text.body, color: theme.colors.text.primary, flex: 1 },
   upgradePrice: { ...theme.text.title, color: theme.colors.text.primary },
   muted: { ...theme.text.bodySm, color: theme.colors.text.muted },
+  faq: {
+    borderTopWidth: theme.borderWidth.hairline,
+    borderTopColor: theme.colors.border.default,
+  },
+  faqHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.space[2],
+    minHeight: theme.size.touchTarget.min,
+    paddingVertical: theme.space[2],
+  },
+  faqQuestion: { ...theme.text.title, color: theme.colors.text.primary, flex: 1 },
+  caretOpen: { transform: [{ rotate: '180deg' }] },
+  faqAnswer: {
+    ...theme.text.body,
+    color: theme.colors.text.secondary,
+    paddingBottom: theme.space[3],
+  },
+  document: { flexDirection: 'row', alignItems: 'center', gap: theme.space[3] },
+  documentText: { flex: 1, gap: theme.space['0.5'] },
+  documentName: { ...theme.text.body, color: theme.colors.text.primary },
+  related: { gap: theme.space[3] },
+  relatedTitle: { ...theme.text.h3, color: theme.colors.text.primary },
 });
