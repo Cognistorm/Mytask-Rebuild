@@ -3,8 +3,9 @@
 // legacy `livewire/main/create/create.blade.php`): one page with the blocks in the legacy order and a side summary
 // (Stepper) with each block's status. Opening checks the plan limit (AC-2, `getGigCreationEligibility`); guests go
 // to login and back (AC-1). ROADMAP 4.3.9 built the entry, Overview and Pricing; 4.3.10a Upgrades, FAQ and the SEO
-// dialog (AC-11, AC-12, AC-15); 4.3.10b the Gallery (AC-14); 4.3.10c…e add the submit, edit mode and the phone
-// step mode.
+// dialog (AC-11, AC-12, AC-15); 4.3.10b the Gallery (AC-14); 4.3.10c the submit (`createGig`: server field errors on
+// the same fields, plan limit AC-3, success screens AC-16) and "Discard changes?" on leaving; 4.3.10d…e add edit mode
+// and the phone step mode.
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { components } from '@mytask/types';
@@ -23,7 +24,7 @@ import {
   type StepItem,
   type StepStatus,
 } from '@mytask/ui/web';
-import { href, useApi, useLocale, useT } from '../../lib/client';
+import { href, useApi, useLocale, useT, type ApiErrorBody } from '../../lib/client';
 import { usePublicConfig } from '../../lib/public-config';
 import { GigFiles } from './gig-files';
 import {
@@ -33,11 +34,14 @@ import {
   DELIVERY_DAYS,
   EMPTY_DRAFT,
   FAQ,
+  fieldValue,
+  formFieldName,
   MAX_FAQS,
   MAX_UPGRADES,
   SEO,
   shiftRowFields,
   TITLE,
+  toCreateRequest,
   UPGRADE_TITLE_MAX,
   validateDraft,
   type BlockId,
@@ -49,6 +53,9 @@ import './gig-wizard.css';
 
 type CategoryNode = components['schemas']['CategoryNode'];
 type Eligibility = components['schemas']['GigCreationEligibility'];
+type GigOwnerView = components['schemas']['GigOwnerView'];
+/** A submit the API refused as a whole: plan limit (AC-3) or anything that names no field. */
+type Failure = { kind: 'limit'; limit: number } | { kind: 'general'; message: string };
 
 /** S-041 default (spec 00) while the public config loads. */
 const DEFAULT_MAX_REVISIONS = 10;
@@ -131,6 +138,8 @@ export function GigWizard({ categories }: { categories: CategoryNode[] }) {
 function GigForm({ categories }: { categories: CategoryNode[] }) {
   const locale = useLocale();
   const t = useT(locale);
+  const api = useApi(locale);
+  const router = useRouter();
   const config = usePublicConfig(locale);
   const maxRevisions = config?.revisions.maxAllowed ?? DEFAULT_MAX_REVISIONS;
   const imageRule = config?.uploads.gigImage;
@@ -152,8 +161,30 @@ function GigForm({ categories }: { categories: CategoryNode[] }) {
   const rowKey = useRef(0);
   const addUpgradeRef = useRef<HTMLButtonElement>(null);
   const addFaqRef = useRef<HTMLButtonElement>(null);
+  const [sending, setSending] = useState(false);
+  /** API field errors with the value they were given for: one goes away once its field changes (AC-19). */
+  const [serverErrors, setServerErrors] = useState<
+    Record<string, { message: string; value: string | undefined }>
+  >({});
+  const [failure, setFailure] = useState<Failure>();
+  const failureRef = useRef<HTMLDivElement>(null);
+  const [created, setCreated] = useState<GigOwnerView>();
+  /** Where a link click wanted to go while the form had changes ("Discard changes?"). */
+  const [leaveTo, setLeaveTo] = useState<string>();
+  const leaving = useRef(false);
 
-  const errors = useMemo(() => validateDraft(draft, t, maxRevisions), [draft, t, maxRevisions]);
+  const clientErrors = useMemo(
+    () => validateDraft(draft, t, maxRevisions),
+    [draft, t, maxRevisions],
+  );
+  // The pre-check wins on a field; a server error shows where the pre-check found nothing.
+  const errors = useMemo(() => {
+    const live: Record<string, string> = {};
+    for (const [field, e] of Object.entries(serverErrors)) {
+      if (fieldValue(draft, field) === e.value) live[field] = e.message;
+    }
+    return { ...live, ...clientErrors };
+  }, [serverErrors, clientErrors, draft]);
   const errorOf = (field: string) => (shown.has(field) ? errors[field] : undefined);
   const touch = (field: string) => setShown((s) => (s.has(field) ? s : new Set(s).add(field)));
   const set = <K extends keyof GigDraft>(key: K, value: GigDraft[K]) =>
@@ -279,9 +310,61 @@ function GigForm({ categories }: { categories: CategoryNode[] }) {
       ?.focus();
   });
 
-  function submit(e: React.FormEvent) {
+  // A refused submit as a whole moves the focus to its Banner.
+  useEffect(() => {
+    if (failure) failureRef.current?.focus();
+  }, [failure]);
+
+  // "Discard changes?" (screen 03): a link inside the site asks first; closing the tab or reloading gets the
+  // browser's own question. Not after the gig was created.
+  const dirty = !created && JSON.stringify(draft) !== JSON.stringify(EMPTY_DRAFT);
+  useEffect(() => {
+    if (!dirty) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (leaving.current) return;
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    const onClick = (e: MouseEvent) => {
+      if (
+        e.defaultPrevented ||
+        e.button !== 0 ||
+        e.metaKey ||
+        e.ctrlKey ||
+        e.shiftKey ||
+        e.altKey
+      ) {
+        return;
+      }
+      const link = (e.target as Element | null)?.closest?.('a[href]');
+      if (
+        !(link instanceof HTMLAnchorElement) ||
+        link.target === '_blank' ||
+        link.hasAttribute('download')
+      ) {
+        return;
+      }
+      const url = new URL(link.href, window.location.href);
+      const here = window.location;
+      if (url.origin !== here.origin) return;
+      if (url.pathname === here.pathname && url.search === here.search) return; // in-page (summary steps)
+      e.preventDefault();
+      e.stopPropagation();
+      setLeaveTo(url.href);
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    document.addEventListener('click', onClick, true);
+    return () => {
+      window.removeEventListener('beforeunload', onBeforeUnload);
+      document.removeEventListener('click', onClick, true);
+    };
+  }, [dirty]);
+
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (sending) return;
     setSubmitted(true);
+    setFailure(undefined);
     setShown(new Set(Object.values(fields).flat()));
     if (Object.keys(errors).length > 0) {
       focusFirstError.current = true;
@@ -289,7 +372,41 @@ function GigForm({ categories }: { categories: CategoryNode[] }) {
     }
     // Files still on their way cannot be sent yet (legacy `t_pls_wait_until_uploading_finish`).
     if (draft.gallery.busy) return;
-    // ROADMAP 4.3.10c: the gallery uploads and `createGig`.
+
+    setSending(true);
+    const res = await api
+      .POST('/gigs', { body: toCreateRequest(draft, !!documentRule?.enabled) })
+      .catch(() => undefined);
+    setSending(false);
+    if (res?.data) {
+      setCreated(res.data);
+      return;
+    }
+    const err = res?.error as (ApiErrorBody & { details?: { limit?: number } }) | undefined;
+    if (err?.code === 'ACCOUNT_RESTRICTED') return router.replace(href(locale, '/restricted'));
+    // AC-3: the limit was reached meanwhile (another tab, a plan change); nothing was saved.
+    if (err?.code === 'PLAN_LIMIT_REACHED') {
+      return setFailure({ kind: 'limit', limit: Number(err.details?.limit ?? 0) });
+    }
+    // AC-19: every field error of the API on its own field, then the focus on the first one.
+    const onFields = (err?.details?.fields ?? []).filter(
+      (f) => fieldValue(draft, f.field) !== undefined,
+    );
+    const next: typeof serverErrors = {};
+    for (const f of onFields) {
+      next[formFieldName(f.field)] ??= { message: f.message, value: fieldValue(draft, f.field) };
+    }
+    // AC-14: a file the API refuses (not ready, wrong purpose, type, size) names no list.
+    if (onFields.length === 0 && err?.code?.startsWith('FILE_')) {
+      next.gallery = { message: err.message, value: fieldValue(draft, 'gallery') };
+    }
+    if (Object.keys(next).length > 0) {
+      setServerErrors(next);
+      setShown((s) => new Set([...s, ...Object.keys(next)]));
+      focusFirstError.current = true;
+      return;
+    }
+    setFailure({ kind: 'general', message: err?.message ?? t('t_toast_something_went_wrong') });
   }
 
   const goTo = (id: string) => {
@@ -316,6 +433,9 @@ function GigForm({ categories }: { categories: CategoryNode[] }) {
     bulletedList: t('t_ui_bulleted_list'),
     numberedList: t('t_ui_numbered_list'),
   };
+  const galleryError = errorOf('gallery');
+
+  if (created) return <GigCreated gig={created} />;
 
   return (
     <div className="mt-gw">
@@ -326,7 +446,24 @@ function GigForm({ categories }: { categories: CategoryNode[] }) {
       </header>
 
       <form ref={formRef} className="mt-gw-layout" onSubmit={submit} noValidate>
-        <div className="mt-gw-main">
+        {/* Read-only while the gig is being sent. */}
+        <div className="mt-gw-main" inert={sending} aria-busy={sending}>
+          {failure && (
+            <div ref={failureRef} tabIndex={-1} data-testid="gig-submit-failed">
+              <Alert kind="error">
+                {failure.kind === 'limit' ? (
+                  <>
+                    {t('t_plan_gig_limit_reached', { limit: failure.limit })}{' '}
+                    <a href={`${href(locale, '/subscription')}?gigs=true`}>
+                      {t('t_upgrade_to_premium')}
+                    </a>
+                  </>
+                ) : (
+                  failure.message
+                )}
+              </Alert>
+            </div>
+          )}
           {hasErrors && (
             <div data-testid="gig-form-errors">
               <Alert kind="error">{t('t_toast_form_validation_error')}</Alert>
@@ -603,6 +740,11 @@ function GigForm({ categories }: { categories: CategoryNode[] }) {
               5. {t('t_gallery')}
             </h2>
             <p className="mt-gw-block-subtitle">{t('t_get_noticed_by_right_buyers_images')}</p>
+            {galleryError && (
+              <p className="auth-error" role="alert" tabIndex={-1} data-invalid="true">
+                {galleryError}
+              </p>
+            )}
             <GigFiles
               label={t('t_thumbnail')}
               info={t('t_restrictions_files_allowed_info_explain', {
@@ -717,8 +859,13 @@ function GigForm({ categories }: { categories: CategoryNode[] }) {
               }}
               onSelect={goTo}
             >
-              <button type="submit" className="mt-button mt-button-primary mt-gw-submit">
-                {t('t_create')}
+              <button
+                type="submit"
+                className="mt-button mt-button-primary mt-gw-submit"
+                disabled={sending}
+                aria-busy={sending}
+              >
+                {sending ? t('t_please_wait_dots') : t('t_create')}
               </button>
             </Stepper>
           </div>
@@ -763,6 +910,74 @@ function GigForm({ categories }: { categories: CategoryNode[] }) {
           </div>
         </div>
       </Dialog>
+
+      <Dialog
+        open={!!leaveTo}
+        onClose={() => setLeaveTo(undefined)}
+        title={t('t_ui_discard_changes')}
+        description={t('t_ui_discard_changes_text')}
+        closeLabel={t('t_ui_close')}
+        testId="gig-discard-dialog"
+      >
+        <div className="mt-gw-dialog-actions">
+          <button type="button" className="mt-button" onClick={() => setLeaveTo(undefined)}>
+            {t('t_ui_keep_editing')}
+          </button>
+          <button
+            type="button"
+            className="mt-button mt-button-danger"
+            onClick={() => {
+              leaving.current = true;
+              window.location.assign(leaveTo!);
+            }}
+          >
+            {t('t_ui_discard')}
+          </button>
+        </div>
+      </Dialog>
+    </div>
+  );
+}
+
+/**
+ * AC-16 (legacy `create.blade.php:5-34`): S-070 ON → the gig is active, "View gig"; S-070 OFF → pending, the
+ * review text and "My gigs".
+ */
+function GigCreated({ gig }: { gig: GigOwnerView }) {
+  const locale = useLocale();
+  const t = useT(locale);
+  const heading = useRef<HTMLHeadingElement>(null);
+  const active = gig.status === 'active';
+  useEffect(() => {
+    window.scrollTo({ top: 0 });
+    heading.current?.focus();
+  }, []);
+  return (
+    <div className="mt-gw-state mt-gw-done" data-testid="gig-created">
+      <div className="mt-panel mt-gw-done-card">
+        <svg className="mt-gw-done-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path
+            d="M5 13l4 4L19 7"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+        <h1 ref={heading} tabIndex={-1} className="mt-gw-done-title">
+          {t('t_gig_created')}
+        </h1>
+        <p className="mt-gw-done-text">
+          {active ? t('t_gig_created_subtitle') : t('t_gig_created_subtitle_pending_approval')}
+        </p>
+        <a
+          className="mt-button mt-button-primary mt-gw-submit"
+          href={active ? href(locale, `/service/${gig.slug}`) : href(locale, '/seller/gigs')}
+        >
+          {active ? t('t_view_gig') : t('t_my_gigs')}
+        </a>
+      </div>
     </div>
   );
 }

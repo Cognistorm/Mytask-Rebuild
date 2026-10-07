@@ -1,7 +1,8 @@
 // Gig wizard form model and pre-check (spec 04 AC-4…AC-9; screen 03). The API checks everything again
 // (`apps/api/src/modules/gigs/gig-input.ts`); these rules only spare a round trip and use the same field names and
-// message keys, so an error from either side lands on the same field.
+// message keys, so an error from either side lands on the same field. `toCreateRequest` builds the `createGig` body.
 import type { TFunction } from 'i18next';
+import type { components } from '@mytask/types';
 import { contentLength, englishFieldIssue, georgianFieldIssue } from '@mytask/i18n';
 
 /** Rich text as the editor gives it: HTML to send, plain text to check. */
@@ -118,7 +119,8 @@ export function blockFields(draft: GigDraft): Record<BlockId, string[]> {
       ['title', 'price', 'extraDays'].map((f) => `upgrades[${i}].${f}`),
     ),
     faq: draft.faqs.flatMap((_, i) => ['question', 'answer'].map((f) => `faqs[${i}].${f}`)),
-    gallery: ['thumbnailFileId', 'imageFileIds', 'documentFileIds'],
+    // `gallery`: a file error of the API that names no list (422 FILE_*).
+    gallery: ['thumbnailFileId', 'imageFileIds', 'documentFileIds', 'gallery'],
     seo: ['seo'],
   };
 }
@@ -272,3 +274,73 @@ export function blockStarted(draft: GigDraft, block: BlockId): boolean {
       return !!(draft.seo.title.trim() || draft.seo.description.trim());
   }
 }
+
+type GigCreateRequest = components['schemas']['GigCreateRequest'];
+
+/** The draft as `createGig` takes it (AC-4…AC-15); only called once `validateDraft` found nothing. */
+export function toCreateRequest(draft: GigDraft, documentsEnabled: boolean): GigCreateRequest {
+  const gel = (text: string) => ({ amount: toTetri(text)!, currency: 'GEL' as const });
+  const optional = (text: string) => (contentLength(text) > 0 ? text : null);
+  const seoGiven = contentLength(draft.seo.title) > 0 && contentLength(draft.seo.description) > 0;
+  return {
+    title: { ka: draft.titleKa.trim(), en: optional(draft.titleEn.trim()) },
+    description: {
+      ka: draft.descriptionKa.html,
+      en: contentLength(draft.descriptionEn.text) > 0 ? draft.descriptionEn.html : null,
+    },
+    categoryId: draft.categoryId,
+    subcategoryId: draft.subcategoryId,
+    childCategoryId: draft.childCategoryId,
+    price: gel(draft.price),
+    deliveryDays: Number(draft.deliveryDays) as GigCreateRequest['deliveryDays'],
+    revisionsAllowed: Number(draft.revisions.trim()),
+    upgrades: draft.upgrades.map((u) => ({
+      title: u.title.trim(),
+      price: gel(u.price),
+      extraDays: Number(u.extraDays) as GigCreateRequest['deliveryDays'],
+    })),
+    faqs: draft.faqs.map((f) => ({ question: f.question.trim(), answer: f.answer.trim() })),
+    thumbnailFileId: draft.gallery.thumbnail[0]!,
+    imageFileIds: draft.gallery.images,
+    ...(documentsEnabled ? { documentFileIds: draft.gallery.documents } : {}),
+    seo: seoGiven
+      ? { title: draft.seo.title.trim(), description: draft.seo.description.trim() }
+      : null,
+  };
+}
+
+/**
+ * The draft value behind an API field name (`details.fields[].field`), as text to compare: a server error stays on
+ * its field until that value changes. `undefined` = the name is no field of the form (shown as a general error).
+ * `gallery` stands for the whole gallery (file errors name no field).
+ */
+export function fieldValue(draft: GigDraft, field: string): string | undefined {
+  const name = field.replace(/\.amount$/, '');
+  const row = /^(upgrades|faqs)\[(\d+)\]\.(\w+)$/.exec(name);
+  if (row) {
+    const item = draft[row[1] as 'upgrades' | 'faqs'][Number(row[2])] as
+      Record<string, unknown> | undefined;
+    return item && row[3]! in item ? JSON.stringify(item[row[3]!]) : undefined;
+  }
+  const values: Record<string, unknown> = {
+    'title.ka': draft.titleKa,
+    'title.en': draft.titleEn,
+    categoryId: draft.categoryId,
+    subcategoryId: draft.subcategoryId,
+    childCategoryId: draft.childCategoryId,
+    'description.ka': draft.descriptionKa.html,
+    'description.en': draft.descriptionEn.html,
+    price: draft.price,
+    deliveryDays: draft.deliveryDays,
+    revisionsAllowed: draft.revisions,
+    seo: draft.seo,
+    thumbnailFileId: draft.gallery.thumbnail,
+    imageFileIds: draft.gallery.images,
+    documentFileIds: draft.gallery.documents,
+    gallery: [draft.gallery.thumbnail, draft.gallery.images, draft.gallery.documents],
+  };
+  return name in values ? JSON.stringify(values[name]) : undefined;
+}
+
+/** The API's name for a field as the form names it (`price.amount` → `price`). */
+export const formFieldName = (field: string) => field.replace(/\.amount$/, '');

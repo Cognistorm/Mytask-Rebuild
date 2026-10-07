@@ -415,6 +415,217 @@ test('SEO dialog: both fields or none (AC-15)', async ({ page }) => {
   await expect(summary.getByRole('link', { name: 'SEO (optional), completed' })).toBeVisible();
 });
 
+/** A complete valid gig: the required fields, one upgrade, one FAQ, a thumbnail, two images and a document. */
+async function fillValidGig(page: Page) {
+  await page.getByLabel('Service title in Georgian').fill('ლოგოს დიზაინი');
+  await page.getByLabel('Category', { exact: true }).selectOption({ label: 'Design' });
+  await page.getByLabel('Subcategory').selectOption({ label: 'Logo design' });
+  await page.getByLabel('Childcategory').selectOption({ label: 'Minimalist logo' });
+  await page
+    .getByRole('textbox', { name: 'Description in Georgian' })
+    .fill('ლოგოს დიზაინი ორ დღეში');
+  await page.getByLabel('Price', { exact: true }).fill('250,5');
+  await page.getByLabel('Delivery time', { exact: true }).selectOption({ label: '3 days' });
+  await page.getByRole('spinbutton', { name: 'Number of revisions' }).fill('2');
+  await page.getByRole('button', { name: 'Add service upgrade' }).click();
+  const upgrade = page.getByRole('group', { name: 'Upgrade #1' });
+  await upgrade.getByLabel('Upgrade title').fill('Source file');
+  await upgrade.getByLabel('Price').fill('20');
+  await upgrade.getByLabel('Delivery time').selectOption({ label: '1 day' });
+  await page.getByRole('button', { name: 'Add FAQ' }).click();
+  const faq = page.getByRole('group', { name: 'Question #1' });
+  await faq.getByLabel('Question').fill('Do you send the source file?');
+  await faq.getByLabel('Answer').fill('Yes, as an upgrade.');
+  await page.getByTestId('gig-thumbnail').locator('input[type=file]').setInputFiles(png('t.png'));
+  await page
+    .getByTestId('gig-images')
+    .locator('input[type=file]')
+    .setInputFiles([png('a.png'), png('b.png')]);
+  await page
+    .getByTestId('gig-documents')
+    .locator('input[type=file]')
+    .setInputFiles({
+      name: 'work.pdf',
+      mimeType: 'application/pdf',
+      buffer: Buffer.from('%PDF-1.4'),
+    });
+  await expect(page.locator('[data-testid="gig-file"][data-state="ready"]')).toHaveCount(4);
+}
+
+/** `createGig`: answers with `reply` and records the bodies sent. */
+async function fakeCreate(page: Page, reply: (n: number) => [number, unknown]) {
+  const bodies: Record<string, unknown>[] = [];
+  await page.route('**/api/v1/gigs', async (route) => {
+    if (route.request().method() !== 'POST') return route.fallback();
+    bodies.push(route.request().postDataJSON());
+    const [status, body] = reply(bodies.length);
+    await json(route, status, body);
+  });
+  return bodies;
+}
+
+const createdGig = (status: 'active' | 'pending') => ({
+  id: '01900000-0000-7000-8000-000000000501',
+  uid: 'a1b2c3d4e5',
+  slug: 'logos-dizaini-a1b2c3d4e5',
+  status,
+});
+
+test('Create sends the whole gig; S-070 ON shows "View gig" (AC-16)', async ({ page }) => {
+  await fakeApi(page);
+  const files = await fakeFiles(page);
+  const bodies = await fakeCreate(page, () => [201, createdGig('active')]);
+  await page.goto('/en/create');
+  await hydrated(page);
+  await fillValidGig(page);
+  await page.getByRole('button', { name: 'Create', exact: true }).click();
+
+  const done = page.getByTestId('gig-created');
+  await expect(done.getByRole('heading', { level: 1, name: 'Gig created' })).toBeFocused();
+  await expect(done).toContainText('You gig has been successfully posted');
+  await expect(done.getByRole('link', { name: 'View gig' })).toHaveAttribute(
+    'href',
+    '/en/service/logos-dizaini-a1b2c3d4e5',
+  );
+
+  expect(bodies).toHaveLength(1);
+  const ids = files.slots.map(
+    (_, i) => `01900000-0000-7000-8000-0000000003${String(i + 1).padStart(2, '0')}`,
+  );
+  expect(bodies[0]).toMatchObject({
+    title: { ka: 'ლოგოს დიზაინი', en: null },
+    description: { en: null },
+    price: { amount: 25050, currency: 'GEL' },
+    deliveryDays: 3,
+    revisionsAllowed: 2,
+    upgrades: [{ title: 'Source file', price: { amount: 2000, currency: 'GEL' }, extraDays: 1 }],
+    faqs: [{ question: 'Do you send the source file?', answer: 'Yes, as an upgrade.' }],
+    thumbnailFileId: ids[0],
+    imageFileIds: [ids[1], ids[2]],
+    documentFileIds: [ids[3]],
+    seo: null,
+  });
+  expect((bodies[0]!.description as { ka: string }).ka).toContain('ლოგოს დიზაინი ორ დღეში');
+});
+
+test('S-070 OFF: the review text and "My gigs" (AC-16)', async ({ page }) => {
+  await fakeApi(page);
+  await fakeFiles(page);
+  await fakeCreate(page, () => [201, createdGig('pending')]);
+  await page.goto('/en/create');
+  await hydrated(page);
+  await fillValidGig(page);
+  await page.getByRole('button', { name: 'Create', exact: true }).click();
+  const done = page.getByTestId('gig-created');
+  await expect(done).toContainText('our team is reviewing it right now');
+  await expect(done.getByRole('link', { name: 'My gigs' })).toHaveAttribute(
+    'href',
+    '/en/seller/gigs',
+  );
+  await expectNoAxeViolations(page, 'success', 'main');
+});
+
+test('server errors land on their fields and go once the field changes (AC-19, AC-14)', async ({
+  page,
+}) => {
+  await fakeApi(page);
+  await fakeFiles(page);
+  const bodies = await fakeCreate(page, (n) =>
+    n === 1
+      ? [
+          400,
+          {
+            code: 'VALIDATION_FAILED',
+            message: 'Validation failed',
+            details: {
+              fields: [
+                { field: 'title.ka', code: 'x', message: 'Server says no title.' },
+                { field: 'upgrades[0].price.amount', code: 'x', message: 'Server says no price.' },
+              ],
+            },
+          },
+        ]
+      : [422, { code: 'FILE_NOT_READY', message: 'The file is not ready yet.' }],
+  );
+  await page.goto('/en/create');
+  await hydrated(page);
+  await fillValidGig(page);
+  await page.getByRole('button', { name: 'Create', exact: true }).click();
+
+  const titleKa = page.getByLabel('Service title in Georgian');
+  await expect(page.getByText('Server says no title.')).toBeVisible();
+  await expect(
+    page.getByRole('group', { name: 'Upgrade #1' }).getByText('Server says no price.'),
+  ).toBeVisible();
+  await expect(titleKa).toBeFocused();
+  await expect(page.getByTestId('gig-form-errors')).toBeVisible();
+  await titleKa.fill('ლოგოს დიზაინი და ბრენდინგი');
+  await expect(page.getByText('Server says no title.')).toHaveCount(0);
+  await expect(page.getByText('Server says no price.')).toBeVisible();
+  await page.getByRole('group', { name: 'Upgrade #1' }).getByLabel('Price').fill('25');
+
+  // A file error names no list: it shows on the Gallery block, which gets the focus.
+  await page.getByRole('button', { name: 'Create', exact: true }).click();
+  const fileError = page.locator('#gig-gallery').getByText('The file is not ready yet.');
+  await expect(fileError).toBeFocused();
+  const summary = page.getByRole('navigation', { name: 'Form progress' });
+  await expect(summary.getByRole('link', { name: 'Gallery, has errors' })).toBeVisible();
+  expect(bodies).toHaveLength(2);
+});
+
+test('the plan limit reached meanwhile shows a danger Banner, nothing saved (AC-3)', async ({
+  page,
+}) => {
+  await fakeApi(page);
+  await fakeFiles(page);
+  await fakeCreate(page, () => [
+    422,
+    {
+      code: 'PLAN_LIMIT_REACHED',
+      message: 'x',
+      details: { limit: 1, settingId: 'S-001' },
+    },
+  ]);
+  await page.goto('/en/create');
+  await hydrated(page);
+  await fillValidGig(page);
+  await page.getByRole('button', { name: 'Create', exact: true }).click();
+  const banner = page.getByTestId('gig-submit-failed');
+  await expect(banner).toBeFocused();
+  await expect(banner).toContainText('Your plan allows up to 1 gigs');
+  await expect(banner.getByRole('link', { name: 'Upgrade to Premium' })).toHaveAttribute(
+    'href',
+    '/en/subscription?gigs=true',
+  );
+  await expect(page.getByTestId('gig-created')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Create', exact: true })).toBeEnabled();
+});
+
+test('"Discard changes?" before a link leaves a changed form', async ({ page }) => {
+  await fakeApi(page);
+  await page.goto('/en/create');
+  await hydrated(page);
+  const homeLink = page.locator('header a[href="/en"]').first();
+
+  await page.getByLabel('Service title in Georgian').fill('ლოგო');
+  await homeLink.click();
+  const dialog = page.getByRole('dialog', { name: 'Discard changes?' });
+  await expect(dialog).toContainText('will be lost');
+  await expectNoAxeViolations(page, 'discard dialog', '[data-testid="gig-discard-dialog"]');
+  await dialog.getByRole('button', { name: 'Keep editing' }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page).toHaveURL(/\/en\/create$/);
+  await expect(page.getByLabel('Service title in Georgian')).toHaveValue('ლოგო');
+
+  // The summary's in-page links never ask.
+  await page.getByRole('navigation', { name: 'Form progress' }).getByRole('link').first().click();
+  await expect(dialog).toBeHidden();
+
+  await homeLink.click();
+  await dialog.getByRole('button', { name: 'Discard' }).click();
+  await expect(page).toHaveURL(/\/en$/);
+});
+
 test('the Georgian page uses the Georgian texts', async ({ page }) => {
   await fakeApi(page);
   await page.goto('/create');
