@@ -153,7 +153,8 @@ export class FilesScanSweeper implements OnApplicationBootstrap, OnApplicationSh
    * also sets `attached_at` on the file row in its transaction (review 07 SEC-74): the outer UPDATE then waits
    * for that row and re-checks `attached_at` on the committed version, which the NOT EXISTS checks (read with
    * this statement's snapshot) cannot do. Staff `category_image` uploads (an abandoned admin form, review 08
-   * I-44) follow the same rule; a category save also sets `attached_at`. Public for tests.
+   * I-44) follow the same rule; a category save also sets `attached_at`. Gig thumbnails, gallery images and
+   * documents (public, spec 04 R-G11) too: a gig save sets `attached_at` (ROADMAP 4.3.3b). Public for tests.
    */
   async cleanupUnattachedPublic(now = new Date()): Promise<number> {
     const cutoff = new Date(now.getTime() - UNATTACHED_TTL_HOURS * 3600 * 1000);
@@ -166,13 +167,16 @@ export class FilesScanSweeper implements OnApplicationBootstrap, OnApplicationSh
           UPDATE files f SET status = 'deleted', deleted_at = ${now}
           WHERE f.id IN (
             SELECT c.id FROM files c
-            WHERE c.status = 'ready' AND c.purpose IN ('avatar', 'portfolio_image', 'category_image') AND c.ready_at < ${cutoff}
+            WHERE c.status = 'ready' AND c.purpose IN ('avatar', 'portfolio_image', 'category_image', 'gig_thumbnail', 'gig_image', 'gig_document') AND c.ready_at < ${cutoff}
               AND c.attached_at IS NULL
               AND NOT EXISTS (SELECT 1 FROM user_profiles p WHERE p.avatar_file_id = c.id)
               AND NOT EXISTS (SELECT 1 FROM portfolio_items i WHERE i.thumbnail_file_id = c.id)
               AND NOT EXISTS (SELECT 1 FROM portfolio_images g WHERE g.file_id = c.id)
               AND NOT EXISTS (SELECT 1 FROM gig_categories k WHERE k.icon_file_id = c.id OR k.image_file_id = c.id)
               AND NOT EXISTS (SELECT 1 FROM project_categories pc WHERE pc.image_file_id = c.id)
+              AND NOT EXISTS (SELECT 1 FROM gigs gg WHERE gg.thumbnail_file_id = c.id)
+              AND NOT EXISTS (SELECT 1 FROM gig_images gi WHERE gi.file_id = c.id)
+              AND NOT EXISTS (SELECT 1 FROM gig_documents gd WHERE gd.file_id = c.id)
             ORDER BY c.ready_at LIMIT 500
           )
             AND f.status = 'ready'
@@ -182,6 +186,9 @@ export class FilesScanSweeper implements OnApplicationBootstrap, OnApplicationSh
             AND NOT EXISTS (SELECT 1 FROM portfolio_images g WHERE g.file_id = f.id)
             AND NOT EXISTS (SELECT 1 FROM gig_categories k WHERE k.icon_file_id = f.id OR k.image_file_id = f.id)
             AND NOT EXISTS (SELECT 1 FROM project_categories pc WHERE pc.image_file_id = f.id)
+            AND NOT EXISTS (SELECT 1 FROM gigs gg WHERE gg.thumbnail_file_id = f.id)
+            AND NOT EXISTS (SELECT 1 FROM gig_images gi WHERE gi.file_id = f.id)
+            AND NOT EXISTS (SELECT 1 FROM gig_documents gd WHERE gd.file_id = f.id)
           RETURNING f.bucket, f.object_key AS "objectKey", f.variants`;
         for (const file of rows) {
           await this.storage.delete(file.bucket, file.objectKey);

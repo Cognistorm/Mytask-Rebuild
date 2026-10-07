@@ -233,6 +233,15 @@ export function renderEmail(i: TemplateInput): RenderedEmail {
           url: link(i.appUrl, i.locale, '/account/verification'),
         },
       );
+    case 'EV-19':
+      // legacy/APP/app/Notifications/Admin/PendingGig.php:44-54
+      return layout(
+        i.locale,
+        t('t_subject_admin_pending_gig'),
+        t('t_hi_admin'),
+        [t('t_notification_admin_pending_gig')],
+        { label: t('t_pending_gigs'), url: `${i.adminUrl.replace(/\/$/, '')}/gigs` },
+      );
     case 'EV-126':
       // NEW (Q-117): the staff reason is shown to the owner.
       return layout(
