@@ -3,8 +3,9 @@
 // (an active gig becomes deleted like an owner deletion, internal reason) and restore (staff removals only, within
 // 30 days, refused over the owner's plan limit, Owner Q-123 (b), ADR-024). Every decision locks the gig row,
 // re-reads its state, writes the search document and the audit row in one transaction. Staff never edit content
-// (P-117). The owner's notifications EV-20, EV-21 and EV-130 are queued from here in 4.3.8; the realtime
-// `gig.status_changed` waits for the gateway (slice 08).
+// (P-117). The owner's emails EV-20 (publish), EV-21 (reject, with the reason) and EV-130 (restore) are queued in
+// the same transaction (4.3.8; in-app + push wait for slice 15); the realtime `gig.status_changed` waits for the
+// gateway (slice 08).
 import { Inject, Injectable } from '@nestjs/common';
 import type { components, Locale } from '@mytask/types';
 import type { GigStatus, Prisma } from '../../generated/prisma/client';
@@ -12,6 +13,7 @@ import { AuditService } from '../../platform/audit/audit.service';
 import { ENV, type Env } from '../../platform/config/env';
 import { PrismaService } from '../../platform/db/prisma.service';
 import { ApiException } from '../../platform/errors/api-exception';
+import { OutboxService } from '../../platform/outbox/outbox.service';
 import { decodeCursor, encodeCursor } from '../../platform/pagination';
 import type { RequestContext } from '../auth/request-context';
 import { ratingSummary } from '../catalog/gig-cards';
@@ -26,6 +28,12 @@ type S = components['schemas'];
 type Tx = Prisma.TransactionClient;
 type Translate = RequestContext['t'];
 type Action = 'gig.publish' | 'gig.reject' | 'gig.remove' | 'gig.restore';
+/** The owner's email per decision (spec 15); a staff removal notifies nobody (contract). */
+const OWNER_EMAIL = {
+  'gig.publish': 'EV-20',
+  'gig.reject': 'EV-21',
+  'gig.restore': 'EV-130',
+} as const satisfies Partial<Record<Action, string>>;
 
 /** Spec 16 AC-20: a staff removal can be restored for 30 days. */
 const RESTORE_DAYS = 30;
@@ -71,6 +79,7 @@ export class AdminGigs {
     @Inject(ENV) private readonly env: Env,
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly outbox: OutboxService,
     private readonly searchIndex: SearchIndex,
     private readonly limits: GigLimits,
     private readonly summaries: UserSummaries,
@@ -324,8 +333,8 @@ export class AdminGigs {
 
   /**
    * One staff decision: lock the gig row, let `next` check the current state and give the change, save it,
-   * refresh the search document and write the audit row, all in one transaction. A second decision waits on the
-   * lock and then sees the first one's state (first decision wins, AC-19).
+   * refresh the search document, queue the owner's email and write the audit row, all in one transaction. A second
+   * decision waits on the lock and then sees the first one's state (first decision wins, AC-19).
    */
   private async decide(
     gigId: string,
@@ -352,6 +361,25 @@ export class AdminGigs {
       });
       await this.searchIndex.indexGig(gigId, tx);
       const ka = gig.translations.find((tr) => tr.locale === 'ka');
+      const event = action === 'gig.remove' ? null : OWNER_EMAIL[action];
+      if (event) {
+        // The worker renders in the owner's language: the English title when the gig has one.
+        const en = gig.translations.find((tr) => tr.locale === 'en');
+        await this.outbox.add(
+          event,
+          { type: 'gig', id: gigId },
+          {
+            userId: gig.ownerId,
+            params: {
+              title: ka?.title ?? '',
+              titleEn: en?.title ?? '',
+              slug: gig.slug,
+              ...(event === 'EV-21' ? { reason: reason ?? '' } : {}),
+            },
+          },
+          tx,
+        );
+      }
       await this.audit.write(
         {
           actorStaffId: staffId,

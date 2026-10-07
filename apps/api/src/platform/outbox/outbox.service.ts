@@ -26,11 +26,14 @@ export type OutboxEventType =
   | 'EV-17' // VerificationApproved (spec 02 AC-37)
   | 'EV-18' // VerificationDeclined (spec 02 AC-37)
   | 'EV-19' // Admin/PendingGig (spec 04 AC-16, AC-22)
+  | 'EV-20' // GigPublished (spec 04 AC-17)
+  | 'EV-21' // YourGigNeedsChanges (spec 04 AC-18)
   | 'EV-22' // Admin/GigReported (spec 04 AC-38, NEW P-36)
   | 'EV-126' // PortfolioRejected (spec 02 AC-42, NEW Q-117)
   | 'EV-124' // Admin/CriticalSettingChanged
   | 'EV-128' // LoginSlowMode
-  | 'EV-129'; // TwoFactorLocked
+  | 'EV-129' // TwoFactorLocked
+  | 'EV-130'; // GigRestored (spec 16 AC-20, NEW Q-123 (b))
 
 export interface EmailPayload {
   /** Recipient user (the worker reads email, username and locale at send time), or explicit addresses. */

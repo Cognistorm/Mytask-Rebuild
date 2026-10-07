@@ -1,12 +1,14 @@
 // Staff gig moderation (ROADMAP 4.3.7; spec 16 AC-19, AC-20, AC-31; spec 04 AC-17, AC-18, AC-28): the pending queue
 // (oldest submission first, filters, totalCount), the detail of any status with the owner summary, publish / reject
 // with the first decision winning, remove (active only, internal reason, orders in progress refused) and restore
-// (staff removals only, 30 days, the owner's plan limit, Q-123 (b)); search documents and audit rows follow.
+// (staff removals only, 30 days, the owner's plan limit, Q-123 (b)); search documents and audit rows follow; the
+// owner's emails EV-20 / EV-21 / EV-130 are queued with the decision (4.3.8), a removal queues none.
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import request from 'supertest';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { File as FileRow, FilePurpose } from '../src/generated/prisma/client';
 import { PrismaService } from '../src/platform/db/prisma.service';
+import { renderEmail } from '../src/platform/mail/templates';
 import { RedisService } from '../src/platform/redis/redis.module';
 import type { SettingId } from '../src/platform/settings/registry';
 import { SettingsService } from '../src/platform/settings/settings.service';
@@ -130,6 +132,17 @@ async function saveGig(m?: Member, title = 'ლოგოს დიზაინ�
   expect(res.status, JSON.stringify(res.body)).toBe(201);
   return { ...owner, gig: res.body as { id: string; uid: string } };
 }
+
+/** Owner emails queued for this gig, oldest first. */
+const ownerEmails = (gigId: string) =>
+  prisma.outboxEvent.findMany({
+    where: {
+      aggregateType: 'gig',
+      aggregateId: gigId,
+      eventType: { in: ['EV-20', 'EV-21', 'EV-130'] },
+    },
+    orderBy: { createdAt: 'asc' },
+  });
 
 const touched: string[] = [];
 async function withSetting(registerId: SettingId, key: string, value: unknown) {
@@ -358,6 +371,14 @@ describe('adminPublishGig / adminRejectGig (spec 04 AC-17, AC-18; spec 16 AC-19)
     });
     // A second publish keeps the first publication date.
     expect((await act(gig.id, 'publish')).status).toBe(409);
+    // EV-20 to the owner, once (the refused decisions queue nothing).
+    const emails = await ownerEmails(gig.id);
+    expect(emails.map((e) => e.eventType)).toEqual(['EV-20']);
+    const gigRow = await prisma.gig.findUniqueOrThrow({ where: { id: gig.id } });
+    expect(emails[0]!.payload).toEqual({
+      userId: gigRow.ownerId,
+      params: { title: 'ლოგოს დიზაინი', titleEn: 'Logo design', slug: gigRow.slug },
+    });
   });
 
   it('rejects with the reason shown to the owner; empty reasons are refused', async () => {
@@ -380,6 +401,12 @@ describe('adminPublishGig / adminRejectGig (spec 04 AC-17, AC-18; spec 16 AC-19)
       rejectionReason: 'Please add real photos.',
     });
     expect((await audits(gig.id, 'gig.reject'))[0]?.reason).toBe('Please add real photos.');
+    const emails = await ownerEmails(gig.id);
+    expect(emails.map((e) => e.eventType)).toEqual(['EV-21']);
+    expect(emails[0]!.payload).toMatchObject({
+      userId,
+      params: { title: 'ლოგოს დიზაინი', reason: 'Please add real photos.' },
+    });
 
     // The next gig of the same owner shows the earlier rejection.
     await prisma.gig.update({
@@ -400,6 +427,7 @@ describe('adminPublishGig / adminRejectGig (spec 04 AC-17, AC-18; spec 16 AC-19)
     const audited =
       (await audits(gig.id, 'gig.publish')).length + (await audits(gig.id, 'gig.reject')).length;
     expect(audited).toBe(1);
+    expect(await ownerEmails(gig.id)).toHaveLength(1);
   });
 });
 
@@ -444,6 +472,8 @@ describe('adminRemoveGig / adminRestoreGig (spec 16 AC-20, Q-123 (b))', () => {
     expect((await publicPage(gig.id)).status).toBe(404);
     expect(await searchDocs(gig.id)).toBe(0);
     expect((await audits(gig.id, 'gig.remove'))[0]?.reason).toBe('Copied content');
+    // A removal does not notify the owner (only the EV-20 of the publish is there).
+    expect((await ownerEmails(gig.id)).map((e) => e.eventType)).toEqual(['EV-20']);
     const deleted = await adminList({ status: 'deleted', limit: 200 });
     expect(
       (deleted.body.data as { id: string; deletedBy: string }[]).find((g) => g.id === gig.id),
@@ -489,6 +519,7 @@ describe('adminRemoveGig / adminRestoreGig (spec 16 AC-20, Q-123 (b))', () => {
     expect(await searchDocs(gig.id)).toBe(1);
     expect((await audits(gig.id, 'gig.restore'))[0]?.reason).toBe('Removed by mistake');
     expect((await act(gig.id, 'restore')).status).toBe(409);
+    expect((await ownerEmails(gig.id)).map((e) => e.eventType)).toEqual(['EV-20', 'EV-130']);
   });
 
   it("refuses a restore when the owner's gigs already reach the plan limit (S-001)", async () => {
@@ -510,8 +541,73 @@ describe('adminRemoveGig / adminRestoreGig (spec 16 AC-20, Q-123 (b))', () => {
     expect((await prisma.gig.findUniqueOrThrow({ where: { id: first.gig.id } })).status).toBe(
       'deleted',
     );
+    // A refused restore queues no EV-130.
+    expect((await ownerEmails(first.gig.id)).map((e) => e.eventType)).toEqual(['EV-20']);
 
     await withSetting('S-001', 'plans.standard.gig_limit', 2);
     expect((await act(first.gig.id, 'restore')).status).toBe(200);
+  });
+});
+
+describe('owner emails EV-20, EV-21, EV-130 (spec 15; 4.3.8)', () => {
+  const base = {
+    username: 'nino',
+    email: 'nino@example.com',
+    appUrl: 'https://mytask.ge',
+    adminUrl: 'https://admin.mytask.ge',
+  };
+  const params = { title: 'ლოგოს დიზაინი', titleEn: 'Logo design', slug: 'logo-ABC' };
+  const cases = [
+    { event: 'EV-20', params, link: '/service/logo-ABC' },
+    { event: 'EV-21', params: { ...params, reason: 'Add real photos' }, link: '/seller/gigs' },
+    { event: 'EV-130', params, link: '/service/logo-ABC' },
+  ];
+
+  for (const locale of ['ka', 'en'] as const) {
+    for (const c of cases) {
+      it(`${c.event} renders in ${locale} with the gig link`, () => {
+        const mail = renderEmail({ ...base, locale, event: c.event, params: c.params });
+        expect(mail.subject.trim()).not.toBe('');
+        expect(mail.text).not.toMatch(/\bt_[a-z0-9_]+\b/);
+        expect(mail.text).not.toMatch(/\{\{?[a-z_]+\}?\}/i);
+        const prefix = locale === 'en' ? 'https://mytask.ge/en' : 'https://mytask.ge';
+        expect(mail.text).toContain(`${prefix}${c.link}`);
+      });
+    }
+  }
+
+  it('EV-21 carries the title and the staff reason (legacy YourGigNeedsChanges)', () => {
+    const mail = renderEmail({ ...base, locale: 'en', event: 'EV-21', params: cases[1]!.params });
+    expect(mail.subject).toBe('Your gig needs changes');
+    expect(mail.text).toContain('The following gig has been rejected');
+    expect(mail.text).toContain('Logo design');
+    expect(mail.text).toContain('Here is why');
+    expect(mail.text).toContain('Add real photos');
+  });
+
+  it('EV-130 names the gig in the reader language, Georgian when there is no English title', () => {
+    const ka = renderEmail({ ...base, locale: 'ka', event: 'EV-130', params });
+    expect(ka.text).toContain('„ლოგოს დიზაინი“');
+    const en = renderEmail({ ...base, locale: 'en', event: 'EV-130', params });
+    expect(en.text).toContain('Our team has restored your gig "Logo design"');
+    const noEn = renderEmail({
+      ...base,
+      locale: 'en',
+      event: 'EV-130',
+      params: { ...params, titleEn: '' },
+    });
+    expect(noEn.text).toContain('"ლოგოს დიზაინი"');
+  });
+
+  it('escapes the title and reason in the HTML part', () => {
+    const mail = renderEmail({
+      ...base,
+      locale: 'en',
+      event: 'EV-21',
+      params: { ...params, titleEn: '<b>x</b>', reason: 'a & b' },
+    });
+    expect(mail.html).not.toContain('<b>x</b>');
+    expect(mail.html).toContain('&lt;b&gt;x&lt;/b&gt;');
+    expect(mail.html).toContain('a &amp; b');
   });
 });
