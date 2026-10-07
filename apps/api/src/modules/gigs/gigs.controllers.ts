@@ -1,5 +1,5 @@
 // Contract: getGigCreationEligibility (ROADMAP 4.3.3a), createGig (4.3.3b), updateGig and deleteGig (4.3.3c), getGig,
-// lookupGig, getGigOwnerView and listMyGigs (4.3.4). Fixed paths (`mine`, `lookup`) come before `:gigId`.
+// lookupGig, getGigOwnerView and listMyGigs (4.3.4), listRelatedGigs (4.3.5a). Fixed paths (`mine`, `lookup`) come before `:gigId`.
 import {
   Body,
   Controller,
@@ -82,6 +82,16 @@ export class GigsController {
     @Req() req: Request,
   ): Promise<S['Gig']> {
     return this.pages.get(gigId, this.ctx(req).locale, viewer?.userId ?? null);
+  }
+
+  @OptionalUser()
+  @Get(':gigId/related')
+  related(
+    @Param('gigId') gigId: string,
+    @OptionalAuth() viewer: AuthState | null,
+    @Req() req: Request,
+  ): Promise<S['GigRelatedList']> {
+    return this.pages.related(gigId, this.ctx(req).locale, viewer?.userId ?? null);
   }
 
   @Get(':gigId/owner-view')
