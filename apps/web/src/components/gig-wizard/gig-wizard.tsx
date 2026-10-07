@@ -5,12 +5,22 @@
 // to login and back (AC-1). ROADMAP 4.3.9 built the entry, Overview and Pricing; 4.3.10a Upgrades, FAQ and the SEO
 // dialog (AC-11, AC-12, AC-15); 4.3.10b the Gallery (AC-14); 4.3.10c the submit (`createGig`: server field errors on
 // the same fields, plan limit AC-3, success screens AC-16) and "Discard changes?" on leaving; 4.3.10d edit mode
-// (`GigEditor`, `/seller/gigs/{uid}/edit`, AC-10, AC-18, AC-21…AC-25); 4.3.10e adds the phone step mode.
+// (`GigEditor`, `/seller/gigs/{uid}/edit`, AC-10, AC-18, AC-21…AC-25); 4.3.10e the phone step mode (below md: one
+// step per screen, compact Stepper, Back / Next, "Review & publish" with the SEO fields; screen 03 "Mobile web").
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 import type { components } from '@mytask/types';
 import {
   Alert,
+  CompactStepper,
   Dialog,
   EmptyState,
   Field,
@@ -69,6 +79,30 @@ const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png'];
 const DOCUMENT_EXTENSIONS = ['pdf'];
 const extensionsOf = (allowed: string[] | undefined, fallback: string[]) =>
   allowed?.length ? allowed.map((e) => e.toLowerCase()) : fallback;
+
+/** Phone step mode below md (768 px), screen 03 "Mobile web (360)". */
+const PHONE = '(max-width: 767.98px)';
+function usePhone(): boolean {
+  return useSyncExternalStore(
+    (onChange) => {
+      const query = window.matchMedia(PHONE);
+      query.addEventListener('change', onChange);
+      return () => query.removeEventListener('change', onChange);
+    },
+    () => window.matchMedia(PHONE).matches,
+    () => false,
+  );
+}
+
+/** The phone steps (screen 03): 1 Overview → 2 Pricing → 3 Extras → 4 Gallery → 5 Review & publish (with SEO). */
+const PHONE_STEPS: readonly { blocks: readonly BlockId[] }[] = [
+  { blocks: ['overview'] },
+  { blocks: ['pricing'] },
+  { blocks: ['upgrades', 'faq'] },
+  { blocks: ['gallery'] },
+  { blocks: ['seo'] },
+];
+const LAST_STEP = PHONE_STEPS.length - 1;
 
 export function GigWizard({ categories }: { categories: CategoryNode[] }) {
   const locale = useLocale();
@@ -243,6 +277,10 @@ function GigForm({ categories, gig }: { categories: CategoryNode[]; gig?: GigOwn
   const [current, setCurrent] = useState<BlockId>('overview');
   const [announce, setAnnounce] = useState('');
   const [seoOpen, setSeoOpen] = useState(false);
+  const phone = usePhone();
+  /** The phone step shown (0…LAST_STEP); the desktop page shows every block. */
+  const [step, setStep] = useState(0);
+  const focusStep = useRef(false);
   const formRef = useRef<HTMLFormElement>(null);
   const focusFirstError = useRef(false);
   /** Name of a field to focus after the next render (a row just added). */
@@ -393,12 +431,44 @@ function GigForm({ categories, gig }: { categories: CategoryNode[]; gig?: GigOwn
       focusField.current = null;
       formRef.current?.querySelector<HTMLElement>(`[name="${CSS.escape(name)}"]`)?.focus();
     }
+    if (focusStep.current) {
+      focusStep.current = false;
+      window.scrollTo({ top: 0 });
+      formRef.current?.querySelector<HTMLElement>('section:not([hidden]) h2')?.focus();
+    }
     if (!focusFirstError.current) return;
     focusFirstError.current = false;
-    formRef.current
-      ?.querySelector<HTMLElement>('[aria-invalid="true"], [data-invalid="true"]')
+    // The first one on screen: in step mode the other steps' blocks are hidden.
+    [
+      ...(formRef.current?.querySelectorAll<HTMLElement>(
+        '[aria-invalid="true"], [data-invalid="true"]',
+      ) ?? []),
+    ]
+      .find((el) => el.getClientRects().length > 0)
       ?.focus();
   });
+
+  /** Phone: the fields of a step, and the first step with an error among `names` (else the current one). */
+  const stepFields = (i: number) => PHONE_STEPS[i]!.blocks.flatMap((b) => fields[b]);
+  const firstErrorStep = (names: Iterable<string>) => {
+    const bad = new Set(names);
+    const i = PHONE_STEPS.findIndex((_, n) => stepFields(n).some((f) => bad.has(f)));
+    return i < 0 ? step : i;
+  };
+  const goStep = (i: number) => {
+    setStep(i);
+    focusStep.current = true;
+  };
+  /** "Next" checks only the current step (screen 03). */
+  const next = () => {
+    const own = stepFields(step);
+    setShown((s) => new Set([...s, ...own]));
+    if (own.some((f) => errors[f])) {
+      focusFirstError.current = true;
+      return;
+    }
+    goStep(step + 1);
+  };
 
   // A refused submit as a whole moves the focus to its Banner.
   useEffect(() => {
@@ -453,10 +523,14 @@ function GigForm({ categories, gig }: { categories: CategoryNode[]; gig?: GigOwn
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (sending) return;
+    // Phone: Enter in a field of an earlier step means "Next".
+    if (phone && step < LAST_STEP) return next();
     setSubmitted(true);
     setFailure(undefined);
     setShown(new Set(Object.values(fields).flat()));
     if (Object.keys(errors).length > 0) {
+      // Phone: "Create" checks everything and jumps to the first step with an error.
+      if (phone) setStep(firstErrorStep(Object.keys(errors)));
       focusFirstError.current = true;
       return;
     }
@@ -489,17 +563,18 @@ function GigForm({ categories, gig }: { categories: CategoryNode[]; gig?: GigOwn
     const onFields = (err?.details?.fields ?? []).filter(
       (f) => fieldValue(draft, f.field) !== undefined,
     );
-    const next: typeof serverErrors = {};
+    const found: typeof serverErrors = {};
     for (const f of onFields) {
-      next[formFieldName(f.field)] ??= { message: f.message, value: fieldValue(draft, f.field) };
+      found[formFieldName(f.field)] ??= { message: f.message, value: fieldValue(draft, f.field) };
     }
     // AC-14: a file the API refuses (not ready, wrong purpose, type, size) names no list.
     if (onFields.length === 0 && err?.code?.startsWith('FILE_')) {
-      next.gallery = { message: err.message, value: fieldValue(draft, 'gallery') };
+      found.gallery = { message: err.message, value: fieldValue(draft, 'gallery') };
     }
-    if (Object.keys(next).length > 0) {
-      setServerErrors(next);
-      setShown((s) => new Set([...s, ...Object.keys(next)]));
+    if (Object.keys(found).length > 0) {
+      setServerErrors(found);
+      setShown((s) => new Set([...s, ...Object.keys(found)]));
+      if (phone) setStep(firstErrorStep(Object.keys(found)));
       focusFirstError.current = true;
       return;
     }
@@ -531,6 +606,16 @@ function GigForm({ categories, gig }: { categories: CategoryNode[]; gig?: GigOwn
     numberedList: t('t_ui_numbered_list'),
   };
   const galleryError = errorOf('gallery');
+  /** Phone: only the current step's blocks are shown (hidden, not removed: uploads and typed text stay). */
+  const hiddenBlock = (block: BlockId) => phone && !PHONE_STEPS[step]!.blocks.includes(block);
+  const submitLabel = sending ? t('t_please_wait_dots') : gig ? t('t_save_changes') : t('t_create');
+  const statusLabels = {
+    not_started: t('t_ui_step_not_started'),
+    in_progress: t('t_ui_step_in_progress'),
+    complete: t('t_ui_step_completed'),
+    error: t('t_ui_step_has_errors'),
+  };
+  const reviewLabel = gig ? t('t_ui_review_and_save') : t('t_ui_review_and_publish');
 
   if (created) return <GigCreated gig={created} updated={!!gig} />;
 
@@ -579,9 +664,54 @@ function GigForm({ categories, gig }: { categories: CategoryNode[]; gig?: GigOwn
               <Alert kind="info">{t('t_pls_wait_until_uploading_finish')}</Alert>
             </div>
           )}
+          {phone && (
+            <CompactStepper
+              text={t('t_ui_step_of', { step: step + 1, total: PHONE_STEPS.length })}
+              index={step}
+              total={PHONE_STEPS.length}
+            />
+          )}
+          {phone && step === LAST_STEP && (
+            // Review & publish (screen 03): every block with its status and a way back to it.
+            <section className="mt-panel mt-gw-block" aria-labelledby="gig-review-title">
+              <h2 id="gig-review-title" className="mt-gw-block-title" tabIndex={-1}>
+                {reviewLabel}
+              </h2>
+              <ul className="mt-gw-review" data-testid="gig-review">
+                {steps
+                  .filter((s) => s.id !== 'gig-seo')
+                  .map((s) => (
+                    <li key={s.id} className="mt-gw-review-item" data-status={s.status}>
+                      <span>
+                        <span className="mt-gw-review-name">
+                          {s.label}
+                          {s.note && <span className="mt-gw-optional"> {s.note}</span>}
+                        </span>
+                        <span className="mt-gw-review-status">{statusLabels[s.status]}</span>
+                      </span>
+                      <button
+                        type="button"
+                        className="mt-pf-link-button"
+                        aria-label={`${t('t_edit')}: ${s.label}`}
+                        onClick={() =>
+                          goStep(
+                            PHONE_STEPS.findIndex((p) =>
+                              p.blocks.includes(s.id.replace(/^gig-/, '') as BlockId),
+                            ),
+                          )
+                        }
+                      >
+                        {t('t_edit')}
+                      </button>
+                    </li>
+                  ))}
+              </ul>
+            </section>
+          )}
 
           <section
             id="gig-overview"
+            hidden={hiddenBlock('overview')}
             className="mt-panel mt-gw-block"
             aria-labelledby="gig-overview-title"
             onFocus={() => setCurrent('overview')}
@@ -671,6 +801,7 @@ function GigForm({ categories, gig }: { categories: CategoryNode[]; gig?: GigOwn
 
           <section
             id="gig-pricing"
+            hidden={hiddenBlock('pricing')}
             className="mt-panel mt-gw-block"
             aria-labelledby="gig-pricing-title"
             onFocus={() => setCurrent('pricing')}
@@ -718,6 +849,7 @@ function GigForm({ categories, gig }: { categories: CategoryNode[]; gig?: GigOwn
 
           <section
             id="gig-upgrades"
+            hidden={hiddenBlock('upgrades')}
             className="mt-panel mt-gw-block"
             aria-labelledby="gig-upgrades-title"
             onFocus={() => setCurrent('upgrades')}
@@ -783,6 +915,7 @@ function GigForm({ categories, gig }: { categories: CategoryNode[]; gig?: GigOwn
 
           <section
             id="gig-faq"
+            hidden={hiddenBlock('faq')}
             className="mt-panel mt-gw-block"
             aria-labelledby="gig-faq-title"
             onFocus={() => setCurrent('faq')}
@@ -837,6 +970,7 @@ function GigForm({ categories, gig }: { categories: CategoryNode[]; gig?: GigOwn
 
           <section
             id="gig-gallery"
+            hidden={hiddenBlock('gallery')}
             className="mt-panel mt-gw-block"
             aria-labelledby="gig-gallery-title"
             onFocus={() => setCurrent('gallery')}
@@ -918,6 +1052,7 @@ function GigForm({ categories, gig }: { categories: CategoryNode[]; gig?: GigOwn
 
           <section
             id="gig-seo"
+            hidden={hiddenBlock('seo')}
             className="mt-panel mt-gw-block"
             aria-labelledby="gig-seo-title"
             onFocus={() => setCurrent('seo')}
@@ -925,22 +1060,55 @@ function GigForm({ categories, gig }: { categories: CategoryNode[]; gig?: GigOwn
             <h2 id="gig-seo-title" className="mt-gw-block-title" tabIndex={-1}>
               {t('t_seo')} <span className="mt-gw-optional">{optional}</span>
             </h2>
+            {phone && (
+              // Phone: the SEO fields sit in the Review step itself (screen 03), no dialog.
+              <div
+                className="mt-gw-dialog"
+                onBlur={() => blockStarted(draft, 'seo') && touch('seo')}
+              >
+                <Field
+                  label={t('t_seo_title')}
+                  name="seo.title"
+                  placeholder={t('t_enter_seo_title')}
+                  maxLength={SEO.titleMax}
+                  value={draft.seo.title}
+                  onChange={(v) => set('seo', { ...draft.seo, title: v })}
+                />
+                <TextArea
+                  label={t('t_seo_description')}
+                  name="seo.description"
+                  placeholder={t('t_enter_seo_description')}
+                  maxLength={SEO.descriptionMax}
+                  rows={3}
+                  value={draft.seo.description}
+                  onChange={(v) => set('seo', { ...draft.seo, description: v })}
+                />
+              </div>
+            )}
             {seoFilled && (
               <SeoPreview title={draft.seo.title} description={draft.seo.description} />
             )}
             <div>
-              <button
-                type="button"
-                className="mt-button"
-                aria-haspopup="dialog"
-                aria-describedby={seoError ? 'gig-seo-error' : undefined}
-                data-invalid={seoError ? 'true' : undefined}
-                onClick={() => setSeoOpen(true)}
-              >
-                {t('t_seo_meta_tags')}
-              </button>
+              {!phone && (
+                <button
+                  type="button"
+                  className="mt-button"
+                  aria-haspopup="dialog"
+                  aria-describedby={seoError ? 'gig-seo-error' : undefined}
+                  data-invalid={seoError ? 'true' : undefined}
+                  onClick={() => setSeoOpen(true)}
+                >
+                  {t('t_seo_meta_tags')}
+                </button>
+              )}
               {seoError && (
-                <p id="gig-seo-error" className="auth-error" role="alert">
+                <p
+                  id="gig-seo-error"
+                  className="auth-error"
+                  role="alert"
+                  tabIndex={-1}
+                  data-invalid={phone ? 'true' : undefined}
+                >
                   {seoError}
                 </p>
               )}
@@ -948,18 +1116,45 @@ function GigForm({ categories, gig }: { categories: CategoryNode[]; gig?: GigOwn
           </section>
         </div>
 
-        <aside className="mt-gw-side">
+        {phone && (
+          // StickyActionBar (screen 03): Back / Next, Create on the last step.
+          <div className="mt-gw-actionbar" inert={sending}>
+            {step > 0 && (
+              <button type="button" className="mt-button" onClick={() => goStep(step - 1)}>
+                {t('t_back')}
+              </button>
+            )}
+            {/* Distinct keys: one DOM node must not turn from "Next" into a submit button during its own click. */}
+            {step < LAST_STEP ? (
+              <button
+                key="next"
+                type="button"
+                className="mt-button mt-button-primary"
+                onClick={next}
+              >
+                {t('t_next')}
+              </button>
+            ) : (
+              <button
+                key="submit"
+                type="submit"
+                className="mt-button mt-button-primary"
+                disabled={sending}
+                aria-busy={sending}
+              >
+                {submitLabel}
+              </button>
+            )}
+          </div>
+        )}
+
+        <aside className="mt-gw-side" hidden={phone}>
           <div className="mt-panel mt-gw-summary">
             <Stepper
               label={t('t_ui_form_progress')}
               steps={steps}
               current={`gig-${current}`}
-              statusLabels={{
-                not_started: t('t_ui_step_not_started'),
-                in_progress: t('t_ui_step_in_progress'),
-                complete: t('t_ui_step_completed'),
-                error: t('t_ui_step_has_errors'),
-              }}
+              statusLabels={statusLabels}
               progress={{
                 done,
                 total: required.length,
@@ -973,7 +1168,7 @@ function GigForm({ categories, gig }: { categories: CategoryNode[]; gig?: GigOwn
                 disabled={sending}
                 aria-busy={sending}
               >
-                {sending ? t('t_please_wait_dots') : gig ? t('t_save_changes') : t('t_create')}
+                {submitLabel}
               </button>
             </Stepper>
           </div>

@@ -117,3 +117,37 @@ function StepIcon({ status }: { status: StepStatus }) {
     </svg>
   );
 }
+
+/**
+ * Stepper, compact (§6.12; the phone step mode of a long form, screen 03 "Step 2 / 5 ▰▰▱▱▱"): where the user is and
+ * how far it is. The step's own heading stays in the page; this only states the position, in words and as a bar.
+ */
+export function CompactStepper(props: {
+  /** e.g. "Step 2 of 5". */
+  text: string;
+  /** 0-based. */
+  index: number;
+  total: number;
+}) {
+  const textId = useId();
+  return (
+    <div className="mt-stepper-compact">
+      <p id={textId} className="mt-stepper-progress-text">
+        {props.text}
+      </p>
+      <div
+        className="mt-progress"
+        role="progressbar"
+        aria-labelledby={textId}
+        aria-valuemin={1}
+        aria-valuemax={props.total}
+        aria-valuenow={props.index + 1}
+      >
+        <span
+          className="mt-progress-fill"
+          style={{ inlineSize: `${(100 * (props.index + 1)) / props.total}%` }}
+        />
+      </div>
+    </div>
+  );
+}

@@ -349,3 +349,65 @@
   margin: 0;
   color: var(--mt-text-secondary);
 }
+
+/* Phone step mode (below md, screen 03 "Mobile web"): only the current step's blocks show. */
+.mt-gw-block[hidden],
+.mt-gw-side[hidden] {
+  display: none;
+}
+
+/* Review & publish: each block with its status and "Edit". */
+.mt-gw-review {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mt-gw-review-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--mt-space-3);
+  padding-block: var(--mt-space-2);
+  border-block-end: var(--mt-border-width-hairline) solid var(--mt-border-default);
+}
+
+.mt-gw-review-item > span {
+  display: grid;
+  gap: var(--mt-space-0-5);
+  min-inline-size: 0;
+}
+
+.mt-gw-review-name {
+  font-weight: var(--mt-font-weight-semibold);
+}
+
+.mt-gw-review-status {
+  color: var(--mt-text-secondary);
+  font-size: var(--mt-font-size-sm);
+}
+
+.mt-gw-review-item[data-status='error'] .mt-gw-review-status {
+  color: var(--mt-text-danger);
+}
+
+/* StickyActionBar: Back / Next stay at the bottom of the screen while the step scrolls. */
+.mt-gw-actionbar {
+  position: sticky;
+  inset-block-end: 0;
+  z-index: 1;
+  display: flex;
+  justify-content: space-between;
+  gap: var(--mt-space-3);
+  margin-inline: calc(-1 * var(--mt-size-layout-gutter-mobile));
+  padding: var(--mt-space-3) var(--mt-size-layout-gutter-mobile);
+  border-block-start: var(--mt-border-width-hairline) solid var(--mt-border-default);
+  background: var(--mt-bg-surface);
+}
+
+.mt-gw-actionbar > :last-child {
+  margin-inline-start: auto;
+  min-block-size: var(--mt-size-control-lg);
+  min-inline-size: 40%;
+}

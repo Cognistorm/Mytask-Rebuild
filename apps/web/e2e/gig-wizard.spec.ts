@@ -836,6 +836,102 @@ test("edit: someone else's or an unknown gig is not found", async ({ page }) => 
   await expect(page.getByTestId('gig-not-found')).toBeVisible();
 });
 
+// ---- Phone step mode (ROADMAP 4.3.10e; screen 03 "Mobile web (360)") ----
+
+test('phone: one step per screen, Next checks the step, Review & publish creates', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 360, height: 800 });
+  await fakeApi(page);
+  await fakeFiles(page);
+  const bodies = await fakeCreate(page, (n) =>
+    n === 1
+      ? [
+          400,
+          {
+            code: 'VALIDATION_FAILED',
+            message: 'x',
+            details: { fields: [{ field: 'title.ka', code: 'x', message: 'Server says no.' }] },
+          },
+        ]
+      : [201, createdGig('active')],
+  );
+  await page.goto('/en/create');
+  await hydrated(page);
+
+  const position = page.getByRole('progressbar', { name: 'Step 1 of 5' });
+  await expect(position).toHaveAttribute('aria-valuenow', '1');
+  await expect(page.locator('#gig-overview')).toBeVisible();
+  await expect(page.locator('#gig-pricing')).toBeHidden();
+  await expect(page.getByRole('navigation', { name: 'Form progress' })).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Back' })).toHaveCount(0);
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth - innerWidth),
+  ).toBeLessThanOrEqual(0);
+
+  // Next checks only this step: the first invalid field gets the focus, nothing else shows errors.
+  await page.getByRole('button', { name: 'Next' }).click();
+  await expect(page.getByLabel('Service title in Georgian')).toBeFocused();
+  await expect(page.getByRole('progressbar', { name: 'Step 1 of 5' })).toBeVisible();
+  await page.getByLabel('Service title in Georgian').fill('ლოგოს დიზაინი');
+  await page.getByLabel('Category', { exact: true }).selectOption({ label: 'Design' });
+  await page.getByLabel('Subcategory').selectOption({ label: 'Logo design' });
+  await page.getByLabel('Childcategory').selectOption({ label: 'Minimalist logo' });
+  await page
+    .getByRole('textbox', { name: 'Description in Georgian' })
+    .fill('ლოგოს დიზაინი ორ დღეში');
+  await page.getByRole('button', { name: 'Next' }).click();
+
+  await expect(page.getByRole('progressbar', { name: 'Step 2 of 5' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '2. Pricing' })).toBeFocused();
+  await expect(page.locator('#gig-overview')).toBeHidden();
+  await page.getByRole('button', { name: 'Back' }).click();
+  await expect(page.getByLabel('Service title in Georgian')).toHaveValue('ლოგოს დიზაინი');
+  await page.getByRole('button', { name: 'Next' }).click();
+  await page.getByLabel('Price', { exact: true }).fill('250');
+  await page.getByLabel('Delivery time', { exact: true }).selectOption({ label: '3 days' });
+  // Enter in a field means Next.
+  await page.getByRole('spinbutton', { name: 'Number of revisions' }).fill('1');
+  await page.getByRole('spinbutton', { name: 'Number of revisions' }).press('Enter');
+
+  // Step 3: Upgrades and FAQ together, both optional.
+  await expect(page.getByRole('progressbar', { name: 'Step 3 of 5' })).toBeVisible();
+  await expect(page.locator('#gig-upgrades')).toBeVisible();
+  await expect(page.locator('#gig-faq')).toBeVisible();
+  await page.getByRole('button', { name: 'Next' }).click();
+
+  // Step 4: the gallery is required; uploads keep running when the step changes.
+  await page.getByRole('button', { name: 'Next' }).click();
+  await expect(page.getByTestId('gig-thumbnail').getByText('Field required')).toBeVisible();
+  await page.getByTestId('gig-thumbnail').locator('input[type=file]').setInputFiles(png('t.png'));
+  await page.getByTestId('gig-images').locator('input[type=file]').setInputFiles(png('a.png'));
+  await expect(page.locator('[data-testid="gig-file"][data-state="ready"]')).toHaveCount(2);
+  await page.getByRole('button', { name: 'Next' }).click();
+
+  // Step 5: review with "Edit" links, the SEO fields inline, Create.
+  await expect(page.getByRole('heading', { name: 'Review & publish' })).toBeFocused();
+  const review = page.getByTestId('gig-review');
+  await expect(review.getByRole('listitem')).toHaveCount(5);
+  await expect(review.getByRole('listitem').first()).toContainText('completed');
+  await expect(page.locator('#gig-seo').getByLabel('Seo title')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'SEO meta tags' })).toHaveCount(0);
+  await expectNoAxeViolations(page, 'phone review', 'main');
+  await review.getByRole('button', { name: 'Edit: Pricing' }).click();
+  await expect(page.getByRole('progressbar', { name: 'Step 2 of 5' })).toBeVisible();
+  for (let i = 0; i < 3; i++) await page.getByRole('button', { name: 'Next' }).click();
+
+  // A server error on an earlier step: Create jumps there and focuses the field.
+  await page.getByRole('button', { name: 'Create', exact: true }).click();
+  await expect(page.getByRole('progressbar', { name: 'Step 1 of 5' })).toBeVisible();
+  await expect(page.getByLabel('Service title in Georgian')).toBeFocused();
+  await expect(page.getByText('Server says no.')).toBeVisible();
+  await page.getByLabel('Service title in Georgian').fill('ლოგოს დიზაინი სწრაფად');
+  for (let i = 0; i < 4; i++) await page.getByRole('button', { name: 'Next' }).click();
+  await page.getByRole('button', { name: 'Create', exact: true }).click();
+  await expect(page.getByTestId('gig-created')).toBeVisible();
+  expect(bodies).toHaveLength(2);
+});
+
 test('the Georgian page uses the Georgian texts', async ({ page }) => {
   await fakeApi(page);
   await page.goto('/create');

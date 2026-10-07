@@ -96,3 +96,9 @@
   clip-path: inset(50%);
   white-space: nowrap;
 }
+
+/* Compact: "Step 2 of 5" over the bar (phone step mode). */
+.mt-stepper-compact {
+  display: grid;
+  gap: var(--mt-space-2);
+}

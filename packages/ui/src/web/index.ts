@@ -1,7 +1,7 @@
 // @mytask/ui/web: React DOM components for apps/web and apps/admin (components.md, ADR-001).
 export { Alert, CodeInput, Field, RadioGroup, Select, Submit, TextArea } from './form';
 export { PriceInput, QuantityInput, RichTextEditor, richTextFromHtml } from './inputs';
-export { Stepper, type StepItem, type StepStatus } from './stepper';
+export { CompactStepper, Stepper, type StepItem, type StepStatus } from './stepper';
 export {
   AccountMenu,
   DashboardLayout,
