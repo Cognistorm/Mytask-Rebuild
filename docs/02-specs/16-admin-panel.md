@@ -3,6 +3,7 @@ Status: **approved** (Owner 2026-09-29; P-114…P-126; S-127 added to spec 00 ac
 Updated 2026-09-30 with Owner gate answers: AC-7 step-up list extended (Q-145, Q-119); AC-9 own-account exception (Q-112); AC-21 portfolio `rejected` state + EV-126 (Q-117); AC-24 (Q-115); AC-32 staff switch off a user's 2FA with re-login and EV-127 (Q-145); AC-40 (Q-114); AC-42 withdrawals list/detail need `withdrawals.approve` + "details changed recently" flag (Q-113, Q-144); AC-44 P-135 accepted, negative legacy-hold residuals write-off only (Q-111, Q-120); AC-74 and S-127 fixed-code vendors only (Q-146); settings areas S-128 → payments (Q-137), S-129 → withdrawals (Q-144); permission catalogue `payments.read` / `withdrawals.approve` rows (Q-113).
 Updated 2026-10-02 with ADR-019 (Owner Q-158 (a)): AC-73 full page load at the public/private boundary; AC-74 built-in tag-manager deny list (`t_custom_code_host_denied`).
 Updated 2026-10-06 with ADR-023 (category colours, spec 3X R-1, Owner Q-169…Q-171, Q-178): NEW AC-60a, AC-61a.
+Updated 2026-10-07 with Owner Q-123 (b) and ADR-024: AC-20 restore checks the owner's plan limit and notifies the owner (NEW EV-130).
 Author: product-analyst (P2-A5) | Date: 2026-09-29
 Legacy reference: `docs/01-discovery/routes-and-pages.md` ("Admin /dashboard", "/console"), `features.md` M (Admin) and N (Analytics), `roles-and-permissions.md`, `risks-and-debt.md` R-034. Owner decisions: vision (staff RBAC: Customer Support, Financial Manager, Content Moderator), Q-006, Q-015, Q-016, Q-021, Q-026, Q-032, Q-043/Q-063 (S-060), Q-054, Q-055, Q-057, Q-074, Q-083, Q-085, Q-088, Q-096, Q-097 (**open**), Q-101, Q-102. Platform rules: `00-platform-rules.md` §4 (register S-001…S-126, rules for editing, AC-8…AC-12), R-3.7 (ledger adjustments only), X-17, X-19, X-20; ACCEPTED P-4, P-5, P-12, P-20. Specs 01–15 and 17 own the business rules of each screen; this spec defines the admin app, staff access, RBAC and the admin-only modules, and links to the owning spec ACs instead of repeating them. ADR-005 (settings, Commission & Fee), ADR-006 §4 (translation overrides), ADR-010 (admin app and RBAC), ADR-012 (analytics), ADR-013 (web-root isolation), url-map §6; data-model §3.K, §3.P, §3.R, §3.S.
 
@@ -71,7 +72,7 @@ Give MyTask staff one separate, secure admin app at `admin.mytask.ge` (Q-088, AD
 
 ### E. Moderation queues (ADR-010 §7)
 - AC-19 Given any moderation queue, When it opens, Then it lists pending items oldest first, 50 per page, with filters (date, owner, category); the detail shows the content as the public would see it plus an owner summary (status, plan, KYC state, number of reports, earlier rejections). "Approve" and "Reject" (reason required, ≤ 1,000 characters, shown to the owner) apply the rules and notifications of the owning spec; every decision is audited; if two staff decide the same item, the first decision wins and the second sees `t_item_already_decided`. Empty queue: `t_admin_queue_empty`. (LEGACY queues; CHANGE: reasons, audit, race safety)
-- AC-20 Gigs (`gigs.moderate`): publish and reject per spec 04 AC-16…AC-18. For an active gig, staff can "Remove" it with an internal reason (it becomes deleted exactly like an owner deletion, refused while orders are in progress, spec 04) and "Restore" it within 30 days. Staff do not edit the gig's text, images or prices. (LEGACY delete/trash `GigsComponent.php:158`, `Trash/TrashComponent.php:113`; CHANGE: no staff content editing, ACCEPTED P-117)
+- AC-20 Gigs (`gigs.moderate`): publish and reject per spec 04 AC-16…AC-18. For an active gig, staff can "Remove" it with an internal reason (it becomes deleted exactly like an owner deletion, refused while orders are in progress, spec 04) and "Restore" it within 30 days. Staff do not edit the gig's text, images or prices. (LEGACY delete/trash `GigsComponent.php:158`, `Trash/TrashComponent.php:113`; CHANGE: no staff content editing, ACCEPTED P-117) Restore puts the gig back to active (also while S-070 is OFF: it was active when removed). It is refused with `t_admin_gig_restore_plan_limit` when the owner's non-deleted gigs already reach their plan limit (spec 04 R-G3, S-001 / S-002), and on success the owner gets EV-130 (`GigRestored` email + in-app + push) linking to the gig page. (NEW, Owner 2026-10-07 Q-123 (b); legacy restored silently without a limit check, `Trash/TrashComponent.php:113-122`)
 - AC-21 Portfolio (`portfolio.moderate`): approve per spec 02 AC-25/AC-26; reject with reason per spec 02 AC-42 — the item keeps the status `rejected` (it is not deleted), the owner sees the reason and gets spec 15 EV-126 (email + in-app + push); remove a published item with reason. (LEGACY `PortfoliosComponent.php:65, 120`; rejected state and notification NEW, Owner 2026-09-30 Q-117)
 - AC-22 Projects (`projects.moderate`): approve, reject, hide/unhide per spec 10 AC-11…AC-14. (LEGACY)
 - AC-23 Proposals (`proposals.moderate`): approve and reject per spec 11 AC-9, AC-12. (LEGACY)
@@ -269,6 +270,7 @@ Accessibility: the admin uses the same design tokens and components (`packages/u
 - Maintenance ON (EV-122, legacy `SiteIsDown`, changed per P-112); test email (EV-121); staff email to a user (EV-120).
 - Every moderation, user and money action sends the notifications of its owning spec (catalogue in spec 15).
 - Added 2026-09-30: portfolio rejected (EV-126, AC-21, Q-117) and 2FA switched off by staff (EV-127, AC-32, Q-145) — both NEW, to the user.
+- Added 2026-10-07: gig restored by staff (EV-130, AC-20, Q-123 (b)) — NEW, to the gig owner.
 
 ## Texts (i18n key | en | ka)
 Legacy keys reused (values unchanged):
@@ -364,6 +366,14 @@ NEW key added 2026-10-02 (ADR-019 §3, Owner Q-158 (a); English first, Georgian 
 |---|---|---|
 | `t_custom_code_host_denied` | Tag manager containers are not allowed in custom code: :matches | ტეგ-მენეჯერის კონტეინერები დამატებით კოდში დაუშვებელია: :matches |
 
+NEW keys added 2026-10-07 (AC-20, EV-130, Owner Q-123 (b); English first, Georgian alongside, Q-058). The Owner refines both values as needed.
+| Key | en | ka |
+|---|---|---|
+| `t_admin_gig_restore_plan_limit` | The owner already has :count gigs, the limit of their plan (:limit). The gig can be restored when the owner has fewer gigs. | მფლობელს უკვე აქვს :count განცხადება, რაც მისი პაკეტის ლიმიტია (:limit). განცხადების აღდგენა შესაძლებელი იქნება, როცა მფლობელს ნაკლები განცხადება ექნება. |
+| `t_subject_gig_restored` | Your gig is visible again | თქვენი განცხადება კვლავ ხილულია |
+| `t_gig_restored_email_body` | Our team has restored your gig ":title". It is active again and visible to buyers. | ჩვენმა გუნდმა აღადგინა თქვენი განცხადება „:title“. ის კვლავ აქტიურია და შემკვეთებისთვის ხილულია. |
+| `t_ur_gig_title_has_been_restored` | Your gig :title has been restored and is visible again | განცხადება :title აღდგენილია და კვლავ ხილულია |
+
 ## Edge cases
 - EC-1 A staff member loses a permission while a decision form is open: the save is refused with 403; nothing changes.
 - EC-2 The only Super-admin forgets their password: they use the staff password reset (same rules as spec 01); if their email is lost, recovery needs server access by the developer (documented in the operations guide, not in the admin).
@@ -450,7 +460,7 @@ NEW key added 2026-10-02 (ADR-019 §3, Owner Q-158 (a); English first, Georgian 
 ## Open questions
 Waiting for the Owner: **Q-097** (legacy admin accounts and their roles) — only AC-8 depends on it; the proposed safe default is in P-115. No new questions.
 
-Owner gate answers applied on 2026-09-30: Q-111 (P-135), Q-112 (AC-9), Q-113 (AC-42, catalogue), Q-114 (AC-40), Q-115 (AC-24), Q-117 (AC-21), Q-119 (AC-7, AC-44), Q-120 (AC-44, EC-12), Q-137 (S-128 settings area), Q-144 (AC-42, S-129 settings area), Q-145 (AC-7, AC-32), Q-146 (AC-74a, S-127). Slice items still open for this spec: Q-118, Q-122, Q-123, Q-132, Q-136, Q-138…Q-143, Q-150.
+Owner gate answers applied on 2026-09-30: Q-111 (P-135), Q-112 (AC-9), Q-113 (AC-42, catalogue), Q-114 (AC-40), Q-115 (AC-24), Q-117 (AC-21), Q-119 (AC-7, AC-44), Q-120 (AC-44, EC-12), Q-137 (S-128 settings area), Q-144 (AC-42, S-129 settings area), Q-145 (AC-7, AC-32), Q-146 (AC-74a, S-127). Q-123 answered 2026-10-07 (b) (AC-20, EV-130). Slice items still open for this spec: Q-118, Q-122, Q-132, Q-136, Q-138…Q-143, Q-150.
 
 Proposed items (all accepted by the Owner on 2026-09-29):
 - **P-114 Default roles.** Four roles as in the matrix: Super-admin (everything), Customer Support (users, KYC, reports, appeals, support inbox, read-only orders/payments, chats, refund threads without decisions), Financial Manager (payments, disputes, releases/refunds, withdrawals, bank transfers, balance and points adjustments, Premium gifts, promo codes, analytics, chats for evidence), Content Moderator (all moderation queues, reports, restrict/ban, chats and hiding messages, categories, CMS/blog/newsletter, translations, content settings). Fee rules, all other settings, staff management, audit log, logs and system health stay with Super-admin by default. Refund threads get their own permission (`refunds.thread.write`) so support can answer without deciding disputes.

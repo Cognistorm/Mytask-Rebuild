@@ -3,7 +3,7 @@
 openapi: 3.1.0
 info:
   title: MyTask.ge API
-  version: 1.4.0
+  version: 1.5.0
   summary: One API for the MyTask.ge website, mobile apps (iOS, Android) and admin panel.
   description: |
     **Status: approved by the Owner 2026-09-30 as the contract** (Phase 2 gate, version 1.0.0, including
@@ -26,7 +26,8 @@ info:
     `CategoryDetail` (+ breadcrumb and children as `CategoryColorRef`), the `getHome` rows and tiles, `ProjectCategory`
     and `AdminProjectCategory`; `AdminCategory.color` + `resolvedColor`; optional `color` on the category
     create/update requests with `400 VALIDATION_FAILED` (field `color`: `pattern`, `top_level_only`) and
-    `409 DUPLICATE` (field `color`).
+    `409 DUPLICATE` (field `color`). **1.5.0** `adminRestoreGig` checks the owner's plan limit (`422 PLAN_LIMIT_REACHED`,
+    `x-settings` S-001 / S-002) and sends NEW EV-130 `GigRestored` to the owner (ADR-024, Owner Q-123 (b)).
 
     **The contract is the law** (CLAUDE.md). Web (`apps/web`), mobile (`apps/mobile`) and admin
     (`apps/admin`) use only this API through the generated `packages/types` + `packages/api-client`
@@ -4025,8 +4026,13 @@ paths:
       summary: Restore a staff-removed gig within 30 days
       description: |
         Only gigs removed by staff (`deletedBy = staff`), within 30 days of the removal (spec 16 AC-20);
-        the gig returns to `active` (the status it had when removed). Later → 422 GIG_RESTORE_WINDOW_EXPIRED;
-        not a staff removal → 409 STATE_CONFLICT. Plan-limit and re-moderation effects: contract default, slice item Q-123.
+        the gig returns to `active` (the status it had when removed; no re-moderation, also while S-070 is OFF)
+        and the removal fields are cleared. The owner's plan limit is checked first (spec 04 R-G3, S-001 / S-002
+        by the owner's current plan): when the owner's non-deleted gigs already reach it → 422 PLAN_LIMIT_REACHED
+        (`t_admin_gig_restore_plan_limit`, `details.limit`, `details.settingId`). On success the owner gets EV-130
+        `GigRestored` (email + in-app + push) linking to the gig page (Owner 2026-10-07, Q-123 (b), ADR-024).
+        Errors: 404, 409 STATE_CONFLICT (not a staff removal, or not deleted), 422 GIG_RESTORE_WINDOW_EXPIRED
+        (more than 30 days after the removal) / PLAN_LIMIT_REACHED.
       tags:
         - Admin Gigs
       security:
@@ -4039,6 +4045,11 @@ paths:
       x-covers:
         - 16 AC-20
       x-audit: gig.restore
+      x-settings:
+        - S-001
+        - S-002
+      x-notifications:
+        - EV-130
       x-emits:
         - gig.status_changed
       requestBody:

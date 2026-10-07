@@ -58,9 +58,10 @@ Phase: **4 — Feature slices** (slice 3 gigs, resumed 2026-10-07; Phase 4X admi
 
 ## Micro-task workflow (Owner rule 2026-09-30)
 The plan lives in **docs/ROADMAP.md** (checkbox per micro-task). One micro-task at a time; when it is done and tests pass, tick it there and add one line below.
-**Next micro-task: 4.3.2a** (architect: staff removal/restore columns on `gigs`, analytics tables, Q-123 (b) restore rule in the contract + EV-130 via product-analyst; slice 3 gigs, branch `feat/gigs`). BUG-01 stays deferred (DEV-S1). **Owner decisions still open:** DEV-M1; Q-160; Q-163; Q-164.
+**Next micro-task: 4.3.2b** (backend: migration for the rest of §3.D + removal columns + analytics tables, S-070 row, 23 i18n keys; slice 3 gigs, branch `feat/gigs`). Contract is now **1.5.0** (ADR-024). BUG-01 stays deferred (DEV-S1). **Owner decisions still open:** DEV-M1; Q-160; Q-163; Q-164.
 
 ### Micro-task log
+- 2026-10-07 4.3.2a done: data model §3.D gig removal/restore columns + `submitted_at` (+ legacy mapping); NEW EV-130 gig restored (spec 15, spec 16 AC-20, 4 keys); ADR-024, contract 1.5.0 (`adminRestoreGig` plan limit + EV-130), verify:final 0/0, 719/719; types regenerated. Next: 4.3.2b.
 - 2026-10-07 Owner answered Q-123 (b): restoring a staff-removed gig checks the plan limit and notifies the owner (NEW EV-130); recorded in open-questions.md, folded into 4.3.2a / 4.3.7 / 4.3.8. Next: 4.3.2a.
 - 2026-10-07 4.3.1 done: spec 04 vs contract 1.4.0 complete (37 API ACs covered, 2 NOT-API correct), no contract change; data-model gap (staff removal/restore + `submitted_at` on `gigs`) → 4.3.2a; Q-123 now due (blocks only `adminRestoreGig`); missing S-070 row, gig file purposes, R-5.3a validator, 19 i18n keys; 4.3.2 split a/b, 4.3.3–4.3.12 extended; handoff `docs/handoffs/2026-10-07-orchestrator-to-architect-backend-web-mobile-4-3-1-spec-04-check.md`. Next: 4.3.2a.
 - 2026-10-07 4X.11 done (Phase 4X complete): Owner approved and merged PR #4 into `main` (`ec09b8ff`); brief §7 choices kept as built (Banned IPs under Settings); `feat/gigs` rebased on `main`. Phase 4 resumes. Next: 4.3.1.
