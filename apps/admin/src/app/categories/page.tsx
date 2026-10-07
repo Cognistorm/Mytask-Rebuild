@@ -8,7 +8,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { nextStarterColor } from '@mytask/tokens/color';
 import type { components } from '@mytask/types';
-import { Alert, Field } from '@mytask/ui/web';
+import { Alert, EmptyState, Field } from '@mytask/ui/web';
 import { AdminShell } from '../../components/shell';
 import {
   Checkbox,
@@ -305,9 +305,9 @@ export default function CategoriesPage() {
 
       <section className="admin-section">
         {list.length === 0 ? (
-          <p className="auth-muted">{t('t_no_results_found')}</p>
+          <EmptyState title={t('t_no_results_found')} />
         ) : (
-          <ul className="admin-rows">
+          <ul className="admin-rows admin-tree">
             {list.map((c) => (
               <li
                 key={c.id}
@@ -352,7 +352,11 @@ export default function CategoriesPage() {
                   >
                     {t('t_edit')}
                   </button>
-                  <button type="button" className="auth-link-button" onClick={() => remove(c)}>
+                  <button
+                    type="button"
+                    className="auth-link-button mt-edit-link-danger"
+                    onClick={() => remove(c)}
+                  >
                     {t('t_delete')}
                   </button>
                 </span>

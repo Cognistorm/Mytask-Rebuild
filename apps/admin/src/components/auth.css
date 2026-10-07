@@ -430,12 +430,78 @@ button.mt-sidebar-link {
   object-fit: cover;
 }
 
-.admin-depth-2 {
-  padding-inline-start: var(--mt-space-6);
+/* Catalogue lists and the category tree (4X.6, admin-refresh.md §5): rows with hairlines and the hover tint, the
+   depth shown by indent guide lines, row actions as compact Ghost buttons (Delete in danger text). */
+.admin-tree {
+  gap: 0;
+  margin-inline: calc(-1 * var(--mt-space-2));
 }
 
-.admin-depth-3 {
-  padding-inline-start: var(--mt-space-12);
+.admin-tree .admin-row {
+  position: relative;
+  padding: var(--mt-space-3) var(--mt-space-2);
+  border-bottom: 0;
+  border-radius: var(--mt-radius-md);
+  transition: background-color var(--mt-motion-duration-fast) var(--mt-motion-easing-standard);
+}
+
+.admin-tree .admin-row + .admin-row {
+  border-block-start: var(--mt-border-width-hairline) solid var(--mt-border-subtle);
+  border-start-start-radius: 0;
+  border-start-end-radius: 0;
+}
+
+@media (hover: hover) {
+  .admin-tree .admin-row:hover {
+    background-color: var(--mt-bg-hover);
+  }
+}
+
+.admin-tree .admin-row-text strong {
+  font-weight: var(--mt-font-weight-semibold);
+}
+
+.admin-tree .admin-row-text code {
+  padding: 0 var(--mt-space-1);
+  border: var(--mt-border-width-hairline) solid var(--mt-border-subtle);
+  border-radius: var(--mt-radius-sm);
+  background: var(--mt-bg-subtle);
+  color: var(--mt-text-secondary);
+  font-family: var(--mt-font-family-mono);
+  font-size: var(--mt-font-size-xs);
+}
+
+.admin-tree .admin-row-text .auth-muted {
+  font-size: var(--mt-font-size-sm);
+}
+
+.admin-tree .admin-depth-2 {
+  padding-inline-start: calc(var(--mt-space-2) + var(--mt-space-8));
+}
+
+.admin-tree .admin-depth-3 {
+  padding-inline-start: calc(var(--mt-space-2) + var(--mt-space-8) * 2);
+}
+
+/* One guide line per level above the row, under the parent's dot. */
+.admin-depth-2::before,
+.admin-depth-3::before,
+.admin-depth-3::after {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: calc(var(--mt-space-2) + var(--mt-space-1));
+  border-inline-start: var(--mt-border-width-hairline) solid var(--mt-border-default);
+}
+
+.admin-depth-3::after {
+  inset-inline-start: calc(var(--mt-space-2) + var(--mt-space-8) + var(--mt-space-1));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-tree .admin-row {
+    transition: none;
+  }
 }
 
 /* Category colour (3X.15, visual-refresh.md §9): picker, swatches, messages, light + dark preview, dots. The preview

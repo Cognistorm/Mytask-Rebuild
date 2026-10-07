@@ -5,7 +5,7 @@
 // linked category's (spec 3X R-1.2): a dot on each row and an "inherited from" line in the form (3X.15).
 import { useCallback, useEffect, useState } from 'react';
 import type { components } from '@mytask/types';
-import { Alert, Field, Select } from '@mytask/ui/web';
+import { Alert, EmptyState, Field, Select } from '@mytask/ui/web';
 import { AdminShell } from '../../components/shell';
 import {
   Checkbox,
@@ -201,9 +201,9 @@ export default function ProjectCategoriesPage() {
 
       <section className="admin-section">
         {list.length === 0 ? (
-          <p className="auth-muted">{t('t_no_results_found')}</p>
+          <EmptyState title={t('t_no_results_found')} />
         ) : (
-          <ul className="admin-rows">
+          <ul className="admin-rows admin-tree">
             {list.map((c) => (
               <li key={c.id} className="admin-row" data-testid="project-category-row">
                 <span className="admin-row-text">
@@ -236,7 +236,11 @@ export default function ProjectCategoriesPage() {
                   >
                     {t('t_edit')}
                   </button>
-                  <button type="button" className="auth-link-button" onClick={() => remove(c)}>
+                  <button
+                    type="button"
+                    className="auth-link-button mt-edit-link-danger"
+                    onClick={() => remove(c)}
+                  >
                     {t('t_delete')}
                   </button>
                 </span>
