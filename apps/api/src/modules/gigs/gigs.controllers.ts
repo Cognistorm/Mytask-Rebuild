@@ -1,5 +1,5 @@
-// Contract: getGigCreationEligibility (ROADMAP 4.3.3a), createGig (4.3.3b). updateGig and deleteGig follow in 4.3.3c.
-import { Body, Controller, Get, HttpCode, Post, Req } from '@nestjs/common';
+// Contract: getGigCreationEligibility (ROADMAP 4.3.3a), createGig (4.3.3b), updateGig and deleteGig (4.3.3c).
+import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Req } from '@nestjs/common';
 import type { components } from '@mytask/types';
 import type { Request } from 'express';
 import { ClientIpResolver } from '../../platform/client-ip/client-ip.resolver';
@@ -36,5 +36,21 @@ export class GigsController {
     @Req() req: Request,
   ): Promise<S['GigOwnerView']> {
     return this.gigs.create(auth.userId, body, this.ctx(req));
+  }
+
+  @Patch(':gigId')
+  update(
+    @CurrentAuth() auth: AuthState,
+    @Param('gigId') gigId: string,
+    @Body() body: S['GigUpdateRequest'],
+    @Req() req: Request,
+  ): Promise<S['GigOwnerView']> {
+    return this.gigs.update(auth.userId, gigId, body, this.ctx(req));
+  }
+
+  @Delete(':gigId')
+  @HttpCode(204)
+  remove(@CurrentAuth() auth: AuthState, @Param('gigId') gigId: string): Promise<void> {
+    return this.gigs.remove(auth.userId, gigId);
   }
 }

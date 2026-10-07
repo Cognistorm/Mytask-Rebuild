@@ -925,3 +925,15 @@ Recommendation: (b), a one-line change; the pills still read as buttons.
 **Restoring a gig removed by staff (spec 16 AC-20): does it count against the plan limit, go back to pending when S-070 is OFF, notify the owner?** Contract default: restored to active, no limit check, no notification. Recommendation: check the limit; notify (NEW event).
 **Answer (Owner, 2026-10-07):** (b) — check the owner's plan limit and notify the owner (NEW notification). Status on restore is not changed by this answer: the gig returns to active (the status it had when removed), as the contract says.
 Follow-up: product-analyst adds the NEW event (next free id EV-130, email + in-app + push to the owner, marked NEW) to spec 15 and spec 16 AC-20 with its texts (en + ka); solution-architect updates `adminRestoreGig` (plan-limit refusal `422 PLAN_LIMIT_REACHED`, `x-emits`) with an ADR note, as part of ROADMAP 4.3.2a. **Done 2026-10-07** (ADR-024, contract 1.5.0, spec 15 EV-130, spec 16 AC-20 + Texts).
+
+## Slice 3 gigs — open (backend-engineer, ROADMAP 4.3.3c, 2026-10-07)
+
+### Q-181
+**Which fixed gig limits should become admin settings?** Owner rule (2026-10-07): a value that may change later must be editable in the admin panel. The slice 3 values that already are admin settings: gigs per plan (S-001 Standard, S-002 Premium), number of revisions (S-041), auto-approve (S-070), gallery images (S-077), image size (S-078), documents on/off, count and size (S-080…S-082). Empty S-001/S-002 now really means "unlimited" in the admin (fixed in 4.3.3c). The values below are still **fixed in the API contract** (and partly in the database columns), as legacy had them. Changing any of them into a setting needs the Architect (contract + ADR, CLAUDE.md rule 2):
+1. Upgrades per gig: max **10** (spec 04 AC-11, R-G9).
+2. FAQ entries per gig: max **10** (AC-12).
+3. Minimum gig and upgrade price: **1.00 GEL** (P-35; there is also a database check ≥ 100 tetri).
+4. Text lengths: title 3–100, description ≥ 10, FAQ question 100 / answer 300, SEO title 100 / description 150 (legacy validators; database columns of the same size).
+5. The delivery time list: None, 1–6 days, 1, 2, 3 weeks, 1 month (AC-8).
+Options: (a) keep all fixed, as legacy; (b) make 1 and 2 settings, each with a Standard and a Premium value (like S-001/S-002); this also allows a Premium feature "more upgrades/FAQs"; (c) (b) plus 3 as one setting.
+Recommendation: (b) — upgrades and FAQ counts are the ones a plan could sell; the price floor and text lengths are content rules better kept fixed (bigger lengths would also need database changes). Nothing in slice 3 is blocked: everything keeps today's values until the Owner answers.

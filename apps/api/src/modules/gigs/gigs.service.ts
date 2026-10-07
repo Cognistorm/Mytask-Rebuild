@@ -26,7 +26,7 @@ import { newPublicUid, uidSlug } from '../../platform/slug';
 import type { RequestContext } from '../auth/request-context';
 import { SearchIndex } from '../catalog/search-index';
 import { imageVariants } from '../files/image-variants';
-import { FileAttachments } from '../files/files.service';
+import { FileAttachments, FilesService } from '../files/files.service';
 import {
   checkCategoryChain,
   checkDescription,
@@ -63,6 +63,24 @@ const FULL = {
 const GIG_PURPOSES: readonly FilePurpose[] = ['gig_thumbnail', 'gig_image', 'gig_document'];
 
 const fileMismatch = () => new ApiException(422, 'FILE_PURPOSE_MISMATCH', 't_file_not_found');
+const notFound = () => new ApiException(404, 'NOT_FOUND', 't_page_not_fount');
+
+/** Every file of a gig (thumbnail, gallery, documents), once. */
+const fileIdsOf = (gig: FullGig) => [
+  ...new Set([
+    gig.thumbnailFileId,
+    ...gig.images.map((i) => i.fileId),
+    ...gig.documents.map((d) => d.fileId),
+  ]),
+];
+
+/** Locks the gig row for this transaction; 404 when it was deleted meanwhile. */
+async function lockLiveGig(tx: Tx, gigId: string): Promise<{ ordersInQueue: number }> {
+  const [row] = await tx.$queryRaw<{ status: string; orders_in_queue: number }[]>`
+    SELECT "status"::text AS "status", "orders_in_queue" FROM "gigs" WHERE "id" = ${gigId}::uuid FOR UPDATE`;
+  if (!row || row.status === 'deleted') throw notFound();
+  return { ordersInQueue: row.orders_in_queue };
+}
 
 @Injectable()
 export class GigsService {
@@ -76,6 +94,7 @@ export class GigsService {
     private readonly outbox: OutboxService,
     private readonly searchIndex: SearchIndex,
     private readonly limits: GigLimits,
+    private readonly files: FilesService,
     attachmentChecks: FileAttachments,
   ) {
     // A gig's thumbnail, gallery image or document cannot be deleted through deleteFile (409) while a gig uses it.
@@ -199,6 +218,241 @@ export class GigsService {
       return created;
     });
     return this.ownerView(gig);
+  }
+
+  // ------------------------------------------------------------------ updateGig (AC-21…AC-23, AC-25, AC-33)
+
+  /**
+   * Only the sent fields change; `title` / `description` carry both languages, lists replace the whole list in
+   * order. Never limited by the plan (AC-25). Every save follows S-070 again (AC-22, R-G4): OFF → `pending` +
+   * EV-19 (also when it was already pending), ON → `active`. Files the gig no longer uses are deleted afterwards.
+   */
+  async update(
+    userId: string,
+    gigId: string,
+    body: S['GigUpdateRequest'],
+    ctx: RequestContext,
+  ): Promise<S['GigOwnerView']> {
+    const before = await this.ownGig(userId, gigId);
+    const s = await this.settings.getMany(['S-041', 'S-070', 'S-077', 'S-080', 'S-081', 'S-100']);
+
+    const issues: FieldIssue[] = [];
+    const title = body.title ? checkTitle(issues, body.title) : undefined;
+    const description = body.description
+      ? checkDescription(issues, body.description, (html) =>
+          this.richText.sanitize(html, 'user_text'),
+        )
+      : undefined;
+    const chain = {
+      categoryId: body.categoryId ?? before.categoryId,
+      subcategoryId: body.subcategoryId ?? before.subcategoryId,
+      childCategoryId: body.childCategoryId ?? before.childcategoryId,
+    };
+    // A changed level is checked against the levels around it, sent or stored (AC-4, AC-21).
+    if (body.categoryId ?? body.subcategoryId ?? body.childCategoryId) {
+      const categories = await this.prisma.gigCategory.findMany({
+        where: { id: { in: Object.values(chain) } },
+        select: { id: true, parentId: true },
+      });
+      checkCategoryChain(issues, chain, categories);
+    }
+    const priceTetri = body.price ? checkPrice(issues, 'price', body.price) : undefined;
+    const revisionsAllowed =
+      body.revisionsAllowed === undefined
+        ? undefined
+        : checkRevisions(issues, body.revisionsAllowed, s['S-041']);
+    const upgrades = body.upgrades ? checkUpgrades(issues, body.upgrades) : undefined;
+    // An upgrade keeps its identity by `id` (placed orders refer to it): only this gig's current upgrades, once.
+    const keptUpgrades = new Set<string>();
+    upgrades?.forEach((u, i) => {
+      if (u.id === null) return;
+      if (keptUpgrades.has(u.id) || !before.upgrades.some((b) => b.id === u.id)) {
+        issues.push({
+          field: `upgrades[${i}].id`,
+          code: 'not_allowed',
+          messageKey: 't_validator_exists',
+        });
+      }
+      keptUpgrades.add(u.id);
+    });
+    const faqs = body.faqs ? checkFaqs(issues, body.faqs) : undefined;
+    const seo = body.seo === undefined ? undefined : checkSeo(issues, body.seo);
+    const imageFileIds = body.imageFileIds
+      ? checkFileList(issues, 'imageFileIds', body.imageFileIds, s['S-077'])
+      : undefined;
+    const documentFileIds = body.documentFileIds
+      ? checkFileList(issues, 'documentFileIds', body.documentFileIds, s['S-081'])
+      : undefined;
+    if (issues.length) throw validationFailed(issues, ctx.t);
+    // EC-8: while S-080 is OFF the gig keeps (and may reorder or remove) its documents; no new one is added.
+    const currentDocuments = new Set(before.documents.map((d) => d.fileId));
+    if (documentFileIds?.some((id) => !currentDocuments.has(id)) && !s['S-080']) {
+      throw new ApiException(403, 'FEATURE_DISABLED', 't_feature_disabled', { settingId: 'S-080' });
+    }
+    const newFiles: [string, FilePurpose][] = [
+      ...(body.thumbnailFileId
+        ? [[body.thumbnailFileId, 'gig_thumbnail'] as [string, FilePurpose]]
+        : []),
+      ...(imageFileIds ?? []).map((id) => [id, 'gig_image'] as [string, FilePurpose]),
+      ...(documentFileIds ?? []).map((id) => [id, 'gig_document'] as [string, FilePurpose]),
+    ];
+    if (newFiles.length) await this.checkFiles(userId, before.id, newFiles);
+
+    const ka = before.translations.find((t) => t.locale === 'ka')!;
+    const en = before.translations.find((t) => t.locale === 'en');
+    const next = {
+      kaTitle: title?.ka ?? ka.title,
+      kaDescription: description?.ka ?? ka.description,
+      enTitle: title ? title.en : en?.title || null,
+      enDescription: description ? description.en : en?.description || null,
+    };
+    const autoApprove = s['S-070'];
+    const now = new Date();
+    const gig = await this.prisma.$transaction(async (tx) => {
+      // A delete committed meanwhile wins: the row lock orders the two, then the status is read again.
+      await lockLiveGig(tx, before.id);
+      if (newFiles.length)
+        await markAttached(
+          tx,
+          newFiles.map(([id]) => id),
+        );
+      if (title || description) {
+        await tx.gigTranslation.update({
+          where: { gigId_locale: { gigId: before.id, locale: 'ka' } },
+          data: { title: next.kaTitle, description: next.kaDescription, updatedByUserId: userId },
+        });
+        if (next.enTitle === null && next.enDescription === null) {
+          await tx.gigTranslation.deleteMany({ where: { gigId: before.id, locale: 'en' } });
+        } else {
+          // Each English field is optional on its own; a missing one is stored empty (see createGig).
+          const enData = {
+            title: next.enTitle ?? '',
+            description: next.enDescription ?? '',
+            updatedByUserId: userId,
+          };
+          await tx.gigTranslation.upsert({
+            where: { gigId_locale: { gigId: before.id, locale: 'en' } },
+            create: { gigId: before.id, locale: 'en', ...enData },
+            update: enData,
+          });
+        }
+      }
+      if (upgrades) {
+        // Removed upgrades are only marked deleted (R-G9: placed orders keep theirs).
+        await tx.gigUpgrade.updateMany({
+          where: { gigId: before.id, deletedAt: null, id: { notIn: [...keptUpgrades] } },
+          data: { deletedAt: now },
+        });
+        for (const [position, u] of upgrades.entries()) {
+          const data = {
+            title: u.title,
+            priceTetri: u.priceTetri,
+            extraDays: u.extraDays,
+            position,
+          };
+          if (u.id) await tx.gigUpgrade.update({ where: { id: u.id }, data });
+          else await tx.gigUpgrade.create({ data: { gigId: before.id, ...data } });
+        }
+      }
+      if (faqs) {
+        await tx.gigFaq.deleteMany({ where: { gigId: before.id } });
+        await tx.gigFaq.createMany({
+          data: faqs.map((f, position) => ({ gigId: before.id, ...f, position })),
+        });
+      }
+      // Gallery and documents: rewritten in the new order (the position keys are checked at commit, P-34).
+      if (imageFileIds) {
+        await tx.gigImage.deleteMany({ where: { gigId: before.id } });
+        await tx.gigImage.createMany({
+          data: imageFileIds.map((fileId, position) => ({ gigId: before.id, fileId, position })),
+        });
+      }
+      if (documentFileIds) {
+        await tx.gigDocument.deleteMany({ where: { gigId: before.id } });
+        await tx.gigDocument.createMany({
+          data: documentFileIds.map((fileId, position) => ({ gigId: before.id, fileId, position })),
+        });
+      }
+      await tx.gig.update({
+        where: { id: before.id },
+        data: {
+          // AC-33, EC-7: a new slug only when the Georgian title changes; old slugs still resolve by uid.
+          ...(next.kaTitle !== ka.title ? { slug: uidSlug(next.kaTitle, before.uid) } : {}),
+          ...(body.categoryId ? { categoryId: body.categoryId } : {}),
+          ...(body.subcategoryId ? { subcategoryId: body.subcategoryId } : {}),
+          ...(body.childCategoryId ? { childcategoryId: body.childCategoryId } : {}),
+          ...(priceTetri !== undefined ? { priceTetri } : {}),
+          ...(body.deliveryDays !== undefined ? { deliveryDays: body.deliveryDays } : {}),
+          ...(revisionsAllowed !== undefined ? { revisionsAllowed } : {}),
+          ...(body.thumbnailFileId ? { thumbnailFileId: body.thumbnailFileId } : {}),
+          ...(seo !== undefined
+            ? { seoTitle: seo?.title ?? null, seoDescription: seo?.description ?? null }
+            : {}),
+          status: autoApprove ? 'active' : 'pending',
+          publishedAt: autoApprove ? (before.publishedAt ?? now) : before.publishedAt,
+          submittedAt: autoApprove ? before.submittedAt : now,
+          rejectionReason: null,
+        },
+      });
+      await this.searchIndex.indexGig(before.id, tx);
+      // AC-22: every edit that goes to review sends EV-19, whatever the status was before.
+      if (!autoApprove && s['S-100'].length) {
+        await this.outbox.add(
+          'EV-19',
+          { type: 'gig', id: before.id },
+          { to: [...s['S-100']], locale: 'ka', params: { title: next.kaTitle } },
+          tx,
+        );
+      }
+      return tx.gig.findUniqueOrThrow({ where: { id: before.id }, include: FULL });
+    });
+    const kept = new Set(fileIdsOf(gig));
+    await this.purge(fileIdsOf(before).filter((id) => !kept.has(id)));
+    return this.ownerView(gig);
+  }
+
+  // ------------------------------------------------------------------ deleteGig (AC-24, R-G8, EC-1)
+
+  /**
+   * Refused with 409 while paid order items are unfinished (`orders_in_queue`, kept by spec 06). Otherwise the
+   * gig becomes `deleted` by its owner and leaves search; children and files stay for past orders and reviews.
+   */
+  async remove(userId: string, gigId: string): Promise<void> {
+    const gig = await this.ownGig(userId, gigId);
+    await this.prisma.$transaction(async (tx) => {
+      const { ordersInQueue } = await lockLiveGig(tx, gig.id);
+      if (ordersInQueue > 0) {
+        throw new ApiException(
+          409,
+          'GIG_HAS_ORDERS_IN_QUEUE',
+          't_this_gig_has_orders_in_queue_delete',
+        );
+      }
+      // One update: the check `gigs_deleted_ck` needs status, deleted_at and deleted_by together.
+      await tx.gig.update({
+        where: { id: gig.id },
+        data: { status: 'deleted', deletedAt: new Date(), deletedBy: 'owner' },
+      });
+      await this.searchIndex.removeGig(gig.id, tx);
+    });
+  }
+
+  /** The caller's own non-deleted gig; anything else is 404 (contract `x-permission`). */
+  private async ownGig(userId: string, gigId: string): Promise<FullGig> {
+    const gig = await this.prisma.gig.findUnique({ where: { id: gigId }, include: FULL });
+    if (!gig || gig.ownerId !== userId || gig.status === 'deleted') throw notFound();
+    return gig;
+  }
+
+  /** Best effort after commit: the gig is already right; a left-over file is only storage, never shown. */
+  private async purge(fileIds: string[]): Promise<void> {
+    for (const id of fileIds) {
+      try {
+        await this.files.purgeDetached(id);
+      } catch (e) {
+        this.logger.warn({ fileId: id, err: e }, 'gig file not deleted');
+      }
+    }
   }
 
   // ------------------------------------------------------------------ files (AC-14, ADR-009 §3.6)

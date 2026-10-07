@@ -58,9 +58,10 @@ Phase: **4 — Feature slices** (slice 3 gigs, resumed 2026-10-07; Phase 4X admi
 
 ## Micro-task workflow (Owner rule 2026-09-30)
 The plan lives in **docs/ROADMAP.md** (checkbox per micro-task). One micro-task at a time; when it is done and tests pass, tick it there and add one line below.
-**Next micro-task: 4.3.3c** (API: `updateGig` + `deleteGig`; slice 3 gigs, branch `feat/gigs`). Contract is now **1.5.0** (ADR-024). BUG-01 stays deferred (DEV-S1). **Owner decisions still open:** DEV-M1; Q-160; Q-163; Q-164.
+**Next micro-task: 4.3.4** (API: `getGig`, `lookupGig`, `getGigOwnerView`, `listMyGigs`; slice 3 gigs, branch `feat/gigs`). Contract is now **1.5.0** (ADR-024). BUG-01 stays deferred (DEV-S1). **Owner decisions still open:** DEV-M1; Q-160; Q-163; Q-164; Q-181 (which fixed gig limits become admin settings; nothing blocked).
 
 ### Micro-task log
+- 2026-10-07 4.3.3c done: `updateGig` (partial, lists in order, upgrade identity, slug on `ka` title change, S-070 + EV-19 on every save, unused files purged) + `deleteGig` (409 with orders in queue; owner delete frees the slot); gig row locked in both. Owner rule "variable values in admin": admin settings save empty = unlimited (was 0); Q-181 for the contract-fixed gig limits. API 696 passed / 6 skipped; admin e2e 68 passed. 4.3.3 complete. Next: 4.3.4.
 - 2026-10-07 4.3.3b done: `createGig` (all field errors at once, own ready files attached, plan limit under an owner row lock, S-070 pending + EV-19 / active, search document in the transaction, `GigOwnerView`); gig files in deleteFile 409 + the 24 h cleanup; `test/gigs-create.test.ts` (14); API 684 passed / 6 skipped. Next: 4.3.3c.
 - 2026-10-07 4.3.3 split into 4.3.3a/b/c. 4.3.3a done: gig upload purposes (+ S-080 switch → 403 FEATURE_DISABLED), shared R-5.3a / R-5.4 rules file + API validator, shared uid/slug helper, `GigLimits` + `getGigCreationEligibility`; API 670 passed / 6 skipped. Next: 4.3.3b.
 - 2026-10-07 4.3.2b done: migration `20261007120000_gigs_details_analytics` (gig removal columns + checks, upgrades, FAQs, images, documents, favourites, analytics tables), S-070 row, 23 i18n keys; `test/gigs-schema.test.ts` (11); API 647 passed / 6 skipped. Next: 4.3.3.
