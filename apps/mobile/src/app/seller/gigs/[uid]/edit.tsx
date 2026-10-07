@@ -4,16 +4,15 @@
 // public uid → `lookupGig` → owner only (`viewer.isOwner`) → `getGigOwnerView` (both languages, file ids, rejection
 // reason). Someone else's gig, a deleted one or an unknown uid is "Page not found". The plan limit never blocks an
 // edit (AC-25), so there is no eligibility check.
-import { Redirect, useLocalSearchParams } from 'expo-router';
+import { Redirect, router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import type { components } from '@mytask/types';
 import { EmptyState, SecondaryButton, Skeleton } from '../../../../components/dashboard';
 import { Notice, Screen } from '../../../../components/form';
-import { GigWizard } from '../../../../components/gig-wizard/gig-wizard';
+import { GigWizard, MY_GIGS } from '../../../../components/gig-wizard/gig-wizard';
 import { loadSession, mobileApi } from '../../../../lib/api';
 import { createT } from '../../../../lib/i18n';
 import { usePublicConfig } from '../../../../lib/public-config';
-import { myGigsUrl, openWebPage } from '../../../../lib/web-pages';
 
 const locale = 'ka' as const;
 const t = createT(locale);
@@ -83,8 +82,7 @@ export default function EditGigScreen() {
         <EmptyState
           title={t('t_page_not_fount')}
           action={
-            // The website's list until the app's own (ROADMAP 4.3.16).
-            <SecondaryButton label={t('t_my_gigs')} onPress={() => openWebPage(myGigsUrl)} />
+            <SecondaryButton label={t('t_my_gigs')} onPress={() => router.dismissTo(MY_GIGS)} />
           }
         />
       ) : null}

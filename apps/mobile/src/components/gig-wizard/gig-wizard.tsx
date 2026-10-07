@@ -55,7 +55,7 @@ import {
   type UpgradeDraft,
 } from '../../lib/gig-form';
 import type { PublicConfig } from '../../lib/public-config';
-import { myGigsUrl, openWebPage, subscriptionUrl } from '../../lib/web-pages';
+import { openWebPage, subscriptionUrl } from '../../lib/web-pages';
 import { Button, Canvas, Card, IconButton } from '../../ui';
 import { Notice } from '../form';
 import { BottomSheet } from '../profile';
@@ -74,6 +74,9 @@ interface ApiErrorBody {
 }
 
 /** S-041 default (spec 00) while the public config loads. */
+/** Selling → Gigs (ROADMAP 4.3.16). */
+export const MY_GIGS = '/seller/gigs';
+
 const DEFAULT_MAX_REVISIONS = 10;
 /** S-077 / S-078 defaults (spec 00) while the public config loads; documents wait for it (S-080 may be OFF). */
 const DEFAULT_GIG_IMAGE = { maxFiles: 10, maxSizeMb: 5 };
@@ -1106,7 +1109,7 @@ function storedFilesOf(
 /**
  * After `createGig` (AC-16) or `updateGig` (AC-22, the same card with the "updated" texts): auto-approve ON
  * (`active`) → "View gig" (an edit opened from the gig screen goes back to it, which reloads); OFF (`pending`) → the
- * review text and "My gigs" (the website's list until the app's own, ROADMAP 4.3.16).
+ * review text and "My gigs" (back to it when the wizard was opened from there, which reloads).
  */
 function GigCreated(props: {
   gig: GigOwnerView;
@@ -1160,7 +1163,7 @@ function GigCreated(props: {
             <Button
               label={active ? t('t_view_gig') : t('t_my_gigs')}
               accessibilityRole="link"
-              onPress={() => (active ? viewGig() : openWebPage(myGigsUrl))}
+              onPress={() => (active ? viewGig() : router.dismissTo(MY_GIGS))}
               testID="gig-created-action"
             />
           </Card>

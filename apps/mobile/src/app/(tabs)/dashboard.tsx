@@ -28,7 +28,7 @@ import { formatCount, formatDate, formatMoney } from '../../lib/format';
 import { createT } from '../../lib/i18n';
 import { RequireMe, useSwitchDashboard } from '../../lib/me';
 import { usePublicConfig } from '../../lib/public-config';
-import { Canvas } from '../../ui';
+import { Button, Canvas } from '../../ui';
 
 const locale = 'ka' as const;
 const t = createT(locale);
@@ -108,9 +108,10 @@ function BuyingHome({ projectsOn }: { projectsOn: boolean }) {
   );
 }
 
-// "Create a new gig" (AC-7) appears once the app has the gig wizard (spec 04, slice 3); until then it would
-// open a dead end, so it is left out (null).
-const createGig: ReactNode = null;
+// "Create a new gig" (AC-7) opens the app's gig wizard (ROADMAP 4.3.15), in the same places as the web.
+const createGig: ReactNode = (
+  <Button label={t('t_create_a_new_gig')} onPress={() => router.push('/create')} />
+);
 
 function SellingHome({ onSwitch }: { onSwitch: () => void }) {
   const [data, setData] = useState<Dashboard>();

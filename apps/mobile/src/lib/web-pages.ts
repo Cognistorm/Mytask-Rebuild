@@ -28,5 +28,6 @@ export const gigUrl = (slug: string) => `${appUrl}/service/${encodeURIComponent(
 export const subscriptionUrl = (opts: { gigs?: boolean } = {}) =>
   `${appUrl}/subscription${opts.gigs ? '?gigs=true' : ''}`;
 
-/** The website's "My gigs" (url-map §4.1); the app opens it until its own list exists (ROADMAP 4.3.16). */
-export const myGigsUrl = `${appUrl}/seller/gigs`;
+/** The website's gig analytics page (url-map §5); the app's My gigs opens it until the app has its own screen. */
+export const gigAnalyticsUrl = (uid: string) =>
+  `${appUrl}/seller/gigs/${encodeURIComponent(uid)}/analytics`;
