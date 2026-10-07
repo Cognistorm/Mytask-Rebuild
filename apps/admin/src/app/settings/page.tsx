@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import type { components } from '@mytask/types';
 import { AdminShell } from '../../components/shell';
-import { Alert, Field, Submit } from '@mytask/ui/web';
+import { Alert, Field, Pill, Submit } from '@mytask/ui/web';
 import { AuthCard } from '../../components/ui';
 import { splitErrors, t, useAdminApi, type ApiErrorBody } from '../../lib/client';
 import { areaHref, areaTitle, areasOf } from '../../lib/settings-areas';
@@ -112,7 +112,7 @@ function Settings() {
       {err && err.code !== 'REAUTH_REQUIRED' && <Alert kind="error">{err.message}</Alert>}
       {area && (
         <section key={area} className="admin-section">
-          <ul className="admin-rows">
+          <ul className="admin-settings">
             {rows
               .filter((r) => r.area === area)
               .map((row) => (
@@ -135,6 +135,25 @@ function Settings() {
 
 type SocialValue = components['schemas']['SettingSocialProviderValue'];
 
+/** The start column of a setting (admin-refresh.md §5): the meaning, then the register ID, the unit and the badge. */
+function SettingText({ row, id, labelFor }: { row: Entry; id: string; labelFor?: string }) {
+  const Meaning = labelFor ? 'label' : 'span';
+  return (
+    <div className="admin-setting-text">
+      <Meaning id={`${id}-meaning`} htmlFor={labelFor} className="admin-setting-meaning">
+        {row.meaning.ka}
+      </Meaning>
+      <span className="admin-setting-meta">
+        <code id={`${id}-reg`} className="admin-setting-id">
+          {row.registerId}
+        </code>
+        {row.unit && <span>{row.unit}</span>}
+        {row.stepUpRequired && <Pill tone="warning">{t('t_settings_reauth_badge')}</Pill>}
+      </span>
+    </div>
+  );
+}
+
 /**
  * S-065…S-069 (ADR-005 §8, spec 16 AC-54): switch + client ID + write-only secret. The saved secret is never
  * shown, only "set / not set"; an empty secret field keeps it, "clear" removes it.
@@ -152,6 +171,7 @@ function SocialProviderRow({
   const [secret, setSecret] = useState('');
   const [clear, setClear] = useState(false);
   const id = `setting-${row.registerId}`;
+  const changed = enabled !== v.isEnabled || clientId !== (v.clientId ?? '') || !!secret || clear;
 
   function save() {
     onSave(row, {
@@ -164,49 +184,73 @@ function SocialProviderRow({
   }
 
   return (
-    <li className="admin-card" data-testid={`social-${row.registerId}`}>
-      <strong>
-        {row.registerId} {row.meaning.ka}
-      </strong>
-      <span className="auth-muted">
-        {t(v.clientSecret.isSet ? 't_client_secret_set' : 't_client_secret_not_set')}
-        {row.stepUpRequired ? ` · ${t('t_reauth_required')}` : ''}
-      </span>
-      <label className="auth-check">
-        <input
-          type="checkbox"
-          role="switch"
-          aria-checked={enabled}
-          checked={enabled}
-          onChange={(e) => setEnabled(e.target.checked)}
-        />
-        {t('t_social_login_enabled')}
-      </label>
-      <span className="admin-row-edit">
-        <label htmlFor={`${id}-cid`}>{t('t_client_id')}</label>
-        <input id={`${id}-cid`} value={clientId} onChange={(e) => setClientId(e.target.value)} />
-      </span>
-      <span className="admin-row-edit">
-        <label htmlFor={`${id}-secret`}>{t('t_client_secret_new')}</label>
-        <input
-          id={`${id}-secret`}
-          type="password"
-          autoComplete="new-password"
-          value={secret}
-          disabled={clear}
-          onChange={(e) => setSecret(e.target.value)}
-        />
-      </span>
-      {v.clientSecret.isSet && (
-        <label className="auth-check">
-          <input type="checkbox" checked={clear} onChange={(e) => setClear(e.target.checked)} />
-          {t('t_clear_client_secret')}
+    <li className="admin-provider" data-testid={`social-${row.registerId}`}>
+      <div className="admin-provider-head">
+        <SettingText row={row} id={id} />
+        <label className="admin-provider-switch">
+          {t('t_social_login_enabled')}
+          <input
+            type="checkbox"
+            role="switch"
+            aria-checked={enabled}
+            checked={enabled}
+            onChange={(e) => setEnabled(e.target.checked)}
+          />
         </label>
-      )}
-      <button type="button" className="auth-button" onClick={save}>
-        {t('t_save')}
-      </button>
+      </div>
+      <div className="admin-provider-fields">
+        <div className="auth-field">
+          <label htmlFor={`${id}-cid`}>{t('t_client_id')}</label>
+          <input id={`${id}-cid`} value={clientId} onChange={(e) => setClientId(e.target.value)} />
+        </div>
+        <div className="auth-field">
+          <label htmlFor={`${id}-secret`}>{t('t_client_secret_new')}</label>
+          <input
+            id={`${id}-secret`}
+            type="password"
+            autoComplete="new-password"
+            value={secret}
+            disabled={clear}
+            onChange={(e) => setSecret(e.target.value)}
+          />
+        </div>
+      </div>
+      <div className="admin-provider-foot">
+        <Pill tone={v.clientSecret.isSet ? 'success' : 'neutral'}>
+          {t(v.clientSecret.isSet ? 't_client_secret_set' : 't_client_secret_not_set')}
+        </Pill>
+        {v.clientSecret.isSet && (
+          <label className="admin-checkbox">
+            <input type="checkbox" checked={clear} onChange={(e) => setClear(e.target.checked)} />
+            {t('t_clear_client_secret')}
+          </label>
+        )}
+        <SaveButton changed={changed} onClick={save} />
+      </div>
     </li>
+  );
+}
+
+/** "Save": Secondary at rest, the Primary look once the value differs from the saved one (still clickable). */
+function SaveButton({
+  changed,
+  disabled,
+  onClick,
+}: {
+  changed: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={`mt-button admin-save${changed ? ' mt-button-primary' : ''}`}
+      data-changed={changed || undefined}
+      disabled={disabled}
+      onClick={onClick}
+    >
+      {t('t_save')}
+    </button>
   );
 }
 
@@ -226,6 +270,9 @@ function SettingRow({
   return <PlainSettingRow row={row} onSave={onSave} disabled={disabled} />;
 }
 
+const asDraft = (value: unknown) =>
+  typeof value === 'object' ? JSON.stringify(value) : String(value);
+
 function PlainSettingRow({
   row,
   onSave,
@@ -235,27 +282,26 @@ function PlainSettingRow({
   onSave: (row: Entry, value: unknown) => void;
   disabled: boolean;
 }) {
-  const [draft, setDraft] = useState(() =>
-    typeof row.value === 'object' ? JSON.stringify(row.value) : String(row.value),
-  );
+  const [draft, setDraft] = useState(() => asDraft(row.value));
   const id = `setting-${row.registerId}`;
-  const meaning = row.meaning.ka;
+  // The control's name starts with the register ID ("S-056 …"), as the rows always read.
+  const named = { 'aria-labelledby': `${id}-reg ${id}-meaning` };
 
   if (row.type === 'boolean') {
     return (
-      <li className="admin-row">
-        <label htmlFor={id} className="admin-row-text">
-          <strong>{row.registerId}</strong> {meaning}
-          {row.stepUpRequired && <span className="auth-muted"> · {t('t_reauth_required')}</span>}
-        </label>
-        <input
-          id={id}
-          type="checkbox"
-          role="switch"
-          aria-checked={row.value === true}
-          checked={row.value === true}
-          onChange={(e) => onSave(row, e.target.checked)}
-        />
+      <li className="admin-setting admin-setting-switch">
+        <SettingText row={row} id={id} labelFor={id} />
+        <div className="admin-setting-control">
+          <input
+            id={id}
+            {...named}
+            type="checkbox"
+            role="switch"
+            aria-checked={row.value === true}
+            checked={row.value === true}
+            onChange={(e) => onSave(row, e.target.checked)}
+          />
+        </div>
       </li>
     );
   }
@@ -278,14 +324,11 @@ function PlainSettingRow({
   };
 
   return (
-    <li className="admin-row">
-      <label htmlFor={id} className="admin-row-text">
-        <strong>{row.registerId}</strong> {meaning}
-        {row.unit && <span className="auth-muted"> ({row.unit})</span>}
-      </label>
-      <span className="admin-row-edit">
+    <li className="admin-setting">
+      <SettingText row={row} id={id} labelFor={id} />
+      <div className="admin-setting-control">
         {row.allowedValues ? (
-          <select id={id} value={draft} onChange={(e) => setDraft(e.target.value)}>
+          <select id={id} {...named} value={draft} onChange={(e) => setDraft(e.target.value)}>
             {row.allowedValues.map((v) => (
               <option key={v} value={v}>
                 {v}
@@ -293,24 +336,25 @@ function PlainSettingRow({
             ))}
           </select>
         ) : (
-          <input
-            id={id}
-            type={row.type === 'integer' ? 'number' : 'text'}
-            min={row.type === 'integer' ? (row.minimum ?? undefined) : undefined}
-            value={draft}
-            disabled={disabled}
-            onChange={(e) => setDraft(e.target.value)}
-          />
+          <span className="admin-input-unit">
+            <input
+              id={id}
+              {...named}
+              type={row.type === 'integer' ? 'number' : 'text'}
+              min={row.type === 'integer' ? (row.minimum ?? undefined) : undefined}
+              value={draft}
+              disabled={disabled}
+              onChange={(e) => setDraft(e.target.value)}
+            />
+            {row.unit && <span aria-hidden="true">{row.unit}</span>}
+          </span>
         )}
-        <button
-          type="button"
-          className="auth-button"
+        <SaveButton
+          changed={draft !== asDraft(row.value)}
           disabled={disabled}
           onClick={() => onSave(row, parse())}
-        >
-          {t('t_save')}
-        </button>
-      </span>
+        />
+      </div>
     </li>
   );
 }

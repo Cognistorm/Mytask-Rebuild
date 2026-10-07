@@ -666,3 +666,171 @@ button.mt-sidebar-link {
   color: var(--mt-text-secondary);
   font-size: var(--mt-font-size-sm);
 }
+
+/* ---- Settings rows (4X.4, admin-refresh.md §5): meaning + register ID | control, hairlines, hover tint ---- */
+.admin-settings {
+  list-style: none;
+  margin: 0 calc(-1 * var(--mt-space-2));
+  padding: 0;
+  display: grid;
+}
+
+.admin-setting {
+  display: grid;
+  gap: var(--mt-space-3);
+  align-items: center;
+  padding: var(--mt-space-3) var(--mt-space-2);
+  border-radius: var(--mt-radius-md);
+  transition: background-color var(--mt-motion-duration-fast) var(--mt-motion-easing-standard);
+}
+
+.admin-setting + .admin-setting,
+.admin-setting + .admin-provider,
+.admin-provider + .admin-setting {
+  border-block-start: var(--mt-border-width-hairline) solid var(--mt-border-subtle);
+  border-start-start-radius: 0;
+  border-start-end-radius: 0;
+}
+
+@media (hover: hover) {
+  .admin-setting:hover {
+    background-color: var(--mt-bg-hover);
+  }
+}
+
+/* Switches sit at the end edge at every width. */
+.admin-setting-switch {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+@media (min-width: 640px) {
+  .admin-setting {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .admin-setting-control {
+    justify-content: flex-end;
+  }
+}
+
+.admin-setting-text {
+  display: grid;
+  gap: var(--mt-space-1);
+  min-width: 0;
+}
+
+.admin-setting-meaning {
+  font-weight: var(--mt-font-weight-semibold);
+  overflow-wrap: anywhere;
+}
+
+.admin-setting-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--mt-space-1) var(--mt-space-2);
+  color: var(--mt-text-secondary);
+  font-size: var(--mt-font-size-sm);
+}
+
+/* The register ID as a mono tag. */
+.admin-setting-id {
+  padding: 0 var(--mt-space-1);
+  border: var(--mt-border-width-hairline) solid var(--mt-border-subtle);
+  border-radius: var(--mt-radius-sm);
+  background: var(--mt-bg-subtle);
+  color: var(--mt-text-secondary);
+  font-family: var(--mt-font-family-mono);
+  font-size: var(--mt-font-size-xs);
+}
+
+.admin-setting-control {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--mt-space-2);
+}
+
+/* Size only; the look (and the switch) is in @mytask/ui controls.css (3X.9b). */
+.admin-setting-control input:not([type='checkbox']),
+.admin-setting-control select {
+  box-sizing: border-box;
+  min-block-size: var(--mt-size-control-md);
+  font: inherit;
+  padding: var(--mt-space-2) var(--mt-space-3);
+  border-radius: var(--mt-radius-control);
+}
+
+/* The unit inside the field, at its end edge. */
+.admin-input-unit {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.admin-input-unit input {
+  inline-size: calc(var(--mt-space-24) * 2);
+}
+
+.admin-input-unit span {
+  position: absolute;
+  inset-inline-end: var(--mt-space-3);
+  color: var(--mt-text-secondary);
+  font-size: var(--mt-font-size-sm);
+  pointer-events: none;
+}
+
+.admin-input-unit:has(span) input {
+  padding-inline-end: calc(var(--mt-space-12) + var(--mt-space-6));
+}
+
+/* Social provider card (S-065…S-069): header with the switch, labels above fields, secret-state pill, Save at the end. */
+.admin-provider {
+  display: grid;
+  gap: var(--mt-space-4);
+  margin-block: var(--mt-space-2);
+  padding: var(--mt-space-4);
+  border: var(--mt-border-width-hairline) solid var(--mt-border-default);
+  border-radius: var(--mt-radius-lg);
+  background: var(--mt-bg-surface);
+}
+
+.admin-provider-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--mt-space-3);
+}
+
+.admin-provider-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mt-space-3);
+  min-block-size: var(--mt-size-touch-target-min);
+  font-size: var(--mt-font-size-sm);
+  font-weight: var(--mt-font-weight-medium);
+}
+
+.admin-provider-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(var(--mt-space-24) * 3)), 1fr));
+  gap: var(--mt-space-4);
+}
+
+.admin-provider-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--mt-space-3);
+}
+
+.admin-provider-foot .admin-save {
+  margin-inline-start: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-setting {
+    transition: none;
+  }
+}

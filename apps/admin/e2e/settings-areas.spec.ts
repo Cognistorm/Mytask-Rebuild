@@ -88,7 +88,7 @@ test('/settings opens the first area; each area is a sidebar item; switching sho
   await expect(plans).toHaveAttribute('aria-current', 'page');
   await expect(page.locator('main .admin-eyebrow')).toHaveText('პარამეტრები');
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('პაკეტები და ლიმიტები');
-  await expect(page.getByLabel(/^S-001 /)).toHaveValue('5');
+  await expect(page.getByRole('spinbutton', { name: /^S-001 / })).toHaveValue('5');
   await expect(page.getByRole('switch', { name: /^S-056 / })).toHaveCount(0);
   // Loaded with the page (twice under the dev server's strict mode); switching must not load it again.
   const loads = api.settingsCalls();
@@ -97,7 +97,7 @@ test('/settings opens the first area; each area is a sidebar item; switching sho
   await expect(page).toHaveURL(/\/settings\?area=auth$/);
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('ავტორიზაცია და უსაფრთხოება');
   await expect(page.getByRole('switch', { name: /^S-056 / })).toBeVisible();
-  await expect(page.getByLabel(/^S-001 /)).toHaveCount(0);
+  await expect(page.getByRole('spinbutton', { name: /^S-001 / })).toHaveCount(0);
   await expect(nav(page).getByRole('link', { name: 'ავტორიზაცია და უსაფრთხოება' })).toHaveAttribute(
     'aria-current',
     'page',
@@ -121,7 +121,7 @@ test('an unknown area opens the first one; another screen loads the area list fo
   await page.goto('/security');
   await nav(page).getByRole('link', { name: 'სისტემა' }).click();
   await expect(page).toHaveURL(/\/settings\?area=system$/);
-  await expect(page.getByLabel(/^S-103 /)).toHaveValue('ok');
+  await expect(page.getByRole('textbox', { name: /^S-103 / })).toHaveValue('ok');
 });
 
 test('without settings.read there are no area items and the list is not loaded', async ({
