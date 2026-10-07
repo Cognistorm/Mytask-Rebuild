@@ -12,6 +12,9 @@ export default defineConfig({
   // CI: failures as GitHub annotations (readable without the logs) + the HTML report the workflow uploads.
   reporter: process.env.CI ? [['github'], ['list'], ['html', { open: 'never' }]] : 'list',
   use: { baseURL: BASE },
+  // One `next start` server serves every worker: past 4 local workers page loads queue up and time out (4.3.12c: 7 of
+  // 204 timed out with the default 8, none with 4, and the run is twice as fast). CI keeps Playwright's default.
+  workers: process.env.CI ? undefined : 4,
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] }, testIgnore: VISUAL },
     // 3X.18b/c: the full-page screenshot and contrast passes are heavy; they run after the flow tests, never beside
