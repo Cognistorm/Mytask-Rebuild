@@ -50,6 +50,8 @@ Proposed (no contract change): on `gigs` add `deleted_by gig_deleted_by null` (`
 `impressions_count` / `visits_count` on `gigs` are the counters.
 
 ## C. Owner question now due: Q-123 (blocks only `adminRestoreGig` in 4.3.7)
+**Answered 2026-10-07: (b)** — check the plan limit and notify the owner (NEW event EV-130); the gig still returns to active. Spec 15/16 texts (product-analyst) and the `adminRestoreGig` refusal + `x-emits` (architect) are added in 4.3.2a.
+
 Q-123 (`open-questions.md:641`, slice item 04/16): when staff restore a removed gig — (1) does it count against
 the owner's plan limit, (2) does it go back to pending when S-070 is OFF, (3) is the owner notified?
 Contract default: restored to **active**, **no** limit check, **no** notification. Recommendation in the register:
@@ -125,7 +127,7 @@ analytics tables for gig views, migration mapping lines in §12.2 (legacy trash 
 contract change expected (if one is needed: ADR first). Then 4.3.2b (backend) uses sections B, E.1 and F.
 
 ## Open questions / risks
-- **Q-123** (section C) — Owner answer needed before 4.3.7 restore, otherwise the contract default is built.
+- **Q-123** (section C) — answered 2026-10-07: (b).
 - Still open from before: DEV-M1, Q-160, Q-163, Q-164 (none blocks slice 3).
 - Risk: with Premium neutral, every local test user can create only **1 gig** (S-001 default). For the Owner
   click-through (4.3.22), raise S-001 in the admin settings or add a demo seed (decide at 4.3.17).

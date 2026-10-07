@@ -918,3 +918,10 @@ Recommendation: keep the role colours (Q-092) on the new sliding thumb, with the
 Options: (a) keep it as built; (b) inner padding 12 → 8 px (measured: 1089 px, so all 7 show from about 1155 px); (c) also drop the bold weight (about 10 px less per pill).
 Recommendation: (b), a one-line change; the pills still read as buttons.
 **Answer (Owner, 2026-10-06):** (b) as recommended — pill padding 12 → 8 px (built the same day). The Owner reviews it on staging (https://mytask.1kk.ge) and may ask for changes to this part of the design.
+
+## Slice 3 gigs (orchestrator, ROADMAP 4.3.1, 2026-10-07) — answered by Owner 2026-10-07
+
+### Q-123
+**Restoring a gig removed by staff (spec 16 AC-20): does it count against the plan limit, go back to pending when S-070 is OFF, notify the owner?** Contract default: restored to active, no limit check, no notification. Recommendation: check the limit; notify (NEW event).
+**Answer (Owner, 2026-10-07):** (b) — check the owner's plan limit and notify the owner (NEW notification). Status on restore is not changed by this answer: the gig returns to active (the status it had when removed), as the contract says.
+Follow-up: product-analyst adds the NEW event (next free id EV-130, email + in-app + push to the owner, marked NEW) to spec 15 and spec 16 AC-20 with its texts (en + ka); solution-architect updates `adminRestoreGig` (plan-limit refusal `422 PLAN_LIMIT_REACHED`, `x-emits`) with an ADR note, as part of ROADMAP 4.3.2a.
