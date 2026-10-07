@@ -657,7 +657,7 @@ Raised by the six group runs and consolidated by the integration run (`docs/hand
 | Q-139 | 16 AC-7 (D6-Q6) | Staff re-login: password, or the emailed code only when 2FA is ON? | Password or code (S-060 ON) | Keep | slice (16) |
 | Q-140 | 16 AC-3, AC-5 (D6-Q7/Q8) | Allow removing all roles from a staff member; forbid editing a role you hold yourself? | Both as stated | Accept | slice (16) |
 | Q-141 | limits not in specs (Q-D1-5, D2 Q5, Q-D4-3, Q-D4-5, Q-D4-6, Q-D3-7) | Technical limits chosen: staff email subject 200 / body 10,000; support reply subject 200; offer-request days 1–365; offer price 1.00…9,999,999,999.00 GEL; order details 5,000 counted on submitted text; recon note 1–1,000; adjustment public note ≤ 500; points adjustment ≤ 1,000,000; referral benefit ≤ 120 months; plan features ≤ 30 lines; cart ≤ 100 lines / 50 upgrades | As listed | Accept; P2-B5 checks abuse limits | slice |
-| Q-142 | 04 (D2 Q7) | Migrated gigs with unknown "revisions allowed": how to display? | `null` | Show "not specified" | slice (04) |
+| Q-142 | 04 (D2 Q7) | Migrated gigs with unknown "revisions allowed": how to display? | `null` | Show "not specified" | answered 2026-10-07 (see below) |
 | Q-143 | 16 catalogue (D2 Q6) | Catalog/content screens are read with their write permission (no read permission exists) | write permission | Accept | slice (16) |
 
 ## Security questions (security-reviewer P2-B5 + solution-architect fixes, 2026-09-30) — Q-144…Q-146 answered by Owner 2026-09-30; others open
@@ -951,3 +951,6 @@ Recommendation: (a).
 **May the owner of a migrated gig that has no stored number of revisions save an edit without choosing one?** New gigs must choose 0…S-041 (spec 04 AC-9, Q-056). Migrated legacy gigs may have no value (data model `gigs.revisions_allowed`: null only when `legacy_id` is set), and spec 04 does not say what the edit form does with them.
 Options: (a) the field may stay empty and the stored "no value" is kept (the API leaves fields it is not sent unchanged); (b) the owner must choose a number before saving any edit.
 Recommendation: (a) — it adds no new rule and does not block an owner who only wants to fix a typo. Built as (a) in 4.3.10d; (b) is a one-line change in the web form (and the same on mobile).
+
+### Q-142 (answer)
+**Answer (Owner, 2026-10-07):** Recommendation accepted. A migrated gig without a stored number of revisions shows `t_revisions_not_specified` ("Number of revisions not specified" / "შესწორებების რაოდენობა მითითებული არ არის") on the gig page. Built in 4.3.11a; mobile (4.3.14) does the same.

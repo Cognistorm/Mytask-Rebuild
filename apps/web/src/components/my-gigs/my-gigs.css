@@ -1,0 +1,70 @@
+/* Selling → Gigs (spec 04 AC-20): design tokens only. The table / phone cards come from @mytask/ui (§7.10). */
+.mt-my-gigs {
+  display: grid;
+  gap: var(--mt-space-6);
+  min-width: 0;
+}
+
+.mt-my-gigs-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--mt-space-3);
+}
+
+.mt-my-gigs-title {
+  margin: 0;
+  font-size: var(--mt-font-size-2xl);
+  line-height: var(--mt-font-line-height-2xl);
+  font-weight: var(--mt-font-weight-bold);
+}
+
+/* Thumbnail (3:2) + title. */
+.mt-my-gigs-gig {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mt-space-3);
+  min-width: 0;
+  font-weight: var(--mt-font-weight-semibold);
+  overflow-wrap: anywhere;
+}
+
+.mt-my-gigs-gig img,
+.mt-my-gigs-noimage {
+  flex: none;
+  inline-size: var(--mt-space-16);
+  aspect-ratio: 3 / 2;
+  border-radius: var(--mt-radius-md);
+  background: var(--mt-bg-subtle);
+  object-fit: cover;
+}
+
+.mt-my-gigs-status {
+  display: grid;
+  justify-items: start;
+  gap: var(--mt-space-1);
+}
+
+.mt-my-gigs-reason {
+  color: var(--mt-text-danger);
+  font-size: var(--mt-font-size-sm);
+  overflow-wrap: anywhere;
+}
+
+.mt-my-gigs-options,
+.mt-my-gigs-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mt-space-2);
+}
+
+.mt-my-gigs-buttons {
+  justify-content: end;
+}
+
+.mt-my-gigs-more {
+  display: flex;
+  justify-content: center;
+  margin-block-start: var(--mt-space-4);
+}
