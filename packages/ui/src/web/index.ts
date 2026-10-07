@@ -58,3 +58,4 @@ export { formatMoney } from './money';
 export { Carousel } from './carousel';
 export { Gallery, type GalleryImage, type GalleryLabels } from './gallery';
 export { Accordion, Tabs, type AccordionItem, type TabItem } from './tabs';
+export { BarList, type BarItem } from './bars';

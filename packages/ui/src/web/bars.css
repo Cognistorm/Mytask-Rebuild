@@ -1,0 +1,56 @@
+/* BarList: label and value on one line, the bar under them (8 px, rounded data end, grows from the start edge, the same
+   track and brand indicator as the rating rows). Design tokens only. */
+.mt-bars {
+  display: grid;
+  gap: var(--mt-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mt-bars-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--mt-space-1) var(--mt-space-3);
+  align-items: baseline;
+}
+
+.mt-bars-label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.mt-bars-value {
+  color: var(--mt-text-primary);
+  font-weight: var(--mt-font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+.mt-bars-track {
+  grid-column: 1 / -1;
+  display: block;
+  block-size: var(--mt-space-2);
+  border-radius: var(--mt-radius-full);
+  background: var(--mt-bg-subtle);
+  overflow: hidden;
+}
+
+.mt-bars-track > span {
+  display: block;
+  block-size: 100%;
+  min-inline-size: var(--mt-space-1);
+  border-start-end-radius: var(--mt-radius-full);
+  border-end-end-radius: var(--mt-radius-full);
+  background: var(--mt-gradient-indicator);
+}
+
+/* Forced colours: the bar keeps a visible fill. */
+@media (forced-colors: active) {
+  .mt-bars-track {
+    border: var(--mt-border-width-hairline) solid CanvasText;
+  }
+
+  .mt-bars-track > span {
+    background: CanvasText;
+  }
+}
