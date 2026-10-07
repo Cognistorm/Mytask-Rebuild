@@ -7,6 +7,11 @@ import {
   contentFieldError,
   normaliseContentText,
 } from '../src/platform/content-language';
+import {
+  englishFieldIssue,
+  georgianFieldIssue,
+  normaliseContentText as normaliseClient,
+} from '@mytask/i18n';
 
 describe('Georgian fields (R-5.3a)', () => {
   it('accepts Georgian with Latin words, digits and the 8 marks (AC-5)', () => {
@@ -102,5 +107,34 @@ describe('contentFieldError', () => {
       message: 't_validator_georgian_field_characters|: ₾',
       refusedCharacters: [':', '₾'],
     });
+  });
+});
+
+// ROADMAP 4.3.9: web and mobile pre-check with `@mytask/i18n` (same JSON rules). Both must give the same verdict.
+describe('client pre-check parity (@mytask/i18n)', () => {
+  const samples = [
+    'Logo დიზაინი Photoshop-ში',
+    'Logo design',
+    'ფასი: 50₾, ფასი: 60₾',
+    '  ქართული\u00a0ტექსტი\u200b ',
+    'abc ! ? ( ) - _ . , 123',
+    'emoji 😀 ტექსტი',
+    'Only English here',
+    'English with ქართული',
+    '12345',
+    'a:b;c<d>e"f\'g@h#i$j%k^l&m*n+o=p',
+  ];
+
+  it('refuses and accepts exactly what the API refuses and accepts, with the same key and characters', () => {
+    for (const text of samples) {
+      const ka = checkGeorgianField('f', text);
+      const kaClient = georgianFieldIssue(text);
+      expect(kaClient?.messageKey ?? null, text).toBe(ka?.messageKey ?? null);
+      expect(kaClient?.params ?? null, text).toEqual(ka?.params ?? null);
+      expect(englishFieldIssue(text)?.messageKey ?? null, text).toBe(
+        checkEnglishField('f', text)?.messageKey ?? null,
+      );
+      expect(normaliseClient(text)).toBe(normaliseContentText(text));
+    }
   });
 });

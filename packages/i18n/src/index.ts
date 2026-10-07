@@ -63,3 +63,11 @@ export function splitLegacyLinks(translated: string): TextPart[] {
 export function inSentence(text: string | null | undefined): string {
   return (text ?? '').trim().replace(/\.$/, '');
 }
+
+export {
+  contentLength,
+  englishFieldIssue,
+  georgianFieldIssue,
+  normaliseContentText,
+  type ContentLanguageIssue,
+} from './content-language';

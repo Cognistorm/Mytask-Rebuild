@@ -1,0 +1,132 @@
+/* Gig wizard `/create` (screen 03): main column 8/12 with the blocks, side summary 4/12 sticky under the header
+   from lg. Design tokens only (CLAUDE.md); breakpoints md 768px / lg 1024px / xl 1280px as literals (CSS variables
+   cannot appear in @media). Block surfaces: .mt-panel (surfaces.css). */
+.mt-gw,
+.mt-gw-state {
+  box-sizing: border-box;
+  inline-size: 100%;
+  max-inline-size: var(--mt-size-layout-container-max);
+  margin-inline: auto;
+  padding: var(--mt-space-6) var(--mt-size-layout-gutter-mobile) var(--mt-space-12);
+}
+
+.mt-gw {
+  display: grid;
+  gap: var(--mt-space-6);
+}
+
+.mt-gw-state {
+  display: grid;
+  justify-items: start;
+  gap: var(--mt-space-4);
+}
+
+@media (min-width: 768px) {
+  .mt-gw,
+  .mt-gw-state {
+    padding-inline: var(--mt-size-layout-gutter-tablet);
+  }
+}
+
+@media (min-width: 1024px) {
+  .mt-gw,
+  .mt-gw-state {
+    padding-inline: var(--mt-size-layout-gutter-desktop);
+  }
+}
+
+.mt-gw-header {
+  display: grid;
+  gap: var(--mt-space-4);
+}
+
+.mt-gw-title {
+  margin: 0;
+  font-size: var(--mt-font-size-2xl);
+  line-height: var(--mt-font-line-height-2xl);
+  font-weight: var(--mt-font-weight-bold);
+}
+
+.mt-gw-layout {
+  display: grid;
+  gap: var(--mt-space-6);
+  align-items: start;
+}
+
+@media (min-width: 1024px) {
+  .mt-gw-layout {
+    grid-template-columns: minmax(0, 8fr) minmax(0, 4fr);
+  }
+
+  .mt-gw-side {
+    position: sticky;
+    inset-block-start: calc(var(--mt-size-layout-header-height) + var(--mt-space-4));
+  }
+}
+
+.mt-gw-main {
+  display: grid;
+  gap: var(--mt-space-6);
+  min-inline-size: 0;
+}
+
+.mt-gw-block {
+  display: grid;
+  min-inline-size: 0;
+  gap: var(--mt-space-5);
+  padding: var(--mt-space-6);
+  scroll-margin-block-start: calc(var(--mt-size-layout-header-height) + var(--mt-space-4));
+}
+
+.mt-gw-block-title {
+  margin: 0;
+  font-size: var(--mt-font-size-xl);
+  line-height: var(--mt-font-line-height-xl);
+  font-weight: var(--mt-font-weight-semibold);
+}
+
+.mt-gw-block-title:focus {
+  outline: none;
+}
+
+.mt-gw-block-subtitle {
+  margin: calc(-1 * var(--mt-space-3)) 0 0;
+  color: var(--mt-text-secondary);
+  font-size: var(--mt-font-size-sm);
+}
+
+/* Georgian / English pairs and price / delivery: side by side from md. */
+.mt-gw-pair {
+  display: grid;
+  gap: var(--mt-space-4);
+}
+
+@media (min-width: 768px) {
+  .mt-gw-pair {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+}
+
+/* The three category levels: one row from xl; Georgian labels wrap to 2 lines below that (screen 03). */
+.mt-gw-categories {
+  display: grid;
+  gap: var(--mt-space-4);
+}
+
+@media (min-width: 1280px) {
+  .mt-gw-categories {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: start;
+  }
+}
+
+.mt-gw-summary {
+  display: grid;
+  padding: var(--mt-space-4);
+}
+
+.mt-gw-submit {
+  inline-size: 100%;
+  min-block-size: var(--mt-size-control-lg);
+}
