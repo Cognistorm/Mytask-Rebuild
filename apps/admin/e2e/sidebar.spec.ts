@@ -46,10 +46,11 @@ test('Super-admin sees every section in the legacy order; one-item groups are pl
   await setup(page);
   await page.goto('/account');
   const sidebar = nav(page);
-  // Top level: Users, Portfolios, Projects, Categories, Settings.
+  // Top level: Users, Portfolios, Gigs, Projects, Categories, Settings.
   await expect(sidebar.locator(':scope > ul > li > :is(a, button)')).toHaveText([
     'მომხმარებლები',
     'პორტფოლიო',
+    'განცხადებები',
     'პროექტები',
     'სარჩევი',
     'პარამეტრები',
@@ -58,6 +59,7 @@ test('Super-admin sees every section in the legacy order; one-item groups are pl
     'href',
     '/portfolio',
   );
+  await expect(sidebar.getByRole('link', { name: 'განცხადებები' })).toHaveAttribute('href', '/gigs');
   await expect(sidebar.getByRole('link', { name: 'სარჩევი' })).toHaveAttribute(
     'href',
     '/categories',
