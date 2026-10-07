@@ -137,7 +137,12 @@ describe('gigs: removal and restore columns (ADR-024)', () => {
       },
     });
     // A migrated staff removal has no staff id and no reason.
-    await gig({ status: 'deleted', deletedAt: new Date(), deletedBy: 'staff', legacyId: BigInt(Date.now()) });
+    await gig({
+      status: 'deleted',
+      deletedAt: new Date(),
+      deletedBy: 'staff',
+      legacyId: BigInt(Date.now()),
+    });
     const restored = await prisma.gig.update({
       where: { id: g.id },
       data: {
@@ -179,7 +184,14 @@ describe('gig upgrades and FAQs (R-G9)', () => {
     for (const bad of [{ priceTetri: 99n }, { extraDays: 8 }, { position: -1 }]) {
       await expect(
         prisma.gigUpgrade.create({
-          data: { gigId: g.id, title: 'Extra', priceTetri: 1000n, extraDays: 0, position: 0, ...bad },
+          data: {
+            gigId: g.id,
+            title: 'Extra',
+            priceTetri: 1000n,
+            extraDays: 0,
+            position: 0,
+            ...bad,
+          },
         }),
       ).rejects.toThrow();
     }
@@ -193,10 +205,14 @@ describe('gig upgrades and FAQs (R-G9)', () => {
   it('limits FAQ question and answer lengths', async () => {
     const g = await gig();
     await expect(
-      prisma.gigFaq.create({ data: { gigId: g.id, question: 'q'.repeat(101), answer: 'a', position: 0 } }),
+      prisma.gigFaq.create({
+        data: { gigId: g.id, question: 'q'.repeat(101), answer: 'a', position: 0 },
+      }),
     ).rejects.toThrow();
     await expect(
-      prisma.gigFaq.create({ data: { gigId: g.id, question: 'q', answer: 'a'.repeat(301), position: 0 } }),
+      prisma.gigFaq.create({
+        data: { gigId: g.id, question: 'q', answer: 'a'.repeat(301), position: 0 },
+      }),
     ).rejects.toThrow();
     await prisma.gigFaq.create({
       data: { gigId: g.id, question: 'q'.repeat(100), answer: 'a'.repeat(300), position: 0 },
@@ -221,10 +237,19 @@ describe('gig images and documents (P-34, R-G11)', () => {
       }),
     ).rejects.toThrow();
     await prisma.$transaction([
-      prisma.gigImage.update({ where: { gigId_fileId: { gigId: g.id, fileId: a.id } }, data: { position: 1 } }),
-      prisma.gigImage.update({ where: { gigId_fileId: { gigId: g.id, fileId: b.id } }, data: { position: 0 } }),
+      prisma.gigImage.update({
+        where: { gigId_fileId: { gigId: g.id, fileId: a.id } },
+        data: { position: 1 },
+      }),
+      prisma.gigImage.update({
+        where: { gigId_fileId: { gigId: g.id, fileId: b.id } },
+        data: { position: 0 },
+      }),
     ]);
-    const order = await prisma.gigImage.findMany({ where: { gigId: g.id }, orderBy: { position: 'asc' } });
+    const order = await prisma.gigImage.findMany({
+      where: { gigId: g.id },
+      orderBy: { position: 'asc' },
+    });
     expect(order.map((i) => i.fileId)).toEqual([b.id, a.id]);
   });
 
@@ -249,10 +274,19 @@ describe('favorites (AC-35, AC-36)', () => {
   it('saves a gig once per user, newest first', async () => {
     const u = await user();
     const [g1, g2] = [await gig(), await gig()];
-    await prisma.favorite.create({ data: { userId: u.id, gigId: g1.id, createdAt: new Date('2026-10-01') } });
-    await prisma.favorite.create({ data: { userId: u.id, gigId: g2.id, createdAt: new Date('2026-10-02') } });
-    await expect(prisma.favorite.create({ data: { userId: u.id, gigId: g1.id } })).rejects.toThrow();
-    const list = await prisma.favorite.findMany({ where: { userId: u.id }, orderBy: { createdAt: 'desc' } });
+    await prisma.favorite.create({
+      data: { userId: u.id, gigId: g1.id, createdAt: new Date('2026-10-01') },
+    });
+    await prisma.favorite.create({
+      data: { userId: u.id, gigId: g2.id, createdAt: new Date('2026-10-02') },
+    });
+    await expect(
+      prisma.favorite.create({ data: { userId: u.id, gigId: g1.id } }),
+    ).rejects.toThrow();
+    const list = await prisma.favorite.findMany({
+      where: { userId: u.id },
+      orderBy: { createdAt: 'desc' },
+    });
     expect(list.map((f) => f.gigId)).toEqual([g2.id, g1.id]);
   });
 });
@@ -290,7 +324,9 @@ describe('analytics (§3.S, ADR-012)', () => {
     const base = { day, metric: `gig_view_${next()}`, dimension: 'country', dimensionValue: 'GE' };
     await prisma.analyticsDaily.create({ data: { ...base, count: 1n } });
     await expect(prisma.analyticsDaily.create({ data: { ...base, count: 1n } })).rejects.toThrow();
-    await prisma.analyticsDaily.create({ data: { ...base, entityType: 'gig', entityId: g.id, count: 2n } });
+    await prisma.analyticsDaily.create({
+      data: { ...base, entityType: 'gig', entityId: g.id, count: 2n },
+    });
     await expect(
       prisma.analyticsDaily.create({ data: { ...base, entityType: 'gig', entityId: g.id } }),
     ).rejects.toThrow();
