@@ -1,0 +1,405 @@
+// Gig wizard form model and pre-check in the app (spec 04 AC-4…AC-15, AC-19, AC-21…AC-25; screen 03 "native
+// app"): the rules, field names and message keys of the web `apps/web/src/components/gig-wizard/gig-form.ts`, so an
+// error from the app, the web or the API (`apps/api/src/modules/gigs/gig-input.ts`) lands on the same field. Only
+// the descriptions differ: the app edits them as marked-up text (`gig-markup.ts`) and sends the same HTML.
+import type { TFunction } from 'i18next';
+import type { components } from '@mytask/types';
+import { contentLength, englishFieldIssue, georgianFieldIssue } from '@mytask/i18n';
+import { htmlPlainText, htmlToMarkup, markupToHtml } from './gig-markup';
+
+/** A description as typed (marked-up text, `gig-markup.ts`). */
+export const descriptionText = (source: string) => htmlPlainText(markupToHtml(source));
+
+/**
+ * An upgrade row (AC-11); `key` only keeps React rows stable. Price as typed, extra days '' until chosen. `id` = a
+ * stored upgrade being edited (keeps its identity, contract `GigUpgradeInput.id`).
+ */
+export interface UpgradeDraft {
+  key: number;
+  id?: string;
+  title: string;
+  price: string;
+  extraDays: string;
+}
+
+/** A FAQ row (AC-12). */
+export interface FaqDraft {
+  key: number;
+  question: string;
+  answer: string;
+}
+
+export interface GigDraft {
+  titleKa: string;
+  titleEn: string;
+  categoryId: string;
+  subcategoryId: string;
+  childCategoryId: string;
+  /** Marked-up text (`gig-markup.ts`). */
+  descriptionKa: string;
+  descriptionEn: string;
+  /** As typed, in GEL. */
+  price: string;
+  /** '' until chosen, else one of DELIVERY_DAYS. */
+  deliveryDays: string;
+  /** As typed. */
+  revisions: string;
+  upgrades: UpgradeDraft[];
+  faqs: FaqDraft[];
+  seo: { title: string; description: string };
+  /** Ready file ids in display order (AC-14, AC-23); `busy` = an upload or scan is still running. */
+  gallery: GalleryDraft;
+}
+
+export interface GalleryDraft {
+  thumbnail: string[];
+  images: string[];
+  documents: string[];
+  busy: boolean;
+}
+
+export const EMPTY_DRAFT: GigDraft = {
+  titleKa: '',
+  titleEn: '',
+  categoryId: '',
+  subcategoryId: '',
+  childCategoryId: '',
+  descriptionKa: '',
+  descriptionEn: '',
+  price: '',
+  deliveryDays: '',
+  revisions: '',
+  upgrades: [],
+  faqs: [],
+  seo: { title: '', description: '' },
+  gallery: { thumbnail: [], images: [], documents: [], busy: false },
+};
+
+/** Contract `GigDeliveryDays` with the legacy labels (AC-8). */
+export const DELIVERY_DAYS: readonly { days: number; label: string }[] = [
+  { days: 0, label: 't_none' },
+  { days: 1, label: 't_1_day' },
+  { days: 2, label: 't_2_days' },
+  { days: 3, label: 't_3_days' },
+  { days: 4, label: 't_4_days' },
+  { days: 5, label: 't_5_days' },
+  { days: 6, label: 't_6_days' },
+  { days: 7, label: 't_1_week' },
+  { days: 14, label: 't_2_weeks' },
+  { days: 21, label: 't_3_weeks' },
+  { days: 30, label: 't_1_month' },
+];
+
+export type BlockId = 'overview' | 'pricing' | 'upgrades' | 'faq' | 'gallery' | 'seo';
+
+/** Blocks in page order; the required ones must be complete before "Create". */
+export const BLOCKS: readonly { id: BlockId; required: boolean }[] = [
+  { id: 'overview', required: true },
+  { id: 'pricing', required: true },
+  { id: 'upgrades', required: false },
+  { id: 'faq', required: false },
+  { id: 'gallery', required: true },
+  { id: 'seo', required: false },
+];
+
+/** Contract `GigCreateRequest` `maxItems` (AC-11, AC-12). */
+export const MAX_UPGRADES = 10;
+export const MAX_FAQS = 10;
+
+/** Fields of each block in page order (also the focus order of AC-19). Names = the API's `details.fields`. */
+export function blockFields(draft: GigDraft): Record<BlockId, string[]> {
+  return {
+    overview: [
+      'title.ka',
+      'title.en',
+      'categoryId',
+      'subcategoryId',
+      'childCategoryId',
+      'description.ka',
+      'description.en',
+    ],
+    pricing: ['price', 'deliveryDays', 'revisionsAllowed'],
+    upgrades: draft.upgrades.flatMap((_, i) =>
+      ['title', 'price', 'extraDays'].map((f) => `upgrades[${i}].${f}`),
+    ),
+    faq: draft.faqs.flatMap((_, i) => ['question', 'answer'].map((f) => `faqs[${i}].${f}`)),
+    // `gallery`: a file error of the API that names no list (422 FILE_*).
+    gallery: ['thumbnailFileId', 'imageFileIds', 'documentFileIds', 'gallery'],
+    seo: ['seo'],
+  };
+}
+
+/**
+ * Field names after row `index` of `list` was removed: that row's names go, later rows move up one, so a shown
+ * error stays on its row.
+ */
+export function shiftRowFields(
+  fields: ReadonlySet<string>,
+  list: 'upgrades' | 'faqs',
+  index: number,
+): Set<string> {
+  const row = new RegExp(`^${list}\\[(\\d+)\\](.*)$`);
+  const next = new Set<string>();
+  for (const field of fields) {
+    const m = row.exec(field);
+    if (!m) next.add(field);
+    else if (Number(m[1]) > index) next.add(`${list}[${Number(m[1]) - 1}]${m[2]}`);
+    else if (Number(m[1]) < index) next.add(field);
+  }
+  return next;
+}
+
+export const TITLE = { min: 3, max: 100 };
+/** AC-11, AC-12, AC-15 (contract `GigUpgradeInput`, `GigFaqInput`, `GigSeoInput`). */
+export const UPGRADE_TITLE_MAX = 100;
+export const FAQ = { questionMax: 100, answerMax: 300 };
+export const SEO = { titleMax: 100, descriptionMax: 150 };
+const DESCRIPTION_MIN = 10;
+/** P-35: at least 1.00 GEL; legacy 10 characters = at most 9,999,999.99 GEL (contract `GigCreateRequest`). */
+const MIN_PRICE_TETRI = 100;
+const MAX_PRICE_TETRI = 999_999_999;
+const PRICE_FORMAT = /^\d+([.,]\d{1,2})?$/;
+
+/** "250", "250.5", "250,50" → tetri; null when the text is not an amount (legacy `^\d+(\.\d{1,2})?$`). */
+export function toTetri(text: string): number | null {
+  const value = text.trim();
+  if (!PRICE_FORMAT.test(value)) return null;
+  const [whole, fraction = ''] = value.split(/[.,]/);
+  return Number(whole) * 100 + Number(fraction.padEnd(2, '0'));
+}
+
+/** AC-8 (also each upgrade's price, AC-11). */
+function priceIssue(t: TFunction, text: string): string | undefined {
+  const tetri = toTetri(text);
+  if (!text.trim()) return t('t_validator_required');
+  if (tetri === null) return t('t_validator_regex');
+  if (tetri < MIN_PRICE_TETRI) return t('t_price_min', { min: MIN_PRICE_TETRI / 100 });
+  if (tetri > MAX_PRICE_TETRI) return t('t_validator_max', { max: 10 });
+  return undefined;
+}
+
+function checkText(
+  t: TFunction,
+  text: string,
+  lang: 'ka' | 'en',
+  length: { min: number; max?: number },
+): string | undefined {
+  const n = contentLength(text);
+  if (n < length.min) return t('t_validator_min', { min: length.min });
+  if (length.max !== undefined && n > length.max) return t('t_validator_max', { max: length.max });
+  const issue = lang === 'ka' ? georgianFieldIssue(text) : englishFieldIssue(text);
+  return issue ? t(issue.messageKey, issue.params) : undefined;
+}
+
+/** Every field error of the built blocks, by field name (AC-19: all at once). */
+export function validateDraft(
+  draft: GigDraft,
+  t: TFunction,
+  maxRevisions: number,
+  /** Edit of a migrated gig without a stored value (data model: null only for legacy rows): empty = unchanged. */
+  opts: { revisionsOptional?: boolean } = {},
+): Record<string, string> {
+  const errors: Record<string, string> = {};
+  const put = (field: string, message: string | undefined) => {
+    if (message) errors[field] = message;
+  };
+  const required = t('t_validator_required');
+
+  // Overview (AC-4…AC-6): Georgian required, English optional (blank = not given).
+  put(
+    'title.ka',
+    contentLength(draft.titleKa) === 0 ? required : checkText(t, draft.titleKa, 'ka', TITLE),
+  );
+  if (contentLength(draft.titleEn) > 0) put('title.en', checkText(t, draft.titleEn, 'en', TITLE));
+  if (!draft.categoryId) put('categoryId', required);
+  if (!draft.subcategoryId) put('subcategoryId', required);
+  if (!draft.childCategoryId) put('childCategoryId', required);
+  const descKa = descriptionText(draft.descriptionKa);
+  const descEn = descriptionText(draft.descriptionEn);
+  put(
+    'description.ka',
+    contentLength(descKa) === 0 ? required : checkText(t, descKa, 'ka', { min: DESCRIPTION_MIN }),
+  );
+  if (contentLength(descEn) > 0) {
+    put('description.en', checkText(t, descEn, 'en', { min: DESCRIPTION_MIN }));
+  }
+
+  // Pricing (AC-8, AC-9).
+  put('price', priceIssue(t, draft.price));
+  if (!draft.deliveryDays) put('deliveryDays', required);
+  const revisions = draft.revisions.trim();
+  if (revisions === '' && opts.revisionsOptional) {
+    // Left as it is (the API keeps an omitted field).
+  } else if (!/^\d+$/.test(revisions) || Number(revisions) > maxRevisions) {
+    put('revisionsAllowed', t('t_validator_revisions_range', { max: maxRevisions }));
+  }
+
+  // Upgrades (AC-11): title not blank, price as AC-8, extra days from the delivery list.
+  draft.upgrades.forEach((u, i) => {
+    if (!contentLength(u.title)) put(`upgrades[${i}].title`, required);
+    put(`upgrades[${i}].price`, priceIssue(t, u.price));
+    if (!u.extraDays) put(`upgrades[${i}].extraDays`, required);
+  });
+  // FAQ (AC-12): neither text blank (the lengths are capped by the inputs).
+  draft.faqs.forEach((f, i) => {
+    if (!contentLength(f.question)) put(`faqs[${i}].question`, required);
+    if (!contentLength(f.answer)) put(`faqs[${i}].answer`, required);
+  });
+  // Gallery (AC-14): a thumbnail and at least one image; the uploaders keep the counts and types within the limits.
+  if (draft.gallery.thumbnail.length === 0) put('thumbnailFileId', required);
+  if (draft.gallery.images.length === 0) put('imageFileIds', required);
+  // SEO (AC-15): both or none.
+  if (!contentLength(draft.seo.title) !== !contentLength(draft.seo.description)) {
+    put('seo', t('t_seo_both_fields_required'));
+  }
+  return errors;
+}
+
+/** Has the user typed or chosen anything in the block yet? */
+export function blockStarted(draft: GigDraft, block: BlockId): boolean {
+  switch (block) {
+    case 'overview':
+      return !!(
+        draft.titleKa.trim() ||
+        draft.titleEn.trim() ||
+        draft.categoryId ||
+        draft.descriptionKa.trim() ||
+        draft.descriptionEn.trim()
+      );
+    case 'pricing':
+      return !!(draft.price.trim() || draft.deliveryDays || draft.revisions.trim());
+    case 'upgrades':
+      return draft.upgrades.length > 0;
+    case 'faq':
+      return draft.faqs.length > 0;
+    case 'gallery':
+      return !!(
+        draft.gallery.busy ||
+        draft.gallery.thumbnail.length ||
+        draft.gallery.images.length ||
+        draft.gallery.documents.length
+      );
+    case 'seo':
+      return !!(draft.seo.title.trim() || draft.seo.description.trim());
+  }
+}
+
+type GigCreateRequest = components['schemas']['GigCreateRequest'];
+
+/** The draft as `createGig` takes it (AC-4…AC-15); only called once `validateDraft` found nothing. */
+export function toCreateRequest(draft: GigDraft, documentsEnabled: boolean): GigCreateRequest {
+  const gel = (text: string) => ({ amount: toTetri(text)!, currency: 'GEL' as const });
+  const optional = (text: string) => (contentLength(text) > 0 ? text : null);
+  const seoGiven = contentLength(draft.seo.title) > 0 && contentLength(draft.seo.description) > 0;
+  return {
+    title: { ka: draft.titleKa.trim(), en: optional(draft.titleEn.trim()) },
+    description: {
+      ka: markupToHtml(draft.descriptionKa),
+      en:
+        contentLength(descriptionText(draft.descriptionEn)) > 0
+          ? markupToHtml(draft.descriptionEn)
+          : null,
+    },
+    categoryId: draft.categoryId,
+    subcategoryId: draft.subcategoryId,
+    childCategoryId: draft.childCategoryId,
+    price: gel(draft.price),
+    deliveryDays: Number(draft.deliveryDays) as GigCreateRequest['deliveryDays'],
+    revisionsAllowed: Number(draft.revisions.trim()),
+    upgrades: draft.upgrades.map((u) => ({
+      ...(u.id ? { id: u.id } : {}),
+      title: u.title.trim(),
+      price: gel(u.price),
+      extraDays: Number(u.extraDays) as GigCreateRequest['deliveryDays'],
+    })),
+    faqs: draft.faqs.map((f) => ({ question: f.question.trim(), answer: f.answer.trim() })),
+    thumbnailFileId: draft.gallery.thumbnail[0]!,
+    imageFileIds: draft.gallery.images,
+    ...(documentsEnabled ? { documentFileIds: draft.gallery.documents } : {}),
+    seo: seoGiven
+      ? { title: draft.seo.title.trim(), description: draft.seo.description.trim() }
+      : null,
+  };
+}
+
+type GigOwnerView = components['schemas']['GigOwnerView'];
+type GigUpdateRequest = components['schemas']['GigUpdateRequest'];
+
+/** Tetri → the amount as the price fields show it ("250.50"). */
+const gelText = (amount: number) => (amount / 100).toFixed(2);
+
+/** The stored gig as a draft (AC-21): stored HTML as marked-up text; `nextKey` numbers the rows. */
+export function draftFromGig(gig: GigOwnerView, nextKey: () => number): GigDraft {
+  return {
+    titleKa: gig.title.ka,
+    titleEn: gig.title.en ?? '',
+    categoryId: gig.categoryId,
+    subcategoryId: gig.subcategoryId,
+    childCategoryId: gig.childCategoryId,
+    descriptionKa: htmlToMarkup(gig.description.ka),
+    descriptionEn: htmlToMarkup(gig.description.en ?? ''),
+    price: gelText(gig.price.amount),
+    deliveryDays: String(gig.deliveryDays),
+    revisions: gig.revisionsAllowed === null ? '' : String(gig.revisionsAllowed),
+    upgrades: gig.upgrades.map((u) => ({
+      key: nextKey(),
+      id: u.id,
+      title: u.title,
+      price: gelText(u.price.amount),
+      extraDays: String(u.extraDays),
+    })),
+    faqs: gig.faqs.map((f) => ({ key: nextKey(), question: f.question, answer: f.answer })),
+    seo: { title: gig.seo?.title ?? '', description: gig.seo?.description ?? '' },
+    gallery: {
+      thumbnail: [gig.thumbnail.fileId],
+      images: gig.images.map((i) => i.fileId),
+      documents: gig.documents.map((d) => d.fileId),
+      busy: false,
+    },
+  };
+}
+
+/**
+ * `updateGig` (AC-21…AC-23): every field of the form; the lists replace the stored ones in order, so a removed,
+ * added or moved image needs no re-upload. An empty revisions field of a migrated gig is left out (unchanged).
+ */
+export function toUpdateRequest(draft: GigDraft, documentsEnabled: boolean): GigUpdateRequest {
+  const { revisionsAllowed, ...body } = toCreateRequest(draft, documentsEnabled);
+  return draft.revisions.trim() === '' ? body : { ...body, revisionsAllowed };
+}
+
+/**
+ * The draft value behind an API field name (`details.fields[].field`), as text to compare: a server error stays on
+ * its field until that value changes. `undefined` = the name is no field of the form (shown as a general error).
+ * `gallery` stands for the whole gallery (file errors name no field).
+ */
+export function fieldValue(draft: GigDraft, field: string): string | undefined {
+  const name = field.replace(/\.amount$/, '');
+  const row = /^(upgrades|faqs)\[(\d+)\]\.(\w+)$/.exec(name);
+  if (row) {
+    const item = draft[row[1] as 'upgrades' | 'faqs'][Number(row[2])] as
+      Record<string, unknown> | undefined;
+    return item && row[3]! in item ? JSON.stringify(item[row[3]!]) : undefined;
+  }
+  const values: Record<string, unknown> = {
+    'title.ka': draft.titleKa,
+    'title.en': draft.titleEn,
+    categoryId: draft.categoryId,
+    subcategoryId: draft.subcategoryId,
+    childCategoryId: draft.childCategoryId,
+    'description.ka': draft.descriptionKa,
+    'description.en': draft.descriptionEn,
+    price: draft.price,
+    deliveryDays: draft.deliveryDays,
+    revisionsAllowed: draft.revisions,
+    seo: draft.seo,
+    thumbnailFileId: draft.gallery.thumbnail,
+    imageFileIds: draft.gallery.images,
+    documentFileIds: draft.gallery.documents,
+    gallery: [draft.gallery.thumbnail, draft.gallery.images, draft.gallery.documents],
+  };
+  return name in values ? JSON.stringify(values[name]) : undefined;
+}
+
+/** The API's name for a field as the form names it (`price.amount` → `price`). */
+export const formFieldName = (field: string) => field.replace(/\.amount$/, '');

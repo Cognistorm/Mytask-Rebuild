@@ -2792,6 +2792,7 @@
   "t_ui_dark_mode": "Dark mode",
   "t_ui_dbip_credit": "IP Geolocation by DB-IP",
   "t_ui_decrease": "Decrease",
+  "t_ui_description_format_hint": "Lists: start a line with “- ” or “1. ”. Bold: **text**, italic: *text*. Leave an empty line between paragraphs.",
   "t_ui_device_desktop": "Desktop",
   "t_ui_device_mobile": "Mobile",
   "t_ui_device_tablet": "Tablet",

@@ -2797,6 +2797,7 @@
   "t_ui_dark_mode": "მუქი რეჟიმი",
   "t_ui_dbip_credit": "IP Geolocation by DB-IP",
   "t_ui_decrease": "შემცირება",
+  "t_ui_description_format_hint": "სია: დაიწყეთ ხაზი „- “-ით ან „1. “-ით. მუქი: **ტექსტი**, დახრილი: *ტექსტი*. აბზაცებს შორის დატოვეთ ცარიელი ხაზი.",
   "t_ui_device_desktop": "კომპიუტერი",
   "t_ui_device_mobile": "მობილური",
   "t_ui_device_tablet": "პლანშეტი",

@@ -23,5 +23,10 @@ export const portfolioItemUrl = (username: string, slug: string) =>
 /** The public web address of a gig page (url-map §4.1), shared through the native share sheet. */
 export const gigUrl = (slug: string) => `${appUrl}/service/${encodeURIComponent(slug)}`;
 
+/** The website's subscription page (spec 04 AC-2: `?gigs=true` after the plan's gig limit); the app opens it until
+ * the subscription slice builds its own screen. */
+export const subscriptionUrl = (opts: { gigs?: boolean } = {}) =>
+  `${appUrl}/subscription${opts.gigs ? '?gigs=true' : ''}`;
+
 /** The website's gig editor (url-map §4.1); the app opens it until its own wizard exists (ROADMAP 4.3.15). */
 export const gigEditUrl = (uid: string) => `${appUrl}/seller/gigs/${encodeURIComponent(uid)}/edit`;
