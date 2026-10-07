@@ -937,3 +937,10 @@ Follow-up: product-analyst adds the NEW event (next free id EV-130, email + in-a
 5. The delivery time list: None, 1–6 days, 1, 2, 3 weeks, 1 month (AC-8).
 Options: (a) keep all fixed, as legacy; (b) make 1 and 2 settings, each with a Standard and a Premium value (like S-001/S-002); this also allows a Premium feature "more upgrades/FAQs"; (c) (b) plus 3 as one setting.
 Recommendation: (b) — upgrades and FAQ counts are the ones a plan could sell; the price floor and text lengths are content rules better kept fixed (bigger lengths would also need database changes). Nothing in slice 3 is blocked: everything keeps today's values until the Owner answers.
+
+## Slice 3 gigs — answered (backend-engineer, ROADMAP 4.3.5b, 2026-10-07)
+
+### Q-182
+**When does a gig page visit count as a new "click" (spec 04 AC-34; "Total clicks" of AC-39 and the "Most popular" sort)?** Legacy (`legacy/APP/app/Jobs/Main/Service/Track.php`) counts a visitor once ever per gig: a repeat visit by the same IP + user agent only adds to `counter_impressions`. That needs the stored IP, which Q-055 / ADR-012 forbid (only a daily-salted hash may be kept). Options: (a) once per visitor (IP + browser) per day; (b) every page load; (c) once ever, as legacy, with a permanent IP-derived code (against Q-055).
+Recommendation: (a).
+**Answer (Owner, 2026-10-07):** (a) — once per visitor per Tbilisi day and gig. Built in 4.3.5b. Follow-up: product-analyst adds the rule to spec 04 AC-34 as a CHANGE (Q-182).

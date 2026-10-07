@@ -103,6 +103,16 @@ export class GigPages {
     return owner;
   }
 
+  /** The gig's owner when the caller may see its page (as getGig); 404 otherwise. listRelatedGigs, recordGigView. */
+  async visible(gigId: string, viewerId: string | null): Promise<{ ownerId: string }> {
+    const gig = await this.prisma.gig.findUnique({
+      where: { id: gigId },
+      select: { status: true, ownerId: true },
+    });
+    const owner = await this.visibleOwner(gig, viewerId);
+    return { ownerId: owner.id };
+  }
+
   // ------------------------------------------------------------------ the page (AC-26…AC-30)
 
   private async page(
@@ -218,11 +228,7 @@ export class GigPages {
     locale: Locale,
     viewerId: string | null,
   ): Promise<S['GigRelatedList']> {
-    const gig = await this.prisma.gig.findUnique({
-      where: { id: gigId },
-      select: { status: true, ownerId: true },
-    });
-    await this.visibleOwner(gig, viewerId);
+    await this.visible(gigId, viewerId);
     const texts = relatedTexts(locale);
     const rows = await this.prisma.$queryRaw<{ id: string }[]>`
       SELECT c."id"

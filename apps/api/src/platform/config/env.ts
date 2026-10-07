@@ -90,6 +90,11 @@ export const envSchema = z
     /** clamd TCP address (compose profile `scan`: `clamav:3310`). */
     CLAMAV_HOST: z.string().optional(),
     CLAMAV_PORT: z.coerce.number().int().positive().default(3310),
+    /**
+     * Local city database in MMDB format (ADR-012 §2: DB-IP City Lite or MaxMind GeoLite2 City), for the country
+     * and city of visits. Unset or missing = country and city stay empty; never a third-party lookup.
+     */
+    GEOIP_CITY_DB_PATH: z.string().min(1).optional(),
     /** API tests only (ADR-002 §2); refused in production below. */
     STAFF_BODY_TOKENS_ENABLED: bool,
   })

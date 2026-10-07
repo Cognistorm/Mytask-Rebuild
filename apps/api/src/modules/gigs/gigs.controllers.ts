@@ -1,5 +1,6 @@
 // Contract: getGigCreationEligibility (ROADMAP 4.3.3a), createGig (4.3.3b), updateGig and deleteGig (4.3.3c), getGig,
-// lookupGig, getGigOwnerView and listMyGigs (4.3.4), listRelatedGigs (4.3.5a). Fixed paths (`mine`, `lookup`) come before `:gigId`.
+// lookupGig, getGigOwnerView and listMyGigs (4.3.4), listRelatedGigs (4.3.5a), recordGigView (4.3.5b). Fixed paths
+// (`mine`, `lookup`) come before `:gigId`.
 import {
   Body,
   Controller,
@@ -20,6 +21,7 @@ import { CurrentAuth, OptionalAuth, OptionalUser, type AuthState } from '../auth
 import { buildContext } from '../auth/request-context';
 import { GigLimits } from './gig-limits';
 import { GigPages } from './gig-pages.service';
+import { GigViews } from './gig-views.service';
 import { GigsService } from './gigs.service';
 
 type S = components['schemas'];
@@ -34,6 +36,7 @@ export class GigsController {
     private readonly limits: GigLimits,
     private readonly gigs: GigsService,
     private readonly pages: GigPages,
+    private readonly views: GigViews,
     private readonly ipResolver: ClientIpResolver,
   ) {}
 
@@ -92,6 +95,28 @@ export class GigsController {
     @Req() req: Request,
   ): Promise<S['GigRelatedList']> {
     return this.pages.related(gigId, this.ctx(req).locale, viewer?.userId ?? null);
+  }
+
+  /** 202 at once; the visit is recorded after the answer (GigViews). The global write limit gives the 429. */
+  @OptionalUser()
+  @Post(':gigId/views')
+  @HttpCode(202)
+  async recordView(
+    @Param('gigId') gigId: string,
+    @OptionalAuth() viewer: AuthState | null,
+    @Body() body: S['GigViewCreateRequest'] | undefined,
+    @Req() req: Request,
+  ): Promise<void> {
+    const ctx = this.ctx(req);
+    await this.views.accept({
+      gigId,
+      viewerId: viewer?.userId ?? null,
+      ip: ctx.ip,
+      userAgent: ctx.userAgent,
+      client: ctx.client,
+      locale: ctx.locale,
+      referrer: body?.referrer ?? null,
+    });
   }
 
   @Get(':gigId/owner-view')
