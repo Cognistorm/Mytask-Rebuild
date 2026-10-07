@@ -242,6 +242,15 @@ export function renderEmail(i: TemplateInput): RenderedEmail {
         [t('t_notification_admin_pending_gig')],
         { label: t('t_pending_gigs'), url: `${i.adminUrl.replace(/\/$/, '')}/gigs` },
       );
+    case 'EV-22':
+      // NEW (spec 04 P-36): written like the legacy profile report email (Admin/ProfileReported.php:44-51).
+      return layout(
+        i.locale,
+        t('t_subject_admin_gig_reported'),
+        t('t_hi_admin'),
+        [t('t_notification_admin_reported_gig')],
+        { label: t('t_reported_gigs'), url: `${i.adminUrl.replace(/\/$/, '')}/reports` },
+      );
     case 'EV-126':
       // NEW (Q-117): the staff reason is shown to the owner.
       return layout(

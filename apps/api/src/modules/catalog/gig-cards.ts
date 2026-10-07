@@ -1,8 +1,8 @@
 // `GigCard` of every gig list (spec 03 AC-7, AC-18; contract `GigCard`): title in the request language with the
 // Georgian fallback, thumbnail variants, starting price, rating in tenths, seller summary and the Featured flag
 // (= the seller's active Premium, the same PremiumStatus answer the ranking uses). Neutral values of later slices
-// (4.2.1 handoff §D): rating counters stay 0 until slice 6, `isFavorite` is `false` for a signed-in caller until
-// favourites exist (slice 3), `null` for guests.
+// (4.2.1 handoff §D): rating counters stay 0 until slice 6. `isFavorite`: the signed-in caller's saved gigs
+// (`favorites`, 4.3.6), `null` for guests.
 import { Inject, Injectable } from '@nestjs/common';
 import type { Locale, Schema } from '@mytask/types';
 import { ENV, type Env } from '../../platform/config/env';
@@ -36,10 +36,17 @@ export class GigCards {
       where: { id: { in: [...ids] } },
       include: { translations: { select: { locale: true, title: true } } },
     });
-    const [thumbnails, sellers] = await Promise.all([
+    const [thumbnails, sellers, saved] = await Promise.all([
       this.prisma.file.findMany({ where: { id: { in: gigs.map((g) => g.thumbnailFileId) } } }),
       this.summaries.many(gigs.map((g) => g.ownerId)),
+      viewerId === null
+        ? []
+        : this.prisma.favorite.findMany({
+            where: { userId: viewerId, gigId: { in: gigs.map((g) => g.id) } },
+            select: { gigId: true },
+          }),
     ]);
+    const favorites = new Set(saved.map((f) => f.gigId));
     const byId = new Map(gigs.map((g) => [g.id, g]));
     return ids.flatMap((id) => {
       const gig = byId.get(id);
@@ -60,7 +67,7 @@ export class GigCards {
           rating: ratingSummary(gig.ratingCount, gig.ratingSum),
           seller,
           isFeatured: seller.isPremium,
-          isFavorite: viewerId === null ? null : false,
+          isFavorite: viewerId === null ? null : favorites.has(gig.id),
         },
       ];
     });

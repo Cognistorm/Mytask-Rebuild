@@ -1656,6 +1656,7 @@
   "t_notification_admin_pending_withdrawal": "You have new withdrawals pending approval, please check them in dashboard",
   "t_notification_admin_refund_dispute": "A user has raised a dispute about a refund, because seller has decided to decline it, please click the button below to see refund details",
   "t_notification_admin_reported_bid": "A bid has been reported in this project",
+  "t_notification_admin_reported_gig": "A user has reported a gig in your website, please click the button below to see reported gigs",
   "t_notification_admin_reported_profile": "A user has reported a profile in your website, please click the button below to see reported profiles",
   "t_notification_admin_reported_project": "The following project has been reported",
   "t_notification_admin_support_message": "You have received the following message",

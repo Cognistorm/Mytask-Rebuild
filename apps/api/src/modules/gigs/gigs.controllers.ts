@@ -1,6 +1,7 @@
 // Contract: getGigCreationEligibility (ROADMAP 4.3.3a), createGig (4.3.3b), updateGig and deleteGig (4.3.3c), getGig,
 // lookupGig, getGigOwnerView and listMyGigs (4.3.4), listRelatedGigs (4.3.5a), recordGigView (4.3.5b), getGigAnalytics
-// (4.3.5c). Fixed paths (`mine`, `lookup`) come before `:gigId`.
+// (4.3.5c), createGigReport (4.3.6). Fixed paths (`mine`, `lookup`) come before `:gigId`. FavoritesController:
+// listFavorites, putFavorite, deleteFavorite (4.3.6).
 import {
   Body,
   Controller,
@@ -10,6 +11,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Query,
   Req,
 } from '@nestjs/common';
@@ -20,8 +22,10 @@ import type { GigStatus } from '../../generated/prisma/client';
 import { CurrentAuth, OptionalAuth, OptionalUser, type AuthState } from '../auth/auth.guard';
 import { buildContext } from '../auth/request-context';
 import { GigAnalytics } from './gig-analytics.service';
+import { GigFavorites } from './gig-favorites.service';
 import { GigLimits } from './gig-limits';
 import { GigPages } from './gig-pages.service';
+import { GigReports } from './gig-reports.service';
 import { GigViews } from './gig-views.service';
 import { GigsService } from './gigs.service';
 
@@ -39,6 +43,7 @@ export class GigsController {
     private readonly pages: GigPages,
     private readonly views: GigViews,
     private readonly analytics: GigAnalytics,
+    private readonly reports: GigReports,
     private readonly ipResolver: ClientIpResolver,
   ) {}
 
@@ -121,6 +126,17 @@ export class GigsController {
     });
   }
 
+  @Post(':gigId/reports')
+  @HttpCode(201)
+  report(
+    @CurrentAuth() auth: AuthState,
+    @Param('gigId') gigId: string,
+    @Body() body: S['GigReportCreateRequest'],
+    @Req() req: Request,
+  ): Promise<S['GigReport']> {
+    return this.reports.create(auth.userId, gigId, body, this.ctx(req));
+  }
+
   @Get(':gigId/analytics')
   analyticsOf(
     @CurrentAuth() auth: AuthState,
@@ -161,5 +177,41 @@ export class GigsController {
   @HttpCode(204)
   remove(@CurrentAuth() auth: AuthState, @Param('gigId') gigId: string): Promise<void> {
     return this.gigs.remove(auth.userId, gigId);
+  }
+}
+
+@Controller('favorites')
+export class FavoritesController {
+  constructor(
+    private readonly favorites: GigFavorites,
+    private readonly ipResolver: ClientIpResolver,
+  ) {}
+
+  @Get()
+  list(
+    @CurrentAuth() auth: AuthState,
+    @Req() req: Request,
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: string,
+  ): Promise<S['GigCardPage']> {
+    const { ip, userAgent } = this.ipResolver.resolve(req);
+    const { locale, t } = buildContext(req, ip, userAgent);
+    return this.favorites.list(
+      auth.userId,
+      { cursor, limit: limit === undefined ? undefined : Number(limit) },
+      locale,
+      t,
+    );
+  }
+
+  @Put(':gigId')
+  put(@CurrentAuth() auth: AuthState, @Param('gigId') gigId: string): Promise<S['FavoriteGig']> {
+    return this.favorites.put(auth.userId, gigId);
+  }
+
+  @Delete(':gigId')
+  @HttpCode(204)
+  remove(@CurrentAuth() auth: AuthState, @Param('gigId') gigId: string): Promise<void> {
+    return this.favorites.remove(auth.userId, gigId);
   }
 }
