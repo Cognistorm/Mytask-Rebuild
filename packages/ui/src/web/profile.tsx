@@ -220,6 +220,8 @@ export function Dialog(props: {
   closeLabel: string;
   children: ReactNode;
   testId?: string;
+  /** `full`: the whole viewport (lightbox, §8.1 sizes); default `md`. */
+  size?: 'md' | 'full';
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -233,7 +235,7 @@ export function Dialog(props: {
   return (
     <dialog
       ref={ref}
-      className="mt-dialog"
+      className={props.size === 'full' ? 'mt-dialog mt-dialog-full' : 'mt-dialog'}
       aria-labelledby={titleId}
       aria-describedby={props.description ? descId : undefined}
       onClose={props.onClose}

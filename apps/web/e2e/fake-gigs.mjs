@@ -145,7 +145,13 @@ function gigFor(g, locale, viewer) {
     })),
     faqs: [],
     thumbnail: image(`gig-${g.n}`),
-    images: [image(`gig-${g.n}`)],
+    // Gig 1: three images; gig 2: none (the page shows the cover); others: one.
+    images:
+      g.n === 1
+        ? ['a', 'b', 'c'].map((x) => image(`gig-1-${x}`))
+        : g.n === 2
+          ? []
+          : [image(`gig-${g.n}`)],
     documents: [],
     seller: {
       user: NINO,

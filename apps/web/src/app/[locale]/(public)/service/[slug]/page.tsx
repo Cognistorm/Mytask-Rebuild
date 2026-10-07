@@ -1,8 +1,8 @@
 // Gig page `/service/{slug}` (spec 04 AC-26…AC-30, AC-33; spec 17 AC-3, AC-4; screen 02; legacy
 // `Main/Service/ServiceComponent.php`, `livewire/main/service/service.blade.php`). Rendered on the server as the
 // visitor of the request: real 404 for gigs others may not see (AC-28), 301 from an old or differently written slug
-// to the current one (AC-33). ROADMAP 4.3.11a = the frame: notices, breadcrumb, title, seller row, stats, cover
-// image, purchase box and the description. Still to come: the gallery (4.3.11b), tabs + "You may also like"
+// to the current one (AC-33). ROADMAP 4.3.11a = the frame: notices, breadcrumb, title, seller row, stats, purchase box
+// and the description; 4.3.11b = the gallery with its lightbox. Still to come: tabs + "You may also like"
 // (4.3.11c), Share / Report / favourite (4.3.11d); "Add to cart" and "Contact seller" stay hidden until slices
 // 5 / 7; the visit is recorded in 4.3.12 (`recordGigView`).
 import type { Metadata } from 'next';
@@ -18,6 +18,7 @@ import {
   RatingStars,
 } from '@mytask/ui/web';
 import { loadGig } from '../../../../../components/gig-page/data';
+import { GigGallery } from '../../../../../components/gig-page/gallery';
 import { GigUpgrades } from '../../../../../components/gig-page/upgrades';
 import '../../../../../components/gig-page/gig-page.css';
 import { DELIVERY_DAYS } from '../../../../../components/gig-wizard/gig-form';
@@ -249,16 +250,7 @@ export default async function GigPage({ params }: Params) {
 
       <div className="mt-gig-layout">
         <div className="mt-gig-main">
-          {/* The cover image; the gallery with thumbnails replaces it in 4.3.11b. */}
-          <figure className="mt-gig-cover" data-testid="gig-cover">
-            {/* eslint-disable-next-line @next/next/no-img-element -- CDN variants are already sized (ADR-009 §2) */}
-            <img
-              src={gig.thumbnail.large}
-              alt={gig.title}
-              width={gig.thumbnail.width ?? undefined}
-              height={gig.thumbnail.height ?? undefined}
-            />
-          </figure>
+          <GigGallery images={gig.images} cover={gig.thumbnail} title={gig.title} lang={lang} />
         </div>
 
         <aside className="mt-gig-box" aria-labelledby="gig-box-price" data-testid="purchase-box">
