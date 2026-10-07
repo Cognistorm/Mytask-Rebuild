@@ -158,6 +158,111 @@ test('Overview and Pricing: pre-check, dependent categories and the summary (AC-
   await expect(summary.getByText('2 of 2 required blocks complete')).toBeVisible();
 });
 
+test('Upgrades and FAQ: rows, their pre-check, removal and the limit of 10 (AC-11, AC-12)', async ({
+  page,
+}) => {
+  await fakeApi(page);
+  await page.goto('/en/create');
+  await hydrated(page);
+  const summary = page.getByRole('navigation', { name: 'Form progress' });
+  await expect(
+    summary.getByRole('link', { name: 'Upgrades (optional), not started' }),
+  ).toBeVisible();
+
+  // A new row gets the focus; its errors show on leaving the fields.
+  const upgrades = page.locator('#gig-upgrades');
+  await upgrades.getByRole('button', { name: 'Add service upgrade' }).click();
+  const first = upgrades.getByRole('group', { name: 'Upgrade #1' });
+  await expect(first.getByLabel('Upgrade title')).toBeFocused();
+  await first.getByLabel('Price').fill('0.5');
+  await first.getByLabel('Price').blur();
+  await expect(first.getByText('The price must be at least 1 GEL.')).toBeVisible();
+  await expect(
+    summary.getByRole('link', { name: 'Upgrades (optional), has errors' }),
+  ).toBeVisible();
+  await first.getByLabel('Upgrade title').fill('Source file');
+  await first.getByLabel('Price').fill('20');
+  await first.getByLabel('Delivery time').selectOption({ label: '1 day' });
+  await expect(summary.getByRole('link', { name: 'Upgrades (optional), completed' })).toBeVisible();
+
+  // Removing row 1 moves row 2 (with its shown error) up; the focus goes to the Add button.
+  await upgrades.getByRole('button', { name: 'Add service upgrade' }).click();
+  const second = upgrades.getByRole('group', { name: 'Upgrade #2' });
+  await second.getByLabel('Upgrade title').fill('Express');
+  await second.getByLabel('Upgrade title').blur();
+  await second.getByLabel('Price').focus();
+  await second.getByLabel('Price').blur();
+  await expect(second.getByText('Field required')).toBeVisible();
+  await first.getByRole('button', { name: 'Remove upgrade' }).click();
+  await expect(upgrades.getByTestId('gig-upgrade-row')).toHaveCount(1);
+  await expect(first.getByLabel('Upgrade title')).toHaveValue('Express');
+  await expect(first.getByText('Field required')).toBeVisible();
+  await expect(upgrades.getByRole('button', { name: 'Add service upgrade' })).toBeFocused();
+
+  // At 10 rows the Add button is disabled and says why.
+  for (let i = 1; i < 10; i++) {
+    await upgrades.getByRole('button', { name: 'Add service upgrade' }).click();
+  }
+  await expect(upgrades.getByTestId('gig-upgrade-row')).toHaveCount(10);
+  await expect(upgrades.getByRole('button', { name: 'Add service upgrade' })).toBeDisabled();
+  await expect(upgrades.getByText('You can add up to 10 upgrades.')).toBeVisible();
+
+  // FAQ: question and answer are both required.
+  const faq = page.locator('#gig-faq');
+  await faq.getByRole('button', { name: 'Add FAQ' }).click();
+  const q1 = faq.getByRole('group', { name: 'Question #1' });
+  await expect(q1.getByLabel('Question')).toBeFocused();
+  await q1.getByLabel('Question').fill('Do you translate to English as well?');
+  await q1.getByLabel('Answer').focus();
+  await q1.getByLabel('Answer').blur();
+  await expect(q1.getByText('Field required')).toBeVisible();
+  await q1.getByLabel('Answer').fill('Yes.');
+  await expect(summary.getByRole('link', { name: 'FAQ (optional), completed' })).toBeVisible();
+  await expect(q1.getByLabel('Answer')).toHaveAttribute('maxlength', '300');
+  await faq.getByRole('button', { name: 'Remove' }).click();
+  await expect(faq.getByTestId('gig-faq-row')).toHaveCount(0);
+  await expect(summary.getByRole('link', { name: 'FAQ (optional), not started' })).toBeVisible();
+
+  // The optional blocks never count in the required progress.
+  await expect(summary.getByText('0 of 2 required blocks complete')).toBeVisible();
+});
+
+test('SEO dialog: both fields or none (AC-15)', async ({ page }) => {
+  await fakeApi(page);
+  await page.goto('/en/create');
+  await hydrated(page);
+  const open = page.getByRole('button', { name: 'SEO meta tags' });
+  await open.click();
+  const dialog = page.getByRole('dialog', { name: 'SEO' });
+  await expect(dialog).toBeVisible();
+  await dialog.getByLabel('Seo title').fill('Minimalist logo design');
+  // Enter in a dialog field does not submit the gig.
+  await dialog.getByLabel('Seo title').press('Enter');
+  await expect(page.getByTestId('gig-form-errors')).toHaveCount(0);
+  await dialog.getByRole('button', { name: 'Save' }).click();
+  await expect(dialog).toBeVisible();
+  await expect(
+    dialog.getByText('Fill in both the SEO title and the SEO description'),
+  ).toBeVisible();
+  await dialog.getByRole('button', { name: 'Close' }).click();
+  await expect(dialog).toBeHidden();
+  await expect(open).toBeFocused();
+  await expect(page.locator('#gig-seo').getByRole('alert')).toContainText('SEO title');
+
+  // A refused submit marks the SEO block in the summary.
+  await page.getByRole('button', { name: 'Create', exact: true }).click();
+  const summary = page.getByRole('navigation', { name: 'Form progress' });
+  await expect(summary.getByRole('link', { name: 'SEO (optional), has errors' })).toBeVisible();
+
+  await open.click();
+  await dialog.getByLabel('Seo description').fill('Clean logos in two days.');
+  await expect(dialog.getByText('Search engine Gig preview')).toBeVisible();
+  await dialog.getByRole('button', { name: 'Save' }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.locator('#gig-seo').getByText('Minimalist logo design')).toBeVisible();
+  await expect(summary.getByRole('link', { name: 'SEO (optional), completed' })).toBeVisible();
+});
+
 test('the Georgian page uses the Georgian texts', async ({ page }) => {
   await fakeApi(page);
   await page.goto('/create');
@@ -174,15 +279,29 @@ test('the form passes axe (WCAG 2 A/AA) with errors shown, light and dark', asyn
     await page.emulateMedia({ colorScheme: scheme });
     await page.goto('/en/create');
     await hydrated(page);
+    await page.getByRole('button', { name: 'Add service upgrade' }).click();
+    await page.getByRole('button', { name: 'Add FAQ' }).click();
     await page.getByRole('button', { name: 'Create', exact: true }).click();
     await expect(page.getByTestId('gig-form-errors')).toBeVisible();
-    const result = await new AxeBuilder({ page })
-      .include('main')
-      .withTags(['wcag2a', 'wcag2aa'])
-      .analyze();
-    const found = result.violations.flatMap((v) =>
-      v.nodes.map((n) => `${scheme}: ${v.id} ${n.target.join(' ')}`),
-    );
-    expect(found, found.join('\n')).toEqual([]);
+    await expectNoAxeViolations(page, scheme, 'main');
+
+    // The SEO dialog with its both-or-none error and the preview.
+    await page.getByRole('button', { name: 'SEO meta tags' }).click();
+    const dialog = page.getByRole('dialog', { name: 'SEO' });
+    await dialog.getByLabel('Seo title').fill('Minimalist logo design');
+    await dialog.getByRole('button', { name: 'Save' }).click();
+    await expect(dialog.getByRole('alert')).toBeVisible();
+    await expectNoAxeViolations(page, `${scheme} dialog`, '[data-testid="gig-seo-dialog"]');
   }
 });
+
+async function expectNoAxeViolations(page: Page, label: string, scope: string) {
+  const result = await new AxeBuilder({ page })
+    .include(scope)
+    .withTags(['wcag2a', 'wcag2aa'])
+    .analyze();
+  const found = result.violations.flatMap((v) =>
+    v.nodes.map((n) => `${label}: ${v.id} ${n.target.join(' ')}`),
+  );
+  expect(found, found.join('\n')).toEqual([]);
+}

@@ -2788,6 +2788,7 @@
   "t_ui_dark_mode": "მუქი რეჟიმი",
   "t_ui_decrease": "შემცირება",
   "t_ui_discard_changes": "გავაუქმოთ ცვლილებები?",
+  "t_ui_faq_number": "კითხვა #{{number}}",
   "t_ui_file_size_mb": "{{size}} მბ",
   "t_ui_form_progress": "ფორმის შევსების პროგრესი",
   "t_ui_hide_password": "პაროლის დამალვა",

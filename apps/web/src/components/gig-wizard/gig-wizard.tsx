@@ -2,13 +2,14 @@
 // Gig create wizard `/create` (spec 04 AC-1…AC-9, AC-19; screen docs/05-design/screens/03-gig-create-wizard.md;
 // legacy `livewire/main/create/create.blade.php`): one page with the blocks in the legacy order and a side summary
 // (Stepper) with each block's status. Opening checks the plan limit (AC-2, `getGigCreationEligibility`); guests go
-// to login and back (AC-1). ROADMAP 4.3.9 builds the entry, Overview and Pricing; 4.3.10 adds Upgrades, FAQ,
-// Gallery, the SEO dialog, the submit itself, the success screens, edit mode and the phone step mode.
+// to login and back (AC-1). ROADMAP 4.3.9 built the entry, Overview and Pricing; 4.3.10a Upgrades, FAQ and the SEO
+// dialog (AC-11, AC-12, AC-15); 4.3.10b…e add the Gallery, the submit, edit mode and the phone step mode.
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { components } from '@mytask/types';
 import {
   Alert,
+  Dialog,
   EmptyState,
   Field,
   PriceInput,
@@ -17,20 +18,30 @@ import {
   Select,
   Skeleton,
   Stepper,
+  TextArea,
   type StepItem,
   type StepStatus,
 } from '@mytask/ui/web';
 import { href, useApi, useLocale, useT } from '../../lib/client';
 import { usePublicConfig } from '../../lib/public-config';
 import {
-  BLOCK_FIELDS,
+  blockFields,
+  BLOCKS,
   blockStarted,
   DELIVERY_DAYS,
   EMPTY_DRAFT,
+  FAQ,
+  MAX_FAQS,
+  MAX_UPGRADES,
+  SEO,
+  shiftRowFields,
   TITLE,
+  UPGRADE_TITLE_MAX,
   validateDraft,
   type BlockId,
+  type FaqDraft,
   type GigDraft,
+  type UpgradeDraft,
 } from './gig-form';
 import './gig-wizard.css';
 
@@ -119,8 +130,14 @@ function GigForm({ categories }: { categories: CategoryNode[] }) {
   const [submitted, setSubmitted] = useState(false);
   const [current, setCurrent] = useState<BlockId>('overview');
   const [announce, setAnnounce] = useState('');
+  const [seoOpen, setSeoOpen] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const focusFirstError = useRef(false);
+  /** Name of a field to focus after the next render (a row just added). */
+  const focusField = useRef<string | null>(null);
+  const rowKey = useRef(0);
+  const addUpgradeRef = useRef<HTMLButtonElement>(null);
+  const addFaqRef = useRef<HTMLButtonElement>(null);
 
   const errors = useMemo(() => validateDraft(draft, t, maxRevisions), [draft, t, maxRevisions]);
   const errorOf = (field: string) => (shown.has(field) ? errors[field] : undefined);
@@ -154,39 +171,86 @@ function GigForm({ categories }: { categories: CategoryNode[] }) {
     touch(level);
   };
 
-  const status = (block: BlockId): StepStatus => {
-    const fields = BLOCK_FIELDS[block];
-    if (fields.some((f) => shown.has(f) && errors[f])) return 'error';
-    if (fields.every((f) => !errors[f])) return 'complete';
-    return blockStarted(draft, block) ? 'in_progress' : 'not_started';
+  // AC-11, AC-12: rows are added empty and removed anywhere; a shown error stays on its row.
+  const addUpgrade = () => {
+    const row: UpgradeDraft = { key: ++rowKey.current, title: '', price: '', extraDays: '' };
+    focusField.current = `upgrades[${draft.upgrades.length}].title`;
+    setDraft((d) => ({ ...d, upgrades: [...d.upgrades, row] }));
   };
-  const blocks: { id: BlockId; label: string }[] = [
-    { id: 'overview', label: t('t_overview') },
-    { id: 'pricing', label: t('t_pricing') },
-  ];
-  const steps: StepItem[] = blocks.map((b) => ({
-    id: `gig-${b.id}`,
-    label: b.label,
-    status: status(b.id),
-  }));
-  const done = steps.filter((s) => s.status === 'complete').length;
+  const addFaq = () => {
+    const row: FaqDraft = { key: ++rowKey.current, question: '', answer: '' };
+    focusField.current = `faqs[${draft.faqs.length}].question`;
+    setDraft((d) => ({ ...d, faqs: [...d.faqs, row] }));
+  };
+  const setUpgrade = (i: number, patch: Partial<UpgradeDraft>) =>
+    setDraft((d) => ({
+      ...d,
+      upgrades: d.upgrades.map((u, j) => (j === i ? { ...u, ...patch } : u)),
+    }));
+  const setFaq = (i: number, patch: Partial<FaqDraft>) =>
+    setDraft((d) => ({ ...d, faqs: d.faqs.map((f, j) => (j === i ? { ...f, ...patch } : f)) }));
+  const removeRow = (list: 'upgrades' | 'faqs', i: number) => {
+    setDraft((d) => ({ ...d, [list]: d[list].filter((_, j) => j !== i) }));
+    setShown((s) => shiftRowFields(s, list, i));
+    // The removed row had the focus; the block's Add button is the next sensible place.
+    (list === 'upgrades' ? addUpgradeRef : addFaqRef).current?.focus();
+  };
 
-  // AC-19: after a refused submit the first invalid field (page order) gets the focus.
+  /** AC-15: Save keeps the dialog open while only one SEO field is filled. */
+  const saveSeo = () => {
+    touch('seo');
+    if (!errors.seo) setSeoOpen(false);
+  };
+
+  const fields = blockFields(draft);
+  const status = (block: BlockId): StepStatus => {
+    const own = fields[block];
+    if (own.some((f) => shown.has(f) && errors[f])) return 'error';
+    if (!blockStarted(draft, block)) return 'not_started';
+    return own.every((f) => !errors[f]) ? 'complete' : 'in_progress';
+  };
+  const blockLabel: Record<BlockId, string> = {
+    overview: t('t_overview'),
+    pricing: t('t_pricing'),
+    upgrades: t('t_upgrades'),
+    faq: t('t_faq'),
+    seo: t('t_seo'),
+  };
+  const optional = `(${t('t_ui_optional')})`;
+  const steps: StepItem[] = BLOCKS.map((b) => ({
+    id: `gig-${b.id}`,
+    label: blockLabel[b.id],
+    status: status(b.id),
+    note: b.required ? undefined : optional,
+  }));
+  // Only the required blocks count (screen 03: "2 of 4 required").
+  const required = BLOCKS.filter((b) => b.required);
+  const done = required.filter((b) => status(b.id) === 'complete').length;
+
+  // AC-19: after a refused submit the first invalid field (page order) gets the focus. The SEO button marks its
+  // error with `data-invalid` (aria-invalid does not belong on a button). A row just added focuses its first field.
   useEffect(() => {
+    if (focusField.current) {
+      const name = focusField.current;
+      focusField.current = null;
+      formRef.current?.querySelector<HTMLElement>(`[name="${CSS.escape(name)}"]`)?.focus();
+    }
     if (!focusFirstError.current) return;
     focusFirstError.current = false;
-    formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
+    formRef.current
+      ?.querySelector<HTMLElement>('[aria-invalid="true"], [data-invalid="true"]')
+      ?.focus();
   });
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitted(true);
-    setShown(new Set(Object.values(BLOCK_FIELDS).flat()));
+    setShown(new Set(Object.values(fields).flat()));
     if (Object.keys(errors).length > 0) {
       focusFirstError.current = true;
       return;
     }
-    // ROADMAP 4.3.10: the gallery uploads and `createGig`.
+    // ROADMAP 4.3.10c: the gallery uploads and `createGig`.
   }
 
   const goTo = (id: string) => {
@@ -198,6 +262,9 @@ function GigForm({ categories }: { categories: CategoryNode[] }) {
   };
 
   const hasErrors = submitted && Object.keys(errors).length > 0;
+  const deliveryOptions = DELIVERY_DAYS.map((d) => ({ value: String(d.days), label: t(d.label) }));
+  const seoFilled = !!(draft.seo.title.trim() && draft.seo.description.trim());
+  const seoError = errorOf('seo');
   const georgian = (label: string) => t('t_label_in_georgian', { label });
   const english = (label: string) => t('t_label_in_english', { label });
   const counter = (text: string) =>
@@ -339,7 +406,7 @@ function GigForm({ categories }: { categories: CategoryNode[] }) {
                 label={t('t_delivery_time')}
                 name="deliveryDays"
                 placeholder={t('t_choose_delivery_time')}
-                options={DELIVERY_DAYS.map((d) => ({ value: String(d.days), label: t(d.label) }))}
+                options={deliveryOptions}
                 value={draft.deliveryDays}
                 onChange={(v) => {
                   set('deliveryDays', v);
@@ -361,6 +428,156 @@ function GigForm({ categories }: { categories: CategoryNode[] }) {
               error={errorOf('revisionsAllowed')}
             />
           </section>
+
+          <section
+            id="gig-upgrades"
+            className="mt-panel mt-gw-block"
+            aria-labelledby="gig-upgrades-title"
+            onFocus={() => setCurrent('upgrades')}
+            onBlur={(e) => blurField(e, touch)}
+          >
+            <h2 id="gig-upgrades-title" className="mt-gw-block-title" tabIndex={-1}>
+              3. {t('t_upgrades')} <span className="mt-gw-optional">{optional}</span>
+            </h2>
+            {draft.upgrades.map((u, i) => (
+              <fieldset key={u.key} className="mt-gw-row" data-testid="gig-upgrade-row">
+                <legend className="mt-gw-row-title" id={`gig-upgrade-${u.key}`}>
+                  {t('t_upgrade_number', { number: i + 1 })}
+                </legend>
+                <Field
+                  label={t('t_upgrade_title')}
+                  name={`upgrades[${i}].title`}
+                  placeholder={t('t_enter_upgrade_title')}
+                  maxLength={UPGRADE_TITLE_MAX}
+                  value={u.title}
+                  onChange={(v) => setUpgrade(i, { title: v })}
+                  error={errorOf(`upgrades[${i}].title`)}
+                />
+                <div className="mt-gw-pair">
+                  <PriceInput
+                    label={t('t_price')}
+                    name={`upgrades[${i}].price`}
+                    placeholder={t('t_price_placeholder_0_00')}
+                    value={u.price}
+                    onChange={(v) => setUpgrade(i, { price: v })}
+                    error={errorOf(`upgrades[${i}].price`)}
+                  />
+                  <Select
+                    label={t('t_delivery_time')}
+                    name={`upgrades[${i}].extraDays`}
+                    placeholder={t('t_and_an_additional_days')}
+                    options={deliveryOptions}
+                    value={u.extraDays}
+                    onChange={(v) => {
+                      setUpgrade(i, { extraDays: v });
+                      touch(`upgrades[${i}].extraDays`);
+                    }}
+                    error={errorOf(`upgrades[${i}].extraDays`)}
+                  />
+                </div>
+                <button
+                  type="button"
+                  className="mt-button mt-gw-row-remove"
+                  aria-describedby={`gig-upgrade-${u.key}`}
+                  onClick={() => removeRow('upgrades', i)}
+                >
+                  {t('t_remove_upgrade')}
+                </button>
+              </fieldset>
+            ))}
+            <AddRow
+              buttonRef={addUpgradeRef}
+              label={t('t_add_service_upgrade')}
+              full={draft.upgrades.length >= MAX_UPGRADES}
+              limitText={t('t_upgrades_limit_reached', { max: MAX_UPGRADES })}
+              onAdd={addUpgrade}
+            />
+          </section>
+
+          <section
+            id="gig-faq"
+            className="mt-panel mt-gw-block"
+            aria-labelledby="gig-faq-title"
+            onFocus={() => setCurrent('faq')}
+            onBlur={(e) => blurField(e, touch)}
+          >
+            <h2 id="gig-faq-title" className="mt-gw-block-title" tabIndex={-1}>
+              4. {t('t_faq')} <span className="mt-gw-optional">{optional}</span>
+            </h2>
+            <p className="mt-gw-block-subtitle">{t('t_create_gig_faq_subtitle')}</p>
+            {draft.faqs.map((f, i) => (
+              <fieldset key={f.key} className="mt-gw-row" data-testid="gig-faq-row">
+                <legend className="mt-gw-row-title" id={`gig-faq-${f.key}`}>
+                  {t('t_ui_faq_number', { number: i + 1 })}
+                </legend>
+                <Field
+                  label={t('t_question')}
+                  name={`faqs[${i}].question`}
+                  placeholder={t('t_faq_question_example')}
+                  maxLength={FAQ.questionMax}
+                  value={f.question}
+                  onChange={(v) => setFaq(i, { question: v })}
+                  error={errorOf(`faqs[${i}].question`)}
+                />
+                <TextArea
+                  label={t('t_answer')}
+                  name={`faqs[${i}].answer`}
+                  placeholder={t('t_faq_answer_example')}
+                  maxLength={FAQ.answerMax}
+                  rows={4}
+                  value={f.answer}
+                  onChange={(v) => setFaq(i, { answer: v })}
+                  error={errorOf(`faqs[${i}].answer`)}
+                />
+                <button
+                  type="button"
+                  className="mt-button mt-gw-row-remove"
+                  aria-describedby={`gig-faq-${f.key}`}
+                  onClick={() => removeRow('faqs', i)}
+                >
+                  {t('t_remove')}
+                </button>
+              </fieldset>
+            ))}
+            <AddRow
+              buttonRef={addFaqRef}
+              label={t('t_add_faq')}
+              full={draft.faqs.length >= MAX_FAQS}
+              limitText={t('t_faq_limit_reached', { max: MAX_FAQS })}
+              onAdd={addFaq}
+            />
+          </section>
+
+          <section
+            id="gig-seo"
+            className="mt-panel mt-gw-block"
+            aria-labelledby="gig-seo-title"
+            onFocus={() => setCurrent('seo')}
+          >
+            <h2 id="gig-seo-title" className="mt-gw-block-title" tabIndex={-1}>
+              {t('t_seo')} <span className="mt-gw-optional">{optional}</span>
+            </h2>
+            {seoFilled && (
+              <SeoPreview title={draft.seo.title} description={draft.seo.description} />
+            )}
+            <div>
+              <button
+                type="button"
+                className="mt-button"
+                aria-haspopup="dialog"
+                aria-describedby={seoError ? 'gig-seo-error' : undefined}
+                data-invalid={seoError ? 'true' : undefined}
+                onClick={() => setSeoOpen(true)}
+              >
+                {t('t_seo_meta_tags')}
+              </button>
+              {seoError && (
+                <p id="gig-seo-error" className="auth-error" role="alert">
+                  {seoError}
+                </p>
+              )}
+            </div>
+          </section>
         </div>
 
         <aside className="mt-gw-side">
@@ -377,8 +594,8 @@ function GigForm({ categories }: { categories: CategoryNode[] }) {
               }}
               progress={{
                 done,
-                total: steps.length,
-                text: t('t_ui_required_blocks_progress', { done, total: steps.length }),
+                total: required.length,
+                text: t('t_ui_required_blocks_progress', { done, total: required.length }),
               }}
               onSelect={goTo}
             >
@@ -389,7 +606,92 @@ function GigForm({ categories }: { categories: CategoryNode[] }) {
           </div>
         </aside>
       </form>
+
+      {/* Outside the form, so Enter in a dialog field does not submit the gig. */}
+      <Dialog
+        open={seoOpen}
+        onClose={() => {
+          if (blockStarted(draft, 'seo')) touch('seo');
+          setSeoOpen(false);
+        }}
+        title={t('t_seo')}
+        closeLabel={t('t_ui_close')}
+        testId="gig-seo-dialog"
+      >
+        <div className="mt-gw-dialog">
+          <Field
+            label={t('t_seo_title')}
+            name="seo.title"
+            placeholder={t('t_enter_seo_title')}
+            maxLength={SEO.titleMax}
+            value={draft.seo.title}
+            onChange={(v) => set('seo', { ...draft.seo, title: v })}
+          />
+          <TextArea
+            label={t('t_seo_description')}
+            name="seo.description"
+            placeholder={t('t_enter_seo_description')}
+            maxLength={SEO.descriptionMax}
+            rows={3}
+            value={draft.seo.description}
+            onChange={(v) => set('seo', { ...draft.seo, description: v })}
+          />
+          {seoError && <Alert kind="error">{seoError}</Alert>}
+          {seoFilled && <SeoPreview title={draft.seo.title} description={draft.seo.description} />}
+          <div className="mt-gw-dialog-actions">
+            <button type="button" className="mt-button mt-button-primary" onClick={saveSeo}>
+              {t('t_save')}
+            </button>
+          </div>
+        </div>
+      </Dialog>
     </div>
+  );
+}
+
+/** "Add …" under a list of rows; at the limit it is disabled and says why (AC-11, AC-12). */
+function AddRow(props: {
+  buttonRef: React.RefObject<HTMLButtonElement | null>;
+  label: string;
+  full: boolean;
+  limitText: string;
+  onAdd: () => void;
+}) {
+  const hintId = useId();
+  return (
+    <div className="mt-gw-add">
+      <button
+        ref={props.buttonRef}
+        type="button"
+        className="mt-button"
+        disabled={props.full}
+        aria-describedby={props.full ? hintId : undefined}
+        onClick={props.onAdd}
+      >
+        <span aria-hidden="true">+ </span>
+        {props.label}
+      </button>
+      {props.full && (
+        <p id={hintId} className="auth-hint">
+          {props.limitText}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** How a search result could show the gig (legacy "Search engine Gig preview", `create.blade.php:361`). */
+function SeoPreview({ title, description }: { title: string; description: string }) {
+  const locale = useLocale();
+  const t = useT(locale);
+  return (
+    <figure className="mt-gw-seo-preview">
+      <figcaption className="mt-gw-seo-preview-label">
+        {t('t_search_engine_gig_preview')}
+      </figcaption>
+      <p className="mt-gw-seo-preview-title">{title}</p>
+      <p className="mt-gw-seo-preview-text">{description}</p>
+    </figure>
   );
 }
 

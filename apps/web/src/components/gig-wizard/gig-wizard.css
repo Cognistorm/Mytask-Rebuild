@@ -130,3 +130,75 @@
   inline-size: 100%;
   min-block-size: var(--mt-size-control-lg);
 }
+
+/* "(optional)" after a block title (Upgrades, FAQ, SEO). */
+.mt-gw-optional {
+  color: var(--mt-text-secondary);
+  font-size: var(--mt-font-size-sm);
+  font-weight: var(--mt-font-weight-regular);
+}
+
+/* An upgrade or FAQ row (AC-11, AC-12): a bordered group with its number as the legend. */
+.mt-gw-row {
+  display: grid;
+  gap: var(--mt-space-4);
+  min-inline-size: 0;
+  margin: 0;
+  padding: var(--mt-space-4);
+  border: var(--mt-border-width-hairline) solid var(--mt-border-default);
+  border-radius: var(--mt-radius-card);
+}
+
+.mt-gw-row-title {
+  padding-inline: var(--mt-space-1);
+  font-size: var(--mt-font-size-sm);
+  font-weight: var(--mt-font-weight-semibold);
+}
+
+.mt-gw-row-remove {
+  justify-self: start;
+}
+
+.mt-gw-add {
+  display: grid;
+  justify-items: start;
+  gap: var(--mt-space-2);
+}
+
+/* SEO dialog (AC-15) and its search-result preview. */
+.mt-gw-dialog {
+  display: grid;
+  gap: var(--mt-space-4);
+}
+
+.mt-gw-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.mt-gw-seo-preview {
+  display: grid;
+  gap: var(--mt-space-1);
+  margin: 0;
+  padding: var(--mt-space-4);
+  border-radius: var(--mt-radius-control);
+  background: var(--mt-bg-subtle);
+  overflow-wrap: anywhere;
+}
+
+.mt-gw-seo-preview-label {
+  color: var(--mt-text-secondary);
+  font-size: var(--mt-font-size-xs);
+}
+
+.mt-gw-seo-preview-title {
+  margin: 0;
+  color: var(--mt-text-brand);
+  font-weight: var(--mt-font-weight-semibold);
+}
+
+.mt-gw-seo-preview-text {
+  margin: 0;
+  color: var(--mt-text-secondary);
+  font-size: var(--mt-font-size-sm);
+}

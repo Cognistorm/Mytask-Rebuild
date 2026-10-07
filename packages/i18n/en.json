@@ -2783,6 +2783,7 @@
   "t_ui_dark_mode": "Dark mode",
   "t_ui_decrease": "Decrease",
   "t_ui_discard_changes": "Discard changes?",
+  "t_ui_faq_number": "Question #{{number}}",
   "t_ui_file_size_mb": "{{size}} MB",
   "t_ui_form_progress": "Form progress",
   "t_ui_hide_password": "Hide password",
