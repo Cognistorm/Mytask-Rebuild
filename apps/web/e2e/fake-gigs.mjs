@@ -143,7 +143,21 @@ function gigFor(g, locale, viewer) {
       price: money(u.price),
       extraDays: u.extraDays,
     })),
-    faqs: [],
+    faqs:
+      g.n === 1
+        ? [
+            {
+              id: id(201),
+              question: locale === 'en' ? 'Do you make revisions?' : 'აკეთებთ შესწორებებს?',
+              answer: locale === 'en' ? 'Yes, three.\nMore on request.' : 'დიახ, სამს.',
+            },
+            {
+              id: id(202),
+              question: locale === 'en' ? 'Which formats?' : 'რა ფორმატები?',
+              answer: 'PNG, SVG',
+            },
+          ]
+        : [],
     thumbnail: image(`gig-${g.n}`),
     // Gig 1: three images; gig 2: none (the page shows the cover); others: one.
     images:
@@ -152,7 +166,17 @@ function gigFor(g, locale, viewer) {
         : g.n === 2
           ? []
           : [image(`gig-${g.n}`)],
-    documents: [],
+    documents:
+      g.n === 1
+        ? [
+            {
+              fileId: id(301),
+              fileName: 'brief-template.pdf',
+              sizeBytes: 1468006,
+              url: `${MEDIA}/docs/brief-template.pdf`,
+            },
+          ]
+        : [],
     seller: {
       user: NINO,
       rating: { count: 4, averageTenths: 47 },
@@ -173,7 +197,31 @@ function gigFor(g, locale, viewer) {
   };
 }
 
+/** "You may also like" for gig 1 (three other cards); none for the others (the section is hidden). */
+function relatedFor(gigId, locale) {
+  if (gigId !== id(1)) return [];
+  return [5, 6, 7].map((n) => ({
+    id: id(n),
+    uid: GIG_UID(n),
+    slug: `related-${n}-${GIG_UID(n).toLowerCase()}`,
+    title: locale === 'en' ? `Related gig ${n}` : `მსგავსი განცხადება ${n}`,
+    contentLocale: locale,
+    thumbnail: image(`gig-${n}`),
+    price: money(1000 * n),
+    deliveryDays: 2,
+    rating: { count: 0, averageTenths: null },
+    seller: NINO,
+    isFeatured: false,
+    isFavorite: false,
+  }));
+}
+
 export function gigRoute(url, req) {
+  const related = url.pathname.match(/^\/api\/v1\/gigs\/([^/]+)\/related$/);
+  if (related) {
+    const locale = req.headers['accept-language'] === 'en' ? 'en' : 'ka';
+    return [200, { gigs: relatedFor(related[1], locale) }];
+  }
   if (url.pathname !== '/api/v1/gigs/lookup') return undefined;
   const viewer = viewerOf(req);
   const locale = req.headers['accept-language'] === 'en' ? 'en' : 'ka';

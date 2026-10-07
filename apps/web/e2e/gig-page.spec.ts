@@ -308,3 +308,92 @@ test('gallery without images: the cover alone, no arrows, strip or counter', asy
   await expect(gallery.getByRole('list')).toHaveCount(0);
   await expect(gallery.getByTestId('gallery-counter')).toHaveCount(0);
 });
+
+test('tabs (lg): Description / FAQ / Reviews n / Documents with the WAI-ARIA keys; FAQ accordion; documents (AC-26)', async ({
+  page,
+}) => {
+  await media(page);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(`/en/service/${GIG_SLUG[1]}`);
+  await hydrated(page);
+  const list = page.getByRole('tablist', { name: 'Gig details' });
+  const tabs = list.getByRole('tab');
+  await expect(tabs).toHaveText(['Description', 'FAQ', 'Reviews2', 'Documents']);
+  const description = page.getByRole('tabpanel', { name: 'Description' });
+  await expect(tabs.nth(0)).toHaveAttribute('aria-selected', 'true');
+  await expect(tabs.nth(0)).toHaveAttribute('aria-controls', 'gig-description-panel');
+  await expect(description).toBeVisible();
+  await expect(page.getByRole('tabpanel', { name: 'FAQ' })).toBeHidden();
+
+  await tabs.nth(1).click();
+  const faq = page.getByRole('tabpanel', { name: 'FAQ' });
+  await expect(faq).toBeVisible();
+  await expect(description).toBeHidden();
+  const question = faq.getByRole('button', { name: 'Do you make revisions?' });
+  await expect(question).toHaveAttribute('aria-expanded', 'false');
+  await expect(faq.getByText('Yes, three.')).toBeHidden();
+  await question.click();
+  await expect(question).toHaveAttribute('aria-expanded', 'true');
+  await expect(faq.getByText(/Yes, three\.\s+More on request\./)).toBeVisible();
+
+  // Arrow keys move and select (automatic activation); Home / End jump.
+  await tabs.nth(1).focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(tabs.nth(2)).toBeFocused();
+  await expect(tabs.nth(2)).toHaveAttribute('aria-selected', 'true');
+  const reviews = page.getByRole('tabpanel', { name: 'Reviews' });
+  await expect(reviews).toContainText('4.5');
+  await expect(reviews).toContainText('Based on 2 reviews');
+  await page.keyboard.press('End');
+  await expect(tabs.nth(3)).toBeFocused();
+  const documents = page.getByRole('tabpanel', { name: 'Documents' });
+  await expect(documents).toContainText('brief-template.pdf');
+  await expect(documents).toContainText('1.4 MB');
+  await expect(
+    documents.getByRole('link', { name: 'Download: brief-template.pdf' }),
+  ).toHaveAttribute('href', 'http://media.test/public-media/docs/brief-template.pdf');
+  await page.keyboard.press('Home');
+  await expect(tabs.nth(0)).toBeFocused();
+  await page.keyboard.press('ArrowLeft');
+  await expect(tabs.nth(3)).toHaveAttribute('aria-selected', 'true');
+
+  const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
+  expect(axe.violations).toEqual([]);
+});
+
+test('phones: the tabs become stacked sections with headings (screen 02)', async ({ page }) => {
+  await media(page);
+  await page.setViewportSize({ width: 360, height: 800 });
+  await page.goto(`/en/service/${GIG_SLUG[1]}`);
+  await expect(page.getByRole('tablist')).toBeHidden();
+  const tabs = page.getByTestId('gig-tabs');
+  await expect(tabs.getByRole('heading', { level: 2 })).toHaveText([
+    'Description',
+    'FAQ',
+    'Reviews',
+    'Documents',
+  ]);
+  for (const name of ['Description', 'FAQ', 'Reviews', 'Documents'])
+    await expect(page.getByRole('tabpanel', { name })).toBeVisible();
+});
+
+test('"You may also like": gig cards in a carousel; hidden without related gigs (AC-32, EC-13)', async ({
+  page,
+}) => {
+  await media(page);
+  await page.goto(`/en/service/${GIG_SLUG[1]}`);
+  const related = page.getByRole('region', { name: 'You may also like' });
+  const cards = related.getByTestId('gig-card');
+  await expect(cards).toHaveCount(3);
+  await expect(cards.first().getByRole('link', { name: 'Related gig 5' })).toHaveAttribute(
+    'href',
+    `/en/service/related-5-${GIG_UID(5).toLowerCase()}`,
+  );
+  await expect(related.getByRole('button', { name: 'Next' })).toBeVisible();
+
+  // Gig 2: no FAQ, no documents, no reviews, nothing related.
+  await page.goto(`/en/service/${GIG_SLUG[2]}`);
+  await expect(page.getByRole('tab')).toHaveText(['Description', 'Reviews0']);
+  await expect(page.getByTestId('gig-reviews')).toHaveText('No reviews yet');
+  await expect(page.getByTestId('gig-related')).toHaveCount(0);
+});

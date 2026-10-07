@@ -3,6 +3,7 @@
    from @mytask/ui surfaces.css. */
 .mt-gig-page {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--mt-space-6);
   max-width: var(--mt-size-layout-container-max);
   margin: 0 auto;
@@ -251,6 +252,45 @@ legend.mt-gig-box-title {
 
 .mt-gig-description > :last-child {
   margin-block-end: 0;
+}
+
+.mt-gig-muted {
+  margin: 0;
+  color: var(--mt-text-secondary);
+}
+
+/* Documents: name, size and "Download" per row (legacy list), wrapping on phones. */
+.mt-gig-documents {
+  display: grid;
+  gap: var(--mt-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mt-gig-documents li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--mt-space-2) var(--mt-space-4);
+  padding: var(--mt-space-3) 0;
+  border-block-end: var(--mt-border-width-hairline) solid var(--mt-border-subtle);
+}
+
+.mt-gig-document-name {
+  flex: 1 1 12rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-weight: var(--mt-font-weight-semibold);
+}
+
+/* "You may also like": heading above the carousel; its buttons sit at the heading's end (carousel.css). */
+.mt-gig-related {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--mt-space-6);
+  min-width: 0;
+  padding-block-start: var(--mt-space-4);
 }
 
 @media (min-width: 768px) {

@@ -1,0 +1,191 @@
+/* Tabs (components.md §6.6) and Accordion (§7.13): design tokens only. Breakpoint lg 1024px as a literal (CSS
+   variables cannot appear in @media). */
+.mt-tabs {
+  display: grid;
+  gap: var(--mt-space-4);
+  min-width: 0;
+}
+
+/* Underline tabs, 44 px high, scrolled sideways when the (long Georgian) labels do not fit; never truncated. */
+.mt-tabs-list {
+  display: flex;
+  gap: var(--mt-space-1);
+  overflow-x: auto;
+  border-block-end: var(--mt-border-width-hairline) solid var(--mt-border-subtle);
+  scrollbar-width: thin;
+}
+
+.mt-tabs-tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mt-space-2);
+  flex: none;
+  min-block-size: var(--mt-size-touch-target-min);
+  padding: 0 var(--mt-space-3);
+  border: 0;
+  background: none;
+  color: var(--mt-text-secondary);
+  font: inherit;
+  font-weight: var(--mt-font-weight-semibold);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.mt-tabs-tab::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  inset-block-end: calc(-1 * var(--mt-border-width-hairline));
+  block-size: var(--mt-border-width-strong);
+  background: var(--mt-gradient-indicator);
+  transform: scaleX(0);
+  transition: transform var(--mt-motion-duration-base) var(--mt-motion-easing-standard);
+}
+
+.mt-tabs-tab:hover {
+  color: var(--mt-text-primary);
+}
+
+.mt-tabs-tab[aria-selected='true'] {
+  color: var(--mt-text-brand);
+}
+
+.mt-tabs-tab[aria-selected='true']::after {
+  transform: none;
+}
+
+.mt-tabs-tab:focus-visible {
+  outline: var(--mt-border-width-strong) solid var(--mt-border-brand);
+  outline-offset: calc(-1 * var(--mt-border-width-strong));
+  border-radius: var(--mt-radius-sm);
+}
+
+.mt-tabs-badge {
+  padding: 0 var(--mt-space-2);
+  border-radius: var(--mt-radius-pill);
+  background: var(--mt-bg-subtle);
+  color: var(--mt-text-secondary);
+  font-size: var(--mt-font-size-xs);
+}
+
+.mt-tabs-panel {
+  display: grid;
+  gap: var(--mt-space-4);
+  min-width: 0;
+}
+
+.mt-tabs-panel[data-active='false'] {
+  display: none;
+}
+
+.mt-tabs-panel:focus-visible {
+  outline: var(--mt-border-width-strong) solid var(--mt-border-brand);
+  outline-offset: var(--mt-space-1);
+  border-radius: var(--mt-radius-sm);
+}
+
+/* Beside a tab bar the heading repeats the tab: read, not shown. */
+.mt-tabs-heading {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Stacked below lg: no tab bar, every panel with its visible heading. */
+@media (max-width: 1023px) {
+  .mt-tabs-stack {
+    gap: var(--mt-space-8);
+  }
+
+  .mt-tabs-stack .mt-tabs-list {
+    display: none;
+  }
+
+  .mt-tabs-stack .mt-tabs-panel[data-active='false'] {
+    display: grid;
+  }
+
+  .mt-tabs-stack .mt-tabs-heading {
+    position: static;
+    inline-size: auto;
+    block-size: auto;
+    margin: 0;
+    overflow: visible;
+    clip-path: none;
+    white-space: normal;
+    font-size: var(--mt-font-size-lg);
+    line-height: var(--mt-font-line-height-lg);
+    font-weight: var(--mt-font-weight-semibold);
+  }
+}
+
+/* ---- Accordion ---- */
+.mt-accordion {
+  display: grid;
+  border-block-start: var(--mt-border-width-hairline) solid var(--mt-border-subtle);
+}
+
+.mt-accordion-item {
+  border-block-end: var(--mt-border-width-hairline) solid var(--mt-border-subtle);
+}
+
+.mt-accordion-heading {
+  margin: 0;
+  font-size: var(--mt-font-size-md);
+  line-height: var(--mt-font-line-height-md);
+  font-weight: var(--mt-font-weight-semibold);
+}
+
+.mt-accordion-button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--mt-space-3);
+  inline-size: 100%;
+  min-block-size: var(--mt-size-touch-target-comfortable);
+  padding: var(--mt-space-2) 0;
+  border: 0;
+  background: none;
+  color: var(--mt-text-primary);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.mt-accordion-button > span {
+  overflow-wrap: anywhere;
+}
+
+.mt-accordion-button svg {
+  flex: none;
+  transition: transform var(--mt-motion-duration-base) var(--mt-motion-easing-standard);
+}
+
+.mt-accordion-button[aria-expanded='true'] svg {
+  transform: rotate(180deg);
+}
+
+.mt-accordion-button:focus-visible {
+  outline: var(--mt-border-width-strong) solid var(--mt-border-brand);
+  outline-offset: var(--mt-border-width-strong);
+  border-radius: var(--mt-radius-sm);
+}
+
+.mt-accordion-panel {
+  padding-block-end: var(--mt-space-4);
+  color: var(--mt-text-secondary);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mt-tabs-tab::after,
+  .mt-accordion-button svg {
+    transition: none;
+  }
+}

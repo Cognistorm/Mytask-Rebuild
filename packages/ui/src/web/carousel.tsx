@@ -12,6 +12,8 @@ export function Carousel(props: {
   next: string;
   children: ReactNode;
   testId?: string;
+  /** `card`: gig cards (2 / 4 per view); default `tile` (category tiles). */
+  size?: 'tile' | 'card';
 }) {
   const list = useRef<HTMLUListElement>(null);
   const step = (dir: 1 | -1) =>
@@ -40,7 +42,11 @@ export function Carousel(props: {
           <SiteIcon name="caret" />
         </button>
       </div>
-      <ul className="mt-carousel-list" ref={list} aria-label={props.label}>
+      <ul
+        className={`mt-carousel-list${props.size === 'card' ? ' mt-carousel-cards' : ''}`}
+        ref={list}
+        aria-label={props.label}
+      >
         {props.children}
       </ul>
     </div>

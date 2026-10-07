@@ -25,3 +25,14 @@ export const loadGig = cache(async (locale: Locale, slug: string) => {
   if (!res.data) throw new Error(`lookupGig failed with HTTP ${res.response.status}`);
   return res.data;
 });
+
+/** "You may also like" (`listRelatedGigs`, AC-32): up to 40 cards in random order; a failure hides the section. */
+export async function loadRelated(locale: Locale, gigId: string) {
+  try {
+    const { api } = await viewerApi(locale);
+    const res = await api.GET('/gigs/{gigId}/related', { params: { path: { gigId } } });
+    return res.data?.gigs ?? [];
+  } catch {
+    return [];
+  }
+}

@@ -452,3 +452,16 @@
     grid-auto-columns: calc((100% - 6 * var(--mt-space-4)) / 7);
   }
 }
+
+/* Carousel of gig cards ("You may also like", screen 02): 80% on phones, 2 from md, 4 from lg. */
+@media (min-width: 768px) {
+  .mt-carousel-list.mt-carousel-cards {
+    grid-auto-columns: calc((100% - var(--mt-space-4)) / 2);
+  }
+}
+
+@media (min-width: 1024px) {
+  .mt-carousel-list.mt-carousel-cards {
+    grid-auto-columns: calc((100% - 3 * var(--mt-space-4)) / 4);
+  }
+}

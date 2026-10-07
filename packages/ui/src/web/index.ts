@@ -57,3 +57,4 @@ export { MOTION_ENTRANCE_SCRIPT, motionEntrance } from './motion';
 export { formatMoney } from './money';
 export { Carousel } from './carousel';
 export { Gallery, type GalleryImage, type GalleryLabels } from './gallery';
+export { Accordion, Tabs, type AccordionItem, type TabItem } from './tabs';

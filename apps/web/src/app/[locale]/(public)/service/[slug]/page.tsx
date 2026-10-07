@@ -2,29 +2,36 @@
 // `Main/Service/ServiceComponent.php`, `livewire/main/service/service.blade.php`). Rendered on the server as the
 // visitor of the request: real 404 for gigs others may not see (AC-28), 301 from an old or differently written slug
 // to the current one (AC-33). ROADMAP 4.3.11a = the frame: notices, breadcrumb, title, seller row, stats, purchase box
-// and the description; 4.3.11b = the gallery with its lightbox. Still to come: tabs + "You may also like"
-// (4.3.11c), Share / Report / favourite (4.3.11d); "Add to cart" and "Contact seller" stay hidden until slices
-// 5 / 7; the visit is recorded in 4.3.12 (`recordGigView`).
+// and the description; 4.3.11b = the gallery with its lightbox; 4.3.11c = the tabs Description / FAQ / Reviews /
+// Documents (stacked sections on phones) and "You may also like". Still to come: Share / Report / favourite
+// (4.3.11d); "Add to cart" and "Contact seller" stay hidden until slices 5 / 7; the visit is recorded in 4.3.12
+// (`recordGigView`).
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { permanentRedirect } from 'next/navigation';
 import { splitLegacyLinks } from '@mytask/i18n';
 import {
+  Accordion,
   Avatar,
   Breadcrumb,
+  Carousel,
   FeaturedPill,
   formatMoney,
+  GigCard,
   OnlineStatus,
   RatingStars,
+  Tabs,
+  type TabItem,
 } from '@mytask/ui/web';
-import { loadGig } from '../../../../../components/gig-page/data';
+import { loadGig, loadRelated } from '../../../../../components/gig-page/data';
 import { GigGallery } from '../../../../../components/gig-page/gallery';
 import { GigUpgrades } from '../../../../../components/gig-page/upgrades';
 import '../../../../../components/gig-page/gig-page.css';
 import { DELIVERY_DAYS } from '../../../../../components/gig-wizard/gig-form';
 import { VerifiedMark } from '../../../../../components/profile/parts';
 import { categoryHref } from '../../../../../lib/category-nav';
-import { formatDate } from '../../../../../lib/format';
+import { formatBytes, formatDate } from '../../../../../lib/format';
+import { gigCardLabels, toGigCardData } from '../../../../../lib/gig-card';
 import { href } from '../../../../../lib/href';
 import { getT, toLocale } from '../../../../../lib/i18n';
 import { pageTitle } from '../../../../../lib/page-title';
@@ -94,7 +101,7 @@ function deliveryLabel(days: number): string | undefined {
 
 export default async function GigPage({ params }: Params) {
   const { locale, gig } = await resolve(params);
-  const t = await getT(locale);
+  const [t, related] = await Promise.all([getT(locale), loadRelated(locale, gig.id)]);
   const lang = gig.contentLocale !== locale ? gig.contentLocale : undefined;
   const seller = gig.seller.user;
   const isOwner = gig.viewer?.isOwner ?? false;
@@ -137,6 +144,88 @@ export default async function GigPage({ params }: Params) {
           : t('t_no_changes_delivery_time'),
     };
   });
+
+  // AC-26: FAQ and Documents only when there are any; Reviews always (its list arrives with slice 7, `listReviews`).
+  const tabs: TabItem[] = [
+    {
+      id: 'gig-description',
+      label: t('t_description'),
+      content: (
+        <div
+          className="mt-gig-description"
+          lang={lang}
+          data-testid="gig-description"
+          // Sanitised `user_text` HTML from the API (CONVENTIONS §19).
+          dangerouslySetInnerHTML={{ __html: gig.description }}
+        />
+      ),
+    },
+    ...(gig.faqs.length > 0
+      ? [
+          {
+            id: 'gig-faq',
+            label: t('t_faq'),
+            content: (
+              <Accordion
+                lang={lang}
+                testId="gig-faq"
+                items={gig.faqs.map((f) => ({ id: f.id, title: f.question, content: f.answer }))}
+              />
+            ),
+          },
+        ]
+      : []),
+    {
+      id: 'gig-reviews',
+      label: t('t_reviews'),
+      badge: gig.rating.count,
+      content: (
+        <div className="mt-gig-reviews" data-testid="gig-reviews">
+          {gigAverage === null ? (
+            <p className="mt-gig-muted">{t('t_no_reviews_yet')}</p>
+          ) : (
+            <p className="mt-gig-rating">
+              <RatingStars
+                tenths={gig.rating.averageTenths!}
+                label={t('t_ui_rating_label', { rating: gigAverage, count: gig.rating.count })}
+              />
+              <strong>{gigAverage}</strong>
+              <span>{t('t_based_on_number_reviews', { number: gig.rating.count })}</span>
+            </p>
+          )}
+        </div>
+      ),
+    },
+    ...(gig.documents.length > 0
+      ? [
+          {
+            id: 'gig-documents',
+            label: t('t_documents'),
+            content: (
+              // Legacy kept document names out of search snippets.
+              <ul className="mt-gig-documents" data-testid="gig-documents" data-nosnippet>
+                {gig.documents.map((d) => (
+                  <li key={d.fileId}>
+                    <span className="mt-gig-document-name">{d.fileName}</span>
+                    <span className="mt-gig-muted">{formatBytes(d.sizeBytes)}</span>
+                    {/* Named with the file; the name starts with the visible word (WCAG 2.5.3). */}
+                    <a
+                      className="mt-button"
+                      href={d.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={`${t('t_download')}: ${d.fileName}`}
+                    >
+                      {t('t_download')}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            ),
+          },
+        ]
+      : []),
+  ];
 
   // AC-29: the seller is away (with the date) or cannot take orders (restricted).
   const away = !gig.seller.isAcceptingOrders;
@@ -280,19 +369,32 @@ export default async function GigPage({ params }: Params) {
           )}
         </aside>
 
-        <section className="mt-gig-section" aria-labelledby="gig-description">
-          <h2 id="gig-description" className="mt-gig-section-title">
-            {t('t_description')}
-          </h2>
-          <div
-            className="mt-gig-description"
-            lang={lang}
-            data-testid="gig-description"
-            // Sanitised `user_text` HTML from the API (CONVENTIONS §19).
-            dangerouslySetInnerHTML={{ __html: gig.description }}
-          />
-        </section>
+        {/* Description / FAQ / Reviews / Documents: tabs from lg, stacked sections below (screen 02). */}
+        <div className="mt-gig-section">
+          <Tabs label={t('t_ui_gig_details')} items={tabs} stack testId="gig-tabs" />
+        </div>
       </div>
+
+      {/* "You may also like" (AC-32): hidden when nothing matches (EC-13). */}
+      {related.length > 0 && (
+        <section className="mt-gig-related" aria-labelledby="gig-related" data-testid="gig-related">
+          <h2 id="gig-related" className="mt-gig-section-title">
+            {t('t_you_may_also_like')}
+          </h2>
+          <Carousel
+            label={t('t_you_may_also_like')}
+            previous={t('t_page_previous')}
+            next={t('t_page_next')}
+            size="card"
+          >
+            {related.map((g) => (
+              <li key={g.id}>
+                <GigCard gig={toGigCardData(locale, g)} labels={gigCardLabels(t)} Link={Link} />
+              </li>
+            ))}
+          </Carousel>
+        </section>
+      )}
     </main>
   );
 }
