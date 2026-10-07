@@ -118,6 +118,13 @@
   }
 }
 
+/* Reduced motion: no slide, the alert simply appears (visual-refresh.md: only fades may remain). */
+@media (prefers-reduced-motion: reduce) {
+  .auth-alert {
+    animation: none;
+  }
+}
+
 .auth-code {
   border: 0;
   padding: 0;
