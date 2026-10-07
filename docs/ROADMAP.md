@@ -400,18 +400,19 @@ Remaining:
 - [x] 4.2.20 Owner click-through **on staging https://mytask.1kk.ge** (Owner 2026-10-06). **Deployed 2026-10-06** (website, API, admin at `/admin`; no general password; redeploy `bash scripts/deploy-staging.sh`, runbook `infra/staging/README.md`). Checklist `docs/06-qa/plans/03-categories-search-owner-click-through.md` (updated 2026-10-06). Owner decisions 2026-10-06: 307 for `/hire/<unknown>` accepted; header transparent over the home hero → built the same day (hero colour at the top of the home page, white on scroll; `data-over-hero`, E2E in `home.spec.ts`). **Done 2026-10-06: slice 2 approved by the Owner** (Claude's HTTP smoke check of staging passed first). Owner the same day: push `feat/catalog-search` and open the PR into `main` now (lifts the 2026-10-02 no-push rule for this branch); no merge without the Owner. **4.2 closed.**
 
 ### 4.3 Slice 3 — spec 04 Gigs (branch `feat/gigs`)
-- [ ] 4.3.1 Spec check.
-- [ ] 4.3.2 Data model: the rest of §3.D (the `gigs` + `gig_translations` core and `search_documents` exist since 4.2.2b): packages, upgrades, FAQs, gallery, documents, favourites, reports, views; gig writes call `SearchIndex` (4.2.4).
-- [ ] 4.3.3 API: `createGig`, `getGigCreationEligibility`, `updateGig`, `deleteGig`.
-- [ ] 4.3.4 API: `getGig`, `lookupGig`, `getGigOwnerView`, `listMyGigs`.
-- [ ] 4.3.5 API: `listRelatedGigs` (P-137), `recordGigView`, `getGigAnalytics`.
-- [ ] 4.3.6 API: `listFavorites`, `putFavorite`, `deleteFavorite`, `createGigReport`.
-- [ ] 4.3.7 API admin: `adminPublishGig`, `adminRejectGig`, `adminListGigs`, `adminGetGig`, `adminRemoveGig`, `adminRestoreGig`.
-- [ ] 4.3.8 Spec 04 notifications.
+- [x] 4.3.1 Spec check. Done 2026-10-07: contract 1.4.0 complete (37 API ACs all covered, 2 NOT-API correct), no contract change; 1 data-model gap for the architect (staff removal/restore columns + `submitted_at` on `gigs`); Owner question Q-123 now due (restore of a removed gig; blocks only `adminRestoreGig`); missing foundations: S-070 setting row, gig file purposes, R-5.3a validator, impressions, GeoIP; 19 missing i18n keys; neutral values for slices 5/6/7/8/15; see `docs/handoffs/2026-10-07-orchestrator-to-architect-backend-web-mobile-4-3-1-spec-04-check.md`.
+- [ ] 4.3.2a Architect: data-model §3.D staff removal/restore on `gigs` (`deleted_by`, `deleted_by_staff_id`, `removal_reason`, `submitted_at`; contract `AdminGig`, spec 16 AC-20), confirm `analytics_events` / `analytics_daily` (§3.S, ADR-012) for gig views, §12.2 mapping lines (4.3.1 handoff §B).
+- [ ] 4.3.2b Backend: migration for the rest of §3.D (the `gigs` + `gig_translations` core and `search_documents` exist since 4.2.2b): the 4.3.2a columns, upgrades, FAQs, images, documents, favourites (gig reports use the existing `reports` table), analytics tables; S-070 `moderation.gigs.auto_approve` registry row; the 19 missing i18n keys (en + ka, 4.3.1 handoff §F). No gig packages (out of scope, spec 04).
+- [ ] 4.3.3 API: `createGig`, `getGigCreationEligibility`, `updateGig`, `deleteGig`. Includes: file purposes `gig_thumbnail`/`gig_image` (JPG/PNG ≤ S-078, 1…S-077) and `gig_document` (PDF ≤ S-082, S-080 switch); one shared R-5.3a / R-5.4 language validator (reused by projects); rich-text sanitiser for descriptions; slug from the `ka` title + uid, stable unless it changes; plan limit via `PremiumStatus` with a race-safe count; S-070 pending/active; `SearchIndex` in the same transaction; EV-19 email (4.3.1 handoff §E.1–E.5, E.8, E.9).
+- [ ] 4.3.4 API: `getGig`, `lookupGig`, `getGigOwnerView`, `listMyGigs`. Visibility per AC-28 + listable owner (P-29); English fallback `contentLocale`; neutral values of 4.3.1 handoff §D (queue 0, rating 0, Premium false).
+- [ ] 4.3.5 API: `listRelatedGigs` (P-137), `recordGigView`, `getGigAnalytics`. Plus impressions from `searchGigs` (batched) and the local GeoIP lookup (DB-IP Lite or null, never third-party; client IP per ADR-013) (4.3.1 handoff §E.6, E.7).
+- [ ] 4.3.6 API: `listFavorites`, `putFavorite`, `deleteFavorite`, `createGigReport` (EV-22, SEC-23 rate limit). `GigCard.isFavorite` becomes real (`catalog/gig-cards.ts`).
+- [ ] 4.3.7 API admin: `adminPublishGig`, `adminRejectGig`, `adminListGigs`, `adminGetGig`, `adminRemoveGig`, `adminRestoreGig`. First decision wins (`t_item_already_decided`), audited, `SearchIndex` updated; restore follows the Owner's Q-123 answer, else the contract default (active, no limit check, no notification).
+- [ ] 4.3.8 Spec 04 notifications: EV-19…EV-22 emails to S-100 / owner (in-app + push of EV-20/21 wait for slice 15, 4.14).
 - [ ] 4.3.9 Web: create/edit wizard, first half.
 - [ ] 4.3.10 Web: create/edit wizard, second half.
-- [ ] 4.3.11 Web: gig page + share + report dialogs.
-- [ ] 4.3.12 Web: my gigs + analytics + favourites.
+- [ ] 4.3.11 Web: gig page + share + report dialogs. Routes `/service/{slug}` (301 to the current slug), `/post/service` → 301 `/create`; "Add to cart" and "Contact seller" hidden until slices 5 / 7; reviews tab empty state.
+- [ ] 4.3.12 Web: my gigs + analytics + favourites (`/seller/gigs`, `/seller/gigs/{uid}/analytics`, `/seller/gigs/{uid}/edit`, `/account/favorite`; legacy id forms 301; no screen doc: dashboard list patterns in the 3X look).
 - [ ] 4.3.13 Admin: gig moderation queue.
 - [ ] 4.3.14 Mobile: gig page.
 - [ ] 4.3.15 Mobile: create/edit wizard.

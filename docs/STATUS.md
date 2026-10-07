@@ -1,5 +1,5 @@
 # Status — updated 2026-10-07
-Phase: **4 — Feature slices** (resumed at 4.3.1 on 2026-10-07; Phase 4X admin refresh approved and merged 2026-10-07, PR #4; Phase 3X approved and merged 2026-10-07) | Phase 3 gate: APPROVED by Owner 2026-10-02 | Phase 2 gate: APPROVED by Owner 2026-09-30 | Phase 1 gate: APPROVED by Owner 2026-09-28
+Phase: **4 — Feature slices** (slice 3 gigs, resumed 2026-10-07; Phase 4X admin refresh approved and merged 2026-10-07, PR #4; Phase 3X approved and merged 2026-10-07) | Phase 3 gate: APPROVED by Owner 2026-10-02 | Phase 2 gate: APPROVED by Owner 2026-09-30 | Phase 1 gate: APPROVED by Owner 2026-09-28
 
 ## Done
 - Kit copied; legacy code in /legacy/APP (confirmed = legacy `main`, production logic); vision filled
@@ -58,9 +58,10 @@ Phase: **4 — Feature slices** (resumed at 4.3.1 on 2026-10-07; Phase 4X admin 
 
 ## Micro-task workflow (Owner rule 2026-09-30)
 The plan lives in **docs/ROADMAP.md** (checkbox per micro-task). One micro-task at a time; when it is done and tests pass, tick it there and add one line below.
-**Next micro-task: 4.3.1** (spec check, slice 3 gigs; branch `feat/gigs`). Phase 4X is complete: approved by the Owner and merged (PR #4, 2026-10-07). BUG-01 stays deferred (DEV-S1). **Owner decisions still open:** DEV-M1; Q-160; Q-163; Q-164.
+**Next micro-task: 4.3.2a** (architect: staff removal/restore columns on `gigs`, analytics tables; slice 3 gigs, branch `feat/gigs`). BUG-01 stays deferred (DEV-S1). **Owner decisions still open:** Q-123 (restore of a removed gig, needed before 4.3.7); DEV-M1; Q-160; Q-163; Q-164.
 
 ### Micro-task log
+- 2026-10-07 4.3.1 done: spec 04 vs contract 1.4.0 complete (37 API ACs covered, 2 NOT-API correct), no contract change; data-model gap (staff removal/restore + `submitted_at` on `gigs`) → 4.3.2a; Q-123 now due (blocks only `adminRestoreGig`); missing S-070 row, gig file purposes, R-5.3a validator, 19 i18n keys; 4.3.2 split a/b, 4.3.3–4.3.12 extended; handoff `docs/handoffs/2026-10-07-orchestrator-to-architect-backend-web-mobile-4-3-1-spec-04-check.md`. Next: 4.3.2a.
 - 2026-10-07 4X.11 done (Phase 4X complete): Owner approved and merged PR #4 into `main` (`ec09b8ff`); brief §7 choices kept as built (Banned IPs under Settings); `feat/gigs` rebased on `main`. Phase 4 resumes. Next: 4.3.1.
 - 2026-10-07 4X.10 follow-up: the PR CI run failed in web `search-page.spec.ts` (header search sent an empty keyword). Real bug: the header cleared the search field on its first effect, losing text typed before hydration; fixed in `header-client.tsx` + regression test; web E2E 205 passed / 3 skipped. Next: 4X.11.
 - 2026-10-07 4X.10 done: QA findings F-4X9-1…4, -6, -8 fixed (focus after re-login, inert screen behind the drawer, no current item while areas load, wrapping phone tabs, skip link, provider switch names) + 6 regression tests; admin E2E 73/73; pushed, CI green; staging redeployed at `9cd7fdff`; PR to be opened by the Owner. Next: 4X.11 (Owner click-through).
