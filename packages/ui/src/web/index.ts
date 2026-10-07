@@ -42,6 +42,7 @@ export {
 } from './site';
 export {
   Breadcrumb,
+  FeaturedPill,
   FreelancerCard,
   GigCard,
   GigGrid,

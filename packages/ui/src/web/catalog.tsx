@@ -126,6 +126,17 @@ export function GigCard(props: { gig: GigCardData; labels: GigCardLabels; Link?:
   );
 }
 
+/** The Featured badge as an inline pill next to a title (gig page h1, spec 03 AC-18); `hint` explains it. */
+export function FeaturedPill(props: { label: string; hint: string }) {
+  return (
+    <span className="mt-featured-badge mt-featured-pill" title={props.hint} data-testid="featured">
+      <CrownIcon />
+      {props.label}
+      <span className="mt-visually-hidden">: {props.hint}</span>
+    </span>
+  );
+}
+
 /** The result grid (1/2/3/4 columns, §7.2 layouts); each child is one `<li>`. */
 export function GigGrid({ children, label }: { children: ReactNode; label: string }) {
   return (

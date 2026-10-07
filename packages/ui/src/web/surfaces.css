@@ -3,8 +3,8 @@
    grid, overflow); the surface and the hover live here. The corner radius comes from `radius.card` (16 px, 3X.6).
 
    Surfaces: .mt-gig-card, .mt-freelancer-card, .mt-portfolio-card, .mt-pf-item, .mt-pf-card, .mt-profile-card,
-   .mt-profile-section, .mt-profile-owner, .mt-edit-card, .mt-edit-block, .mt-stat-tile, .mt-panel, .auth-card,
-   .admin-section.
+   .mt-profile-section, .mt-profile-owner, .mt-edit-card, .mt-edit-block, .mt-stat-tile, .mt-panel, .mt-gig-box,
+   .mt-gig-section, .auth-card, .admin-section.
    Interactive (hover lift): .mt-gig-card, .mt-freelancer-card, .mt-portfolio-card, .mt-pf-item, .mt-category-tile. */
 
 /* ---- Surface: near-solid gradient, fine border, soft shadow and a lit top edge ---- */
@@ -21,6 +21,8 @@
   .mt-edit-block,
   .mt-stat-tile,
   .mt-panel,
+  .mt-gig-box,
+  .mt-gig-section,
   .auth-card,
   .admin-section
 ) {

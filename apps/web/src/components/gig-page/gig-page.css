@@ -1,0 +1,294 @@
+/* Gig page `/service/{slug}` (screen 02; spec 04 AC-26): design tokens only (CLAUDE.md). Breakpoints md 768px /
+   lg 1024px as literals (CSS variables cannot appear in @media). Surfaces of .mt-gig-box / .mt-gig-section come
+   from @mytask/ui surfaces.css. */
+.mt-gig-page {
+  display: grid;
+  gap: var(--mt-space-6);
+  max-width: var(--mt-size-layout-container-max);
+  margin: 0 auto;
+  padding: var(--mt-space-8) var(--mt-size-layout-gutter-mobile);
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+.mt-gig-notices {
+  display: grid;
+  gap: var(--mt-space-3);
+}
+
+.mt-gig-notices:empty {
+  display: none;
+}
+
+/* Notices (screen 02 "Banner"): warning by default, danger for rejected, info for the Georgian fallback. */
+.mt-gig-notice {
+  display: grid;
+  gap: var(--mt-space-1);
+  padding: var(--mt-space-4);
+  border: var(--mt-border-width-hairline) solid var(--mt-feedback-warning-border);
+  border-inline-start: var(--mt-space-1) solid var(--mt-feedback-warning-icon);
+  border-radius: var(--mt-radius-card);
+  background: var(--mt-feedback-warning-bg);
+  color: var(--mt-feedback-warning-text);
+}
+
+.mt-gig-notice-danger {
+  border-color: var(--mt-feedback-danger-border);
+  border-inline-start-color: var(--mt-feedback-danger-icon);
+  background: var(--mt-feedback-danger-bg);
+  color: var(--mt-feedback-danger-text);
+}
+
+.mt-gig-notice-info {
+  border-color: var(--mt-feedback-info-border);
+  border-inline-start-color: var(--mt-feedback-info-icon);
+  background: var(--mt-feedback-info-bg);
+  color: var(--mt-feedback-info-text);
+}
+
+.mt-gig-notice-title,
+.mt-gig-notice-text {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.mt-gig-notice-title {
+  font-weight: var(--mt-font-weight-semibold);
+}
+
+/* Title, seller row, stats. */
+.mt-gig-head {
+  display: grid;
+  gap: var(--mt-space-3);
+  min-width: 0;
+}
+
+.mt-gig-title {
+  margin: 0;
+  font-size: var(--mt-font-size-2xl);
+  line-height: var(--mt-font-line-height-2xl);
+  font-weight: var(--mt-font-weight-semibold);
+  overflow-wrap: anywhere;
+}
+
+.mt-gig-seller,
+.mt-gig-stats {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--mt-space-2) var(--mt-space-4);
+  color: var(--mt-text-secondary);
+  font-size: var(--mt-font-size-sm);
+}
+
+.mt-gig-stats {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mt-gig-seller-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mt-space-2);
+  min-height: var(--mt-size-control-md);
+  color: var(--mt-text-primary);
+  font-weight: var(--mt-font-weight-semibold);
+  text-decoration: none;
+}
+
+.mt-gig-seller-link:hover .mt-gig-seller-name {
+  text-decoration: underline;
+}
+
+.mt-gig-rating {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mt-space-1);
+}
+
+.mt-gig-rating strong {
+  color: var(--mt-text-primary);
+}
+
+/* Main column + purchase box (lg: 4 of 7 and 3 of 7 columns, screen 02); the sections run below both. */
+.mt-gig-layout {
+  display: grid;
+  gap: var(--mt-space-6);
+  align-items: start;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.mt-gig-main {
+  min-width: 0;
+}
+
+.mt-gig-cover {
+  margin: 0;
+  overflow: hidden;
+  border-radius: var(--mt-radius-card);
+  background: var(--mt-bg-subtle);
+  aspect-ratio: 3 / 2;
+}
+
+.mt-gig-cover img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.mt-gig-box {
+  display: grid;
+  gap: var(--mt-space-4);
+  padding: var(--mt-space-6);
+  min-width: 0;
+}
+
+.mt-gig-price {
+  display: grid;
+  gap: var(--mt-space-1);
+  margin: 0;
+}
+
+.mt-gig-price-label {
+  color: var(--mt-text-secondary);
+  font-size: var(--mt-font-size-sm);
+}
+
+.mt-gig-price-value {
+  font-size: var(--mt-font-size-3xl);
+  line-height: var(--mt-font-line-height-3xl);
+  font-weight: var(--mt-font-weight-bold);
+}
+
+.mt-gig-revisions {
+  margin: 0;
+  color: var(--mt-text-secondary);
+}
+
+.mt-gig-box-section,
+.mt-gig-upgrades {
+  display: grid;
+  gap: var(--mt-space-2);
+  margin: 0;
+  padding: var(--mt-space-4) 0 0;
+  border: 0;
+  border-block-start: var(--mt-border-width-hairline) solid var(--mt-border-subtle);
+  min-width: 0;
+}
+
+.mt-gig-box-title {
+  margin: 0;
+  padding: 0;
+  font-weight: var(--mt-font-weight-semibold);
+}
+
+/* A floated legend is laid out as an ordinary row below the divider instead of cutting through it. */
+legend.mt-gig-box-title {
+  float: inline-start;
+  width: 100%;
+}
+
+/* One upgrade: checkbox (20 px in a 44 px row), title and price on the first line, delivery effect below. */
+.mt-gig-upgrade {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    'box title price'
+    '. delivery delivery';
+  column-gap: var(--mt-space-3);
+  align-items: center;
+  min-height: var(--mt-size-control-lg);
+  padding: var(--mt-space-2);
+  border-radius: var(--mt-radius-control);
+  cursor: pointer;
+}
+
+.mt-gig-upgrade:hover {
+  background: var(--mt-bg-hover);
+}
+
+.mt-gig-upgrade input {
+  grid-area: box;
+  width: var(--mt-space-5);
+  height: var(--mt-space-5);
+  margin: 0;
+  accent-color: var(--mt-border-brand);
+}
+
+.mt-gig-upgrade-title {
+  grid-area: title;
+  overflow-wrap: anywhere;
+}
+
+.mt-gig-upgrade-price {
+  grid-area: price;
+  font-weight: var(--mt-font-weight-semibold);
+  white-space: nowrap;
+}
+
+.mt-gig-upgrade-delivery {
+  grid-area: delivery;
+  color: var(--mt-text-secondary);
+  font-size: var(--mt-font-size-sm);
+}
+
+.mt-gig-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mt-space-2);
+}
+
+.mt-gig-section {
+  display: grid;
+  gap: var(--mt-space-4);
+  padding: var(--mt-space-6);
+  min-width: 0;
+}
+
+.mt-gig-section-title {
+  margin: 0;
+  font-size: var(--mt-font-size-lg);
+  line-height: var(--mt-font-line-height-lg);
+  font-weight: var(--mt-font-weight-semibold);
+}
+
+/* The stored description (bold, italic, lists, paragraphs; RichTextEditor), at a readable measure. */
+.mt-gig-description {
+  max-width: var(--mt-size-layout-prose);
+  overflow-wrap: anywhere;
+}
+
+.mt-gig-description > :first-child {
+  margin-block-start: 0;
+}
+
+.mt-gig-description > :last-child {
+  margin-block-end: 0;
+}
+
+@media (min-width: 768px) {
+  .mt-gig-page {
+    padding-inline: var(--mt-size-layout-gutter-tablet);
+  }
+}
+
+@media (min-width: 1024px) {
+  .mt-gig-page {
+    padding-inline: var(--mt-size-layout-gutter-desktop);
+  }
+
+  .mt-gig-title {
+    font-size: var(--mt-font-size-3xl);
+    line-height: var(--mt-font-line-height-3xl);
+  }
+
+  .mt-gig-layout {
+    grid-template-columns: minmax(0, 4fr) minmax(0, 3fr);
+  }
+
+  .mt-gig-section {
+    grid-column: 1 / -1;
+  }
+}
