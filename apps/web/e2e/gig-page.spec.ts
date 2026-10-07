@@ -564,3 +564,42 @@ test('Actions, owner: "Edit gig" instead of the favourite; Report refused (AC-30
   const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
   expect(axe.violations).toEqual([]);
 });
+
+test('the visit is recorded once from the browser with the referrer; never for the owner (AC-34)', async ({
+  page,
+  context,
+}) => {
+  await media(page);
+  const views: unknown[] = [];
+  await page.route(`**/api/v1/gigs/${GIG_1}/views`, (route) => {
+    views.push(route.request().postDataJSON());
+    return route.fulfill({ status: 202 });
+  });
+  await page.goto(`/en/service/${GIG_SLUG[1]}`, { referer: 'https://www.facebook.com/some/post' });
+  await hydrated(page);
+  await expect.poll(() => views.length).toBe(1);
+  // The browser may cut a cross-site referrer down to its origin; the API keeps only the domain anyway.
+  expect((views[0] as { referrer: string }).referrer).toMatch(/^https:\/\/www\.facebook\.com\//);
+  // Moving around the page (tabs, gallery) does not count again.
+  await page.getByRole('button', { name: 'Next image' }).first().click();
+  await page.waitForTimeout(300);
+  expect(views).toHaveLength(1);
+
+  views.length = 0;
+  await as(context, 'owner-token');
+  await page.goto(`/en/service/${GIG_SLUG[1]}`);
+  await hydrated(page);
+  await page.waitForTimeout(300);
+  expect(views).toEqual([]);
+});
+
+test('a direct visit sends a null referrer (AC-34)', async ({ page }) => {
+  await media(page);
+  const views: unknown[] = [];
+  await page.route('**/api/v1/gigs/*/views', (route) => {
+    views.push(route.request().postDataJSON());
+    return route.fulfill({ status: 202 });
+  });
+  await page.goto(`/en/service/${GIG_SLUG[2]}`);
+  await expect.poll(() => views).toEqual([{ referrer: null }]);
+});

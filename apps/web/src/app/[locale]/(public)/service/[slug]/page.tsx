@@ -4,8 +4,8 @@
 // to the current one (AC-33). ROADMAP 4.3.11a = the frame: notices, breadcrumb, title, seller row, stats, purchase box
 // and the description; 4.3.11b = the gallery with its lightbox; 4.3.11c = the tabs Description / FAQ / Reviews /
 // Documents (stacked sections on phones) and "You may also like"; 4.3.11d = the Actions row (Share, Report,
-// favourite / the owner's "Edit gig"). "Add to cart" and "Contact seller" stay hidden until slices 5 / 7; the visit is
-// recorded in 4.3.12 (`recordGigView`).
+// favourite / the owner's "Edit gig"); 4.3.12c = the visit is recorded (`recordGigView`). "Add to cart" and "Contact
+// seller" stay hidden until slices 5 / 7.
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { permanentRedirect } from 'next/navigation';
@@ -26,6 +26,7 @@ import {
 import { GigActions } from '../../../../../components/gig-page/actions';
 import { loadGig, loadRelated } from '../../../../../components/gig-page/data';
 import { GigGallery } from '../../../../../components/gig-page/gallery';
+import { RecordGigView } from '../../../../../components/gig-page/record-view';
 import { GigUpgrades } from '../../../../../components/gig-page/upgrades';
 import '../../../../../components/gig-page/gig-page.css';
 import { DELIVERY_DAYS } from '../../../../../components/gig-wizard/gig-form';
@@ -242,6 +243,8 @@ export default async function GigPage({ params }: Params) {
 
   return (
     <main className="mt-gig-page" data-testid="gig-page">
+      {/* AC-34: the visit is counted from the browser, never by the owner. */}
+      {!isOwner && <RecordGigView gigId={gig.id} />}
       <div className="mt-gig-notices">
         {gig.status === 'pending' && (
           <div className="mt-gig-notice" role="note" data-testid="pending-note">
