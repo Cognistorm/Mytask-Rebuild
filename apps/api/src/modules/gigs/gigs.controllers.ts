@@ -1,6 +1,6 @@
 // Contract: getGigCreationEligibility (ROADMAP 4.3.3a), createGig (4.3.3b), updateGig and deleteGig (4.3.3c), getGig,
-// lookupGig, getGigOwnerView and listMyGigs (4.3.4), listRelatedGigs (4.3.5a), recordGigView (4.3.5b). Fixed paths
-// (`mine`, `lookup`) come before `:gigId`.
+// lookupGig, getGigOwnerView and listMyGigs (4.3.4), listRelatedGigs (4.3.5a), recordGigView (4.3.5b), getGigAnalytics
+// (4.3.5c). Fixed paths (`mine`, `lookup`) come before `:gigId`.
 import {
   Body,
   Controller,
@@ -19,6 +19,7 @@ import { ClientIpResolver } from '../../platform/client-ip/client-ip.resolver';
 import type { GigStatus } from '../../generated/prisma/client';
 import { CurrentAuth, OptionalAuth, OptionalUser, type AuthState } from '../auth/auth.guard';
 import { buildContext } from '../auth/request-context';
+import { GigAnalytics } from './gig-analytics.service';
 import { GigLimits } from './gig-limits';
 import { GigPages } from './gig-pages.service';
 import { GigViews } from './gig-views.service';
@@ -37,6 +38,7 @@ export class GigsController {
     private readonly gigs: GigsService,
     private readonly pages: GigPages,
     private readonly views: GigViews,
+    private readonly analytics: GigAnalytics,
     private readonly ipResolver: ClientIpResolver,
   ) {}
 
@@ -117,6 +119,14 @@ export class GigsController {
       locale: ctx.locale,
       referrer: body?.referrer ?? null,
     });
+  }
+
+  @Get(':gigId/analytics')
+  analyticsOf(
+    @CurrentAuth() auth: AuthState,
+    @Param('gigId') gigId: string,
+  ): Promise<S['GigAnalytics']> {
+    return this.analytics.get(auth.userId, gigId);
   }
 
   @Get(':gigId/owner-view')

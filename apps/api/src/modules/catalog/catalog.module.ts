@@ -18,6 +18,7 @@ import {
 } from './catalog.controllers';
 import { CategoriesService } from './categories.service';
 import { GigCards } from './gig-cards';
+import { GigImpressions } from './gig-impressions';
 import { GigSearchService } from './gig-search.service';
 import { HomeService } from './home.service';
 import { ProjectCategoriesService } from './project-categories.service';
@@ -45,6 +46,7 @@ import { SellerListsService } from './seller-lists.service';
     CategoriesService,
     ProjectCategoriesService,
     GigCards,
+    GigImpressions,
     GigSearchService,
     HomeService,
     ProjectSearchService,
