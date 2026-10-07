@@ -58,9 +58,10 @@ Phase: **4X — Admin refresh** (inserted by the Owner 2026-10-07; Phase 4 pause
 
 ## Micro-task workflow (Owner rule 2026-09-30)
 The plan lives in **docs/ROADMAP.md** (checkbox per micro-task). One micro-task at a time; when it is done and tests pass, tick it there and add one line below.
-**Next micro-task: 4X.9** (independent QA report by qa-engineer `docs/06-qa/reports/4x-admin-refresh-<date>.md`; branch `feat/admin-refresh`). Phase 4X (admin refresh, Owner request 2026-10-07) runs before Phase 4 resumes at 4.3.1. BUG-01 stays deferred (DEV-S1). **Owner decisions still open:** DEV-M1; Q-160; Q-163; Q-164.
+**Next micro-task: 4X.10** (fix F-4X9-1…4 (+ skip link F-4X9-6, social switch names F-4X9-8), PR `feat/admin-refresh` → `main`, CI green, redeploy staging). Phase 4X (admin refresh, Owner request 2026-10-07) runs before Phase 4 resumes at 4.3.1. BUG-01 stays deferred (DEV-S1). **Owner decisions still open:** DEV-M1; Q-160; Q-163; Q-164.
 
 ### Micro-task log
+- 2026-10-07 4X.9 done (qa-engineer): QA report `docs/06-qa/reports/4x-admin-refresh-2026-10-07.md`, PASS with notes — 4 Minor (F-4X9-1…4: focus after re-login, drawer focus trap, aria-current while areas load, phone tabs off-screen), 4 Info. Next: 4X.10.
 - 2026-10-07 4X.8 done: new `e2e/admin-screens.spec.ts` (11 screens × 1280 / 360 px: no sideways scroll, axe contrast 0 + measured 0, 22 pixel baselines; reduced-motion check of drawer, caret, tab thumb); fixed phone status tabs breaking words (measured thumb, scrolling track); admin E2E 69/69 on a fresh full stack (sign-up 429s were the local hourly limit kept in Redis). Next: 4X.9.
 - 2026-10-07 4X.7 done: login / 2FA code keep the centred card with the "Admin" pill; change password a form card in the shell; the AC-7 re-login step is a focused card inside the shell (sidebar stays); 2 new tests; admin E2E 44/46 on the reused stack (2 = sign-up rate limit 429, re-run in 4X.8). Next: 4X.8.
 - 2026-10-07 4X.6 done: catalogue — tree rows with hairlines, hover tint and depth guide lines, mono slug/colour tags, compact Ghost row actions with Delete in danger text, `EmptyState`, skills search inline; forms unchanged in a card (ka / en side by side); category-form baselines renewed; admin E2E 43/44 (the one failure = sign-up rate limit 429 on the reused stack, re-run in 4X.8). Next: 4X.7.
