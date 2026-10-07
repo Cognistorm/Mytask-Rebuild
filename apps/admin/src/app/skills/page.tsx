@@ -4,8 +4,8 @@
 // to another category), delete (refused while projects use it, slice 9).
 import { useCallback, useEffect, useState } from 'react';
 import type { components } from '@mytask/types';
-import { Alert, Field, Select } from '@mytask/ui/web';
-import { AdminNav } from '../../components/nav';
+import { Alert, EmptyState, Field, Select } from '@mytask/ui/web';
+import { AdminShell } from '../../components/shell';
 import { Checkbox, formText, LangPair, saveText } from '../../components/catalog';
 import { splitErrors, t, useAdminApi, type ApiErrorBody } from '../../lib/client';
 
@@ -109,8 +109,7 @@ export default function SkillsPage() {
   const categoryOptions = categories.map((c) => ({ value: c.id, label: c.name.ka }));
 
   return (
-    <main className="admin-page">
-      <AdminNav />
+    <AdminShell>
       <div className="admin-header">
         <h1 className="mt-text-h2">{t('t_skills')}</h1>
         <button
@@ -177,7 +176,7 @@ export default function SkillsPage() {
       )}
 
       <form
-        className="admin-section admin-inline-form"
+        className="admin-section admin-inline-form admin-add-form"
         role="search"
         onSubmit={(e) => {
           e.preventDefault();
@@ -200,9 +199,9 @@ export default function SkillsPage() {
 
       <section className="admin-section">
         {skills.length === 0 ? (
-          <p className="auth-muted">{t('t_no_results_found')}</p>
+          <EmptyState title={t('t_no_results_found')} />
         ) : (
-          <ul className="admin-rows">
+          <ul className="admin-rows admin-tree">
             {skills.map((s) => (
               <li key={s.id} className="admin-row" data-testid="skill-row">
                 <span className="admin-row-text">
@@ -227,7 +226,11 @@ export default function SkillsPage() {
                   >
                     {t('t_edit')}
                   </button>
-                  <button type="button" className="auth-link-button" onClick={() => remove(s)}>
+                  <button
+                    type="button"
+                    className="auth-link-button mt-edit-link-danger"
+                    onClick={() => remove(s)}
+                  >
                     {t('t_delete')}
                   </button>
                 </span>
@@ -241,6 +244,6 @@ export default function SkillsPage() {
           </button>
         )}
       </section>
-    </main>
+    </AdminShell>
   );
 }

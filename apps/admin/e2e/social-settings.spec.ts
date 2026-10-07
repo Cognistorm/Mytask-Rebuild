@@ -17,6 +17,11 @@ test('Google login keys: ON without keys refused, saved secret shown only as "se
   await page.getByLabel('პაროლი', { exact: true }).fill(password!);
   await page.getByRole('button', { name: 'ავტორიზაცია' }).click();
   await expect(page).toHaveURL(/\/settings$/);
+  // The security switches are in the "Login and security" area (4X.3).
+  await page
+    .getByRole('navigation', { name: 'ადმინისტრაციის ნავიგაცია' })
+    .getByRole('link', { name: 'ავტორიზაცია და უსაფრთხოება' })
+    .click();
 
   const google = page.getByTestId('social-S-065');
   await expect(google.getByText('Client secret: არ არის შენახული')).toBeVisible();

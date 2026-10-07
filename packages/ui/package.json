@@ -9,7 +9,8 @@
     "./web/foundation.css": "./src/web/foundation.css",
     "./web/buttons.css": "./src/web/buttons.css",
     "./web/controls.css": "./src/web/controls.css",
-    "./web/surfaces.css": "./src/web/surfaces.css"
+    "./web/surfaces.css": "./src/web/surfaces.css",
+    "./web/dashboard.css": "./src/web/dashboard.css"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

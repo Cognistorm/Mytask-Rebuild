@@ -8,6 +8,8 @@ import '@mytask/ui/web/buttons.css';
 import '@mytask/ui/web/controls.css';
 // Card and panel surfaces and the card hover (3X.9d), global for the same reason.
 import '@mytask/ui/web/surfaces.css';
+// The dashboard frame and sidebar looks the admin shell is built on (4X.2).
+import '@mytask/ui/web/dashboard.css';
 import './globals.css';
 // Admin page and auth panel styles (every admin screen uses them).
 import '../components/auth.css';

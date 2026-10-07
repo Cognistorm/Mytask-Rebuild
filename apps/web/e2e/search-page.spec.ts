@@ -1,6 +1,7 @@
 // Search results (ROADMAP 4.2.10; spec 03 AC-12, AC-19…AC-23; url-map §8). The gig search answers from the stand-in
 // API (e2e/fake-catalog.mjs); `/__last-search` (no category) returns the last query the web server sent.
 import { expect, test } from '@playwright/test';
+import { hydrated } from './base';
 
 const lastSearch = async () => {
   const res = await fetch('http://localhost:3199/__last-search?categoryId=');
@@ -59,4 +60,17 @@ test('no match: the empty state (AC-21); noindex, follow and /search as canonica
   ).toBeVisible();
   await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', 'noindex, follow');
   expect(await page.locator('link[rel="canonical"]').getAttribute('href')).toMatch(/\/en\/search$/);
+});
+
+// CI 2026-10-07: text typed into the header search before the page hydrated was cleared by the header's first
+// effect, so Enter searched for nothing. The field keeps it now.
+test('a keyword typed while the page is still loading survives hydration', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto('/en', { waitUntil: 'commit' });
+  const field = page.getByTestId('site-header').getByRole('searchbox').first();
+  await field.fill('premium logo');
+  await hydrated(page);
+  await expect(field).toHaveValue('premium logo');
+  await field.press('Enter');
+  await expect(page).toHaveURL(/\/en\/search\?q=premium\+logo$/);
 });

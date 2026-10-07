@@ -208,3 +208,72 @@ test('without portfolio.moderate the link is hidden and the page says so', async
   await expect(page.getByRole('link', { name: 'პორტფოლიო' })).toHaveCount(0);
   expect(lists).toHaveLength(0);
 });
+
+// 4X.5 (admin-refresh.md §5): segmented status tabs with a sliding thumb, the item card with header / body /
+// decision area, Approve = Primary, Reject = Danger, other actions Secondary, the shared EmptyState.
+test('queue look: segmented tabs, item card sections, action variants, empty state', async ({
+  page,
+}) => {
+  await setup(page, [[ENTRY], []]);
+  await page.goto('/portfolio');
+  const tabs = page.getByRole('group', { name: 'სტატუსი' });
+  await expect(tabs).toHaveClass(/admin-segmented/);
+  const card = page.getByTestId('portfolio-item');
+  await expect(card.locator('.admin-item-head').getByTestId('owner-summary')).toBeVisible();
+  await expect(card.locator('.admin-item-body')).toContainText('A logo for a Tbilisi bakery.');
+  const foot = card.locator('.admin-item-foot');
+  await expect(foot.getByLabel(/მიზეზი/)).toBeVisible();
+  await expect(foot.getByRole('button', { name: 'დადასტურება', exact: true })).toHaveClass(
+    /mt-button-primary/,
+  );
+  await expect(foot.getByRole('button', { name: 'უარყოფა', exact: true })).toHaveClass(
+    /mt-button-danger/,
+  );
+  await expect(foot.getByRole('button', { name: 'პორტფოლიოს წაშლა' })).toHaveClass(/^mt-button$/);
+  // The reason field sits above the action bar.
+  const reason = await foot.getByLabel(/მიზეზი/).boundingBox();
+  const bar = await foot.locator('.admin-item-actions').boundingBox();
+  expect(bar!.y).toBeGreaterThan(reason!.y + reason!.height - 1);
+
+  // The thumb slides under the chosen status; the empty list is the shared EmptyState.
+  const thumbX = () =>
+    tabs.evaluate((el) => new DOMMatrix(getComputedStyle(el, '::before').transform).m41);
+  const before = await thumbX();
+  await tabs.getByRole('button').nth(1).click();
+  await expect(tabs.getByRole('button').nth(1)).toHaveAttribute('aria-pressed', 'true');
+  const second = await tabs
+    .getByRole('button')
+    .nth(1)
+    .evaluate((el) => (el as HTMLElement).offsetLeft);
+  await expect.poll(thumbX).toBe(second);
+  expect(second).toBeGreaterThan(before);
+  await expect(page.locator('.mt-empty')).toBeVisible();
+});
+
+// QA 4X.9 F-4X9-4: on a phone every status tab is fully in view (they wrap), and the thumb sits under the chosen one.
+test('phone: status tabs wrap, all fully visible; the thumb follows the chosen tab', async ({
+  page,
+}) => {
+  await setup(page, [[ENTRY], []]);
+  await page.setViewportSize({ width: 360, height: 800 });
+  await page.goto('/portfolio');
+  const tabs = page.getByRole('group', { name: 'სტატუსი' });
+  const track = (await tabs.boundingBox())!;
+  for (const b of await tabs.getByRole('button').all()) {
+    const box = (await b.boundingBox())!;
+    expect(box.x).toBeGreaterThanOrEqual(track.x);
+    expect(box.x + box.width).toBeLessThanOrEqual(track.x + track.width + 0.5);
+  }
+  const last = tabs.getByRole('button').last();
+  await last.click();
+  const thumb = () =>
+    tabs.evaluate((el) => {
+      const m = new DOMMatrix(getComputedStyle(el, '::before').transform);
+      return [m.m41, m.m42];
+    });
+  const at = await last.evaluate((el) => [
+    (el as HTMLElement).offsetLeft,
+    (el as HTMLElement).offsetTop,
+  ]);
+  await expect.poll(thumb).toEqual(at);
+});

@@ -95,10 +95,15 @@ export function SiteHeaderClient(props: HeaderProps) {
   const currentCategory =
     categories.find((c) => pathname === c.href || pathname?.startsWith(`${c.href}/`))?.id ?? null;
   const desktopInput = useRef<HTMLInputElement>(null);
+  const hydratedOnce = useRef(false);
   useEffect(() => {
-    const q = /\/search$/.test(pathname ?? '')
-      ? (new URLSearchParams(window.location.search).get('q') ?? '')
-      : '';
+    const onResults = /\/search$/.test(pathname ?? '');
+    // First run after hydration away from the results page: keep what the visitor may already have typed while
+    // the page was loading (clearing it here sent an empty search, CI 2026-10-07).
+    const first = !hydratedOnce.current;
+    hydratedOnce.current = true;
+    if (first && !onResults) return;
+    const q = onResults ? (new URLSearchParams(window.location.search).get('q') ?? '') : '';
     for (const input of [desktopInput.current, phoneInput.current]) if (input) input.value = q;
   }, [pathname, phoneSearch]);
 
