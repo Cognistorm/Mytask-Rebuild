@@ -2,7 +2,15 @@
 // Shared pieces of the moderation queues (spec 16 AC-19): owner summary, status tabs, item card, the date/owner
 // filter and the cursor list loader. Used by the portfolio and KYC queues (task 4.1.21); later queues reuse them.
 // Looks (4X.5, admin-refresh.md §5): segmented status tabs with a sliding thumb, cards with header / body / action bar.
-import { useCallback, useEffect, useState, type CSSProperties, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from 'react';
 import type { components } from '@mytask/types';
 import { Avatar, Field, Pill } from '@mytask/ui/web';
 import { t, type ApiErrorBody } from '../lib/client';
@@ -54,28 +62,53 @@ export function OwnerSummary({ owner }: { owner: S['ModerationOwnerSummary'] }) 
   );
 }
 
-/** Status tabs above a queue (pending first): a segmented control whose thumb slides to the chosen status. */
+/**
+ * Status tabs above a queue (pending first): a segmented control whose thumb slides to the chosen status. The thumb
+ * follows the chosen button's measured place, so labels keep their natural width (on phones the track scrolls).
+ */
 export function StatusTabs<T extends string>(props: {
   value: T;
   options: { value: T; label: string }[];
   onChange: (v: T) => void;
 }) {
-  const thumb = {
-    '--admin-seg-count': props.options.length,
-    '--admin-seg-index': Math.max(
-      0,
-      props.options.findIndex((o) => o.value === props.value),
-    ),
-  } as CSSProperties;
+  const ref = useRef<HTMLDivElement>(null);
+  const [thumb, setThumb] = useState<CSSProperties>();
+  useLayoutEffect(() => {
+    const track = ref.current;
+    if (!track) return;
+    const place = () => {
+      const on = track.querySelector<HTMLElement>('[aria-pressed="true"]');
+      if (!on) return setThumb(undefined);
+      setThumb({
+        '--admin-thumb-x': `${on.offsetLeft}px`,
+        '--admin-thumb-w': `${on.offsetWidth}px`,
+      } as CSSProperties);
+    };
+    place();
+    const ro = new ResizeObserver(place);
+    ro.observe(track);
+    return () => ro.disconnect();
+  }, [props.value, props.options]);
   return (
-    <div className="admin-segmented" role="group" aria-label={t('t_status')} style={thumb}>
+    <div
+      ref={ref}
+      className="admin-segmented"
+      role="group"
+      aria-label={t('t_status')}
+      style={thumb}
+      data-thumb={thumb ? '' : undefined}
+    >
       {props.options.map((o) => (
         <button
           key={o.value}
           type="button"
           className="admin-segment"
           aria-pressed={props.value === o.value}
-          onClick={() => props.onChange(o.value)}
+          onClick={(e) => {
+            // A track wider than a phone scrolls: keep the chosen status in view.
+            e.currentTarget.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+            props.onChange(o.value);
+          }}
         >
           {o.label}
         </button>

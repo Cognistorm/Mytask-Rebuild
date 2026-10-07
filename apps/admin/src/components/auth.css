@@ -867,38 +867,40 @@ button.mt-sidebar-link {
 .admin-segmented {
   position: relative;
   isolation: isolate;
-  display: inline-grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(0, 1fr);
+  display: inline-flex;
   justify-self: start;
   max-inline-size: 100%;
   box-sizing: border-box;
   padding: var(--mt-space-1);
   gap: var(--mt-space-1);
+  overflow-x: auto;
   border: var(--mt-border-width-hairline) solid var(--mt-border-default);
   border-radius: var(--mt-radius-control);
   background: var(--mt-gradient-track);
 }
 
-.admin-segmented::before {
+/* The thumb: placed under the chosen button (its measured offset and width, set by StatusTabs). */
+.admin-segmented[data-thumb]::before {
   content: '';
   position: absolute;
   z-index: -1;
   inset-block: var(--mt-space-1);
-  inset-inline-start: var(--mt-space-1);
-  inline-size: calc(
-    (100% - (var(--admin-seg-count) + 1) * var(--mt-space-1)) / var(--admin-seg-count)
-  );
+  inset-inline-start: 0;
+  inline-size: var(--admin-thumb-w);
   box-sizing: border-box;
   border: var(--mt-border-width-hairline) solid var(--mt-border-brand);
   border-radius: var(--mt-radius-control);
   background: var(--mt-bg-surface);
   box-shadow: var(--mt-highlight-secondary), var(--mt-elevation-sm);
-  transform: translateX(calc(var(--admin-seg-index) * (100% + var(--mt-space-1))));
-  transition: transform var(--mt-motion-duration-base) var(--mt-motion-easing-emphasized);
+  transform: translateX(var(--admin-thumb-x));
+  transition:
+    transform var(--mt-motion-duration-base) var(--mt-motion-easing-emphasized),
+    inline-size var(--mt-motion-duration-base) var(--mt-motion-easing-emphasized);
 }
 
 .admin-segment {
+  flex: none;
+  white-space: nowrap;
   min-block-size: var(--mt-size-touch-target-min);
   padding: 0 var(--mt-space-4);
   border: 0;
@@ -1025,24 +1027,18 @@ button.mt-sidebar-link {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .admin-segmented::before,
+  .admin-segmented[data-thumb]::before,
   .admin-segment,
   .admin-list-row {
     transition: none;
   }
 }
 
-/* Phones: the status tabs take the full width; long Georgian labels shrink and may wrap. */
+/* Phones: smaller labels; a track wider than the screen scrolls inside itself (never the page). */
 @media (max-width: 639px) {
-  .admin-segmented {
-    justify-self: stretch;
-  }
-
   .admin-segment {
-    padding-inline: var(--mt-space-2);
+    padding-inline: var(--mt-space-3);
     font-size: var(--mt-font-size-sm);
-    line-height: var(--mt-font-line-height-sm);
-    overflow-wrap: anywhere;
   }
 }
 

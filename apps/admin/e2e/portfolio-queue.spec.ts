@@ -238,9 +238,14 @@ test('queue look: segmented tabs, item card sections, action variants, empty sta
   // The thumb slides under the chosen status; the empty list is the shared EmptyState.
   const thumbX = () =>
     tabs.evaluate((el) => new DOMMatrix(getComputedStyle(el, '::before').transform).m41);
-  expect(await thumbX()).toBe(0);
+  const before = await thumbX();
   await tabs.getByRole('button').nth(1).click();
   await expect(tabs.getByRole('button').nth(1)).toHaveAttribute('aria-pressed', 'true');
-  await expect.poll(thumbX).toBeGreaterThan(0);
+  const second = await tabs
+    .getByRole('button')
+    .nth(1)
+    .evaluate((el) => (el as HTMLElement).offsetLeft);
+  await expect.poll(thumbX).toBe(second);
+  expect(second).toBeGreaterThan(before);
   await expect(page.locator('.mt-empty')).toBeVisible();
 });
