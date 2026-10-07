@@ -1,6 +1,6 @@
 // Gig wizard form model and pre-check (spec 04 AC-4…AC-9; screen 03). The API checks everything again
 // (`apps/api/src/modules/gigs/gig-input.ts`); these rules only spare a round trip and use the same field names and
-// message keys, so an error from either side lands on the same field. The gallery joins in ROADMAP 4.3.10b.
+// message keys, so an error from either side lands on the same field.
 import type { TFunction } from 'i18next';
 import { contentLength, englishFieldIssue, georgianFieldIssue } from '@mytask/i18n';
 
@@ -42,6 +42,15 @@ export interface GigDraft {
   upgrades: UpgradeDraft[];
   faqs: FaqDraft[];
   seo: { title: string; description: string };
+  /** Ready file ids in display order (AC-14, AC-23); `busy` = an upload or scan is still running. */
+  gallery: GalleryDraft;
+}
+
+export interface GalleryDraft {
+  thumbnail: string[];
+  images: string[];
+  documents: string[];
+  busy: boolean;
 }
 
 export const EMPTY_DRAFT: GigDraft = {
@@ -58,6 +67,7 @@ export const EMPTY_DRAFT: GigDraft = {
   upgrades: [],
   faqs: [],
   seo: { title: '', description: '' },
+  gallery: { thumbnail: [], images: [], documents: [], busy: false },
 };
 
 /** Contract `GigDeliveryDays` with the legacy labels (AC-8). */
@@ -75,7 +85,7 @@ export const DELIVERY_DAYS: readonly { days: number; label: string }[] = [
   { days: 30, label: 't_1_month' },
 ];
 
-export type BlockId = 'overview' | 'pricing' | 'upgrades' | 'faq' | 'seo';
+export type BlockId = 'overview' | 'pricing' | 'upgrades' | 'faq' | 'gallery' | 'seo';
 
 /** Blocks in page order; only the required ones count in the summary's progress. */
 export const BLOCKS: readonly { id: BlockId; required: boolean }[] = [
@@ -83,6 +93,7 @@ export const BLOCKS: readonly { id: BlockId; required: boolean }[] = [
   { id: 'pricing', required: true },
   { id: 'upgrades', required: false },
   { id: 'faq', required: false },
+  { id: 'gallery', required: true },
   { id: 'seo', required: false },
 ];
 
@@ -107,6 +118,7 @@ export function blockFields(draft: GigDraft): Record<BlockId, string[]> {
       ['title', 'price', 'extraDays'].map((f) => `upgrades[${i}].${f}`),
     ),
     faq: draft.faqs.flatMap((_, i) => ['question', 'answer'].map((f) => `faqs[${i}].${f}`)),
+    gallery: ['thumbnailFileId', 'imageFileIds', 'documentFileIds'],
     seo: ['seo'],
   };
 }
@@ -222,6 +234,9 @@ export function validateDraft(
     if (!contentLength(f.question)) put(`faqs[${i}].question`, required);
     if (!contentLength(f.answer)) put(`faqs[${i}].answer`, required);
   });
+  // Gallery (AC-14): a thumbnail and at least one image; the uploaders keep the counts and types within the limits.
+  if (draft.gallery.thumbnail.length === 0) put('thumbnailFileId', required);
+  if (draft.gallery.images.length === 0) put('imageFileIds', required);
   // SEO (AC-15): both or none.
   if (!contentLength(draft.seo.title) !== !contentLength(draft.seo.description)) {
     put('seo', t('t_seo_both_fields_required'));
@@ -246,6 +261,13 @@ export function blockStarted(draft: GigDraft, block: BlockId): boolean {
       return draft.upgrades.length > 0;
     case 'faq':
       return draft.faqs.length > 0;
+    case 'gallery':
+      return !!(
+        draft.gallery.busy ||
+        draft.gallery.thumbnail.length ||
+        draft.gallery.images.length ||
+        draft.gallery.documents.length
+      );
     case 'seo':
       return !!(draft.seo.title.trim() || draft.seo.description.trim());
   }

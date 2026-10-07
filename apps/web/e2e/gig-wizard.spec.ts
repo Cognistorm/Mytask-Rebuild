@@ -17,15 +17,75 @@ const ELIGIBLE = {
   settingId: 'S-001',
 };
 
+/** The upload part of the public config (S-077/S-078, S-080…S-082); small limits so they can be reached. */
+const UPLOADS = {
+  gigImage: { enabled: true, maxSizeMb: 1, maxFiles: 3, allowedExtensions: [] },
+  gigDocument: { enabled: true, maxSizeMb: 2, maxFiles: 1, allowedExtensions: [] },
+};
+
 async function fakeApi(
   page: Page,
-  opts: { eligibility?: [number, unknown]; maxRevisions?: number } = {},
+  opts: { eligibility?: [number, unknown]; maxRevisions?: number; uploads?: unknown } = {},
 ) {
   const [status, body] = opts.eligibility ?? [200, ELIGIBLE];
   await page.route('**/api/v1/gigs/creation-eligibility', (route) => json(route, status, body));
   await page.route('**/api/v1/config/public', (route) =>
-    json(route, 200, { revisions: { maxAllowed: opts.maxRevisions ?? 10 } }),
+    json(route, 200, {
+      revisions: { maxAllowed: opts.maxRevisions ?? 10 },
+      uploads: opts.uploads ?? UPLOADS,
+    }),
   );
+}
+
+// The upload protocol (ADR-009 §3): playwright.config.ts gives the web server S3_PUBLIC_ENDPOINT=http://storage.test
+// (CSP connect-src). Storage refuses a file named `flaky…` once, so Retry can be checked.
+const STORAGE = 'http://storage.test';
+const PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+  'base64',
+);
+const png = (name: string) => ({ name, mimeType: 'image/png', buffer: PNG });
+
+async function fakeFiles(page: Page) {
+  const sent = { slots: [] as { purpose: string; fileName: string }[], deleted: [] as string[] };
+  const names = new Map<string, string>();
+  let seq = 0;
+  let flakyFailed = false;
+  await page.route('**/api/v1/files', async (route) => {
+    const body = route.request().postDataJSON();
+    const fileId = `01900000-0000-7000-8000-0000000003${String((seq += 1)).padStart(2, '0')}`;
+    names.set(fileId, body.fileName);
+    sent.slots.push({ purpose: body.purpose, fileName: body.fileName });
+    await json(route, 201, {
+      file: { id: fileId, purpose: body.purpose, status: 'pending', fileName: body.fileName },
+      upload: { url: `${STORAGE}/q`, method: 'POST', fields: { key: fileId }, expiresAt: '' },
+    });
+  });
+  await page.route(`${STORAGE}/**`, async (route) => {
+    const form = route.request().postData() ?? '';
+    const fileId = /name="key"\r\n\r\n([^\r]+)/.exec(form)?.[1] ?? '';
+    const cors = { 'Access-Control-Allow-Origin': '*' };
+    if (names.get(fileId)?.startsWith('flaky') && !flakyFailed) {
+      flakyFailed = true;
+      return route.fulfill({ status: 500, headers: cors });
+    }
+    return route.fulfill({ status: 204, headers: cors });
+  });
+  await page.route(/\/api\/v1\/files\/[^/]+(\/complete)?$/, async (route) => {
+    const fileId = new URL(route.request().url()).pathname.split('/')[4]!;
+    if (route.request().method() === 'DELETE') {
+      sent.deleted.push(fileId);
+      return route.fulfill({ status: 204 });
+    }
+    await json(route, 200, {
+      id: fileId,
+      purpose: 'gig_image',
+      status: 'ready',
+      fileName: names.get(fileId),
+      rejectReason: null,
+    });
+  });
+  return sent;
 }
 
 test('a guest is sent to login and back to /create (AC-1)', async ({ page }) => {
@@ -155,7 +215,7 @@ test('Overview and Pricing: pre-check, dependent categories and the summary (AC-
   await expect(page.getByText('Enter a whole number from 0 to 5.')).toHaveCount(0);
 
   await expect(summary.getByRole('link', { name: 'Pricing, completed' })).toBeVisible();
-  await expect(summary.getByText('2 of 2 required blocks complete')).toBeVisible();
+  await expect(summary.getByText('2 of 3 required blocks complete')).toBeVisible();
 });
 
 test('Upgrades and FAQ: rows, their pre-check, removal and the limit of 10 (AC-11, AC-12)', async ({
@@ -224,7 +284,99 @@ test('Upgrades and FAQ: rows, their pre-check, removal and the limit of 10 (AC-1
   await expect(summary.getByRole('link', { name: 'FAQ (optional), not started' })).toBeVisible();
 
   // The optional blocks never count in the required progress.
-  await expect(summary.getByText('0 of 2 required blocks complete')).toBeVisible();
+  await expect(summary.getByText('0 of 3 required blocks complete')).toBeVisible();
+});
+
+test('Gallery: thumbnail, images with order and retry, documents (AC-14, AC-23)', async ({
+  page,
+}) => {
+  await fakeApi(page);
+  const sent = await fakeFiles(page);
+  await page.goto('/en/create');
+  await hydrated(page);
+  const summary = page.getByRole('navigation', { name: 'Form progress' });
+  await expect(summary.getByRole('link', { name: 'Gallery, not started' })).toBeVisible();
+  await expect(summary.getByText('0 of 3 required blocks complete')).toBeVisible();
+
+  // A thumbnail and at least one image are required.
+  await page.getByRole('button', { name: 'Create', exact: true }).click();
+  await expect(summary.getByRole('link', { name: 'Gallery, has errors' })).toBeVisible();
+  const thumb = page.getByTestId('gig-thumbnail');
+  const images = page.getByTestId('gig-images');
+  await expect(thumb.getByText('Field required')).toBeVisible();
+  await expect(images.getByText('Field required')).toBeVisible();
+
+  await thumb.locator('input[type=file]').setInputFiles(png('cover.png'));
+  await expect(thumb.getByRole('img', { name: 'cover.png' })).toBeVisible();
+  await expect(thumb.getByTestId('gig-file')).toHaveAttribute('data-state', 'ready');
+  await expect(thumb.getByText('Field required')).toHaveCount(0);
+
+  // Wrong type or size: refused per file with its own message, no request.
+  const imagesInput = images.locator('input[type=file]');
+  await imagesInput.setInputFiles([
+    { name: 'logo.gif', mimeType: 'image/gif', buffer: PNG },
+    { name: 'big.png', mimeType: 'image/png', buffer: Buffer.alloc(1024 * 1024 + 1, 1) },
+  ]);
+  await expect(images.getByText('Selected file extension is not allowed')).toBeVisible();
+  await expect(images.getByText('The selected file size is too large')).toBeVisible();
+  await expect(images.getByRole('button', { name: 'Try again: logo.gif' })).toHaveCount(0);
+  await images.getByRole('button', { name: 'Remove: logo.gif' }).click();
+  await images.getByRole('button', { name: 'Remove: big.png' }).click();
+  expect(sent.slots.map((s) => s.fileName)).toEqual(['cover.png']);
+
+  // A storage failure can be retried.
+  await imagesInput.setInputFiles([png('a.png'), png('flaky.png')]);
+  await expect(images.getByText('Error while uploading your file')).toBeVisible();
+  await images.getByRole('button', { name: 'Try again: flaky.png' }).click();
+  await expect(images.getByTestId('gig-file')).toHaveCount(2);
+  await expect(images.locator('[data-testid="gig-file"][data-state="ready"]')).toHaveCount(2);
+  await expect(images.getByRole('status')).toHaveText('2 of 2 uploaded');
+
+  // Keyboard reorder: the moved file keeps the focus.
+  const alts = () =>
+    images.locator('img').evaluateAll((els) => els.map((e) => e.getAttribute('alt')));
+  await images.getByRole('button', { name: 'Move right: a.png' }).click();
+  expect(await alts()).toEqual(['flaky.png', 'a.png']);
+  await expect(images.getByRole('button', { name: 'Move left: a.png' })).toBeFocused();
+
+  // At S-077 (3 here) the picker is disabled.
+  await imagesInput.setInputFiles(png('c.png'));
+  await expect(images.locator('[data-testid="gig-file"][data-state="ready"]')).toHaveCount(3);
+  await expect(imagesInput).toBeDisabled();
+
+  // Documents (S-080 ON): PDF only, listed by name.
+  const docs = page.getByTestId('gig-documents');
+  await docs.locator('input[type=file]').setInputFiles({
+    name: 'portfolio.pdf',
+    mimeType: 'application/pdf',
+    buffer: Buffer.from('%PDF-1.4'),
+  });
+  await expect(docs.getByText('portfolio.pdf')).toBeVisible();
+  await expect(docs.getByTestId('gig-file')).toHaveAttribute('data-state', 'ready');
+  expect(sent.slots.map((s) => s.purpose)).toEqual([
+    'gig_thumbnail',
+    'gig_image',
+    'gig_image',
+    'gig_image',
+    'gig_image',
+    'gig_document',
+  ]);
+
+  // The failed attempt of flaky.png was deleted on Retry; removing a stored file deletes it too.
+  expect(sent.deleted).toHaveLength(1);
+  await images.getByRole('button', { name: 'Remove: c.png' }).click();
+  await expect.poll(() => sent.deleted.length).toBe(2);
+  await expect(summary.getByRole('link', { name: 'Gallery, completed' })).toBeVisible();
+});
+
+test('documents are not offered while S-080 is OFF (EC-8)', async ({ page }) => {
+  await fakeApi(page, {
+    uploads: { ...UPLOADS, gigDocument: { ...UPLOADS.gigDocument, enabled: false } },
+  });
+  await page.goto('/en/create');
+  await hydrated(page);
+  await expect(page.getByTestId('gig-images')).toBeVisible();
+  await expect(page.getByTestId('gig-documents')).toHaveCount(0);
 });
 
 test('SEO dialog: both fields or none (AC-15)', async ({ page }) => {
@@ -275,6 +427,7 @@ test('the Georgian page uses the Georgian texts', async ({ page }) => {
 
 test('the form passes axe (WCAG 2 A/AA) with errors shown, light and dark', async ({ page }) => {
   await fakeApi(page);
+  await fakeFiles(page);
   for (const scheme of ['light', 'dark'] as const) {
     await page.emulateMedia({ colorScheme: scheme });
     await page.goto('/en/create');
@@ -283,6 +436,13 @@ test('the form passes axe (WCAG 2 A/AA) with errors shown, light and dark', asyn
     await page.getByRole('button', { name: 'Add FAQ' }).click();
     await page.getByRole('button', { name: 'Create', exact: true }).click();
     await expect(page.getByTestId('gig-form-errors')).toBeVisible();
+    // Gallery items: a ready image and a refused one with its message.
+    const images = page.getByTestId('gig-images').locator('input[type=file]');
+    await images.setInputFiles([
+      png('a.png'),
+      { name: 'x.gif', mimeType: 'image/gif', buffer: PNG },
+    ]);
+    await expect(page.locator('[data-testid="gig-file"][data-state="ready"]')).toHaveCount(1);
     await expectNoAxeViolations(page, scheme, 'main');
 
     // The SEO dialog with its both-or-none error and the preview.

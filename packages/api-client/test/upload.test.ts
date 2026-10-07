@@ -106,6 +106,40 @@ describe('uploadFile (ADR-009 §3)', () => {
     });
   });
 
+  it('reports upload progress through XMLHttpRequest when asked to', async () => {
+    const { calls, fetch } = fake();
+    const api = createApiClient({ baseUrl: 'http://api.test/api/v1', fetch });
+    const sent: string[] = [];
+    class FakeXhr {
+      upload: { onprogress?: (e: Partial<ProgressEvent>) => void } = {};
+      status = 0;
+      onload?: () => void;
+      open(method: string, url: string) {
+        sent.push(`${method} ${new URL(url).pathname}`);
+      }
+      send() {
+        this.upload.onprogress?.({ lengthComputable: true, loaded: 1, total: 4 });
+        this.upload.onprogress?.({ lengthComputable: true, loaded: 4, total: 4 });
+        this.status = 204;
+        this.onload?.();
+      }
+      abort() {}
+    }
+    const original = globalThis.XMLHttpRequest;
+    globalThis.XMLHttpRequest = FakeXhr as unknown as typeof XMLHttpRequest;
+    try {
+      const progress: number[] = [];
+      const res = await uploadFile(api, input, { pollMs: 1, onProgress: (f) => progress.push(f) });
+      expect(res.file?.status).toBe('ready');
+      expect(progress).toEqual([0.25, 1]);
+      expect(sent).toEqual(['POST /private']);
+      // The storage POST did not go through fetch.
+      expect(calls.some((c) => c.url === '/private')).toBe(false);
+    } finally {
+      globalThis.XMLHttpRequest = original;
+    }
+  });
+
   it('stops waiting at the timeout', async () => {
     const { fetch } = fake({ polls: Array(50).fill('scanning') });
     const api = createApiClient({ baseUrl: 'http://api.test/api/v1', fetch });

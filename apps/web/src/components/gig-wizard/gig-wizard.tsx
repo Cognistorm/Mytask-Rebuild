@@ -3,7 +3,8 @@
 // legacy `livewire/main/create/create.blade.php`): one page with the blocks in the legacy order and a side summary
 // (Stepper) with each block's status. Opening checks the plan limit (AC-2, `getGigCreationEligibility`); guests go
 // to login and back (AC-1). ROADMAP 4.3.9 built the entry, Overview and Pricing; 4.3.10a Upgrades, FAQ and the SEO
-// dialog (AC-11, AC-12, AC-15); 4.3.10b…e add the Gallery, the submit, edit mode and the phone step mode.
+// dialog (AC-11, AC-12, AC-15); 4.3.10b the Gallery (AC-14); 4.3.10c…e add the submit, edit mode and the phone
+// step mode.
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { components } from '@mytask/types';
@@ -24,6 +25,7 @@ import {
 } from '@mytask/ui/web';
 import { href, useApi, useLocale, useT } from '../../lib/client';
 import { usePublicConfig } from '../../lib/public-config';
+import { GigFiles } from './gig-files';
 import {
   blockFields,
   BLOCKS,
@@ -50,6 +52,13 @@ type Eligibility = components['schemas']['GigCreationEligibility'];
 
 /** S-041 default (spec 00) while the public config loads. */
 const DEFAULT_MAX_REVISIONS = 10;
+/** S-077 / S-078 defaults (spec 00) while the public config loads; documents wait for it (S-080 may be OFF). */
+const DEFAULT_GIG_IMAGE = { maxFiles: 10, maxSizeMb: 5 };
+/** Legacy fixed lists (`GalleryValidator.php:42-54`); the public config may narrow them. */
+const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png'];
+const DOCUMENT_EXTENSIONS = ['pdf'];
+const extensionsOf = (allowed: string[] | undefined, fallback: string[]) =>
+  allowed?.length ? allowed.map((e) => e.toLowerCase()) : fallback;
 
 export function GigWizard({ categories }: { categories: CategoryNode[] }) {
   const locale = useLocale();
@@ -124,6 +133,11 @@ function GigForm({ categories }: { categories: CategoryNode[] }) {
   const t = useT(locale);
   const config = usePublicConfig(locale);
   const maxRevisions = config?.revisions.maxAllowed ?? DEFAULT_MAX_REVISIONS;
+  const imageRule = config?.uploads.gigImage;
+  const documentRule = config?.uploads.gigDocument;
+  const imageExtensions = extensionsOf(imageRule?.allowedExtensions, IMAGE_EXTENSIONS);
+  const documentExtensions = extensionsOf(documentRule?.allowedExtensions, DOCUMENT_EXTENSIONS);
+  const imageMb = imageRule?.maxSizeMb ?? DEFAULT_GIG_IMAGE.maxSizeMb;
   const [draft, setDraft] = useState<GigDraft>(EMPTY_DRAFT);
   /** Fields whose error is shown: left once (blur) or all after a submit. */
   const [shown, setShown] = useState<ReadonlySet<string>>(new Set());
@@ -196,6 +210,27 @@ function GigForm({ categories }: { categories: CategoryNode[] }) {
     (list === 'upgrades' ? addUpgradeRef : addFaqRef).current?.focus();
   };
 
+  // AC-14: each uploader reports its ready ids in order and whether it is still busy.
+  const busyParts = useRef({ thumbnail: false, images: false, documents: false });
+  const onFiles = useCallback(
+    (part: 'thumbnail' | 'images' | 'documents') => (ids: string[], busy: boolean) => {
+      busyParts.current[part] = busy;
+      const anyBusy = Object.values(busyParts.current).some(Boolean);
+      setDraft((d) => ({ ...d, gallery: { ...d.gallery, [part]: ids, busy: anyBusy } }));
+      // Once a file arrived, its list's error shows again if it is emptied.
+      const field = {
+        thumbnail: 'thumbnailFileId',
+        images: 'imageFileIds',
+        documents: 'documentFileIds',
+      }[part];
+      if (ids.length > 0) setShown((s) => (s.has(field) ? s : new Set(s).add(field)));
+    },
+    [],
+  );
+  const onThumbnail = useMemo(() => onFiles('thumbnail'), [onFiles]);
+  const onImages = useMemo(() => onFiles('images'), [onFiles]);
+  const onDocuments = useMemo(() => onFiles('documents'), [onFiles]);
+
   /** AC-15: Save keeps the dialog open while only one SEO field is filled. */
   const saveSeo = () => {
     touch('seo');
@@ -207,6 +242,7 @@ function GigForm({ categories }: { categories: CategoryNode[] }) {
     const own = fields[block];
     if (own.some((f) => shown.has(f) && errors[f])) return 'error';
     if (!blockStarted(draft, block)) return 'not_started';
+    if (block === 'gallery' && draft.gallery.busy) return 'in_progress';
     return own.every((f) => !errors[f]) ? 'complete' : 'in_progress';
   };
   const blockLabel: Record<BlockId, string> = {
@@ -214,6 +250,7 @@ function GigForm({ categories }: { categories: CategoryNode[] }) {
     pricing: t('t_pricing'),
     upgrades: t('t_upgrades'),
     faq: t('t_faq'),
+    gallery: t('t_gallery'),
     seo: t('t_seo'),
   };
   const optional = `(${t('t_ui_optional')})`;
@@ -250,6 +287,8 @@ function GigForm({ categories }: { categories: CategoryNode[] }) {
       focusFirstError.current = true;
       return;
     }
+    // Files still on their way cannot be sent yet (legacy `t_pls_wait_until_uploading_finish`).
+    if (draft.gallery.busy) return;
     // ROADMAP 4.3.10c: the gallery uploads and `createGig`.
   }
 
@@ -262,6 +301,7 @@ function GigForm({ categories }: { categories: CategoryNode[] }) {
   };
 
   const hasErrors = submitted && Object.keys(errors).length > 0;
+  const waitForUploads = submitted && !hasErrors && draft.gallery.busy;
   const deliveryOptions = DELIVERY_DAYS.map((d) => ({ value: String(d.days), label: t(d.label) }));
   const seoFilled = !!(draft.seo.title.trim() && draft.seo.description.trim());
   const seoError = errorOf('seo');
@@ -290,6 +330,11 @@ function GigForm({ categories }: { categories: CategoryNode[] }) {
           {hasErrors && (
             <div data-testid="gig-form-errors">
               <Alert kind="error">{t('t_toast_form_validation_error')}</Alert>
+            </div>
+          )}
+          {waitForUploads && (
+            <div data-testid="gig-uploads-busy">
+              <Alert kind="info">{t('t_pls_wait_until_uploading_finish')}</Alert>
             </div>
           )}
 
@@ -546,6 +591,79 @@ function GigForm({ categories }: { categories: CategoryNode[] }) {
               limitText={t('t_faq_limit_reached', { max: MAX_FAQS })}
               onAdd={addFaq}
             />
+          </section>
+
+          <section
+            id="gig-gallery"
+            className="mt-panel mt-gw-block"
+            aria-labelledby="gig-gallery-title"
+            onFocus={() => setCurrent('gallery')}
+          >
+            <h2 id="gig-gallery-title" className="mt-gw-block-title" tabIndex={-1}>
+              5. {t('t_gallery')}
+            </h2>
+            <p className="mt-gw-block-subtitle">{t('t_get_noticed_by_right_buyers_images')}</p>
+            <GigFiles
+              label={t('t_thumbnail')}
+              info={t('t_restrictions_files_allowed_info_explain', {
+                size: imageMb,
+                extensions: imageExtensions.join(', '),
+              })}
+              purpose="gig_thumbnail"
+              name="thumbnailFileId"
+              kind="image"
+              max={1}
+              maxSizeMb={imageMb}
+              extensions={imageExtensions}
+              error={errorOf('thumbnailFileId')}
+              testId="gig-thumbnail"
+              onChange={onThumbnail}
+            />
+            <GigFiles
+              label={t('t_images')}
+              info={`${t('t_restrictions_files_allowed_info_explain', {
+                size: imageMb,
+                extensions: imageExtensions.join(', '),
+              })} ${t('t_validator_max_array', {
+                max: imageRule?.maxFiles ?? DEFAULT_GIG_IMAGE.maxFiles,
+              })}`}
+              purpose="gig_image"
+              name="imageFileIds"
+              kind="image"
+              reorder
+              max={imageRule?.maxFiles ?? DEFAULT_GIG_IMAGE.maxFiles}
+              maxSizeMb={imageMb}
+              extensions={imageExtensions}
+              error={errorOf('imageFileIds')}
+              testId="gig-images"
+              onChange={onImages}
+            />
+            {/* EC-8: only while S-080 is ON; hidden until the config says so. */}
+            {documentRule?.enabled && (
+              <GigFiles
+                label={t('t_documents')}
+                info={`${t('t_show_some_of_best_work_doc_pdfs_only')} ${t(
+                  't_restrictions_files_allowed_info_explain',
+                  {
+                    size: documentRule.maxSizeMb,
+                    extensions: documentExtensions.join(', '),
+                  },
+                )}${
+                  documentRule.maxFiles !== null
+                    ? ` ${t('t_validator_max_array', { max: documentRule.maxFiles })}`
+                    : ''
+                }`}
+                purpose="gig_document"
+                name="documentFileIds"
+                kind="document"
+                max={documentRule.maxFiles ?? Number.POSITIVE_INFINITY}
+                maxSizeMb={documentRule.maxSizeMb}
+                extensions={documentExtensions}
+                error={errorOf('documentFileIds')}
+                testId="gig-documents"
+                onChange={onDocuments}
+              />
+            )}
           </section>
 
           <section

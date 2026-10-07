@@ -202,3 +202,109 @@
   color: var(--mt-text-secondary);
   font-size: var(--mt-font-size-sm);
 }
+
+/* Gallery (AC-14; components.md §5.13): thumbnail, images (3:2 grid with order buttons) and PDF documents. */
+.mt-gw-files {
+  display: grid;
+  gap: var(--mt-space-3);
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.mt-gw-files-label {
+  padding: 0;
+  margin-block-end: var(--mt-space-1);
+  font-weight: var(--mt-font-weight-semibold);
+}
+
+.mt-gw-files-info {
+  margin: 0;
+}
+
+.mt-gw-file {
+  justify-self: start;
+}
+
+/* The file input is visually hidden; its label is the button, so it shows the focus ring. */
+.mt-gw-file:focus-within {
+  outline: var(--mt-focus-ring-width) solid var(--mt-focus-ring);
+  outline-offset: var(--mt-focus-ring-offset);
+}
+
+.mt-gw-file[data-disabled] {
+  cursor: not-allowed;
+  background: var(--mt-action-disabled);
+  color: var(--mt-action-on-disabled);
+}
+
+.mt-gw-file-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--mt-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+@media (min-width: 768px) {
+  .mt-gw-file-list[data-kind='image'] {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.mt-gw-file-list[data-kind='document'] {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.mt-gw-file-item {
+  display: grid;
+  gap: var(--mt-space-1);
+  align-content: start;
+  min-inline-size: 0;
+  font-size: var(--mt-font-size-sm);
+}
+
+.mt-gw-file-list[data-kind='document'] .mt-gw-file-item {
+  padding: var(--mt-space-3);
+  border: var(--mt-border-width-hairline) solid var(--mt-border-default);
+  border-radius: var(--mt-radius-control);
+}
+
+.mt-gw-file-preview {
+  inline-size: 100%;
+  aspect-ratio: var(--mt-size-layout-card-image-ratio);
+  object-fit: cover;
+  border-radius: var(--mt-radius-control);
+  background: var(--mt-bg-subtle);
+}
+
+.mt-gw-file-item:is([data-state='queued'], [data-state='uploading'], [data-state='processing'])
+  .mt-gw-file-preview {
+  opacity: 0.6;
+}
+
+.mt-gw-file-item[data-state='failed'] .mt-gw-file-preview {
+  outline: var(--mt-border-width-strong) solid var(--mt-border-danger);
+}
+
+.mt-gw-file-name {
+  font-weight: var(--mt-font-weight-medium);
+  overflow-wrap: anywhere;
+}
+
+.mt-gw-file-state {
+  color: var(--mt-text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.mt-gw-file-item[data-state='failed'] .mt-gw-file-state {
+  color: var(--mt-text-danger);
+}
+
+.mt-gw-file-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mt-space-1);
+}
