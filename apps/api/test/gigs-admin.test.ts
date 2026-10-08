@@ -7,12 +7,14 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import request from 'supertest';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { File as FileRow, FilePurpose } from '../src/generated/prisma/client';
+import { GigMedia } from '../src/modules/gigs/gig-media';
 import { PrismaService } from '../src/platform/db/prisma.service';
 import { renderEmail } from '../src/platform/mail/templates';
 import { RedisService } from '../src/platform/redis/redis.module';
 import type { SettingId } from '../src/platform/settings/registry';
 import { SettingsService } from '../src/platform/settings/settings.service';
 import { ObjectStorage } from '../src/platform/storage/storage';
+import { GigMediaSweeper } from '../src/worker/gig-media.sweeper';
 import { createTestApp } from './app';
 import { MemoryStorage } from './memory-storage';
 import { makeStaff } from './test-staff';
@@ -65,13 +67,29 @@ async function member() {
 }
 type Member = Awaited<ReturnType<typeof member>>;
 
+/** A ready gig file with its objects in `public-media`, as the scan leaves them (images: three WebP variants). */
 async function file(ownerUserId: string, purpose: FilePurpose): Promise<FileRow> {
   const id = crypto.randomUUID();
-  const variants = {
-    thumb: `images/${id}/thumb.webp`,
-    medium: `images/${id}/medium.webp`,
-    large: `images/${id}/large.webp`,
-  };
+  const pdf = purpose === 'gig_document';
+  const variants = pdf
+    ? null
+    : {
+        thumb: `images/${id}/thumb.webp`,
+        medium: `images/${id}/medium.webp`,
+        large: `images/${id}/large.webp`,
+      };
+  const objectKey = variants?.large ?? `files/${id}`;
+  for (const key of variants ? Object.values(variants) : [objectKey]) {
+    await storage.put({
+      bucket: 'public_media',
+      key,
+      body: Buffer.from(key),
+      contentType: pdf ? 'application/pdf' : 'image/webp',
+      cacheControl: pdf ? undefined : 'public, max-age=31536000, immutable',
+    });
+  }
+  if (pdf)
+    storage.get('public_media', objectKey)!.contentDisposition = 'attachment; filename="brief.pdf"';
   return prisma.file.create({
     data: {
       id,
@@ -79,13 +97,13 @@ async function file(ownerUserId: string, purpose: FilePurpose): Promise<FileRow>
       ownerUserId,
       status: 'ready',
       bucket: 'public_media',
-      objectKey: variants.large,
-      variants,
-      originalName: 'cover.jpg',
-      declaredType: 'image/jpeg',
+      objectKey,
+      variants: variants ?? undefined,
+      originalName: pdf ? 'brief.pdf' : 'cover.jpg',
+      declaredType: pdf ? 'application/pdf' : 'image/jpeg',
       sizeBytes: 12_345n,
-      width: 1000,
-      height: 750,
+      width: pdf ? null : 1000,
+      height: pdf ? null : 750,
       readyAt: new Date(),
     },
   });
@@ -109,10 +127,11 @@ async function category(parentId: string | null, depth: number) {
 }
 
 /** A gig saved through createGig by `m` (a new member when not given); pending while S-070 is OFF. */
-async function saveGig(m?: Member, title = 'ლოგოს დიზაინი') {
+async function saveGig(m?: Member, title = 'ლოგოს დიზაინი', withDocument = false) {
   const owner = m ?? (await member());
   const thumb = await file(owner.userId, 'gig_thumbnail');
   const image = await file(owner.userId, 'gig_image');
+  const document = withDocument ? await file(owner.userId, 'gig_document') : null;
   const res = await http()
     .post('/api/v1/gigs')
     .set(owner.auth)
@@ -128,9 +147,14 @@ async function saveGig(m?: Member, title = 'ლოგოს დიზაინ�
       revisionsAllowed: 2,
       thumbnailFileId: thumb.id,
       imageFileIds: [image.id],
+      ...(document ? { documentFileIds: [document.id] } : {}),
     });
   expect(res.status, JSON.stringify(res.body)).toBe(201);
-  return { ...owner, gig: res.body as { id: string; uid: string } };
+  return {
+    ...owner,
+    gig: res.body as { id: string; uid: string },
+    files: [thumb, image, ...(document ? [document] : [])],
+  };
 }
 
 /** Owner emails queued for this gig, oldest first. */
@@ -546,6 +570,160 @@ describe('adminRemoveGig / adminRestoreGig (spec 16 AC-20, Q-123 (b))', () => {
 
     await withSetting('S-001', 'plans.standard.gig_limit', 2);
     expect((await act(first.gig.id, 'restore')).status).toBe(200);
+  });
+});
+
+describe('a staff removal takes the files offline (ROADMAP 4.3.24, Owner Q-185 (b), review 10 I-57)', () => {
+  /** Every stored key of the files: three variants per image, one object per document. */
+  const keysOf = (files: FileRow[]) =>
+    files.flatMap((f) =>
+      f.variants ? Object.values(f.variants as Record<string, string>) : [f.objectKey],
+    );
+  const buckets = async (files: FileRow[]) =>
+    (
+      await prisma.file.findMany({
+        where: { id: { in: files.map((f) => f.id) } },
+        orderBy: { id: 'asc' },
+      })
+    ).map((f) => f.bucket);
+  const served = (files: FileRow[]) => keysOf(files).map((k) => storage.has('public_media', k));
+  const kept = (files: FileRow[]) => keysOf(files).map((k) => storage.has('private', k));
+  const allTrue = (files: FileRow[]) => keysOf(files).map(() => true);
+  const allFalse = (files: FileRow[]) => keysOf(files).map(() => false);
+
+  async function removedGig() {
+    const saved = await saveGig(undefined, 'ლოგოს დიზაინი', true);
+    expect((await act(saved.gig.id, 'publish')).status).toBe(200);
+    expect(served(saved.files)).toEqual(allTrue(saved.files));
+    expect((await act(saved.gig.id, 'remove', { reason: 'Copied content' })).status).toBe(200);
+    return saved;
+  }
+
+  it('moves thumbnail, gallery variants and documents to private on removal and back on restore', async () => {
+    const { gig, files } = await removedGig();
+    const [thumb, image, document] = files as [FileRow, FileRow, FileRow];
+
+    // Media URL no longer served: nothing of the gig is left in public-media; same keys, same ids, private.
+    expect(served(files)).toEqual(allFalse(files));
+    expect(kept(files)).toEqual(allTrue(files));
+    expect(await buckets(files)).toEqual(['private', 'private', 'private']);
+    // The stored headers travel with the objects.
+    expect(storage.get('private', `images/${image.id}/thumb.webp`)).toMatchObject({
+      contentType: 'image/webp',
+      cacheControl: 'public, max-age=31536000, immutable',
+    });
+    expect(storage.get('private', document.objectKey)).toMatchObject({
+      contentType: 'application/pdf',
+      contentDisposition: 'attachment; filename="brief.pdf"',
+    });
+    expect((await publicPage(gig.id)).status).toBe(404);
+
+    // Staff still see them, through presigned GETs of the private copies.
+    const view = await adminGet(gig.id);
+    expect(view.status, JSON.stringify(view.body)).toBe(200);
+    const signed = (key: string) => `http://storage.test/private/${key}?signed=1`;
+    expect(view.body.thumbnail).toEqual({
+      fileId: thumb.id,
+      thumb: signed(`images/${thumb.id}/thumb.webp`),
+      medium: signed(`images/${thumb.id}/medium.webp`),
+      large: signed(`images/${thumb.id}/large.webp`),
+      width: 1000,
+      height: 750,
+    });
+    expect(view.body.images).toEqual([
+      expect.objectContaining({ fileId: image.id, large: signed(`images/${image.id}/large.webp`) }),
+    ]);
+    expect(view.body.documents).toEqual([
+      {
+        fileId: document.id,
+        fileName: 'brief.pdf',
+        sizeBytes: 12_345,
+        url: signed(document.objectKey),
+      },
+    ]);
+    expect(storage.gets.at(-1)).toMatchObject({
+      bucket: 'private',
+      key: document.objectKey,
+      expiresSeconds: 300,
+      downloadName: 'brief.pdf',
+    });
+    const list = await adminList({ status: 'deleted', limit: 200 });
+    const item = (list.body.data as { id: string; thumbnail: { thumb: string } }[]).find(
+      (g) => g.id === gig.id,
+    );
+    expect(item?.thumbnail.thumb).toBe(signed(`images/${thumb.id}/thumb.webp`));
+
+    // Restore: served again, from the same keys and ids, before the gig is public again.
+    const res = await act(gig.id, 'restore');
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+    expect(served(files)).toEqual(allTrue(files));
+    expect(kept(files)).toEqual(allFalse(files));
+    expect(await buckets(files)).toEqual(['public_media', 'public_media', 'public_media']);
+    expect(storage.get('public_media', `images/${thumb.id}/large.webp`)?.cacheControl).toBe(
+      'public, max-age=31536000, immutable',
+    );
+    expect(storage.get('public_media', document.objectKey)?.contentDisposition).toBe(
+      'attachment; filename="brief.pdf"',
+    );
+    expect(res.body.thumbnail.large).toBe(`${MEDIA}/images/${thumb.id}/large.webp`);
+    const page = await publicPage(gig.id);
+    expect(page.status).toBe(200);
+    expect(page.body.documents[0].url).toBe(`${MEDIA}/${document.objectKey}`);
+  });
+
+  it('leaves owner deletions alone (Q-185 is staff removals only)', async () => {
+    const saved = await saveGig(undefined, 'ლოგოს დიზაინი', true);
+    expect((await act(saved.gig.id, 'publish')).status).toBe(200);
+    expect((await http().delete(`/api/v1/gigs/${saved.gig.id}`).set(saved.auth)).status).toBe(204);
+    expect(served(saved.files)).toEqual(allTrue(saved.files));
+    expect(await buckets(saved.files)).toEqual(['public_media', 'public_media', 'public_media']);
+  });
+
+  it('a move that fails after the removal is finished by the gig-media sweeper', async () => {
+    const saved = await saveGig(undefined, 'ლოგოს დიზაინი', true);
+    expect((await act(saved.gig.id, 'publish')).status).toBe(200);
+    // The second copy fails: the removal stands (200), the move is rolled back to "all public" for now.
+    storage.failCopyAt = 2;
+    expect((await act(saved.gig.id, 'remove', { reason: 'Spam' })).status).toBe(200);
+    expect(await buckets(saved.files)).toEqual(['public_media', 'public_media', 'public_media']);
+    expect((await prisma.gig.findUniqueOrThrow({ where: { id: saved.gig.id } })).status).toBe(
+      'deleted',
+    );
+
+    const sweeper = new GigMediaSweeper(app.get(GigMedia));
+    for (let i = 0; i < 100 && (await sweeper.tick()) > 0; i++);
+    expect(served(saved.files)).toEqual(allFalse(saved.files));
+    expect(kept(saved.files)).toEqual(allTrue(saved.files));
+    expect(await buckets(saved.files)).toEqual(['private', 'private', 'private']);
+  });
+
+  it('a move interrupted after the public copies were deleted is finished on the next run', async () => {
+    const saved = await saveGig();
+    expect((await act(saved.gig.id, 'publish')).status).toBe(200);
+    expect((await act(saved.gig.id, 'remove', { reason: 'Spam' })).status).toBe(200);
+    // As if the process stopped after the copy and delete, before the rows were switched.
+    await prisma.file.updateMany({
+      where: { id: { in: saved.files.map((f) => f.id) } },
+      data: { bucket: 'public_media' },
+    });
+    expect(await app.get(GigMedia).sync(saved.gig.id)).toBe(2);
+    expect(await buckets(saved.files)).toEqual(['private', 'private']);
+    expect(kept(saved.files)).toEqual(allTrue(saved.files));
+    expect(served(saved.files)).toEqual(allFalse(saved.files));
+  });
+
+  it('a restore that fails half-way keeps the gig removed and its files offline', async () => {
+    const { gig, files } = await removedGig();
+    // The 4th copy fails inside the transaction, after at least one file was copied back in full.
+    storage.failCopyAt = 4;
+    expect((await act(gig.id, 'restore')).status).toBe(500);
+    expect((await prisma.gig.findUniqueOrThrow({ where: { id: gig.id } })).status).toBe('deleted');
+    expect(await buckets(files)).toEqual(['private', 'private', 'private']);
+    expect(served(files)).toEqual(allFalse(files));
+    expect(kept(files)).toEqual(allTrue(files));
+    // A later restore works.
+    expect((await act(gig.id, 'restore')).status).toBe(200);
+    expect(served(files)).toEqual(allTrue(files));
   });
 });
 

@@ -5,23 +5,28 @@
 // re-reads its state, writes the search document and the audit row in one transaction. Staff never edit content
 // (P-117). The owner's emails EV-20 (publish), EV-21 (reject, with the reason) and EV-130 (restore) are queued in
 // the same transaction (4.3.8; in-app + push wait for slice 15); the realtime `gig.status_changed` waits for the
-// gateway (slice 08).
-import { Inject, Injectable } from '@nestjs/common';
+// gateway (slice 08). A staff removal moves the gig's files to the private bucket after the commit and a restore
+// moves them back before the gig is active again (4.3.24, Q-185 (b), `gig-media.ts`); staff still see them through
+// short presigned GETs.
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { components, Locale } from '@mytask/types';
-import type { GigStatus, Prisma } from '../../generated/prisma/client';
+import type { File as FileRow, GigStatus, Prisma } from '../../generated/prisma/client';
 import { AuditService } from '../../platform/audit/audit.service';
 import { ENV, type Env } from '../../platform/config/env';
 import { PrismaService } from '../../platform/db/prisma.service';
 import { ApiException } from '../../platform/errors/api-exception';
 import { OutboxService } from '../../platform/outbox/outbox.service';
 import { decodeCursor, encodeCursor } from '../../platform/pagination';
+import { ObjectStorage } from '../../platform/storage/storage';
 import type { RequestContext } from '../auth/request-context';
 import { ratingSummary } from '../catalog/gig-cards';
 import { localized } from '../catalog/localized';
 import { SearchIndex } from '../catalog/search-index';
+import { DOWNLOAD_EXPIRES_SECONDS, downloadName } from '../files/files.service';
 import { imageVariants } from '../files/image-variants';
 import { UserSummaries } from '../profiles/user-summaries';
 import { allows, GigLimits } from './gig-limits';
+import { GigMedia, MOVE_TX_TIMEOUT_MS } from './gig-media';
 import { FULL, gigDocument, money, notFound, type FullGig } from './gigs.service';
 
 type S = components['schemas'];
@@ -75,6 +80,8 @@ async function lockGig(tx: Tx, gigId: string) {
 
 @Injectable()
 export class AdminGigs {
+  private readonly logger = new Logger('AdminGigs');
+
   constructor(
     @Inject(ENV) private readonly env: Env,
     private readonly prisma: PrismaService,
@@ -83,6 +90,8 @@ export class AdminGigs {
     private readonly searchIndex: SearchIndex,
     private readonly limits: GigLimits,
     private readonly summaries: UserSummaries,
+    private readonly media: GigMedia,
+    private readonly storage: ObjectStorage,
   ) {}
 
   // ------------------------------------------------------------------ adminListGigs (AC-19, AC-31)
@@ -172,18 +181,19 @@ export class AdminGigs {
       ),
       this.summaries.many(data.map((g) => g.ownerId)),
     ]);
-    const thumbById = new Map(thumbs.map((f) => [f.id, f]));
+    const thumbById = new Map(
+      await Promise.all(thumbs.map(async (f) => [f.id, await this.staffImage(f)] as const)),
+    );
     return {
       data: data.map((g) => {
         const { values, contentLocale } = localized(g.translations, locale, ['title']);
-        const thumb = thumbById.get(g.thumbnailFileId);
         return {
           id: g.id,
           uid: g.uid,
           slug: g.slug,
           title: values.title ?? '',
           contentLocale,
-          thumbnail: thumb ? imageVariants(thumb, this.env.PUBLIC_MEDIA_BASE_URL) : null,
+          thumbnail: thumbById.get(g.thumbnailFileId) ?? null,
           category: categories.get(g.categoryId)!,
           owner: owners.get(g.ownerId)!,
           status: g.status,
@@ -251,7 +261,8 @@ export class AdminGigs {
 
   /**
    * active → deleted exactly like an owner deletion (`deleteGig`), with `deleted_by = staff`, the staff id and the
-   * internal reason; refused while orders are in progress (P-117). The owner is not notified.
+   * internal reason; refused while orders are in progress (P-117). The owner is not notified. After the commit the
+   * gig's files move to the private bucket (Q-185 (b)); a failed move is retried by the gig-media sweeper.
    */
   async remove(
     gigId: string,
@@ -278,13 +289,18 @@ export class AdminGigs {
         removalReason: reason,
       };
     });
+    await this.media.sync(gigId).catch((err: unknown) => {
+      this.logger.error({ err, gigId }, 'removed gig files not moved yet (the sweeper retries)');
+    });
     return this.view(gig, ctx.locale);
   }
 
   /**
    * A staff removal within 30 days → active again (no re-moderation, also while S-070 is OFF), removal fields
    * cleared. Refused when the owner's non-deleted gigs already reach the plan limit (counted under the owner row
-   * lock, as createGig), Q-123 (b).
+   * lock, as createGig), Q-123 (b). The files are copied back to `public-media` and their rows switched in the
+   * same transaction, so the gig is never active with private files; the private copies are deleted after the
+   * commit. When the transaction fails after the copy, the public copies are deleted again (the gig stays removed).
    */
   async restore(
     gigId: string,
@@ -299,7 +315,8 @@ export class AdminGigs {
     if (!owner) throw notFound();
     // Settings are read before the transaction (a settings read inside it would wait for a second connection).
     const limit = await this.limits.limitFor(owner.ownerId);
-    const gig = await this.decide(
+    const moved: FileRow[] = [];
+    const decided = this.decide(
       gigId,
       staffId,
       ctx,
@@ -319,6 +336,17 @@ export class AdminGigs {
             count,
           });
         }
+        for (const file of await this.media.files(gigId, tx)) {
+          if (file.bucket !== 'private') continue;
+          moved.push(file);
+          await this.media.copyTo(file, 'public_media');
+        }
+        if (moved.length) {
+          await tx.file.updateMany({
+            where: { id: { in: moved.map((f) => f.id) } },
+            data: { bucket: 'public_media' },
+          });
+        }
         return {
           status: 'active',
           deletedAt: null,
@@ -328,6 +356,25 @@ export class AdminGigs {
         };
       },
     );
+    let gig: FullGig;
+    try {
+      gig = await decided;
+    } catch (err) {
+      for (const file of moved) {
+        await this.media.deleteFrom(file, 'public_media').catch((e: unknown) => {
+          this.logger.error(
+            { err: e, gigId, fileId: file.id },
+            'public copy of a removed gig left',
+          );
+        });
+      }
+      throw err;
+    }
+    for (const file of moved) {
+      await this.media.deleteFrom(file, 'private').catch((e: unknown) => {
+        this.logger.warn({ err: e, gigId, fileId: file.id }, 'private copy of a restored gig left');
+      });
+    }
     return this.view(gig, ctx.locale);
   }
 
@@ -350,53 +397,57 @@ export class AdminGigs {
       | (Prisma.GigUncheckedUpdateInput & { status: GigStatus })
       | Promise<Prisma.GigUncheckedUpdateInput & { status: GigStatus }>,
   ): Promise<FullGig> {
-    return this.prisma.$transaction(async (tx) => {
-      const row = await lockGig(tx, gigId);
-      const now = new Date();
-      // One update: the check `gigs_deleted_ck` needs status, deleted_at and deleted_by together.
-      const gig = await tx.gig.update({
-        where: { id: gigId },
-        data: await next(row, now, tx),
-        include: FULL,
-      });
-      await this.searchIndex.indexGig(gigId, tx);
-      const ka = gig.translations.find((tr) => tr.locale === 'ka');
-      const event = action === 'gig.remove' ? null : OWNER_EMAIL[action];
-      if (event) {
-        // The worker renders in the owner's language: the English title when the gig has one.
-        const en = gig.translations.find((tr) => tr.locale === 'en');
-        await this.outbox.add(
-          event,
-          { type: 'gig', id: gigId },
-          {
-            userId: gig.ownerId,
-            params: {
-              title: ka?.title ?? '',
-              titleEn: en?.title ?? '',
-              slug: gig.slug,
-              ...(event === 'EV-21' ? { reason: reason ?? '' } : {}),
+    // A restore copies the gig's files back inside the transaction (storage calls: more than the default 5 s).
+    return this.prisma.$transaction(
+      async (tx) => {
+        const row = await lockGig(tx, gigId);
+        const now = new Date();
+        // One update: the check `gigs_deleted_ck` needs status, deleted_at and deleted_by together.
+        const gig = await tx.gig.update({
+          where: { id: gigId },
+          data: await next(row, now, tx),
+          include: FULL,
+        });
+        await this.searchIndex.indexGig(gigId, tx);
+        const ka = gig.translations.find((tr) => tr.locale === 'ka');
+        const event = action === 'gig.remove' ? null : OWNER_EMAIL[action];
+        if (event) {
+          // The worker renders in the owner's language: the English title when the gig has one.
+          const en = gig.translations.find((tr) => tr.locale === 'en');
+          await this.outbox.add(
+            event,
+            { type: 'gig', id: gigId },
+            {
+              userId: gig.ownerId,
+              params: {
+                title: ka?.title ?? '',
+                titleEn: en?.title ?? '',
+                slug: gig.slug,
+                ...(event === 'EV-21' ? { reason: reason ?? '' } : {}),
+              },
             },
+            tx,
+          );
+        }
+        await this.audit.write(
+          {
+            actorStaffId: staffId,
+            permissionCode: 'gigs.moderate',
+            action,
+            targetType: 'gig',
+            targetId: gigId,
+            before: { status: row.status },
+            after: { userId: gig.ownerId, status: gig.status, title: ka?.title ?? '' },
+            reason,
+            ip: ctx.ip,
+            userAgent: ctx.userAgent,
           },
           tx,
         );
-      }
-      await this.audit.write(
-        {
-          actorStaffId: staffId,
-          permissionCode: 'gigs.moderate',
-          action,
-          targetType: 'gig',
-          targetId: gigId,
-          before: { status: row.status },
-          after: { userId: gig.ownerId, status: gig.status, title: ka?.title ?? '' },
-          reason,
-          ip: ctx.ip,
-          userAgent: ctx.userAgent,
-        },
-        tx,
-      );
-      return gig;
-    });
+        return gig;
+      },
+      { timeout: MOVE_TX_TIMEOUT_MS },
+    );
   }
 
   // ------------------------------------------------------------------ mapping
@@ -428,10 +479,10 @@ export class AdminGigs {
       this.summaries.owner(gig.ownerId, await this.earlierRejections(gig.ownerId)),
     ]);
     const byId = new Map(files.map((f) => [f.id, f]));
-    const image = (id: string) => {
-      const f = byId.get(id);
-      return f ? imageVariants(f, this.env.PUBLIC_MEDIA_BASE_URL) : null;
-    };
+    const images = new Map(
+      await Promise.all(files.map(async (f) => [f.id, await this.staffImage(f)] as const)),
+    );
+    const image = (id: string) => images.get(id) ?? null;
     const thumbnail = image(gig.thumbnailFileId);
     // Only ready public images are accepted on save, so a thumbnail without variants is never expected.
     if (!thumbnail)
@@ -461,10 +512,14 @@ export class AdminGigs {
       faqs: gig.faqs.map((f) => ({ id: f.id, question: f.question, answer: f.answer })),
       thumbnail,
       images: gig.images.flatMap((i) => image(i.fileId) ?? []),
-      documents: gig.documents.flatMap((d) => {
-        const f = byId.get(d.fileId);
-        return f ? (gigDocument(f, this.env.PUBLIC_MEDIA_BASE_URL) ?? []) : [];
-      }),
+      documents: (
+        await Promise.all(
+          gig.documents.map((d) => {
+            const f = byId.get(d.fileId);
+            return f ? this.staffDocument(f) : null;
+          }),
+        )
+      ).flatMap((d) => d ?? []),
       seo:
         gig.seoTitle !== null && gig.seoDescription !== null
           ? { title: gig.seoTitle, description: gig.seoDescription }
@@ -485,6 +540,42 @@ export class AdminGigs {
       publishedAt: gig.publishedAt?.toISOString() ?? null,
       updatedAt: gig.updatedAt.toISOString(),
     };
+  }
+
+  /**
+   * A gig image as staff see it: the public variants, or, while a staff removal keeps the file in the private
+   * bucket (4.3.24), short presigned GETs of the same variants.
+   */
+  private async staffImage(f: FileRow): Promise<S['ImageVariants'] | null> {
+    if (f.bucket !== 'private') return imageVariants(f, this.env.PUBLIC_MEDIA_BASE_URL);
+    const v = f.variants as { thumb?: string; medium?: string; large?: string } | null;
+    if (f.status !== 'ready' || !v?.thumb || !v.medium || !v.large) return null;
+    const sign = (key: string) =>
+      this.storage.presignedGet({
+        bucket: 'private',
+        key,
+        expiresSeconds: DOWNLOAD_EXPIRES_SECONDS,
+        downloadName: downloadName(f),
+      });
+    const [thumb, medium, large] = await Promise.all([
+      sign(v.thumb),
+      sign(v.medium),
+      sign(v.large),
+    ]);
+    return { fileId: f.id, thumb, medium, large, width: f.width, height: f.height };
+  }
+
+  /** A gig document as staff see it: the public URL, or a presigned GET while it is private (4.3.24). */
+  private async staffDocument(f: FileRow): Promise<S['GigDocument'] | null> {
+    if (f.bucket !== 'private') return gigDocument(f, this.env.PUBLIC_MEDIA_BASE_URL);
+    if (f.status !== 'ready') return null;
+    const url = await this.storage.presignedGet({
+      bucket: 'private',
+      key: f.objectKey,
+      expiresSeconds: DOWNLOAD_EXPIRES_SECONDS,
+      downloadName: f.originalName,
+    });
+    return { fileId: f.id, fileName: f.originalName, sizeBytes: Number(f.sizeBytes), url };
   }
 
   /** Staff rejections of this owner's gigs so far (the audit log keeps them after an edit). */
