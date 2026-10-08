@@ -341,6 +341,29 @@ test('Georgian is the default: switcher labels "ყიდვა" / "გაყი
   await expect(page.getByText('ფრილანსერის პროფილი').first()).toBeAttached();
 });
 
+test('the switcher link is the public path in the server HTML too, no `/ka/…` (BUG-05)', async ({
+  page,
+}) => {
+  const html = await (await page.request.get('/seller/home')).text();
+  expect(html).not.toMatch(/href="\/ka[/"]/);
+  expect(html).toContain('href="/seller/home"');
+  const en = await (await page.request.get('/en/seller/home')).text();
+  expect(en).toContain('href="/en/seller/home"');
+
+  const errors: string[] = [];
+  page.on('console', (m) => {
+    if (m.type() === 'error') errors.push(m.text());
+  });
+  await fakeApi(page);
+  await page.goto('/seller/home');
+  const switcher = page.getByRole('navigation', { name: 'პანელის გადართვა' });
+  await expect(switcher.getByRole('link', { name: 'გაყიდვა', exact: true })).toHaveAttribute(
+    'href',
+    '/seller/home',
+  );
+  expect(errors.filter((e) => /hydrat/i.test(e))).toEqual([]);
+});
+
 test('phone (360 px): full-width switcher with labels, drawer navigation, no horizontal scroll', async ({
   page,
 }) => {
