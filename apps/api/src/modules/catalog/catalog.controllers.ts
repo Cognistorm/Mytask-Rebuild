@@ -6,9 +6,11 @@
 import { Controller, Get, Param, Query, Req } from '@nestjs/common';
 import type { Schema } from '@mytask/types';
 import type { Request } from 'express';
+import { ClientIpResolver } from '../../platform/client-ip/client-ip.resolver';
 import { resolveLocale } from '../../platform/errors/messages';
 import { OptionalAuth, OptionalUser, Public, type AuthState } from '../auth/auth.guard';
 import { CategoriesService } from './categories.service';
+import { GigImpressions } from './gig-impressions';
 import { GigSearchService, type GigSearchQuery } from './gig-search.service';
 import { HomeService } from './home.service';
 import { ProjectCategoriesService } from './project-categories.service';
@@ -70,11 +72,16 @@ type RawQuery = Record<string, string | undefined>;
 
 @Controller()
 export class GigListsController {
-  constructor(private readonly search: GigSearchService) {}
+  constructor(
+    private readonly search: GigSearchService,
+    private readonly impressions: GigImpressions,
+    private readonly ipResolver: ClientIpResolver,
+  ) {}
 
+  /** Every listed card counts as an impression (contract; written in batches by GigImpressions, 4.3.5c). */
   @OptionalUser()
   @Get('search/gigs')
-  searchGigs(
+  async searchGigs(
     @Req() req: Request,
     @Query() q: RawQuery,
     @OptionalAuth() viewer: AuthState | null,
@@ -91,7 +98,12 @@ export class GigListsController {
       limit: int(q.limit),
       page: int(q.page),
     };
-    return this.search.search(query, localeOf(req), viewer?.userId ?? null);
+    const page = await this.search.search(query, localeOf(req), viewer?.userId ?? null);
+    this.impressions.count(
+      (page.data as Schema<'GigCard'>[]).map((card) => card.id),
+      this.ipResolver.resolve(req, true).userAgent,
+    );
+    return page;
   }
 
   @OptionalUser()

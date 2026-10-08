@@ -23,7 +23,7 @@ const unblockOn = (c: PublicConfig) => c.escrow.unblockRequestAvailable; // S-02
 
 const SELLING: NavDef[] = [
   { key: 'orders', label: 't_orders' },
-  { key: 'gigs', label: 't_gigs' },
+  { key: 'gigs', label: 't_gigs', screen: '/seller/gigs' },
   { key: 'projects', label: 't_awarded_projects', show: projectsOn },
   { key: 'offers', label: 't_personal_offers', show: offersOn },
   { key: 'reviews', label: 't_reviews' },
@@ -39,7 +39,7 @@ const BUYING: NavDef[] = [
   { key: 'offers', label: 't_personal_offers', show: offersOn },
   { key: 'reviews', label: 't_my_reviews' },
   { key: 'refunds', label: 't_refunds' },
-  { key: 'favourites', label: 't_favorite_list' },
+  { key: 'favourites', label: 't_favorite_list', screen: '/account/favorite' },
 ];
 
 /** The side's navigation below its first section (Home / Projects): items with a screen, by setting. */

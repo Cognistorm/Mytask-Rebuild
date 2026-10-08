@@ -155,6 +155,8 @@ export interface QueueFilter {
 export function QueueFilterForm(props: {
   value: QueueFilter;
   onApply: (f: QueueFilter) => void;
+  /** Replaces `onApply` on "Reset filter", for a queue with extra fields (`children`) to clear as well. */
+  onReset?: (empty: QueueFilter) => void;
   children?: React.ReactNode;
 }) {
   const [f, setF] = useState(props.value);
@@ -196,7 +198,7 @@ export function QueueFilterForm(props: {
         onClick={() => {
           const empty = { userId: '', from: '', to: '' };
           setF(empty);
-          props.onApply(empty);
+          (props.onReset ?? props.onApply)(empty);
         }}
       >
         {t('t_reset_filter')}

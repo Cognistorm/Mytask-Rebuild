@@ -54,11 +54,26 @@ export interface PurposePolicy {
   processing: Processing;
   /** Bucket of the `quarantine/` upload: KYC never leaves the `kyc` bucket, everything else waits in `private`. */
   quarantineBucket: FileBucket;
+  /** Register switch that must be ON for new uploads (403 FEATURE_DISABLED, spec 00 EC-1 pattern). */
+  enabledBy?: SettingId;
   limits(settings: SettingsService): Promise<PurposeLimits>;
 }
 
 const IMAGES_JPG_PNG = ['jpg', 'jpeg', 'png'] as const;
 const USER = { kind: 'user' } as const;
+
+/** Spec 04 AC-13: gig thumbnail and gallery images, JPG/PNG ≤ S-078 MB (the count 1…S-077 is checked on save). */
+const gigImage: PurposePolicy = {
+  uploader: USER,
+  finalBucket: 'public_media',
+  processing: 'public_image',
+  quarantineBucket: 'private',
+  limits: async (settings) => ({
+    extensions: IMAGES_JPG_PNG,
+    maxMb: await settings.get('S-078'),
+    sizeSettingId: 'S-078',
+  }),
+};
 
 /**
  * Staff images (Owner 2026-10-02, Q-161): the legacy admin types without SVG (ADR-009 §5, script risk),
@@ -103,6 +118,22 @@ export const PURPOSE_POLICIES: Partial<Record<FilePurpose, PurposePolicy>> = {
     processing: 'private_image',
     quarantineBucket: 'kyc',
     limits: () => Promise.resolve({ extensions: IMAGES_JPG_PNG, maxMb: 5, sizeSettingId: null }),
+  },
+  gig_thumbnail: gigImage,
+  gig_image: gigImage,
+  // Spec 04 AC-14, EC-8: PDF ≤ S-082 MB, only while S-080 is ON. Public downloads as legacy (R-G11,
+  // data-model §3.D): kept as uploaded (after the virus scan) in `public_media`.
+  gig_document: {
+    uploader: USER,
+    finalBucket: 'public_media',
+    processing: 'none',
+    quarantineBucket: 'private',
+    enabledBy: 'S-080',
+    limits: async (settings) => ({
+      extensions: ['pdf'],
+      maxMb: await settings.get('S-082'),
+      sizeSettingId: 'S-082',
+    }),
   },
   // Spec 01 AC-47: restriction appeal files, ≤ S-092 MB of the S-093 types (Q-154). Documents and videos are
   // kept as uploaded (after the virus scan) in `private`; only staff download them (R-A8).

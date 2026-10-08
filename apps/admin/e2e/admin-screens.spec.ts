@@ -233,6 +233,27 @@ const SKILL = {
   createdAt: AT,
   updatedAt: AT,
 };
+const GIG = {
+  id: id(60),
+  uid: 'g7k2m9',
+  slug: 'logo-design-g7k2m9',
+  title: 'ლოგოს დიზაინი თბილისის საცხობისთვის',
+  contentLocale: 'ka',
+  thumbnail: null,
+  category: {
+    id: id(61),
+    slug: 'graphics-design',
+    name: 'გრაფიკა და დიზაინი',
+    contentLocale: 'ka',
+  },
+  owner: USER,
+  status: 'pending',
+  deletedBy: null,
+  price: { amount: 5000, currency: 'GEL' },
+  createdAt: AT,
+  submittedAt: AT,
+  updatedAt: AT,
+};
 const BAN = {
   ip: '203.0.113.7',
   failedAttempts: 5,
@@ -254,6 +275,8 @@ async function routeApi(page: Page) {
     if (path === '/admin/ip-bans')
       return json(route, 200, { data: [BAN], meta: { nextCursor: null } });
     if (path === '/admin/portfolio-items') return list([PORTFOLIO]);
+    if (path === '/admin/gigs') return list([GIG]);
+    if (path === '/categories') return json(route, 200, { categories: [] });
     if (path === '/admin/kyc') return list([KYC]);
     if (path === '/admin/restriction-appeals') return list([APPEAL]);
     if (path === '/admin/restrictions') return list([RESTRICTION]);
@@ -299,6 +322,11 @@ const SCREENS: { name: string; path: string; ready: (p: Page) => Promise<void> }
     name: 'portfolio',
     path: '/portfolio',
     ready: (p) => expect(p.getByTestId('portfolio-item')).toBeVisible(),
+  },
+  {
+    name: 'gigs',
+    path: '/gigs',
+    ready: (p) => expect(p.getByTestId('gig-item')).toBeVisible(),
   },
   {
     name: 'kyc',

@@ -657,7 +657,7 @@ Raised by the six group runs and consolidated by the integration run (`docs/hand
 | Q-139 | 16 AC-7 (D6-Q6) | Staff re-login: password, or the emailed code only when 2FA is ON? | Password or code (S-060 ON) | Keep | slice (16) |
 | Q-140 | 16 AC-3, AC-5 (D6-Q7/Q8) | Allow removing all roles from a staff member; forbid editing a role you hold yourself? | Both as stated | Accept | slice (16) |
 | Q-141 | limits not in specs (Q-D1-5, D2 Q5, Q-D4-3, Q-D4-5, Q-D4-6, Q-D3-7) | Technical limits chosen: staff email subject 200 / body 10,000; support reply subject 200; offer-request days 1–365; offer price 1.00…9,999,999,999.00 GEL; order details 5,000 counted on submitted text; recon note 1–1,000; adjustment public note ≤ 500; points adjustment ≤ 1,000,000; referral benefit ≤ 120 months; plan features ≤ 30 lines; cart ≤ 100 lines / 50 upgrades | As listed | Accept; P2-B5 checks abuse limits | slice |
-| Q-142 | 04 (D2 Q7) | Migrated gigs with unknown "revisions allowed": how to display? | `null` | Show "not specified" | slice (04) |
+| Q-142 | 04 (D2 Q7) | Migrated gigs with unknown "revisions allowed": how to display? | `null` | Show "not specified" | answered 2026-10-07 (see below) |
 | Q-143 | 16 catalogue (D2 Q6) | Catalog/content screens are read with their write permission (no read permission exists) | write permission | Accept | slice (16) |
 
 ## Security questions (security-reviewer P2-B5 + solution-architect fixes, 2026-09-30) — Q-144…Q-146 answered by Owner 2026-09-30; others open
@@ -918,3 +918,58 @@ Recommendation: keep the role colours (Q-092) on the new sliding thumb, with the
 Options: (a) keep it as built; (b) inner padding 12 → 8 px (measured: 1089 px, so all 7 show from about 1155 px); (c) also drop the bold weight (about 10 px less per pill).
 Recommendation: (b), a one-line change; the pills still read as buttons.
 **Answer (Owner, 2026-10-06):** (b) as recommended — pill padding 12 → 8 px (built the same day). The Owner reviews it on staging (https://mytask.1kk.ge) and may ask for changes to this part of the design.
+
+## Slice 3 gigs (orchestrator, ROADMAP 4.3.1, 2026-10-07) — answered by Owner 2026-10-07
+
+### Q-123
+**Restoring a gig removed by staff (spec 16 AC-20): does it count against the plan limit, go back to pending when S-070 is OFF, notify the owner?** Contract default: restored to active, no limit check, no notification. Recommendation: check the limit; notify (NEW event).
+**Answer (Owner, 2026-10-07):** (b) — check the owner's plan limit and notify the owner (NEW notification). Status on restore is not changed by this answer: the gig returns to active (the status it had when removed), as the contract says.
+Follow-up: product-analyst adds the NEW event (next free id EV-130, email + in-app + push to the owner, marked NEW) to spec 15 and spec 16 AC-20 with its texts (en + ka); solution-architect updates `adminRestoreGig` (plan-limit refusal `422 PLAN_LIMIT_REACHED`, `x-emits`) with an ADR note, as part of ROADMAP 4.3.2a. **Done 2026-10-07** (ADR-024, contract 1.5.0, spec 15 EV-130, spec 16 AC-20 + Texts).
+
+## Slice 3 gigs — open (backend-engineer, ROADMAP 4.3.3c, 2026-10-07)
+
+### Q-181
+**Which fixed gig limits should become admin settings?** Owner rule (2026-10-07): a value that may change later must be editable in the admin panel. The slice 3 values that already are admin settings: gigs per plan (S-001 Standard, S-002 Premium), number of revisions (S-041), auto-approve (S-070), gallery images (S-077), image size (S-078), documents on/off, count and size (S-080…S-082). Empty S-001/S-002 now really means "unlimited" in the admin (fixed in 4.3.3c). The values below are still **fixed in the API contract** (and partly in the database columns), as legacy had them. Changing any of them into a setting needs the Architect (contract + ADR, CLAUDE.md rule 2):
+1. Upgrades per gig: max **10** (spec 04 AC-11, R-G9).
+2. FAQ entries per gig: max **10** (AC-12).
+3. Minimum gig and upgrade price: **1.00 GEL** (P-35; there is also a database check ≥ 100 tetri).
+4. Text lengths: title 3–100, description ≥ 10, FAQ question 100 / answer 300, SEO title 100 / description 150 (legacy validators; database columns of the same size).
+5. The delivery time list: None, 1–6 days, 1, 2, 3 weeks, 1 month (AC-8).
+Options: (a) keep all fixed, as legacy; (b) make 1 and 2 settings, each with a Standard and a Premium value (like S-001/S-002); this also allows a Premium feature "more upgrades/FAQs"; (c) (b) plus 3 as one setting.
+Recommendation: (b) — upgrades and FAQ counts are the ones a plan could sell; the price floor and text lengths are content rules better kept fixed (bigger lengths would also need database changes). Nothing in slice 3 is blocked: everything keeps today's values until the Owner answers.
+
+## Slice 3 gigs — answered (backend-engineer, ROADMAP 4.3.5b, 2026-10-07)
+
+### Q-182
+**When does a gig page visit count as a new "click" (spec 04 AC-34; "Total clicks" of AC-39 and the "Most popular" sort)?** Legacy (`legacy/APP/app/Jobs/Main/Service/Track.php`) counts a visitor once ever per gig: a repeat visit by the same IP + user agent only adds to `counter_impressions`. That needs the stored IP, which Q-055 / ADR-012 forbid (only a daily-salted hash may be kept). Options: (a) once per visitor (IP + browser) per day; (b) every page load; (c) once ever, as legacy, with a permanent IP-derived code (against Q-055).
+Recommendation: (a).
+**Answer (Owner, 2026-10-07):** (a) — once per visitor per Tbilisi day and gig. Built in 4.3.5b. Follow-up: product-analyst adds the rule to spec 04 AC-34 as a CHANGE (Q-182).
+
+## Slice 3 gigs — open (web-engineer, ROADMAP 4.3.10d, 2026-10-07)
+
+### Q-183
+**May the owner of a migrated gig that has no stored number of revisions save an edit without choosing one?** New gigs must choose 0…S-041 (spec 04 AC-9, Q-056). Migrated legacy gigs may have no value (data model `gigs.revisions_allowed`: null only when `legacy_id` is set), and spec 04 does not say what the edit form does with them.
+Options: (a) the field may stay empty and the stored "no value" is kept (the API leaves fields it is not sent unchanged); (b) the owner must choose a number before saving any edit.
+Recommendation: (a) — it adds no new rule and does not block an owner who only wants to fix a typo. Built as (a) in 4.3.10d; (b) is a one-line change in the web form (and the same on mobile).
+
+## Slice 3 gigs — answered (qa-engineer, ROADMAP 4.3.18b, 2026-10-08; raised in the 4.3.16 handoff)
+
+### Q-184
+**Should the app get its own gig analytics screen?** Today "Analytics" in the app's My gigs opens the website's `/seller/gigs/{uid}/analytics` in the browser, because the ROADMAP has no app analytics screen (4.3.16 handoff). The user must be signed in on the website too, or they see the website's login first. Spec 04 AC-39 does not say which client shows it. Legacy had only the website.
+Options: (a) keep opening the website page (the same interim pattern as "Upgrade to Premium"); (b) add a native analytics screen in a later micro-task (it reuses `getGigAnalytics`, the bar lists and the DB-IP credit; no contract change).
+Recommendation: (b) as a small micro-task after slice 3, so app users stay in the app; (a) until then. Nothing in slice 3 is blocked.
+**Answer (Owner, 2026-10-08):** Yes — (b). The app gets its own gig analytics screen (ROADMAP 4.3.23); until it is built, "Analytics" keeps opening the website page.
+
+## Slice 3 gigs — answered (security-reviewer, ROADMAP 4.3.19, review 10, 2026-10-08)
+
+### Q-185
+**Should a staff removal take the gig's images and PDFs offline until a restore (review 10 I-57)?** Today gig images and documents are public from the moment they are ready, and a staff removal keeps them in `public-media` (needed for restore, spec 16 AC-20), so the direct media links keep working. Legacy behaved the same.
+Options: (a) keep them reachable (legacy); (b) on a staff removal move the gig's files out of public reach, and back on a restore.
+**Answer (Owner, 2026-10-08):** (b) — take them offline. Scope: staff removal only (pending, rejected and owner-deleted gigs are not part of this answer). Built in ROADMAP 4.3.24 (architect note + backend).
+
+### Q-186
+**Should the gig wizard warn that document file names are public (review 10 I-58)?** The gig page shows each PDF's original file name to everyone, and a name can carry personal data (a full name, "passport").
+**Answer (Owner, 2026-10-08):** Yes — a hint next to the document upload, web and app. Built in ROADMAP 4.3.25 (one NEW key, English first + Georgian).
+
+### Q-142 (answer)
+**Answer (Owner, 2026-10-07):** Recommendation accepted. A migrated gig without a stored number of revisions shows `t_revisions_not_specified` ("Number of revisions not specified" / "შესწორებების რაოდენობა მითითებული არ არის") on the gig page. Built in 4.3.11a; mobile (4.3.14) does the same.

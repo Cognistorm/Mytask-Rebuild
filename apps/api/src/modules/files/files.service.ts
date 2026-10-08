@@ -156,6 +156,11 @@ export class FilesService {
     body: S['FileUploadRequest'],
     locale: Locale,
   ): Promise<S['FileUploadTicket']> {
+    if (policy.enabledBy && !(await this.settings.get(policy.enabledBy))) {
+      throw new ApiException(403, 'FEATURE_DISABLED', 't_feature_disabled', {
+        settingId: policy.enabledBy,
+      });
+    }
     const limits = await policy.limits(this.settings);
     const fileName = cleanFileName(body.fileName);
     const ext = extensionOf(fileName);
@@ -314,7 +319,7 @@ export class FilesService {
     // worker finished the scan meanwhile (quarantine → final objects), the new objects are removed too.
     for (;;) {
       await this.storage.delete(file.bucket, file.objectKey);
-      for (const key of variantKeys(file)) await this.storage.delete('public_media', key);
+      for (const key of variantKeys(file)) await this.storage.delete(file.bucket, key);
       const done = await this.prisma.file.updateMany({
         where: { id: file.id, status: file.status, objectKey: file.objectKey },
         data: { status: 'deleted', deletedAt: new Date() },
@@ -379,9 +384,12 @@ export class FilesService {
   }
 }
 
-/** Public images are stored as WebP variants: the download name says so, the rest keeps the original name. */
-function downloadName(file: FileRow): string {
-  if (file.bucket !== 'public_media') return file.originalName;
+/**
+ * Public images are stored as WebP variants (also while a staff removal keeps a gig's images private, 4.3.24):
+ * the download name says so, the rest keeps the original name.
+ */
+export function downloadName(file: FileRow): string {
+  if (!file.variants) return file.originalName;
   const dot = file.originalName.lastIndexOf('.');
   return `${dot > 0 ? file.originalName.slice(0, dot) : file.originalName}.webp`;
 }

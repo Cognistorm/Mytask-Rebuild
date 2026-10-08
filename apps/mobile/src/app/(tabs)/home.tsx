@@ -93,7 +93,7 @@ export default function HomeScreen() {
         keyExtractor={(g) => g.id}
         renderItem={({ item, index }) => (
           <Animated.View entering={enterAt(index)}>
-            <GigCardView gig={item} t={t} width={cardWidth} />
+            <GigCardView gig={item} t={t} api={api} width={cardWidth} />
           </Animated.View>
         )}
         ItemSeparatorComponent={() => <View style={{ width: theme.space[3] }} />}

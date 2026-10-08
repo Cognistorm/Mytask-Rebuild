@@ -59,6 +59,97 @@ export async function signedIn(page: Page) {
   );
 }
 
+/** The gig wizard's browser calls (as in e2e/gig-wizard.spec.ts): plan check, public config, the gig to edit. */
+const GIG_ID = '01900000-0000-7000-8000-000000000601';
+const CAT = (n: number) => `01900000-0000-7000-8000-0000000c${String(n).padStart(4, '0')}`;
+const MEDIA = 'http://media.test/public-media';
+const variants = (n: number) => {
+  const fileId = `01900000-0000-7000-8000-0000000007${String(n).padStart(2, '0')}`;
+  return { fileId, thumb: `${MEDIA}/${n}-thumb.png`, medium: '', large: '', width: 1, height: 1 };
+};
+
+async function gigWizard(page: Page) {
+  await signedIn(page);
+  const rule = (enabled: boolean, maxFiles: number, maxSizeMb: number) => ({
+    enabled,
+    maxFiles,
+    maxSizeMb,
+    allowedExtensions: [],
+  });
+  await page.route('**/api/v1/config/public', (route) =>
+    json(route, 200, {
+      projects: { enabled: true },
+      customOffers: { enabled: false },
+      escrow: { unblockRequestAvailable: true },
+      revisions: { maxAllowed: 10 },
+      uploads: { gigImage: rule(true, 10, 5), gigDocument: rule(true, 2, 10) },
+    }),
+  );
+  await page.route('**/api/v1/gigs/creation-eligibility', (route) =>
+    json(route, 200, {
+      canCreate: true,
+      plan: 'standard',
+      gigCount: 0,
+      gigLimit: 1,
+      settingId: 'S-001',
+    }),
+  );
+}
+
+/** A 1×1 PNG that decodes (the shared `PNG` above does not: browsers show it as a broken image). */
+const VALID_PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+  'base64',
+);
+
+async function gigEdit(page: Page) {
+  await gigWizard(page);
+  // Registered after `open`'s media route, so it wins for the stored gallery previews.
+  await page.route(`${MEDIA}/**`, (route) =>
+    route.fulfill({ status: 200, contentType: 'image/png', body: VALID_PNG }),
+  );
+  await page.route('**/api/v1/gigs/lookup?*', (route) =>
+    json(route, 200, { id: GIG_ID, status: 'rejected', viewer: { isOwner: true } }),
+  );
+  await page.route(`**/api/v1/gigs/${GIG_ID}/owner-view`, (route) =>
+    json(route, 200, {
+      id: GIG_ID,
+      uid: 'k7m2p9q4r1',
+      slug: 'logos-dizaini-k7m2p9q4r1',
+      status: 'rejected',
+      rejectionReason: 'სურათები ბუნდოვანია.',
+      title: { ka: 'ლოგოს დიზაინი ორ დღეში', en: 'Logo design in two days' },
+      description: {
+        ka: '<p><strong>ლოგოს</strong> დიზაინი ორ დღეში, სამი ვარიანტით.</p>',
+        en: null,
+      },
+      categoryId: CAT(1),
+      subcategoryId: CAT(101),
+      childCategoryId: CAT(1001),
+      price: { amount: 25000, currency: 'GEL' },
+      deliveryDays: 3,
+      revisionsAllowed: 2,
+      upgrades: [
+        {
+          id: '01900000-0000-7000-8000-000000000611',
+          title: 'წყარო ფაილი',
+          price: { amount: 2000, currency: 'GEL' },
+          extraDays: 1,
+        },
+      ],
+      faqs: [{ id: '01900000-0000-7000-8000-000000000621', question: 'სწრაფად?', answer: 'დიახ.' }],
+      thumbnail: variants(1),
+      images: [variants(2), variants(3)],
+      documents: [],
+      seo: null,
+      ordersInQueueCount: 0,
+      createdAt: '2026-10-01T10:00:00.000Z',
+      updatedAt: '2026-10-01T10:00:00.000Z',
+      publishedAt: null,
+    }),
+  );
+}
+
 /** Georgian (the default language) pages; `ready` is visible once the screen has its content. */
 export const SCREENS: {
   name: string;
@@ -85,6 +176,27 @@ export const SCREENS: {
     setup: signedIn,
   },
   { name: 'login', path: '/auth/login', ready: (p) => p.getByRole('heading', { level: 1 }) },
+  // ROADMAP 4.3.10e: the gig wizard (screen 03), new and editing a rejected gig.
+  {
+    name: 'gig-create',
+    path: '/create',
+    ready: (p) => p.locator('#gig-overview'),
+    setup: gigWizard,
+  },
+  {
+    name: 'gig-edit',
+    path: '/seller/gigs/k7m2p9q4r1/edit',
+    // The rejected-reason Banner shows once the gig is loaded (on a phone the gallery is a later step).
+    ready: (p) => p.getByTestId('gig-rejected'),
+    setup: gigEdit,
+  },
+  // ROADMAP 4.3.11d: the gig page (screen 02) as a guest, gig 1 of e2e/fake-gigs.mjs (gallery, upgrades, FAQ,
+  // documents, related gigs).
+  {
+    name: 'gig',
+    path: '/service/logo-dizaini-giga0000000000000001',
+    ready: (p) => p.getByTestId('gig-related'),
+  },
 ];
 
 export async function open(page: Page, screen: (typeof SCREENS)[number], theme: 'light' | 'dark') {

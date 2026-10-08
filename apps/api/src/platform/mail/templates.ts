@@ -13,6 +13,8 @@ export interface TemplateInput {
   event: string;
   locale: Locale;
   username: string;
+  /** Account full name; empty for an address-only recipient. Some legacy mails greet by it. */
+  fullName?: string;
   email: string;
   appUrl: string;
   adminUrl: string;
@@ -56,8 +58,14 @@ export function renderEmail(i: TemplateInput): RenderedEmail {
   const t = (key: string, params: Record<string, string | number> = {}) =>
     translate(key, i.locale, params);
   const hello = t('t_hello_username', { username: i.username });
+  // Legacy `fullname ?: username` greeting (e.g. YourGigNeedsChanges.php:40; QA 4.3.18b F-01).
+  const helloByName = t('t_hello_username', { username: i.fullName?.trim() || i.username });
   const q = (token: string | number | undefined) =>
     `?token=${encodeURIComponent(String(token ?? ''))}&email=${encodeURIComponent(i.email)}`;
+  // Gig emails carry both titles; English readers get the English one when the gig has it (spec 04 R-5.4).
+  const gigTitle = () => String((i.locale === 'en' && i.params.titleEn) || i.params.title || '');
+  const gigUrl = () =>
+    link(i.appUrl, i.locale, `/service/${encodeURIComponent(String(i.params.slug ?? ''))}`);
 
   switch (i.event) {
     case 'EV-01':
@@ -232,6 +240,56 @@ export function renderEmail(i: TemplateInput): RenderedEmail {
           label: t('t_verification_center'),
           url: link(i.appUrl, i.locale, '/account/verification'),
         },
+      );
+    case 'EV-19':
+      // legacy/APP/app/Notifications/Admin/PendingGig.php:44-54
+      return layout(
+        i.locale,
+        t('t_subject_admin_pending_gig'),
+        t('t_hi_admin'),
+        [t('t_notification_admin_pending_gig')],
+        { label: t('t_pending_gigs'), url: `${i.adminUrl.replace(/\/$/, '')}/gigs` },
+      );
+    case 'EV-20':
+      // legacy/APP/app/Notifications/User/Everyone/GigPublished.php:47-56
+      return layout(
+        i.locale,
+        t('t_subject_everyone_ur_gig_published'),
+        hello,
+        [t('t_notification_gig_published')],
+        { label: t('t_view_gig'), url: gigUrl() },
+      );
+    case 'EV-21':
+      // legacy/APP/app/Notifications/User/Freelancer/YourGigNeedsChanges.php:41-55 (title and staff reason as lines)
+      return layout(
+        i.locale,
+        t('t_subject_freelancer_ur_gig_needs_changes'),
+        helloByName,
+        [
+          t('t_notification_the_following_gig_has_been_rejected'),
+          gigTitle(),
+          t('t_t_notification_here_is_why'),
+          String(i.params.reason ?? ''),
+        ],
+        { label: t('t_my_gigs'), url: link(i.appUrl, i.locale, '/seller/gigs') },
+      );
+    case 'EV-130':
+      // NEW (spec 16 AC-20, Q-123 (b)): links to the gig page.
+      return layout(
+        i.locale,
+        t('t_subject_gig_restored'),
+        hello,
+        [t('t_gig_restored_email_body', { title: gigTitle() })],
+        { label: t('t_view_gig'), url: gigUrl() },
+      );
+    case 'EV-22':
+      // NEW (spec 04 P-36): written like the legacy profile report email (Admin/ProfileReported.php:44-51).
+      return layout(
+        i.locale,
+        t('t_subject_admin_gig_reported'),
+        t('t_hi_admin'),
+        [t('t_notification_admin_reported_gig')],
+        { label: t('t_reported_gigs'), url: `${i.adminUrl.replace(/\/$/, '')}/reports` },
       );
     case 'EV-126':
       // NEW (Q-117): the staff reason is shown to the owner.

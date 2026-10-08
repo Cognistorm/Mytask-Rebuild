@@ -56,6 +56,8 @@ test('home: hero with search and shortcuts, featured categories, Top gigs, categ
   await expect(top.getByRole('heading', { name: 'Top gigs' })).toBeVisible();
   await expect(top.getByTestId('gig-card')).toHaveCount(4);
   await expect(top.getByTestId('gig-card').first().getByText('Featured')).toBeVisible();
+  // Spec 04 AC-35 (4.3.20b): every card has the favourite heart.
+  await expect(top.getByRole('button', { name: 'Add to favorite' })).toHaveCount(4);
 
   // One row per category with gigs; the empty row is hidden (spec 03 screens).
   const rows = page.getByTestId('category-row');

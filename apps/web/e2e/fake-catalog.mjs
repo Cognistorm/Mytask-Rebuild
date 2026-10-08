@@ -357,9 +357,22 @@ export function catalogRoute(url, req) {
   const locale = String(req.headers['accept-language'] ?? 'ka').startsWith('en') ? 'en' : 'ka';
   if (url.pathname === '/api/v1/categories') return [200, { categories: categoryTree(locale) }];
   if (url.pathname === '/api/v1/me') {
-    return req.headers.authorization === 'Bearer e2e-header'
-      ? [200, HEADER_ME]
-      : [401, { code: 'UNAUTHENTICATED' }];
+    // The gig and profile pages' visitors (fake-gigs.mjs, fake-profiles.mjs): the layout reads the username for the
+    // gig card hearts (4.3.20b): `owner-token` = nino_b, who owns every fake gig; `viewer-token` = another user.
+    const me = {
+      'Bearer e2e-header': HEADER_ME,
+      'Bearer owner-token': {
+        ...HEADER_ME,
+        id: '01900000-0000-7000-8000-000000000001',
+        username: 'nino_b',
+      },
+      'Bearer viewer-token': {
+        ...HEADER_ME,
+        id: '01900000-0000-7000-8000-000000000078',
+        username: 'viewer_v',
+      },
+    }[String(req.headers.authorization)];
+    return me ? [200, me] : [401, { code: 'UNAUTHENTICATED' }];
   }
   return null;
 }

@@ -1,0 +1,35 @@
+{
+  "$comment": "Character rules of Georgian and English content fields (spec 00 R-5.3a P-136, R-5.4; spec 04 AC-5, AC-6; spec 10 AC-3, AC-4). One file read by the API validator and by the web/mobile pre-checks. Ranges are inclusive Unicode code points.",
+  "normalise": {
+    "$comment": "Before checking: remove formatting markup, decode HTML entities, turn these into a normal space, trim (legacy GeorgianTextOnly.php:11-14).",
+    "asSpace": [160, 8203, 65279]
+  },
+  "georgianLetters": [[4304, 4336]],
+  "latinLetters": [
+    [65, 90],
+    [97, 122]
+  ],
+  "georgianField": {
+    "$comment": "Every character must be in one of these ranges; at least one Georgian letter is required (P-37).",
+    "allowed": [
+      [4304, 4336],
+      [65, 90],
+      [97, 122],
+      [48, 57],
+      [32, 32],
+      [9, 10],
+      [13, 13],
+      [45, 45],
+      [95, 95],
+      [46, 46],
+      [44, 44],
+      [33, 33],
+      [63, 63],
+      [40, 41]
+    ],
+    "maxRefusedListed": 10
+  },
+  "englishField": {
+    "$comment": "No Georgian letter and at least one Latin letter (legacy EnglishTextOnly.php:20-24)."
+  }
+}

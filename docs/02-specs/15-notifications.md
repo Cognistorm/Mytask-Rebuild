@@ -1,6 +1,7 @@
 # 15 — Notifications (catalogue, channels, notification centre, preferences, push)
 Status: **approved** (Owner 2026-09-29; P-106…P-113 accepted)
 Updated 2026-09-30 with Owner gate answers and the security conditions before slice 01: P-135 triggers of EV-32/EV-125 accepted (Q-111); NEW EV-126 portfolio item rejected (Q-117), EV-127 2FA switched off by staff (Q-145), EV-128 many failed logins (SEC-02), EV-129 code entry locked (SEC-03); EV-06 also carries the re-authentication codes for accounts without a password (Q-144 / SEC-05). Catalogue total 129 events, 46 NEW.
+Updated 2026-10-07 with Owner Q-123 (b): NEW EV-130 gig restored by staff (spec 16 AC-20). Catalogue total 130 events, 47 NEW.
 Author: product-analyst (P2-A5) | Date: 2026-09-29
 Legacy reference: `docs/01-discovery/notifications.md` (every email class, every in-app text key, every direct mailable: all accounted for below); `features.md` BR-120; `risks-and-debt.md`; `roles-and-permissions.md` ("System admin inbox"). Owner decisions: Q-013, Q-016, Q-026, Q-033, Q-036, Q-043, Q-058, Q-065, Q-066, Q-076, Q-100, Q-103. Platform rules: `00-platform-rules.md` §4.15 (S-100 `notifications.admin_recipients`, S-101 `notifications.push.enabled`, S-102 `notifications.sms.enabled`), S-043/S-044 (renewal reminder), X-01, X-06, X-07, X-11, X-18; ACCEPTED P-11 (push). Specs 01–14 (each owns the trigger of its notifications; this spec does not repeat their ACs), 16 (admin screens), 17 (content notifications). ADR-007 §8–§12 (NotificationService, channels, catalogue test), ADR-006 §2 (user locale), data-model §1 ("Writes that must notify": outbox) and §3.O (`notifications`, `push_tokens`, `notification_preferences`, `notification_deliveries`), url-map §7.2 (deep links, email links).
 
@@ -134,6 +135,7 @@ One row per event. Legend — **E** email, **I** in-app, **P** push (NEW P-11; o
 | EV-20 | Staff publish a gig | owner | ✓ | ✓ | ✓ | o | `GigPublished` `t_subject_everyone_ur_gig_published`; `t_ur_gig_title_has_been_published` | E-44, I-45 | kept (push NEW) | T | 04 AC-17 |
 | EV-21 | Staff reject a gig | owner | ✓ | ✓ | ✓ | o | `YourGigNeedsChanges` `t_subject_freelancer_ur_gig_needs_changes`; `t_ur_gig_needs_changes_rejected_admin` | E-67, I-46 | kept (push NEW) | T | 04 AC-18 |
 | EV-22 | Gig reported | S-100 | ✓ | – | – | – | `Admin/GigReported` `t_subject_admin_gig_reported` | – | **NEW** (P-36) | A | 04 AC-38 |
+| EV-130 | Staff restore a gig they removed (added 2026-10-07) | owner | ✓ | ✓ | ✓ | o | `GigRestored` `t_subject_gig_restored`, body `t_gig_restored_email_body`; `t_ur_gig_title_has_been_restored` | – | **NEW** (Owner 2026-10-07, Q-123 (b)) | T | 16 AC-20 |
 
 ### C. Payments and wallet (spec 05)
 | # | Event | Recipient(s) | E | I | P | SMS | Template / keys | Covers | Status | Cat | Spec |
@@ -450,7 +452,7 @@ Every row of the inventory, one line per email class, in-app key and direct mail
 | In-app text keys | 55 | 42 | 7 | 6 |
 | **Total** | **141** | **120** | **8** | **13** |
 
-**NEW events: 46** — 39 defined in specs 01–14 (EV-06, 11, 12, 22, 23, 26, 29, 30, 31, 32, 36, 41, 44, 46, 49, 52, 53, 55, 57, 67, 68, 71, 74, 76, 77, 78, 79, 83, 84, 85, 88, 89, 91, 96, 104, 106, 108, 109, 114), 3 ACCEPTED here for specs 15/16 (EV-123, EV-124, EV-125), and 4 added on 2026-09-30 (EV-126 portfolio rejected, Q-117; EV-127 2FA switched off by staff, Q-145; EV-128 many failed logins, SEC-02; EV-129 code entry locked, SEC-03). In addition, NEW channels on kept events: push on every kept event with in-app (P-11); in-app on EV-27, EV-58, EV-59, EV-63, EV-64; email on EV-102, EV-103 (P-102). Recipient changes: EV-47 (also buyers), EV-80 (buyer), EV-82 (freelancer). Catalogue total: 129 events (125 until 2026-09-29, + EV-126…EV-129).
+**NEW events: 47** (EV-130 gig restored added 2026-10-07, Q-123 (b)) — 39 defined in specs 01–14 (EV-06, 11, 12, 22, 23, 26, 29, 30, 31, 32, 36, 41, 44, 46, 49, 52, 53, 55, 57, 67, 68, 71, 74, 76, 77, 78, 79, 83, 84, 85, 88, 89, 91, 96, 104, 106, 108, 109, 114), 3 ACCEPTED here for specs 15/16 (EV-123, EV-124, EV-125), and 4 added on 2026-09-30 (EV-126 portfolio rejected, Q-117; EV-127 2FA switched off by staff, Q-145; EV-128 many failed logins, SEC-02; EV-129 code entry locked, SEC-03). In addition, NEW channels on kept events: push on every kept event with in-app (P-11); in-app on EV-27, EV-58, EV-59, EV-63, EV-64; email on EV-102, EV-103 (P-102). Recipient changes: EV-47 (also buyers), EV-80 (buyer), EV-82 (freelancer). Catalogue total: 129 events (125 until 2026-09-29, + EV-126…EV-129).
 
 ---
 
@@ -483,7 +485,7 @@ None. Notifications never move money.
 Accessibility: the bell has an accessible name with the count ("Notifications, 3 unread"); the unread dot has text; switches have labels; touch targets ≥ 44 px (tokens).
 
 ## Notifications triggered
-This spec is the catalogue. Its own NEW items: EV-123 staff invitation, EV-124 critical setting changed, EV-125 system alert (all ACCEPTED P-111), plus the changed EV-121 test email and EV-122 maintenance email. Added 2026-09-30: EV-126 (trigger in spec 02 AC-42), EV-127 (spec 16 AC-32), EV-128 and EV-129 (spec 01 AC-53, AC-54); their texts are below (EV-126 texts in spec 02).
+This spec is the catalogue. Its own NEW items: EV-123 staff invitation, EV-124 critical setting changed, EV-125 system alert (all ACCEPTED P-111), plus the changed EV-121 test email and EV-122 maintenance email. Added 2026-09-30: EV-126 (trigger in spec 02 AC-42), EV-127 (spec 16 AC-32), EV-128 and EV-129 (spec 01 AC-53, AC-54); their texts are below (EV-126 texts in spec 02). Added 2026-10-07: EV-130 (spec 16 AC-20, Q-123 (b)); texts in spec 16.
 
 ## Texts (i18n key | en | ka)
 Legacy keys reused (values unchanged):

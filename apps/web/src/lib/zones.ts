@@ -17,6 +17,8 @@ const PUBLIC_PATTERNS: readonly RegExp[] = [
   /^\/sellers$/,
   /^\/hire\/[^/]+$/,
   /^\/explore\/projects(\/[^/]+){0,2}$/,
+  // Gig page (spec 04 AC-26; url-map §4.1).
+  /^\/service\/[^/]+$/,
 ];
 
 /** `pathname` as the browser sent it (`/`, `/en/...`; the proxy has already removed `/ka` and trailing slashes). */

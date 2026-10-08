@@ -3,6 +3,7 @@
 import type { FileBucket } from '../src/generated/prisma/client';
 import { createHash } from 'node:crypto';
 import {
+  type CopyTarget,
   ObjectChangedError,
   ObjectStorage,
   type ObjectHead,
@@ -30,6 +31,8 @@ export class MemoryStorage extends ObjectStorage {
   afterNextCopy: ((to: { bucket: FileBucket; key: string }) => void) | null = null;
   /** `read` answers without an ETag, as a provider or proxy that drops the header (review 07 I-38). */
   dropEtag = false;
+  /** The n-th `copy` from now (1 = the next one) fails, as an unreachable storage would; then reset. */
+  failCopyAt: number | null = null;
 
   private etag(o: StoredObject): string {
     return `"${createHash('md5').update(o.body).digest('hex')}"`;
@@ -55,7 +58,15 @@ export class MemoryStorage extends ObjectStorage {
 
   head(bucket: FileBucket, key: string): Promise<ObjectHead | null> {
     const o = this.objects.get(this.id(bucket, key));
-    return Promise.resolve(o ? { sizeBytes: o.sizeBytes, contentType: o.contentType } : null);
+    return Promise.resolve(
+      o
+        ? {
+            sizeBytes: o.sizeBytes,
+            contentType: o.contentType,
+            ...(o.contentDisposition ? { contentDisposition: o.contentDisposition } : {}),
+          }
+        : null,
+    );
   }
 
   read(bucket: FileBucket, key: string): Promise<ObjectRead | null> {
@@ -87,13 +98,23 @@ export class MemoryStorage extends ObjectStorage {
 
   copy(
     from: { bucket: FileBucket; key: string; ifMatch?: string | null },
-    to: { bucket: FileBucket; key: string; contentType: string },
+    to: CopyTarget,
   ): Promise<void> {
+    if (this.failCopyAt !== null && --this.failCopyAt <= 0) {
+      this.failCopyAt = null;
+      return Promise.reject(new Error('storage unavailable'));
+    }
     const o = this.objects.get(this.id(from.bucket, from.key));
     if (!o) return Promise.reject(new Error('NoSuchKey'));
     if (from.ifMatch && from.ifMatch !== this.etag(o))
       return Promise.reject(new ObjectChangedError('precondition failed'));
-    this.objects.set(this.id(to.bucket, to.key), { ...o, contentType: to.contentType });
+    // Without a content type the copy keeps every stored header (S3 `MetadataDirective: COPY`).
+    this.objects.set(
+      this.id(to.bucket, to.key),
+      to.contentType
+        ? { ...o, contentType: to.contentType, contentDisposition: to.contentDisposition }
+        : { ...o },
+    );
     const after = this.afterNextCopy;
     this.afterNextCopy = null;
     after?.(to);

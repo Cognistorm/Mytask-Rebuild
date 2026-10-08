@@ -1,0 +1,146 @@
+/* Gallery + Lightbox (components.md §7.12): design tokens only. The arrows are `overlay` IconButtons (44 px targets,
+   buttons.css); the selected thumbnail has the 2 px brand border. */
+.mt-gallery {
+  display: grid;
+  gap: var(--mt-space-3);
+  min-width: 0;
+}
+
+.mt-gallery-stage {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--mt-radius-card);
+  background: var(--mt-bg-subtle);
+  aspect-ratio: 3 / 2;
+  /* Vertical scrolling stays with the page; horizontal moves are swipes. */
+  touch-action: pan-y;
+}
+
+.mt-gallery-open {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: zoom-in;
+}
+
+.mt-gallery-open:focus-visible {
+  outline: var(--mt-border-width-strong) solid var(--mt-border-brand);
+  outline-offset: calc(-1 * var(--mt-space-1));
+}
+
+.mt-gallery-stage img {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+  user-select: none;
+}
+
+.mt-gallery-arrow {
+  position: absolute;
+  inset-block-start: 50%;
+  transform: translateY(-50%);
+  background: var(--mt-bg-surface);
+  box-shadow: var(--mt-elevation-sm);
+}
+
+.mt-gallery-prev {
+  inset-inline-start: var(--mt-space-3);
+}
+
+.mt-gallery-next {
+  inset-inline-end: var(--mt-space-3);
+}
+
+.mt-gallery-prev svg {
+  transform: rotate(90deg);
+}
+
+.mt-gallery-next svg {
+  transform: rotate(-90deg);
+}
+
+.mt-gallery-counter {
+  position: absolute;
+  inset-block-end: var(--mt-space-3);
+  inset-inline-end: var(--mt-space-3);
+  margin: 0;
+  padding: var(--mt-space-0-5) var(--mt-space-2);
+  border-radius: var(--mt-radius-pill);
+  background: var(--mt-bg-surface);
+  color: var(--mt-text-primary);
+  font-size: var(--mt-font-size-sm);
+  font-variant-numeric: tabular-nums;
+  box-shadow: var(--mt-elevation-sm);
+  pointer-events: none;
+}
+
+.mt-gallery-strip {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: calc((100% - 3 * var(--mt-space-2)) / 4);
+  gap: var(--mt-space-2);
+  margin: 0;
+  padding: var(--mt-space-0-5);
+  list-style: none;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: thin;
+}
+
+.mt-gallery-strip > li {
+  scroll-snap-align: start;
+}
+
+.mt-gallery-thumb {
+  display: block;
+  inline-size: 100%;
+  aspect-ratio: 3 / 2;
+  padding: 0;
+  overflow: hidden;
+  border: var(--mt-border-width-strong) solid transparent;
+  border-radius: var(--mt-radius-md);
+  background: var(--mt-bg-subtle);
+  cursor: pointer;
+  opacity: 0.75;
+}
+
+.mt-gallery-thumb:hover,
+.mt-gallery-thumb[aria-current='true'] {
+  opacity: 1;
+}
+
+.mt-gallery-thumb[aria-current='true'] {
+  border-color: var(--mt-border-brand);
+}
+
+.mt-gallery-thumb:focus-visible {
+  outline: var(--mt-border-width-strong) solid var(--mt-border-brand);
+  outline-offset: var(--mt-border-width-strong);
+}
+
+.mt-gallery-thumb img {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+
+/* Lightbox: the whole image (contain) on the remaining height of the full dialog. */
+.mt-gallery-lightbox {
+  aspect-ratio: auto;
+  min-block-size: 0;
+}
+
+.mt-gallery-lightbox img {
+  object-fit: contain;
+}
+
+@media (min-width: 768px) {
+  .mt-gallery-strip {
+    grid-auto-columns: calc((100% - 5 * var(--mt-space-2)) / 6);
+  }
+}

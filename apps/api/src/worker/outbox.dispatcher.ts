@@ -96,11 +96,19 @@ export class OutboxDispatcher implements OnApplicationBootstrap, OnApplicationSh
   }
 
   private async deliver(event: string, payload: EmailPayload): Promise<void> {
-    const recipients: { email: string; username: string; locale: Locale }[] = [];
+    const recipients: { email: string; username: string; fullName?: string; locale: Locale }[] = [];
     if (payload.userId) {
-      const user = await this.prisma.user.findUnique({ where: { id: payload.userId } });
+      const user = await this.prisma.user.findUnique({
+        where: { id: payload.userId },
+        include: { profile: { select: { fullname: true } } },
+      });
       if (!user || user.deletedAt) return; // nothing to send to
-      recipients.push({ email: user.email, username: user.username, locale: user.locale });
+      recipients.push({
+        email: user.email,
+        username: user.username,
+        fullName: user.profile?.fullname,
+        locale: user.locale,
+      });
     }
     for (const email of payload.to ?? []) {
       recipients.push({
@@ -114,6 +122,7 @@ export class OutboxDispatcher implements OnApplicationBootstrap, OnApplicationSh
         event,
         locale: r.locale,
         username: r.username,
+        fullName: r.fullName,
         email: r.email,
         appUrl: this.env.APP_URL,
         adminUrl: this.env.ADMIN_URL,

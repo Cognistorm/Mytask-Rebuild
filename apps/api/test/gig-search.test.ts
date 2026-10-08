@@ -573,7 +573,7 @@ describe('SearchIndex (ADR-011 §3)', () => {
 
     await prisma.gig.update({
       where: { id: g.id },
-      data: { status: 'deleted', deletedAt: new Date() },
+      data: { status: 'deleted', deletedAt: new Date(), deletedBy: 'owner' },
     });
     await index.indexGig(g.id);
     expect(

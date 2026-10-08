@@ -16,6 +16,7 @@
   "dependencies": {
     "@mytask/api-client": "workspace:*",
     "@mytask/i18n": "workspace:*",
+    "@mytask/rich-text": "workspace:*",
     "@mytask/tokens": "workspace:*",
     "@mytask/types": "workspace:*",
     "@react-native-community/datetimepicker": "9.1.0",

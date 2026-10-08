@@ -26,8 +26,13 @@ export interface UploadOptions {
   timeoutMs?: number;
   /** For the storage POST; defaults to the global fetch. */
   fetch?: typeof globalThis.fetch;
-  /** Stops polling (e.g. the user removed the file or left the screen). */
+  /** Stops the upload and the polling (e.g. the user removed the file or left the screen). */
   signal?: AbortSignal;
+  /**
+   * Share of the bytes sent to storage (0…1). `fetch` cannot report upload progress, so with this callback (and
+   * no `fetch` option) the storage POST goes through `XMLHttpRequest` where it exists (browsers, React Native).
+   */
+  onProgress?: (fraction: number) => void;
   /** Staff upload (admin app): the same flow on `/admin/files` (adminCreateFileUpload, …Complete, adminGetFile). */
   staff?: boolean;
 }
@@ -71,17 +76,7 @@ export async function uploadFile(
   const form = new FormData();
   for (const [k, v] of Object.entries(slot.data.upload.fields)) form.append(k, v);
   form.append('file', body as Blob);
-  let stored: boolean;
-  try {
-    const res = await (options.fetch ?? globalThis.fetch)(slot.data.upload.url, {
-      method: 'POST',
-      body: form,
-      signal: options.signal,
-    });
-    stored = res.ok;
-  } catch {
-    stored = false;
-  }
+  const stored = await postToStorage(slot.data.upload.url, form, options);
   if (!stored) return { error: { code: 'UPLOAD_FAILED', fileId } };
 
   const path = { params: { path: { fileId } } };
@@ -105,6 +100,39 @@ export async function uploadFile(
     file = next.data;
   }
   return { file };
+}
+
+/** The direct storage POST; true when storage accepted the bytes. */
+async function postToStorage(
+  url: string,
+  form: FormData,
+  options: UploadOptions,
+): Promise<boolean> {
+  const { onProgress, signal } = options;
+  if (onProgress && !options.fetch && typeof XMLHttpRequest !== 'undefined') {
+    return new Promise<boolean>((resolve) => {
+      if (signal?.aborted) return resolve(false);
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', url);
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable && e.total > 0) onProgress(e.loaded / e.total);
+      };
+      xhr.onload = () => resolve(xhr.status >= 200 && xhr.status < 300);
+      xhr.onerror = xhr.onabort = xhr.ontimeout = () => resolve(false);
+      signal?.addEventListener('abort', () => xhr.abort());
+      xhr.send(form);
+    });
+  }
+  try {
+    const res = await (options.fetch ?? globalThis.fetch)(url, {
+      method: 'POST',
+      body: form,
+      signal,
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
 }
 
 /** Lower-case extension without the dot; '' when there is none (same rule as the API). */

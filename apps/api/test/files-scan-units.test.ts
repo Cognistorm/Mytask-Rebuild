@@ -47,6 +47,22 @@ describe('sniff (magic bytes, ADR-009 §3.5)', () => {
     expect(sniff(Buffer.alloc(0), true)).toBeNull();
   });
 
+  it('public files: a PDF must start with %PDF- at byte 0 (review 10 SEC-80 (a), probe P1)', () => {
+    const htmlPolyglot = bytes('<html><script>alert(1)</script>', ' '.repeat(150), '%PDF-1.4\n');
+    const svgPolyglot = bytes(
+      '<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"/>%PDF-1.7\n',
+    );
+    const strict = { pdfAtStart: true };
+    // Private files keep the PDF readers' rule (the header anywhere in the first 1024 bytes).
+    expect(sniff(htmlPolyglot)).toBe('application/pdf');
+    expect(sniff(svgPolyglot)).toBe('application/pdf');
+    expect(sniff(htmlPolyglot, false, strict)).not.toBe('application/pdf');
+    expect(sniff(svgPolyglot, false, strict)).not.toBe('application/pdf');
+    expect(sniff(bytes(' %PDF-1.7\n'), false, strict)).not.toBe('application/pdf');
+    expect(sniff(bytes('%PDF-1.7\n'), false, strict)).toBe('application/pdf');
+    expect(sniff(bytes('%PDF'), true, strict)).not.toBe('application/pdf');
+  });
+
   it('keeps text whose last multi-byte character is cut by the sniff window', () => {
     const text = Buffer.from('ქართული', 'utf8');
     expect(sniff(text.subarray(0, text.length - 1), false)).toBe('text/plain');

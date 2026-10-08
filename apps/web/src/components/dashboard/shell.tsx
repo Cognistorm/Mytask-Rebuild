@@ -14,6 +14,7 @@ import {
   SidebarNav,
   type DashboardSide,
 } from '@mytask/ui/web';
+import { localePath } from '../../lib/category-nav';
 import { href, useApi, useLocale, useT } from '../../lib/client';
 import { usePublicConfig, type PublicConfig } from '../../lib/public-config';
 import { applyTheme, savedThemeCookie } from '../../lib/theme-client';
@@ -97,7 +98,8 @@ export function DashboardShell({
 
   const other: DashboardSide = side === 'selling' ? 'buying' : 'selling';
   const otherHref = href(locale, switchTarget(side, active, config));
-  const sideHref = (s: DashboardSide) => (s === side ? pathname : otherHref);
+  // On the server usePathname() gives the rewritten path (`/ka/…`, ADR-006 §1); the public form avoids a hydration mismatch.
+  const sideHref = (s: DashboardSide) => (s === side ? localePath(pathname, locale) : otherHref);
 
   async function logout() {
     await api.POST('/auth/logout', { body: {} });

@@ -148,6 +148,7 @@ model User {
   kycVerifications    KycVerification[]
   reportsMade         Report[]
   gigs                Gig[]
+  favorites           Favorite[]
 
   @@map("users")
 }
@@ -1011,6 +1012,14 @@ enum GigStatus {
   @@map("gig_status")
 }
 
+/// Who deleted a gig (ADR-024): only staff removals can be restored, within 30 days.
+enum GigDeletedBy {
+  owner
+  staff
+
+  @@map("gig_deleted_by")
+}
+
 /// Gig core (data-model §3.D). Created here because search, home rows, `/sellers` and `listGigs` need it
 /// (4.2.1 handoff §C); upgrades, FAQs, images, documents, favourites, reports and views come with slice 3.
 /// In SQL: checks (price, delivery list, revisions, counters, SEO pair, deleted pair), the category chain
@@ -1041,14 +1050,26 @@ model Gig {
   ratingCount      Int              @default(0) @map("rating_count")
   ratingSum        Int              @default(0) @map("rating_sum")
   publishedAt      DateTime?        @map("published_at") @db.Timestamptz(6)
+  /// Last create or edit that put the gig in `pending` (moderation queue, spec 16 AC-19).
+  submittedAt      DateTime?        @map("submitted_at") @db.Timestamptz(6)
   createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt        DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  /// `deleted` ⇔ `deletedAt` ⇔ `deletedBy` (CK `gigs_deleted_ck`); staff id and reason only for staff removals.
   deletedAt        DateTime?        @map("deleted_at") @db.Timestamptz(6)
+  deletedBy        GigDeletedBy?    @map("deleted_by")
+  deletedByStaffId String?          @map("deleted_by_staff_id") @db.Uuid
+  /// Internal reason of a staff removal, shown to staff only (spec 16 AC-20).
+  removalReason    String?          @map("removal_reason") @db.VarChar(1000)
   owner            User             @relation(fields: [ownerId], references: [id])
   category         GigCategory      @relation("GigCategory", fields: [categoryId], references: [id], onDelete: Restrict)
   subcategory      GigCategory      @relation("GigSubcategory", fields: [subcategoryId], references: [id], onDelete: Restrict)
   childcategory    GigCategory      @relation("GigChildcategory", fields: [childcategoryId], references: [id], onDelete: Restrict)
   translations     GigTranslation[]
+  upgrades         GigUpgrade[]
+  faqs             GigFaq[]
+  images           GigImage[]
+  documents        GigDocument[]
+  favorites        Favorite[]
 
   @@index([categoryId])
   @@index([subcategoryId])
@@ -1073,6 +1094,77 @@ model GigTranslation {
 
   @@id([gigId, locale])
   @@map("gig_translations")
+}
+
+/// Paid extras (R-G9): price ≥ 1.00 GEL, extra days from the delivery list; at most 10 active per gig (app rule).
+/// Removed upgrades keep their row (`deletedAt`) because placed orders copy them (spec 06).
+model GigUpgrade {
+  id         String    @id @default(uuid(7)) @db.Uuid
+  legacyId   BigInt?   @unique @map("legacy_id")
+  gigId      String    @map("gig_id") @db.Uuid
+  title      String    @db.VarChar(100)
+  priceTetri BigInt    @map("price_tetri")
+  extraDays  Int       @default(0) @map("extra_days") @db.SmallInt
+  position   Int       @db.SmallInt
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt  DateTime? @map("deleted_at") @db.Timestamptz(6)
+  gig        Gig       @relation(fields: [gigId], references: [id], onDelete: Cascade)
+
+  @@index([gigId])
+  @@map("gig_upgrades")
+}
+
+/// At most 10 per gig (app rule, P-32).
+model GigFaq {
+  id       String @id @default(uuid(7)) @db.Uuid
+  gigId    String @map("gig_id") @db.Uuid
+  question String @db.VarChar(100)
+  answer   String @db.VarChar(300)
+  position Int    @db.SmallInt
+  gig      Gig    @relation(fields: [gigId], references: [id], onDelete: Cascade)
+
+  @@index([gigId])
+  @@map("gig_faqs")
+}
+
+/// Gallery images, 1…S-077 per gig. UK `(gig_id, position)` is DEFERRABLE INITIALLY DEFERRED in the migration SQL
+/// (reorder, P-34); FK to `files` is in the SQL too.
+model GigImage {
+  gigId    String @map("gig_id") @db.Uuid
+  fileId   String @map("file_id") @db.Uuid
+  position Int    @db.SmallInt
+  gig      Gig    @relation(fields: [gigId], references: [id], onDelete: Cascade)
+
+  @@id([gigId, fileId])
+  @@index([fileId])
+  @@map("gig_images")
+}
+
+/// Public PDF documents, 0…S-081 per gig (R-G11). Same deferred position key as `GigImage`.
+model GigDocument {
+  gigId    String @map("gig_id") @db.Uuid
+  fileId   String @map("file_id") @db.Uuid
+  position Int    @db.SmallInt
+  gig      Gig    @relation(fields: [gigId], references: [id], onDelete: Cascade)
+
+  @@id([gigId, fileId])
+  @@index([fileId])
+  @@map("gig_documents")
+}
+
+/// Saved gigs (spec 04 AC-35, AC-36): newest saved first.
+model Favorite {
+  userId    String   @map("user_id") @db.Uuid
+  gigId     String   @map("gig_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gig       Gig      @relation(fields: [gigId], references: [id], onDelete: Cascade)
+
+  @@id([userId, gigId])
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([gigId])
+  @@map("favorites")
 }
 
 // ---------------------------------------------------------------- 3.S Search documents (ADR-011)
@@ -1111,4 +1203,47 @@ model SearchDocument {
 
   @@id([entityType, entityId])
   @@map("search_documents")
+}
+
+// ---------------------------------------------------------------- 3.S Analytics (ADR-012)
+
+/// Raw first-party events, no raw IP (Q-055). Partitioned by month on `occurred_at` (PK includes it), DEFAULT
+/// partition until the monthly partition job exists; raw rows kept 90 days. Platform CK and indexes in the SQL.
+model AnalyticsEvent {
+  id             BigInt    @default(autoincrement())
+  occurredAt     DateTime  @default(now()) @map("occurred_at") @db.Timestamptz(6)
+  eventType      String    @map("event_type") @db.VarChar(40)
+  platform       String    @db.VarChar(10)
+  pathTemplate   String?   @map("path_template") @db.VarChar(200)
+  locale         Locale?
+  entityType     String?   @map("entity_type") @db.VarChar(20)
+  entityId       String?   @map("entity_id") @db.Uuid
+  userId         String?   @map("user_id") @db.Uuid
+  visitorHash    Bytes?    @map("visitor_hash")
+  countryCode    String?   @map("country_code") @db.Char(2)
+  city           String?   @db.VarChar(100)
+  deviceType     String?   @map("device_type") @db.VarChar(20)
+  os             String?   @db.VarChar(40)
+  browser        String?   @db.VarChar(40)
+  referrerDomain String?   @map("referrer_domain") @db.VarChar(255)
+  utm            Json?
+
+  @@id([id, occurredAt])
+  @@map("analytics_events")
+}
+
+/// Daily aggregates (gig analytics, admin dashboard). The natural key is a unique expression index in the SQL
+/// (`entity_id` null counts as the zero uuid); `id` is a surrogate key so the table has a Prisma identity.
+model AnalyticsDaily {
+  id             BigInt   @id @default(autoincrement())
+  day            DateTime @db.Date
+  metric         String   @db.VarChar(40)
+  dimension      String   @db.VarChar(40)
+  dimensionValue String   @default("") @map("dimension_value") @db.VarChar(255)
+  entityType     String   @default("") @map("entity_type") @db.VarChar(20)
+  entityId       String?  @map("entity_id") @db.Uuid
+  count          BigInt   @default(0)
+  uniques        BigInt   @default(0)
+
+  @@map("analytics_daily")
 }

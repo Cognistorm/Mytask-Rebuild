@@ -314,8 +314,9 @@ function SettingRow({
   return <PlainSettingRow row={row} onSave={onSave} disabled={disabled} />;
 }
 
+/** `null` (an unset limit = unlimited, e.g. S-002) is an empty box, not the text "null". */
 const asDraft = (value: unknown) =>
-  typeof value === 'object' ? JSON.stringify(value) : String(value);
+  value === null ? '' : typeof value === 'object' ? JSON.stringify(value) : String(value);
 
 function PlainSettingRow({
   row,
@@ -351,7 +352,9 @@ function PlainSettingRow({
   }
 
   const parse = (): unknown => {
-    if (row.type === 'integer') return Number(draft);
+    // An empty box sends null: the API takes it only for rows where empty means unlimited (S-001…S-006) and
+    // refuses it elsewhere, so a cleared box can never silently become 0.
+    if (row.type === 'integer') return draft.trim() === '' ? null : Number(draft);
     if (row.type === 'email_list')
       return draft
         .split(',')

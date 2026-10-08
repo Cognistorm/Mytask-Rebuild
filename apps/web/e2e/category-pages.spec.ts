@@ -29,6 +29,8 @@ test('level 1: title, breadcrumb, SEO texts, 42 cards with the Featured badge, n
   const premium = cards.first();
   await expect(premium).toHaveClass(/mt-gig-card-featured/);
   await expect(premium.getByText('გამორჩეული')).toBeVisible();
+  // Spec 04 AC-35 (4.3.20b): a heart on every card.
+  await expect(page.getByRole('button', { name: 'რჩეულებში დამატება' })).toHaveCount(42);
   await expect(premium.getByRole('link', { name: 'Premium logo design' })).toHaveAttribute(
     'href',
     '/service/logo-design-1',

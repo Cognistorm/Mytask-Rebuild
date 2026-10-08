@@ -418,6 +418,22 @@
   block-size: var(--mt-size-icon-md);
 }
 
+/* Full size (lightbox): the whole viewport, no rounded corners, at every width. */
+.mt-dialog.mt-dialog-full {
+  inline-size: 100vw;
+  max-inline-size: 100vw;
+  block-size: 100dvh;
+  max-block-size: 100dvh;
+  margin: 0;
+  border-radius: 0;
+}
+
+.mt-dialog-full .mt-dialog-body {
+  grid-template-rows: auto minmax(0, 1fr);
+  block-size: 100%;
+  box-sizing: border-box;
+}
+
 @media (max-width: 767px) {
   .mt-dialog {
     inline-size: 100vw;

@@ -1098,3 +1098,44 @@ button.mt-sidebar-link {
 .admin-page:focus {
   outline: none;
 }
+
+/* Gig queue details (spec 16 AC-19, AC-20): the gig as the public sees it, both languages. */
+.admin-gig-detail,
+.admin-gig-text {
+  display: grid;
+  gap: var(--mt-space-2);
+  min-width: 0;
+}
+
+.admin-gig-detail {
+  gap: var(--mt-space-3);
+  padding-block-start: var(--mt-space-3);
+  border-block-start: var(--mt-border-width-hairline) solid var(--mt-border-subtle);
+}
+
+.admin-gig-detail h3 {
+  margin: var(--mt-space-2) 0 0;
+}
+
+.admin-gig-html {
+  overflow-wrap: anywhere;
+}
+
+.admin-gig-html > :first-child {
+  margin-block-start: 0;
+}
+
+.admin-gig-facts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--mt-space-1) var(--mt-space-4);
+  margin: 0;
+}
+
+.admin-gig-facts dt {
+  color: var(--mt-text-secondary);
+}
+
+.admin-gig-facts dd {
+  margin: 0;
+}

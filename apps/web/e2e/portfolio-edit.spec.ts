@@ -431,10 +431,10 @@ test("someone else's or a missing work is not found; the legacy edit URL redirec
 
   const res = await request.get('/en/seller/portfolio/edit/UID4', { maxRedirects: 0 });
   expect(res.status()).toBe(301);
-  expect(res.headers().location).toMatch(/\/en\/seller\/portfolio\/UID4\/edit$/);
+  expect(res.headers().location).toBe('/en/seller/portfolio/UID4/edit');
   const ka = await request.get('/seller/portfolio/edit/UID4', { maxRedirects: 0 });
   expect(ka.status()).toBe(301);
-  expect(ka.headers().location).toMatch(/[^n]\/seller\/portfolio\/UID4\/edit$/);
+  expect(ka.headers().location).toBe('/seller/portfolio/UID4/edit');
 });
 
 test('Georgian is the default; phone (360 px) has no horizontal scroll on the list and the form', async ({

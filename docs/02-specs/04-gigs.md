@@ -249,6 +249,7 @@ NEW keys (English first, Georgian alongside, Q-058):
 | `t_no_favorites_yet` | You have no saved gigs yet. | შენახული განცხადებები ჯერ არ გაქვთ. |
 | `t_reorder_images_hint` | Drag images to change their order. | სურათების რიგის შესაცვლელად გადაათრიეთ ისინი. |
 | `t_subject_admin_gig_reported` | Gig reported | განცხადება გასაჩივრებულია |
+| `t_notification_admin_reported_gig` (NEW 2026-10-07, body of `Admin/GigReported`, written like `t_notification_admin_reported_profile`) | A user has reported a gig in your website, please click the button below to see reported gigs | მომხმარებელმა თქვენს საიტზე განცხადება დაარეპორტა. დარეპორტებული განცხადებების სანახავად დააჭირეთ ქვემოთ მოცემულ ღილაკს |
 | `t_create_new_gig` | see 02 | see 02 |
 | `t_validator_georgian_field_characters` (ACCEPTED P-136) | see 00 (R-5.3a) | see 00 |
 

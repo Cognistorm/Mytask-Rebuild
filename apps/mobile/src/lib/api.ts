@@ -3,7 +3,7 @@
 import Constants from 'expo-constants';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
-import { createApiClient, type Locale } from '@mytask/api-client';
+import { createApiClient, type ApiClient, type Locale } from '@mytask/api-client';
 import type { components } from '@mytask/types';
 
 type AuthSession = components['schemas']['AuthSession'];
@@ -22,6 +22,7 @@ export async function loadSession(): Promise<boolean> {
 
 export async function saveSession(session: AuthSession): Promise<void> {
   accessToken = session.accessToken;
+  viewerName = null;
   if (session.accessToken) await SecureStore.setItemAsync(KEYS.access, session.accessToken);
   if (session.refreshToken) await SecureStore.setItemAsync(KEYS.refresh, session.refreshToken);
   if (session.deviceToken) await SecureStore.setItemAsync(KEYS.device, session.deviceToken);
@@ -29,9 +30,27 @@ export async function saveSession(session: AuthSession): Promise<void> {
 
 export async function clearSession(): Promise<void> {
   accessToken = null;
+  viewerName = null;
   await SecureStore.deleteItemAsync(KEYS.access);
   await SecureStore.deleteItemAsync(KEYS.refresh);
   // The device token stays: it is what keeps this phone "trusted" for 2FA (spec 01 AC-24).
+}
+
+let viewerName: Promise<string | null> | null = null;
+
+/**
+ * The signed-in username, null for a guest (gig card hearts, ROADMAP 4.3.20b: login message, none on own gigs). One
+ * getMe per session; a new login or a logout asks again, and so does the next card after a network error.
+ */
+export function getViewerName(api: ApiClient): Promise<string | null> {
+  viewerName ??= (async () => {
+    if (!(await loadSession())) return null;
+    const res = await api.GET('/me').catch(() => undefined);
+    if (res?.data) return res.data.username;
+    if (res?.response.status !== 401) viewerName = null;
+    return null;
+  })();
+  return viewerName;
 }
 
 export const getDeviceToken = () => SecureStore.getItemAsync(KEYS.device);

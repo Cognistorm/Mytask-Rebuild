@@ -464,6 +464,51 @@ describe('files-scan: stored-as-uploaded files (security review 06 SEC-63)', () 
   });
 });
 
+describe('files-scan: public gig documents (security review 10 SEC-80)', () => {
+  /** A `gig_document` (public, copied as uploaded) in `scanning`, as completeFileUpload leaves it. */
+  async function gigDocument(body: Buffer, originalName = 'price-list.pdf') {
+    const auth = await register();
+    const me = await http().get('/api/v1/me').set(auth);
+    const row = await prisma.file.create({
+      data: {
+        purpose: 'gig_document',
+        ownerUserId: me.body.id as string,
+        bucket: 'private',
+        objectKey: `quarantine/${crypto.randomUUID()}`,
+        originalName,
+        declaredType: 'application/pdf',
+        sizeBytes: BigInt(body.length),
+        status: 'scanning',
+      },
+    });
+    storage.upload(row.bucket, row.objectKey, body.length, row.declaredType, body);
+    return row;
+  }
+
+  it.each([
+    ['HTML', `<html><script>alert(1)</script>${' '.repeat(150)}%PDF-1.4\n%%EOF\n`],
+    ['SVG', '<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"/>%PDF-1.7\n%%EOF\n'],
+  ])('(a) an %s file with %%PDF- after byte 0 is rejected as a wrong type', async (_, text) => {
+    const row = await gigDocument(Buffer.from(text));
+    expect(await sweeper.tick()).toBe(1);
+    const file = await prisma.file.findUniqueOrThrow({ where: { id: row.id } });
+    expect(file).toMatchObject({ status: 'rejected', rejectReason: 't_file_rejected_type' });
+    expect(storage.has(row.bucket, row.objectKey)).toBe(false);
+    expect(storage.has('public_media', `files/${row.id}`)).toBe(false);
+  });
+
+  it('(b) a real PDF is stored in public_media as a download with its (Georgian) name', async () => {
+    const row = await gigDocument(Buffer.from('%PDF-1.7\n% ok\n%%EOF\n'), 'ფასები "2026".pdf');
+    expect(await sweeper.tick()).toBe(1);
+    const file = await prisma.file.findUniqueOrThrow({ where: { id: row.id } });
+    expect(file).toMatchObject({ status: 'ready', bucket: 'public_media' });
+    expect(storage.get(file.bucket, file.objectKey)).toMatchObject({
+      contentType: 'application/pdf',
+      contentDisposition: `attachment; filename="______ _2026_.pdf"; filename*=UTF-8''${encodeURIComponent('ფასები "2026".pdf')}`,
+    });
+  });
+});
+
 describe('files-scan: unattached public images (security review 06 SEC-64 stop-gap)', () => {
   it('a ready avatar or portfolio image never attached within 24 h is deleted with its variants', async () => {
     const auth = await register();

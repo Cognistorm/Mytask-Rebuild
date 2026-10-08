@@ -1,5 +1,7 @@
 // @mytask/ui/web: React DOM components for apps/web and apps/admin (components.md, ADR-001).
 export { Alert, CodeInput, Field, RadioGroup, Select, Submit, TextArea } from './form';
+export { PriceInput, QuantityInput, RichTextEditor, richTextFromHtml } from './inputs';
+export { CompactStepper, Stepper, type StepItem, type StepStatus } from './stepper';
 export {
   AccountMenu,
   DashboardLayout,
@@ -40,6 +42,7 @@ export {
 } from './site';
 export {
   Breadcrumb,
+  FeaturedPill,
   FreelancerCard,
   GigCard,
   GigGrid,
@@ -53,3 +56,6 @@ export { categoryThemeProps, type CategoryThemeProps } from './category';
 export { MOTION_ENTRANCE_SCRIPT, motionEntrance } from './motion';
 export { formatMoney } from './money';
 export { Carousel } from './carousel';
+export { Gallery, type GalleryImage, type GalleryLabels } from './gallery';
+export { Accordion, Tabs, type AccordionItem, type TabItem } from './tabs';
+export { BarList, type BarItem } from './bars';

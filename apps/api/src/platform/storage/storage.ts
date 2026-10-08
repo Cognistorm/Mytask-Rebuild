@@ -45,6 +45,19 @@ export interface PresignedGetInput {
 export interface ObjectHead {
   sizeBytes: number;
   contentType: string | null;
+  /** Only when the object has one (files stored as uploaded are downloads, review 10 SEC-80 (b)). */
+  contentDisposition?: string;
+}
+
+/**
+ * Where `copy` writes; `contentDisposition` is stored with the object and sent on every plain GET. Without
+ * `contentType` the object keeps all its stored headers (a gig file moved between buckets, ROADMAP 4.3.24).
+ */
+export interface CopyTarget {
+  bucket: FileBucket;
+  key: string;
+  contentType?: string;
+  contentDisposition?: string;
 }
 
 /** An object's bytes and the version they belong to (`ETag`), so a later copy can insist on that version. */
@@ -79,7 +92,7 @@ export abstract class ObjectStorage {
    */
   abstract copy(
     from: { bucket: FileBucket; key: string; ifMatch?: string | null },
-    to: { bucket: FileBucket; key: string; contentType: string },
+    to: CopyTarget,
   ): Promise<void>;
   /** Idempotent: deleting a missing object is not an error. */
   abstract delete(bucket: FileBucket, key: string): Promise<void>;
@@ -146,7 +159,11 @@ export class S3ObjectStorage extends ObjectStorage {
       const out = await this.client.send(
         new HeadObjectCommand({ Bucket: this.buckets[bucket], Key: key }),
       );
-      return { sizeBytes: out.ContentLength ?? 0, contentType: out.ContentType ?? null };
+      return {
+        sizeBytes: out.ContentLength ?? 0,
+        contentType: out.ContentType ?? null,
+        ...(out.ContentDisposition ? { contentDisposition: out.ContentDisposition } : {}),
+      };
     } catch (err) {
       if (err instanceof NotFound || (err as { name?: string }).name === 'NotFound') return null;
       throw err;
@@ -180,7 +197,7 @@ export class S3ObjectStorage extends ObjectStorage {
 
   async copy(
     from: { bucket: FileBucket; key: string; ifMatch?: string | null },
-    to: { bucket: FileBucket; key: string; contentType: string },
+    to: CopyTarget,
   ): Promise<void> {
     try {
       await this.client.send(
@@ -191,7 +208,8 @@ export class S3ObjectStorage extends ObjectStorage {
           CopySource: `${this.buckets[from.bucket]}/${from.key}`,
           CopySourceIfMatch: from.ifMatch ?? undefined,
           ContentType: to.contentType,
-          MetadataDirective: 'REPLACE',
+          ContentDisposition: to.contentType ? to.contentDisposition : undefined,
+          MetadataDirective: to.contentType ? 'REPLACE' : 'COPY',
         }),
       );
     } catch (err) {

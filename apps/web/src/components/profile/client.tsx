@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import type { components } from '@mytask/types';
 import { Alert, Dialog, GigCard, GigGrid, Pill, TextArea } from '@mytask/ui/web';
 import { gigCardLabels, toGigCardData } from '../../lib/gig-card';
+import { CardFavorite } from '../catalog/card-favorite';
 import { href, splitErrors, useApi, useLocale, useT, type ApiErrorBody } from '../../lib/client';
 
 type PortfolioCard = components['schemas']['PortfolioItemCard'];
@@ -13,9 +14,14 @@ type GigCardItem = components['schemas']['GigCard'];
 
 /**
  * "Share profile" / "Share this project" (design §7.4: one button opening a dialog with Facebook, X, LinkedIn,
- * WhatsApp and Copy link, 44 px targets). The URL is the page's own address.
+ * WhatsApp and Copy link, 44 px targets). The URL is the page's own address. `dialogTitle` defaults to `label`.
  */
-export function ShareButton(props: { label: string; title: string; copiedText: string }) {
+export function ShareButton(props: {
+  label: string;
+  title: string;
+  copiedText: string;
+  dialogTitle?: string;
+}) {
   const locale = useLocale();
   const t = useT(locale);
   const [open, setOpen] = useState(false);
@@ -45,7 +51,7 @@ export function ShareButton(props: { label: string; title: string; copiedText: s
       <Dialog
         open={open}
         onClose={() => setOpen(false)}
-        title={props.label}
+        title={props.dialogTitle ?? props.label}
         closeLabel={t('t_ui_close')}
         testId="share-dialog"
       >
@@ -336,7 +342,14 @@ export function ProfileGigs(props: {
       <GigGrid label={t('t_gigs')}>
         {items.map((g) => (
           <li key={g.id}>
-            <GigCard gig={toGigCardData(locale, g)} labels={labels} Link={Link} />
+            <GigCard
+              gig={toGigCardData(locale, g)}
+              labels={labels}
+              Link={Link}
+              favorite={
+                <CardFavorite gigId={g.id} seller={g.seller.username} isFavorite={g.isFavorite} />
+              }
+            />
           </li>
         ))}
       </GigGrid>

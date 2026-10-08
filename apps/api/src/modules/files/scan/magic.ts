@@ -63,9 +63,14 @@ function isText(head: Buffer, complete: boolean): boolean {
 
 /**
  * MIME type of a file from its first bytes, or `null` when unknown. `complete` = `head` is the whole file
- * (matters only for the text check).
+ * (matters only for the text check). `pdfAtStart` = a PDF must begin with `%PDF-` at byte 0: for files served
+ * publicly as uploaded, where an HTML or SVG file with `%PDF-` further in must not pass (review 10 SEC-80 (a)).
  */
-export function sniff(head: Buffer, complete = false): string | null {
+export function sniff(
+  head: Buffer,
+  complete = false,
+  { pdfAtStart = false }: { pdfAtStart?: boolean } = {},
+): string | null {
   if (startsWith(head, [0xff, 0xd8, 0xff])) return 'image/jpeg';
   if (startsWith(head, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) return 'image/png';
   if (head.length >= 6 && ['GIF87a', 'GIF89a'].includes(ascii(head, 0, 6))) return 'image/gif';
@@ -75,8 +80,13 @@ export function sniff(head: Buffer, complete = false): string | null {
     if (kind === 'AVI ') return 'video/x-msvideo';
     return null;
   }
-  // PDF readers accept the header anywhere in the first 1024 bytes.
-  if (ascii(head, 0, Math.min(head.length, 1024)).includes('%PDF-')) return 'application/pdf';
+  // PDF readers accept the header anywhere in the first 1024 bytes; public files must start with it.
+  if (
+    pdfAtStart
+      ? ascii(head, 0, 5) === '%PDF-'
+      : ascii(head, 0, Math.min(head.length, 1024)).includes('%PDF-')
+  )
+    return 'application/pdf';
   if (startsWith(head, [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]))
     return 'application/msword';
   if (startsWith(head, [0x50, 0x4b, 0x03, 0x04])) {

@@ -37,6 +37,15 @@
   object-fit: cover;
 }
 
+/* Favourite IconButton over the image, top-right (components.md §7.2); the button itself comes from the app. Above
+   the title link's card-wide hit area, like the seller link. */
+.mt-gig-card-favorite {
+  position: absolute;
+  z-index: var(--mt-z-index-raised);
+  inset-block-start: var(--mt-space-1);
+  inset-inline-end: var(--mt-space-1);
+}
+
 .mt-featured-badge {
   position: absolute;
   inset-block-start: var(--mt-space-2);
@@ -50,6 +59,12 @@
   color: var(--mt-badge-featured-text);
   font-size: var(--mt-font-size-xs);
   font-weight: var(--mt-font-weight-semibold);
+}
+
+/* The same badge inline after a title (gig page). */
+.mt-featured-pill {
+  position: static;
+  vertical-align: middle;
 }
 
 .mt-gig-card-body {
@@ -444,5 +459,18 @@
 @media (min-width: 1024px) {
   .mt-carousel-list {
     grid-auto-columns: calc((100% - 6 * var(--mt-space-4)) / 7);
+  }
+}
+
+/* Carousel of gig cards ("You may also like", screen 02): 80% on phones, 2 from md, 4 from lg. */
+@media (min-width: 768px) {
+  .mt-carousel-list.mt-carousel-cards {
+    grid-auto-columns: calc((100% - var(--mt-space-4)) / 2);
+  }
+}
+
+@media (min-width: 1024px) {
+  .mt-carousel-list.mt-carousel-cards {
+    grid-auto-columns: calc((100% - 3 * var(--mt-space-4)) / 4);
   }
 }

@@ -385,7 +385,7 @@ describe('adminListCategories / adminGetCategory', () => {
     const deleted = await gigIn(at);
     await prisma.gig.update({
       where: { id: deleted.id },
-      data: { status: 'deleted', deletedAt: new Date() },
+      data: { status: 'deleted', deletedAt: new Date(), deletedBy: 'owner' },
     });
     await prisma.projectCategory.create({ data: { slug: slug('pc'), gigCategoryId: at.top.id } });
     await update(at.sub.id, { slug: slug('sub-new') });
@@ -428,7 +428,7 @@ describe('adminDeleteCategory (spec 16 AC-60, spec 03 EC-2)', () => {
     const gig = await gigIn(at);
     await prisma.gig.update({
       where: { id: gig.id },
-      data: { status: 'deleted', deletedAt: new Date() },
+      data: { status: 'deleted', deletedAt: new Date(), deletedBy: 'owner' },
     });
     const withGig = await http().delete(`${URL_}/${at.child.id}`).set(staff.auth);
     expect(withGig.status).toBe(409);

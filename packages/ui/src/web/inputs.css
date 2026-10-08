@@ -1,0 +1,154 @@
+/* Wizard inputs (components.md §5.3, §5.5): PriceInput, QuantityInput, RichTextEditor. Design tokens only
+   (CLAUDE.md). The text-field look (border, fill, focus glow, invalid) comes from controls.css through .auth-field;
+   the editor area copies that look because it is not an input element. */
+
+.mt-input-label-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--mt-space-2);
+}
+
+.mt-input-counter {
+  color: var(--mt-text-secondary);
+  font-size: var(--mt-font-size-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.mt-input-counter[data-over='true'] {
+  color: var(--mt-text-danger);
+}
+
+/* ---- PriceInput: the ₾ prefix inside the field ---- */
+.mt-input-affix {
+  position: relative;
+}
+
+.mt-input-prefix {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: var(--mt-space-3);
+  display: flex;
+  align-items: center;
+  color: var(--mt-text-secondary);
+  pointer-events: none;
+}
+
+.auth-field .mt-input-affix input {
+  padding-inline-start: var(--mt-space-8);
+}
+
+/* ---- QuantityInput: − value + ---- */
+.mt-quantity {
+  display: inline-grid;
+  grid-template-columns: var(--mt-size-touch-target-min) var(--mt-space-20) var(
+      --mt-size-touch-target-min
+    );
+  align-items: center;
+  gap: var(--mt-space-2);
+  justify-self: start;
+}
+
+.auth-field .mt-quantity input {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.mt-quantity-button {
+  inline-size: var(--mt-size-touch-target-min);
+  block-size: var(--mt-size-touch-target-min);
+  border: var(--mt-border-width-hairline) solid var(--mt-border-strong);
+  border-radius: var(--mt-radius-control);
+  background: var(--mt-bg-surface);
+  color: var(--mt-text-primary);
+  font: inherit;
+  font-size: var(--mt-font-size-lg);
+  cursor: pointer;
+}
+
+.mt-quantity-button:hover:not(:disabled) {
+  background: var(--mt-bg-hover);
+}
+
+.mt-quantity-button:disabled {
+  color: var(--mt-text-disabled);
+  cursor: not-allowed;
+}
+
+.mt-quantity-button:focus-visible,
+.mt-rte-tool:focus-visible {
+  outline: var(--mt-border-width-strong) solid var(--mt-border-brand);
+  outline-offset: var(--mt-space-0-5);
+}
+
+/* ---- RichTextEditor ---- */
+.mt-rte {
+  border: var(--mt-border-width-hairline) solid var(--mt-border-strong);
+  border-radius: var(--mt-radius-control);
+  background: var(--mt-gradient-input);
+  transition:
+    border-color var(--mt-motion-duration-fast) var(--mt-motion-easing-standard),
+    box-shadow var(--mt-motion-duration-fast) var(--mt-motion-easing-standard);
+}
+
+.mt-rte:focus-within {
+  border-color: var(--mt-border-brand);
+  box-shadow: var(--mt-glow-brand);
+}
+
+.mt-rte[data-invalid='true'] {
+  border-color: var(--mt-border-danger);
+}
+
+.mt-rte[data-invalid='true']:focus-within {
+  box-shadow: var(--mt-glow-danger);
+}
+
+.mt-rte-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mt-space-1);
+  padding: var(--mt-space-1);
+  border-block-end: var(--mt-border-width-hairline) solid var(--mt-border-default);
+}
+
+.mt-rte-tool {
+  display: inline-grid;
+  place-items: center;
+  inline-size: var(--mt-size-control-sm);
+  block-size: var(--mt-size-control-sm);
+  border: 0;
+  border-radius: var(--mt-radius-sm);
+  background: none;
+  color: var(--mt-text-primary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.mt-rte-tool:hover {
+  background: var(--mt-bg-hover);
+}
+
+.mt-rte-tool[aria-pressed='true'] {
+  background: var(--mt-bg-selected);
+  color: var(--mt-text-brand);
+}
+
+.mt-rte-area {
+  min-block-size: calc(var(--mt-space-24) + var(--mt-space-16));
+  padding: var(--mt-space-3);
+  color: var(--mt-text-primary);
+  font-size: var(--mt-font-size-md);
+  line-height: var(--mt-font-line-height-md);
+  overflow-wrap: anywhere;
+  outline: none;
+}
+
+.mt-rte-area :is(p, ul, ol) {
+  margin: 0 0 var(--mt-space-2);
+}
+
+.mt-rte-area :is(ul, ol) {
+  padding-inline-start: var(--mt-space-6);
+}

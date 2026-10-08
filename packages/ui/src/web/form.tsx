@@ -125,8 +125,14 @@ export function Select(props: {
   value: string;
   onChange: (v: string) => void;
   error?: string;
+  /** Not choosable yet, e.g. a dependent level before the level above is chosen (§5.6). */
+  disabled?: boolean;
+  /** Help text under the field (linked with aria-describedby). */
+  hint?: string;
 }) {
   const id = useId();
+  const describedBy =
+    [props.hint && `${id}-hint`, props.error && `${id}-err`].filter(Boolean).join(' ') || undefined;
   return (
     <div className="auth-field">
       <label htmlFor={id}>{props.label}</label>
@@ -134,8 +140,9 @@ export function Select(props: {
         id={id}
         name={props.name}
         value={props.value}
+        disabled={props.disabled}
         aria-invalid={!!props.error}
-        aria-describedby={props.error ? `${id}-err` : undefined}
+        aria-describedby={describedBy}
         onChange={(e) => props.onChange(e.target.value)}
       >
         {props.placeholder !== undefined && <option value="">{props.placeholder}</option>}
@@ -145,6 +152,11 @@ export function Select(props: {
           </option>
         ))}
       </select>
+      {props.hint && (
+        <p id={`${id}-hint`} className="auth-hint">
+          {props.hint}
+        </p>
+      )}
       {props.error && (
         <p id={`${id}-err`} className="auth-error" role="alert">
           {props.error}

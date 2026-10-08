@@ -1,0 +1,66 @@
+/* Gig analytics (spec 04 AC-39): design tokens only. Breakpoint lg 1024px as a literal. Panels, stat tiles and bars
+   come from @mytask/ui. */
+.mt-analytics {
+  display: grid;
+  gap: var(--mt-space-6);
+  min-width: 0;
+}
+
+.mt-analytics-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--mt-space-3);
+}
+
+.mt-analytics-titles {
+  display: grid;
+  gap: var(--mt-space-1);
+  min-width: 0;
+}
+
+.mt-analytics-title {
+  margin: 0;
+  font-size: var(--mt-font-size-2xl);
+  line-height: var(--mt-font-line-height-2xl);
+  font-weight: var(--mt-font-weight-bold);
+}
+
+.mt-analytics-gig {
+  color: var(--mt-text-link);
+  overflow-wrap: anywhere;
+}
+
+.mt-analytics-gig:hover {
+  color: var(--mt-text-link-hover);
+}
+
+.mt-analytics-grid {
+  display: grid;
+  gap: var(--mt-space-4);
+  align-items: start;
+}
+
+.mt-analytics-subtitle,
+.mt-analytics-empty {
+  margin: 0;
+  color: var(--mt-text-secondary);
+  font-size: var(--mt-font-size-sm);
+}
+
+.mt-analytics-credit {
+  margin: calc(-1 * var(--mt-space-3)) 0 0;
+  font-size: var(--mt-font-size-sm);
+  text-align: end;
+}
+
+.mt-analytics-credit a {
+  color: var(--mt-text-link);
+}
+
+@media (min-width: 1024px) {
+  .mt-analytics-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

@@ -9,6 +9,7 @@ import { Alert, EmptyState, GigCard, GigGrid, motionEntrance, Pagination } from 
 import { gigCardLabels, toGigCardData } from '../../lib/gig-card';
 import { hasFilters, listSearch, PAGE_SIZE, type ListQuery } from '../../lib/list-query';
 import { MotionEntrance } from '../motion-entrance';
+import { CardFavorite } from './card-favorite';
 import { FilterPanel } from './filter-panel';
 import { SortMenu } from './sort-menu';
 import './catalog.css';
@@ -75,7 +76,18 @@ export function GigList(props: {
           <GigGrid label={props.label}>
             {(result.data as GigCardItem[]).map((gig, i) => (
               <li key={gig.id} {...motionEntrance(i)}>
-                <GigCard gig={toGigCardData(props.locale, gig)} labels={labels} Link={Link} />
+                <GigCard
+                  gig={toGigCardData(props.locale, gig)}
+                  labels={labels}
+                  Link={Link}
+                  favorite={
+                    <CardFavorite
+                      gigId={gig.id}
+                      seller={gig.seller.username}
+                      isFavorite={gig.isFavorite}
+                    />
+                  }
+                />
               </li>
             ))}
           </GigGrid>
