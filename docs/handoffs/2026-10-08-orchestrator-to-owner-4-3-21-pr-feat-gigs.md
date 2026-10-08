@@ -66,6 +66,10 @@ Slice 3 of Phase 4: spec 04 Gigs, plus the staff gig queue of spec 16 (AC-19, AC
 - Next.js 16.3.8.
 - Removed gigs' files offline.
 
+**Fixed while opening the PR**
+- Analytics ties sort the same on every database (CI).
+- Legacy 301s (`/post/service`, old gig and portfolio edit links) send a relative address. Before, they pointed to the internal `localhost` behind the staging proxy.
+
 **Tests**
 - API 782 passed (7 skipped).
 - Web E2E 291 passed (3 skipped).
