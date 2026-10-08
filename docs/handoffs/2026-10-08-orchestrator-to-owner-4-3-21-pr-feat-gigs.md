@@ -3,7 +3,7 @@ ROADMAP 4.3.21 for slice 3 (spec 04 Gigs, branch `feat/gigs`).
 
 - `feat/gigs` sits on the current `main` (`ec09b8ff`, PR #4), 74 commits of its own. No other branch has to be merged first.
 - Checked locally before the push: `format:check`, `i18n:check` (en 3145 / ka 3151 keys) and `gen:check` (contract 1.5.0) all PASS. The full suite ran in 4.3.20e and 4.3.20f, and only docs changed after that.
-- Pushed `feat/gigs` to GitHub at `33f99645` (the Owner lifted the no-push rule on 2026-10-06, and PR #3 and #4 went the same way). The CI result is in `docs/STATUS.md`.
+- Pushed `feat/gigs` (the Owner lifted the no-push rule on 2026-10-06, and PR #3 and #4 went the same way). The first CI run failed in one API test, because equal counts in gig analytics were sorted by the database collation. Fixed with `COLLATE "C"` (`9002bbe1`). CI run 37796264804 is then **green on all 5 jobs**.
 
 Reviews:
 - QA report `docs/06-qa/reports/04-gigs-2026-10-07.md`: **PASS with notes** (§15, re-check after 4.3.20).
@@ -92,4 +92,4 @@ Slice 3 of Phase 4: spec 04 Gigs, plus the staff gig queue of spec 16 (AC-19, AC
 
 ## Open questions / risks
 - Owner decisions still open: DEV-M1, Q-160, Q-163, Q-164, Q-181, Q-183.
-- The gitleaks, oasdiff and Docker/Caddy jobs only run on GitHub. Their result is in STATUS.
+- None from CI: gitleaks, oasdiff and the Docker/Caddy smoke test passed on GitHub.
