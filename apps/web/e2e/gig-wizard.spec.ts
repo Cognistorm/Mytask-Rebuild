@@ -103,7 +103,7 @@ test('a restricted user goes to the restrictions page', async ({ page }) => {
 test('/post/service answers 301 to /create (AC-1)', async ({ request }) => {
   const res = await request.get('/en/post/service', { maxRedirects: 0 });
   expect(res.status()).toBe(301);
-  expect(new URL(res.headers().location!).pathname).toBe('/en/create');
+  expect(new URL(res.headers().location!, 'http://x').pathname).toBe('/en/create');
 });
 
 test('at the plan limit the form is not shown, only the upgrade offer (AC-2)', async ({ page }) => {

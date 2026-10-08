@@ -1,7 +1,8 @@
 // Legacy edit URL `/seller/portfolio/edit/{uid}` → 301 to `/seller/portfolio/{uid}/edit` (url-map §5).
-import { NextResponse, type NextRequest } from 'next/server';
+import type { NextRequest } from 'next/server';
 import { isLocale } from '@mytask/i18n';
 import { href } from '../../../../../../../lib/href';
+import { permanentRedirect } from '../../../../../../../lib/permanent-redirect';
 
 export async function GET(
   request: NextRequest,
@@ -12,5 +13,5 @@ export async function GET(
     isLocale(locale) ? locale : 'ka',
     `/seller/portfolio/${encodeURIComponent(uid)}/edit`,
   );
-  return NextResponse.redirect(new URL(`${target}${request.nextUrl.search}`, request.url), 301);
+  return permanentRedirect(`${target}${request.nextUrl.search}`);
 }
