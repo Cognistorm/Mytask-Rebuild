@@ -49,11 +49,14 @@ export interface ObjectHead {
   contentDisposition?: string;
 }
 
-/** Where `copy` writes; `contentDisposition` is stored with the object and sent on every plain GET. */
+/**
+ * Where `copy` writes; `contentDisposition` is stored with the object and sent on every plain GET. Without
+ * `contentType` the object keeps all its stored headers (a gig file moved between buckets, ROADMAP 4.3.24).
+ */
 export interface CopyTarget {
   bucket: FileBucket;
   key: string;
-  contentType: string;
+  contentType?: string;
   contentDisposition?: string;
 }
 
@@ -205,8 +208,8 @@ export class S3ObjectStorage extends ObjectStorage {
           CopySource: `${this.buckets[from.bucket]}/${from.key}`,
           CopySourceIfMatch: from.ifMatch ?? undefined,
           ContentType: to.contentType,
-          ContentDisposition: to.contentDisposition,
-          MetadataDirective: 'REPLACE',
+          ContentDisposition: to.contentType ? to.contentDisposition : undefined,
+          MetadataDirective: to.contentType ? 'REPLACE' : 'COPY',
         }),
       );
     } catch (err) {

@@ -1,7 +1,7 @@
 // ADR-017 §3: presigned POST (with its policy: size range, content type) and presigned GET must work against
 // the local S3 server (SeaweedFS). Needs a running S3 endpoint: S3_INTEGRATION=1 plus the S3_* variables
 // (`pnpm infra:up`, then S3_INTEGRATION=1 with the S3_* values of .env; ADR-020).
-import { CreateBucketCommand, S3Client } from '@aws-sdk/client-s3';
+import { CreateBucketCommand, HeadObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { randomUUID } from 'node:crypto';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { loadEnv, type Env } from '../src/platform/config/env';
@@ -136,6 +136,73 @@ describe.skipIf(!enabled)('object storage (integration, ADR-017 §3)', () => {
       ['private', `quarantine/${id}`],
       ['private', `files/${id}`],
       ['public_media', key],
+    ] as const)
+      await storage.delete(bucket, k);
+  });
+
+  it('4.3.24: a copy without a content type moves an object between buckets with all its headers', async () => {
+    const id = randomUUID();
+    const image = `images/${id}/large.webp`;
+    const pdf = `files/${id}`;
+    await storage.put({
+      bucket: 'public_media',
+      key: image,
+      body: Buffer.from('webp'),
+      contentType: 'image/webp',
+      cacheControl: 'public, max-age=31536000, immutable',
+    });
+    await storage.put({
+      bucket: 'private',
+      key: `quarantine/${id}`,
+      body: Buffer.from('%PDF-1.7'),
+      contentType: 'application/pdf',
+    });
+    await storage.copy(
+      { bucket: 'private', key: `quarantine/${id}` },
+      {
+        bucket: 'public_media',
+        key: pdf,
+        contentType: 'application/pdf',
+        contentDisposition: attachmentDisposition('ფასები.pdf'),
+      },
+    );
+
+    // Staff removal: public → private under the same key; restore: back again.
+    for (const [from, to] of [
+      ['public_media', 'private'],
+      ['private', 'public_media'],
+    ] as const) {
+      for (const key of [image, pdf]) {
+        await storage.copy({ bucket: from, key }, { bucket: to, key });
+        await storage.delete(from, key);
+        expect(await storage.head(from, key)).toBeNull();
+      }
+      expect(await storage.head(to, pdf)).toEqual({
+        sizeBytes: 8,
+        contentType: 'application/pdf',
+        contentDisposition: attachmentDisposition('ფასები.pdf'),
+      });
+      expect(await storage.head(to, image)).toEqual({ sizeBytes: 4, contentType: 'image/webp' });
+    }
+    // Cache-Control is not part of `head`; a plain GET of the restored image still sends it.
+    const admin = new S3Client({
+      endpoint: env.S3_ENDPOINT,
+      region: env.S3_REGION,
+      forcePathStyle: true,
+      credentials: {
+        accessKeyId: env.S3_ACCESS_KEY_ID ?? '',
+        secretAccessKey: env.S3_SECRET_ACCESS_KEY ?? '',
+      },
+    });
+    const got = await admin.send(
+      new HeadObjectCommand({ Bucket: env.S3_BUCKET_PUBLIC, Key: image }),
+    );
+    expect(got.CacheControl).toBe('public, max-age=31536000, immutable');
+
+    for (const [bucket, k] of [
+      ['private', `quarantine/${id}`],
+      ['public_media', pdf],
+      ['public_media', image],
     ] as const)
       await storage.delete(bucket, k);
   });
