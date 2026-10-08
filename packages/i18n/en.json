@@ -2812,6 +2812,7 @@
   "t_ui_load_more": "Show more",
   "t_ui_loading": "Loading…",
   "t_ui_lower_category_levels_cleared": "The lower category levels were cleared.",
+  "t_ui_max_files": "Maximum number of files: {{max}}",
   "t_ui_message_not_sent": "Not sent. Try again.",
   "t_ui_more_info": "More information",
   "t_ui_most_visits_by_countries": "Most visits by countries",

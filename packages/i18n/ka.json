@@ -2817,6 +2817,7 @@
   "t_ui_load_more": "მეტის ჩვენება",
   "t_ui_loading": "იტვირთება…",
   "t_ui_lower_category_levels_cleared": "ქვედა დონის კატეგორიები გასუფთავდა.",
+  "t_ui_max_files": "ფაილების მაქსიმალური რაოდენობა: {{max}}",
   "t_ui_message_not_sent": "არ გაიგზავნა. სცადეთ ხელახლა.",
   "t_ui_more_info": "დამატებითი ინფორმაცია",
   "t_ui_most_visits_by_countries": "ვიზიტების სიხშირე ქვეყნების მიხედვით",

@@ -1006,7 +1006,7 @@ function GigForm({ categories, gig }: { categories: CategoryNode[]; gig?: GigOwn
               info={`${t('t_restrictions_files_allowed_info_explain', {
                 size: imageMb,
                 extensions: imageExtensions.join(', '),
-              })} ${t('t_validator_max_array', {
+              })}. ${t('t_ui_max_files', {
                 max: imageRule?.maxFiles ?? DEFAULT_GIG_IMAGE.maxFiles,
               })}`}
               purpose="gig_image"
@@ -1025,7 +1025,7 @@ function GigForm({ categories, gig }: { categories: CategoryNode[]; gig?: GigOwn
             {documentRule?.enabled && (
               <GigFiles
                 label={t('t_documents')}
-                info={`${t('t_show_some_of_best_work_doc_pdfs_only')} ${t(
+                info={`${t('t_show_some_of_best_work_doc_pdfs_only')}. ${t(
                   't_restrictions_files_allowed_info_explain',
                   {
                     size: documentRule.maxSizeMb,
@@ -1033,7 +1033,7 @@ function GigForm({ categories, gig }: { categories: CategoryNode[]; gig?: GigOwn
                   },
                 )}${
                   documentRule.maxFiles !== null
-                    ? ` ${t('t_validator_max_array', { max: documentRule.maxFiles })}`
+                    ? `. ${t('t_ui_max_files', { max: documentRule.maxFiles })}`
                     : ''
                 }`}
                 hint={t('t_ui_gig_document_names_public')}

@@ -297,6 +297,15 @@ test('Gallery: thumbnail, images with order and retry, documents (AC-14, AC-23)'
   const summary = page.getByRole('navigation', { name: 'Form progress' });
   await expect(summary.getByRole('link', { name: 'Gallery, not started' })).toBeVisible();
   await expect(summary.getByText('0 of 3 required blocks complete')).toBeVisible();
+  // F-02: whole sentences, and the limit is a hint (not the validator message).
+  await expect(
+    page.getByTestId('gig-images').locator('input[type=file]'),
+  ).toHaveAccessibleDescription(/allowed types are [a-z, ]+\. Maximum number of files: \d+$/);
+  await expect(
+    page.getByTestId('gig-documents').locator('input[type=file]'),
+  ).toHaveAccessibleDescription(
+    /\(PDFs only\)\. File must be less than \d+ MB and allowed types are pdf\. Maximum number of files: \d+ /,
+  );
 
   // A thumbnail and at least one image are required.
   await page.getByRole('button', { name: 'Create', exact: true }).click();

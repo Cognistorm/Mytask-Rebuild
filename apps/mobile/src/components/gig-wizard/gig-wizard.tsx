@@ -826,7 +826,7 @@ export function GigWizard(props: {
                   api={api}
                   t={t}
                   label={t('t_images')}
-                  info={`${imageInfo} ${t('t_validator_max_array', { max: maxImages })}`}
+                  info={`${imageInfo}. ${t('t_ui_max_files', { max: maxImages })}`}
                   purpose="gig_image"
                   kind="image"
                   reorder
@@ -853,11 +853,11 @@ export function GigWizard(props: {
                         extensions: documentExtensions.join(', '),
                       }),
                       documentRule.maxFiles !== null
-                        ? t('t_validator_max_array', { max: documentRule.maxFiles })
+                        ? t('t_ui_max_files', { max: documentRule.maxFiles })
                         : '',
                     ]
                       .filter(Boolean)
-                      .join(' ')}
+                      .join('. ')}
                     hint={t('t_ui_gig_document_names_public')}
                     purpose="gig_document"
                     kind="document"
