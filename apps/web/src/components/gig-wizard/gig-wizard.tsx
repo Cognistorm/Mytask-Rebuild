@@ -1036,6 +1036,7 @@ function GigForm({ categories, gig }: { categories: CategoryNode[]; gig?: GigOwn
                     ? ` ${t('t_validator_max_array', { max: documentRule.maxFiles })}`
                     : ''
                 }`}
+                hint={t('t_ui_gig_document_names_public')}
                 purpose="gig_document"
                 name="documentFileIds"
                 kind="document"

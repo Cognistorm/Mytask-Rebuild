@@ -2808,6 +2808,7 @@
   "t_ui_file_size_mb": "{{size}} მბ",
   "t_ui_form_progress": "ფორმის შევსების პროგრესი",
   "t_ui_gig_details": "განცხადების დეტალები",
+  "t_ui_gig_document_names_public": "ფაილის სახელს ყველა ხედავს. ნუ მიუთითებთ მასში პირად მონაცემებს.",
   "t_ui_hide_password": "პაროლის დამალვა",
   "t_ui_image_of": "სურათი {{n}} / {{total}}",
   "t_ui_increase": "გაზრდა",

@@ -346,6 +346,10 @@ test('Gallery: thumbnail, images with order and retry, documents (AC-14, AC-23)'
 
   // Documents (S-080 ON): PDF only, listed by name.
   const docs = page.getByTestId('gig-documents');
+  // Q-186: the file name is public, so the field warns against personal details in it.
+  await expect(docs.locator('input[type=file]')).toHaveAccessibleDescription(
+    /Everyone can see the file name\. Do not put personal details in it\./,
+  );
   await docs.locator('input[type=file]').setInputFiles({
     name: 'portfolio.pdf',
     mimeType: 'application/pdf',

@@ -2803,6 +2803,7 @@
   "t_ui_file_size_mb": "{{size}} MB",
   "t_ui_form_progress": "Form progress",
   "t_ui_gig_details": "Gig details",
+  "t_ui_gig_document_names_public": "Everyone can see the file name. Do not put personal details in it.",
   "t_ui_hide_password": "Hide password",
   "t_ui_image_of": "Image {{n}} of {{total}}",
   "t_ui_increase": "Increase",

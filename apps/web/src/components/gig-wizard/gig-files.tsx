@@ -45,6 +45,8 @@ export function GigFiles(props: {
   label: string;
   /** Help text: what to upload, types and size. */
   info: string;
+  /** A second help line under the help text (documents: the file name is public, Q-186). */
+  hint?: string;
   purpose: Extract<UploadInput['purpose'], 'gig_thumbnail' | 'gig_image' | 'gig_document'>;
   /** Field name of the API (`thumbnailFileId`, `imageFileIds`, `documentFileIds`): the error and AC-19 focus. */
   name: string;
@@ -285,7 +287,9 @@ export function GigFiles(props: {
 
   const full = props.max > 1 && items.filter((i) => i.state !== 'failed').length >= props.max;
   const ready = items.filter((i) => i.state === 'ready').length;
-  const describedBy = [`${id}-info`, props.error && `${id}-err`].filter(Boolean).join(' ');
+  const describedBy = [`${id}-info`, props.hint && `${id}-hint`, props.error && `${id}-err`]
+    .filter(Boolean)
+    .join(' ');
 
   return (
     <fieldset
@@ -304,6 +308,11 @@ export function GigFiles(props: {
       <p id={`${id}-info`} className="auth-hint mt-gw-files-info">
         {props.info}
       </p>
+      {props.hint && (
+        <p id={`${id}-hint`} className="auth-hint mt-gw-files-info">
+          {props.hint}
+        </p>
+      )}
       <label className="mt-button mt-gw-file" data-disabled={full || undefined}>
         {t('t_browse_files')}
         <input

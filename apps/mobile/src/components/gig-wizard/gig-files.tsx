@@ -72,6 +72,8 @@ export function GigFiles(props: {
   label: string;
   /** Help text: what to upload, types and size. */
   info: string;
+  /** A second help line under the help text (documents: the file name is public, Q-186). */
+  hint?: string;
   purpose: Extract<UploadInput['purpose'], 'gig_thumbnail' | 'gig_image' | 'gig_document'>;
   /** 1 = one file; a new pick replaces it. */
   max: number;
@@ -340,6 +342,7 @@ export function GigFiles(props: {
         {props.label}
       </Text>
       <Text style={s.muted}>{props.info}</Text>
+      {props.hint ? <Text style={s.muted}>{props.hint}</Text> : null}
       {full ? null : props.kind === 'image' ? (
         <View style={s.actions}>
           <LinkButton label={t('t_ui_take_photo')} onPress={() => void pickImage('camera')} />

@@ -858,6 +858,7 @@ export function GigWizard(props: {
                     ]
                       .filter(Boolean)
                       .join(' ')}
+                    hint={t('t_ui_gig_document_names_public')}
                     purpose="gig_document"
                     kind="document"
                     max={documentRule.maxFiles ?? Number.POSITIVE_INFINITY}
