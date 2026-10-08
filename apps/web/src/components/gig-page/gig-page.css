@@ -323,13 +323,22 @@ legend.mt-gig-box-title {
   font-weight: var(--mt-font-weight-semibold);
 }
 
-/* "You may also like": heading above the carousel; its buttons sit at the heading's end (carousel.css). */
+/* "You may also like": heading above the carousel; its buttons (44 px, 48 px above the list, catalog.css) sit at the
+   heading's end. The heading takes the buttons' band and keeps room for them, so a long title wraps instead of
+   running under them at 390 px (QA BUG-04; as the Home rows). */
 .mt-gig-related {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: var(--mt-space-6);
+  gap: var(--mt-space-1);
   min-width: 0;
   padding-block-start: var(--mt-space-4);
+}
+
+.mt-gig-related > .mt-gig-section-title {
+  display: flex;
+  align-items: center;
+  min-height: var(--mt-size-touch-target-min);
+  padding-inline-end: var(--mt-space-24);
 }
 
 @media (min-width: 768px) {

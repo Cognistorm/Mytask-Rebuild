@@ -399,6 +399,30 @@ test('"You may also like": gig cards in a carousel; hidden without related gigs 
   await expect(page.getByTestId('gig-related')).toHaveCount(0);
 });
 
+test('"You may also like" at 390 px: the heading keeps clear of the carousel buttons (BUG-04)', async ({
+  page,
+}) => {
+  await media(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`/service/${GIG_SLUG[1]}`);
+  const related = page.getByTestId('gig-related');
+  const heading = related.getByRole('heading', { level: 2 });
+  await expect(heading).toHaveText('რეკომენდირებული განცხადებები');
+  // The text itself (not the heading box, which runs to the edge) ends before the first button starts.
+  const textEnd = await heading.evaluate((h) => {
+    const range = document.createRange();
+    range.selectNodeContents(h);
+    return Math.max(...[...range.getClientRects()].map((r) => r.right));
+  });
+  const buttons = related.locator('.mt-carousel-buttons');
+  const box = (await buttons.boundingBox())!;
+  expect(textEnd).toBeLessThanOrEqual(box.x);
+  const head = (await heading.boundingBox())!;
+  // The buttons sit on the heading's band, not over the cards.
+  expect(box.y).toBeGreaterThanOrEqual(head.y - 1);
+  expect(box.y + box.height).toBeLessThanOrEqual(head.y + head.height + 1);
+});
+
 const GIG = (n: number) => `01900000-0000-7000-8000-0000000d000${n}`;
 
 test('card heart, guest: on every related card; asks to log in and come back, no API call (AC-35, BUG-03)', async ({
