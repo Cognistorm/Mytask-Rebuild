@@ -449,6 +449,7 @@ Remaining:
 - [ ] 4.3.20 Fix findings.
 - [ ] 4.3.21 PR + STATUS.
 - [ ] 4.3.22 Owner click-through.
+- [ ] 4.3.23 Mobile: native gig analytics screen `/seller/gigs/[uid]/analytics` (Owner Q-184 (b), 2026-10-08): `getGigAnalytics` (owner only, others 404), totals (sales, clicks, impressions, reviews), bar lists for devices, browsers, OS, referrers, countries, cities, the DB-IP credit, recent orders (empty until slice 5); My gigs "Analytics" opens it instead of the website. Same keys as the web page; no contract change.
 
 ### 4.4 Slice 4 — spec 05 Payments and wallet (branch `feat/payments`) — money: security review mandatory
 - [ ] 4.4.1 Spec check.

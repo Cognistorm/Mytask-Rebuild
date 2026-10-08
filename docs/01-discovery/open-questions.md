@@ -952,12 +952,13 @@ Recommendation: (a).
 Options: (a) the field may stay empty and the stored "no value" is kept (the API leaves fields it is not sent unchanged); (b) the owner must choose a number before saving any edit.
 Recommendation: (a) — it adds no new rule and does not block an owner who only wants to fix a typo. Built as (a) in 4.3.10d; (b) is a one-line change in the web form (and the same on mobile).
 
-## Slice 3 gigs — open (qa-engineer, ROADMAP 4.3.18b, 2026-10-08; raised in the 4.3.16 handoff)
+## Slice 3 gigs — answered (qa-engineer, ROADMAP 4.3.18b, 2026-10-08; raised in the 4.3.16 handoff)
 
 ### Q-184
 **Should the app get its own gig analytics screen?** Today "Analytics" in the app's My gigs opens the website's `/seller/gigs/{uid}/analytics` in the browser, because the ROADMAP has no app analytics screen (4.3.16 handoff). The user must be signed in on the website too, or they see the website's login first. Spec 04 AC-39 does not say which client shows it. Legacy had only the website.
 Options: (a) keep opening the website page (the same interim pattern as "Upgrade to Premium"); (b) add a native analytics screen in a later micro-task (it reuses `getGigAnalytics`, the bar lists and the DB-IP credit; no contract change).
 Recommendation: (b) as a small micro-task after slice 3, so app users stay in the app; (a) until then. Nothing in slice 3 is blocked.
+**Answer (Owner, 2026-10-08):** Yes — (b). The app gets its own gig analytics screen (ROADMAP 4.3.23); until it is built, "Analytics" keeps opening the website page.
 
 ### Q-142 (answer)
 **Answer (Owner, 2026-10-07):** Recommendation accepted. A migrated gig without a stored number of revisions shows `t_revisions_not_specified` ("Number of revisions not specified" / "შესწორებების რაოდენობა მითითებული არ არის") on the gig page. Built in 4.3.11a; mobile (4.3.14) does the same.
