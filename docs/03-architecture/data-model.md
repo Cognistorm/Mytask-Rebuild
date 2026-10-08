@@ -555,6 +555,7 @@ CK `gigs_deleted_ck`: `(status = 'deleted') = (deleted_at IS NOT NULL) AND (dele
 **gig_upgrades** — `id` PK · `legacy_id` · `gig_id` FK · `title varchar(100)` · `price_tetri` CK ≥ 100 · `extra_days smallint` (delivery list) · `position` · `created_at`, `updated_at` · `deleted_at null`. Max 10 active per gig (app rule, R-G9).
 **gig_faqs** — `id` PK · `gig_id` FK · `question varchar(100)` · `answer varchar(300)` · `position`. Max 10.
 **gig_images** / **gig_documents** — `gig_id` FK · `file_id` FK · `position smallint`. PK `(gig_id, file_id)`, UK `(gig_id, position)` DEFERRABLE INITIALLY DEFERRED (reorder in one transaction, P-34). Documents are public downloads (R-G11, bucket `public-media`).
+**Files of a staff-removed gig** (ROADMAP 4.3.24, Owner Q-185 (b), ADR-009 note 2026-10-08): while `status = 'deleted' AND deleted_by = 'staff'`, the gig's thumbnail, gallery images and documents are in bucket `private` (same `object_key`s and ids, `files.bucket = 'private'`); in every other state they are in `public-media`. The removal moves them after its commit, the restore moves them back inside its transaction; the worker's `gig-media` sweeper finishes any interrupted move. No schema change.
 **favorites** — `user_id` FK · `gig_id` FK · `created_at`. PK `(user_id, gig_id)`.
 
 ### 3.E Cart (spec 06 AC-1…AC-6, P-47)
