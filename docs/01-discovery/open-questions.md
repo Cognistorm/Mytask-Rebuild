@@ -960,5 +960,16 @@ Options: (a) keep opening the website page (the same interim pattern as "Upgrade
 Recommendation: (b) as a small micro-task after slice 3, so app users stay in the app; (a) until then. Nothing in slice 3 is blocked.
 **Answer (Owner, 2026-10-08):** Yes — (b). The app gets its own gig analytics screen (ROADMAP 4.3.23); until it is built, "Analytics" keeps opening the website page.
 
+## Slice 3 gigs — answered (security-reviewer, ROADMAP 4.3.19, review 10, 2026-10-08)
+
+### Q-185
+**Should a staff removal take the gig's images and PDFs offline until a restore (review 10 I-57)?** Today gig images and documents are public from the moment they are ready, and a staff removal keeps them in `public-media` (needed for restore, spec 16 AC-20), so the direct media links keep working. Legacy behaved the same.
+Options: (a) keep them reachable (legacy); (b) on a staff removal move the gig's files out of public reach, and back on a restore.
+**Answer (Owner, 2026-10-08):** (b) — take them offline. Scope: staff removal only (pending, rejected and owner-deleted gigs are not part of this answer). Built in ROADMAP 4.3.24 (architect note + backend).
+
+### Q-186
+**Should the gig wizard warn that document file names are public (review 10 I-58)?** The gig page shows each PDF's original file name to everyone, and a name can carry personal data (a full name, "passport").
+**Answer (Owner, 2026-10-08):** Yes — a hint next to the document upload, web and app. Built in ROADMAP 4.3.25 (one NEW key, English first + Georgian).
+
 ### Q-142 (answer)
 **Answer (Owner, 2026-10-07):** Recommendation accepted. A migrated gig without a stored number of revisions shows `t_revisions_not_specified` ("Number of revisions not specified" / "შესწორებების რაოდენობა მითითებული არ არის") on the gig page. Built in 4.3.11a; mobile (4.3.14) does the same.
