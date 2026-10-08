@@ -7,11 +7,20 @@ import {
   contentFieldError,
   normaliseContentText,
 } from '../src/platform/content-language';
-import {
-  englishFieldIssue,
-  georgianFieldIssue,
-  normaliseContentText as normaliseClient,
-} from '@mytask/i18n';
+
+// `@mytask/i18n` is an ESM TypeScript package for the bundlers of web and mobile; the API's Node16 CommonJS
+// typecheck cannot import it (QA 4.3.18a BUG-01). Vitest loads it at run time; the specifier is a variable so
+// `tsc` does not resolve it, and the three functions are typed here.
+interface ClientIssue {
+  messageKey: string;
+  params?: { chars: string };
+}
+interface ClientPreCheck {
+  georgianFieldIssue(plain: string): ClientIssue | null;
+  englishFieldIssue(plain: string): ClientIssue | null;
+  normaliseContentText(plain: string): string;
+}
+const I18N_PACKAGE = '@mytask/i18n';
 
 describe('Georgian fields (R-5.3a)', () => {
   it('accepts Georgian with Latin words, digits and the 8 marks (AC-5)', () => {
@@ -125,16 +134,17 @@ describe('client pre-check parity (@mytask/i18n)', () => {
     'a:b;c<d>e"f\'g@h#i$j%k^l&m*n+o=p',
   ];
 
-  it('refuses and accepts exactly what the API refuses and accepts, with the same key and characters', () => {
+  it('refuses and accepts exactly what the API refuses and accepts, with the same key and characters', async () => {
+    const client = (await import(I18N_PACKAGE)) as ClientPreCheck;
     for (const text of samples) {
       const ka = checkGeorgianField('f', text);
-      const kaClient = georgianFieldIssue(text);
+      const kaClient = client.georgianFieldIssue(text);
       expect(kaClient?.messageKey ?? null, text).toBe(ka?.messageKey ?? null);
       expect(kaClient?.params ?? null, text).toEqual(ka?.params ?? null);
-      expect(englishFieldIssue(text)?.messageKey ?? null, text).toBe(
+      expect(client.englishFieldIssue(text)?.messageKey ?? null, text).toBe(
         checkEnglishField('f', text)?.messageKey ?? null,
       );
-      expect(normaliseClient(text)).toBe(normaliseContentText(text));
+      expect(client.normaliseContentText(text)).toBe(normaliseContentText(text));
     }
   });
 });

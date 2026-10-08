@@ -59,7 +59,10 @@ test('Super-admin sees every section in the legacy order; one-item groups are pl
     'href',
     '/portfolio',
   );
-  await expect(sidebar.getByRole('link', { name: 'განცხადებები' })).toHaveAttribute('href', '/gigs');
+  await expect(sidebar.getByRole('link', { name: 'განცხადებები' })).toHaveAttribute(
+    'href',
+    '/gigs',
+  );
   await expect(sidebar.getByRole('link', { name: 'სარჩევი' })).toHaveAttribute(
     'href',
     '/categories',
