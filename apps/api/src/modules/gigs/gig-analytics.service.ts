@@ -50,7 +50,8 @@ export class GigAnalytics {
       WHERE "metric" = 'gig_view' AND "entity_type" = 'gig' AND "entity_id" = ${gigId}::uuid
         AND "dimension" IN ('device', 'browser', 'os', 'referrer', 'country', 'city')
       GROUP BY "dimension", "dimension_value"
-      ORDER BY SUM("count") DESC, "dimension_value" ASC`;
+      -- Ties by byte order: the same on every database, whatever its collation.
+      ORDER BY SUM("count") DESC, "dimension_value" COLLATE "C" ASC`;
     const lists = Object.fromEntries(
       Object.values(DIMENSIONS).map((field) => [field, [] as Bucket[]]),
     ) as Record<(typeof DIMENSIONS)[Dimension], Bucket[]>;
