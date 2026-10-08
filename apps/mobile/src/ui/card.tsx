@@ -5,7 +5,13 @@
 import { createContext, useCallback, useContext, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import type { AccessibilityRole, StyleProp, ViewStyle } from 'react-native';
+import type {
+  AccessibilityActionEvent,
+  AccessibilityActionInfo,
+  AccessibilityRole,
+  StyleProp,
+  ViewStyle,
+} from 'react-native';
 import Animated, {
   ReduceMotion,
   useAnimatedStyle,
@@ -57,6 +63,9 @@ export function Card(props: {
   accessibilityLabel?: string;
   /** Groups the card's content as one element for screen readers. */
   accessible?: boolean;
+  /** Screen-reader actions of a tappable card, for the buttons inside it that a grouped card hides. */
+  accessibilityActions?: AccessibilityActionInfo[];
+  onAccessibilityAction?: (event: AccessibilityActionEvent) => void;
   testID?: string;
   style?: StyleProp<ViewStyle>;
 }) {
@@ -107,6 +116,8 @@ export function Card(props: {
       }}
       accessibilityRole={props.accessibilityRole ?? 'button'}
       accessibilityLabel={props.accessibilityLabel}
+      accessibilityActions={props.accessibilityActions}
+      onAccessibilityAction={props.onAccessibilityAction}
       testID={props.testID}
     >
       {surface}

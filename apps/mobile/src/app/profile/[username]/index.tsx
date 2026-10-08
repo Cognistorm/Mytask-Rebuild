@@ -357,7 +357,7 @@ function Profile({
         <Section title={t('t_gigs')} testID="profile-gigs">
           <View style={s.gap}>
             {gigs.map((g) => (
-              <GigCardView key={g.id} gig={g} t={t} />
+              <GigCardView key={g.id} gig={g} t={t} api={api} />
             ))}
             {cursor ? (
               <Button label={t('t_load_more')} busy={gigsBusy} onPress={() => void moreGigs()} />
