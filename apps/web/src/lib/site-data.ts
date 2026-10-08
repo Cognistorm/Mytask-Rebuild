@@ -3,6 +3,7 @@
 // footer pages (listPages, slice 16: until the API serves it the footer shows no page columns). Every call
 // degrades: a failed call renders the shell without that part, never an error page.
 import 'server-only';
+import { cache } from 'react';
 import type { components } from '@mytask/types';
 import type { Locale } from '@mytask/i18n';
 import { serverApi, viewerApi } from './api';
@@ -49,10 +50,11 @@ export async function getServerPublicConfig(locale: Locale): Promise<PublicConfi
 }
 
 /**
- * The signed-in visitor, or null for a guest. `mayHaveSession`: no access cookie but this browser signed in
- * before, so the header asks the API once from the browser (which can refresh the session).
+ * The signed-in visitor, or null for a guest; one getMe per request (the header and the layout share it).
+ * `mayHaveSession`: no access cookie but this browser signed in before, so the header asks the API once from the
+ * browser (which can refresh the session).
  */
-export async function getViewer(
+export const getViewer = cache(async function getViewer(
   locale: Locale,
 ): Promise<{ viewer: Viewer | null; mayHaveSession: boolean }> {
   try {
@@ -67,7 +69,7 @@ export async function getViewer(
   } catch {
     return { viewer: null, mayHaveSession: false };
   }
-}
+});
 
 export async function getFooterPages(locale: Locale): Promise<PageLink[]> {
   try {

@@ -30,6 +30,7 @@ import { RecordGigView } from '../../../../../components/gig-page/record-view';
 import { GigUpgrades } from '../../../../../components/gig-page/upgrades';
 import '../../../../../components/gig-page/gig-page.css';
 import { DELIVERY_DAYS } from '../../../../../components/gig-wizard/gig-form';
+import { CardFavorite } from '../../../../../components/catalog/card-favorite';
 import { VerifiedMark } from '../../../../../components/profile/parts';
 import { categoryHref } from '../../../../../lib/category-nav';
 import { formatBytes, formatDate } from '../../../../../lib/format';
@@ -391,7 +392,18 @@ export default async function GigPage({ params }: Params) {
           >
             {related.map((g) => (
               <li key={g.id}>
-                <GigCard gig={toGigCardData(locale, g)} labels={gigCardLabels(t)} Link={Link} />
+                <GigCard
+                  gig={toGigCardData(locale, g)}
+                  labels={gigCardLabels(t)}
+                  Link={Link}
+                  favorite={
+                    <CardFavorite
+                      gigId={g.id}
+                      seller={g.seller.username}
+                      isFavorite={g.isFavorite}
+                    />
+                  }
+                />
               </li>
             ))}
           </Carousel>

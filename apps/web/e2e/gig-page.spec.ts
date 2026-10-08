@@ -399,6 +399,83 @@ test('"You may also like": gig cards in a carousel; hidden without related gigs 
   await expect(page.getByTestId('gig-related')).toHaveCount(0);
 });
 
+const GIG = (n: number) => `01900000-0000-7000-8000-0000000d000${n}`;
+
+test('card heart, guest: on every related card; asks to log in and come back, no API call (AC-35, BUG-03)', async ({
+  page,
+}) => {
+  await media(page);
+  let calls = 0;
+  await page.route('**/api/v1/favorites/**', (route) => {
+    calls += 1;
+    return route.fulfill({ status: 401 });
+  });
+  await page.goto(`/en/service/${GIG_SLUG[1]}`);
+  await hydrated(page);
+  const cards = page.getByTestId('gig-related').getByTestId('gig-card');
+  await expect(cards.getByRole('button', { name: 'Add to favorite' })).toHaveCount(3);
+
+  await cards.first().getByRole('button', { name: 'Add to favorite' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Add to favorite' });
+  await expect(dialog).toContainText(
+    'Please sign in or create an account to add this Gig to your favorite list',
+  );
+  await expect(dialog.getByRole('link', { name: 'Login' })).toHaveAttribute(
+    'href',
+    `/en/auth/login?next=${encodeURIComponent(`/en/service/${GIG_SLUG[1]}`)}`,
+  );
+  expect(calls).toBe(0);
+});
+
+test('card heart, signed in: saved state from the API, add and remove with the legacy messages, API errors shown (AC-35)', async ({
+  page,
+  context,
+}) => {
+  await as(context, 'viewer-token');
+  await media(page);
+  const sent: string[] = [];
+  await page.route('**/api/v1/favorites/*', (route) => {
+    const gigId = route.request().url().split('/').pop()!;
+    sent.push(`${route.request().method()} ${gigId}`);
+    if (gigId === GIG(7)) return json(route, 404, { code: 'NOT_FOUND', message: 'Gig not found' });
+    return route.request().method() === 'PUT'
+      ? json(route, 200, { gigId, createdAt: '2026-10-08T10:00:00Z' })
+      : route.fulfill({ status: 204 });
+  });
+  await page.goto(`/en/service/${GIG_SLUG[1]}`);
+  await hydrated(page);
+  const cards = page.getByTestId('gig-related').getByTestId('gig-card');
+  const heart = (n: number) => cards.nth(n - 5).getByTestId('card-favorite');
+  const note = (n: number) => cards.nth(n - 5).getByTestId('card-favorite-note');
+  await expect(heart(5)).toHaveAttribute('aria-pressed', 'false');
+  await expect(heart(6)).toHaveAttribute('aria-pressed', 'true');
+  await expect(heart(6)).toHaveAccessibleName('Remove from favorite');
+
+  await heart(5).click();
+  await expect(heart(5)).toHaveAttribute('aria-pressed', 'true');
+  await expect(heart(5)).toHaveAccessibleName('Remove from favorite');
+  await expect(note(5)).toHaveText('Gig has been successfully added to your favorite list');
+
+  await heart(6).click();
+  await expect(heart(6)).toHaveAttribute('aria-pressed', 'false');
+  await expect(note(6)).toHaveText('Gig has been removed from your favorite list');
+
+  await heart(7).click();
+  await expect(note(7)).toHaveText('Gig not found');
+  await expect(heart(7)).toHaveAttribute('aria-pressed', 'false');
+  expect(sent).toEqual([`PUT ${GIG(5)}`, `DELETE ${GIG(6)}`, `PUT ${GIG(7)}`]);
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+});
+
+test("card heart: none on the visitor's own gigs (R-G10)", async ({ page, context }) => {
+  await as(context, 'owner-token');
+  await media(page);
+  await page.goto(`/en/service/${GIG_SLUG[1]}`);
+  await hydrated(page);
+  await expect(page.getByTestId('gig-related').getByTestId('gig-card')).toHaveCount(3);
+  await expect(page.getByTestId('card-favorite')).toHaveCount(0);
+});
+
 const json = (route: Route, status: number, body?: unknown) =>
   route.fulfill({
     status,

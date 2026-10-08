@@ -66,9 +66,15 @@ export interface GigCardLabels {
 /**
  * One gig in a list (§7.2): image 3:2, Featured frame + badge for Premium owners (AC-18, text + icon, not colour
  * only), seller mini-row, 2-line title (the card's one link), rating or a quiet "No reviews yet", starting price.
- * The favourite button joins with spec 04 (slice 3).
+ * `favorite`: the app's favourite button (spec 04 AC-35, 4.3.20b), shown top-right over the image; a separate
+ * button, not inside the title link.
  */
-export function GigCard(props: { gig: GigCardData; labels: GigCardLabels; Link?: LinkComponent }) {
+export function GigCard(props: {
+  gig: GigCardData;
+  labels: GigCardLabels;
+  Link?: LinkComponent;
+  favorite?: ReactNode;
+}) {
   const { gig, labels } = props;
   const Link = props.Link ?? PlainLink;
   const average =
@@ -90,6 +96,7 @@ export function GigCard(props: { gig: GigCardData; labels: GigCardLabels; Link?:
             {labels.featured}
           </span>
         )}
+        {props.favorite && <div className="mt-gig-card-favorite">{props.favorite}</div>}
       </div>
       <div className="mt-gig-card-body">
         <a className="mt-gig-card-seller" href={gig.seller.href}>

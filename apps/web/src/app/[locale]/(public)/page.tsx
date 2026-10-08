@@ -23,6 +23,7 @@ import { href } from '../../../lib/href';
 import { getT, toLocale } from '../../../lib/i18n';
 import { getServerPublicConfig } from '../../../lib/site-data';
 import { alternates } from '../../../lib/seo';
+import { CardFavorite } from '../../../components/catalog/card-favorite';
 import { MotionEntrance } from '../../../components/motion-entrance';
 import { contactHref } from '../../../components/profile/parts';
 import '../../../components/catalog/catalog.css';
@@ -67,7 +68,14 @@ export default async function HomePage({ params }: Params) {
     <GigGrid label={label}>
       {list.map((g, i) => (
         <li key={g.id} {...motionEntrance(i)}>
-          <GigCard gig={toGigCardData(locale, g)} labels={labels} Link={Link} />
+          <GigCard
+            gig={toGigCardData(locale, g)}
+            labels={labels}
+            Link={Link}
+            favorite={
+              <CardFavorite gigId={g.id} seller={g.seller.username} isFavorite={g.isFavorite} />
+            }
+          />
         </li>
       ))}
     </GigGrid>

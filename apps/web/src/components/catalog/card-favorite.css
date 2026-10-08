@@ -1,0 +1,52 @@
+/* Gig card favourite (ROADMAP 4.3.20b; components.md §7.2): the round Secondary IconButton (buttons.css, 44 px hit
+   area from site.css) over the image; a saved gig shows the filled heart in the danger icon colour (legacy red). */
+.mt-card-favorite svg {
+  color: var(--mt-text-secondary);
+}
+
+.mt-card-favorite-on svg {
+  color: var(--mt-feedback-danger-icon);
+}
+
+/* The added / removed message (the legacy toast): a bubble at the bottom of the screen, above the page. */
+.mt-card-favorite-note {
+  position: fixed;
+  inset-block-end: var(--mt-space-6);
+  inset-inline: var(--mt-space-4);
+  z-index: var(--mt-z-index-toast);
+  max-inline-size: var(--mt-size-layout-toast-width);
+  margin: 0 auto;
+  padding: var(--mt-space-3) var(--mt-space-4);
+  border-radius: var(--mt-radius-md);
+  background: var(--mt-bg-inverse);
+  color: var(--mt-text-inverse);
+  box-shadow: var(--mt-elevation-lg);
+  font-size: var(--mt-font-size-sm);
+  text-align: center;
+}
+
+/* Kept in the page while empty, so screen readers announce the text when it arrives. */
+.mt-card-favorite-note:empty {
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+}
+
+.mt-card-favorite-note-error {
+  background: var(--mt-feedback-danger-bg);
+  color: var(--mt-feedback-danger-text);
+  border: var(--mt-border-width-hairline) solid var(--mt-feedback-danger-border);
+}
+
+.mt-card-favorite-dialog {
+  display: grid;
+  gap: var(--mt-space-4);
+}
+
+.mt-card-favorite-dialog-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--mt-space-2);
+}

@@ -3,22 +3,15 @@
 // `ServiceComponent.php:212-303` report, `:444-525` favourites, the share and report modals of `service.blade.php`):
 // Share (dialog), Report (dialog → `createGigReport`), and "Add to / Remove from favourite" (`putFavorite` /
 // `deleteFavorite`), which the owner sees as "Edit gig". Guests get the legacy login messages with a link back here.
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Alert, Dialog, TextArea } from '@mytask/ui/web';
-import { href, splitErrors, useApi, useLocale, useT, type ApiErrorBody } from '../../lib/client';
+import { splitErrors, useApi, useLocale, useT, type ApiErrorBody } from '../../lib/client';
+import { HeartIcon, useLoginHref } from '../catalog/card-favorite';
 import { ShareButton } from '../profile/client';
 
 /** Spec 04 AC-37: the reason is 6…500 characters (contract `GigReportCreateRequest`). */
 const REASON_MIN = 6;
 const REASON_MAX = 500;
-
-/** Where a guest logs in from here and comes back. */
-function useLoginHref() {
-  const locale = useLocale();
-  const [here, setHere] = useState('');
-  useEffect(() => setHere(window.location.pathname), []);
-  return `${href(locale, '/auth/login')}?next=${encodeURIComponent(here)}`;
-}
 
 export function GigActions(props: {
   gigId: string;
@@ -175,21 +168,6 @@ function ReportButton(props: {
         )}
       </Dialog>
     </>
-  );
-}
-
-/** Phosphor `Heart` (regular / fill). */
-function HeartIcon({ filled }: { filled: boolean }) {
-  return (
-    <svg width={20} height={20} viewBox="0 0 256 256" fill="currentColor" aria-hidden="true">
-      <path
-        d={
-          filled
-            ? 'M240 102c0 70-103.79 126.66-108.21 129a8 8 0 0 1-7.58 0C119.79 228.66 16 172 16 102a62.07 62.07 0 0 1 62-62c20.65 0 38.73 8.88 50 23.89C139.27 48.88 157.35 40 178 40a62.07 62.07 0 0 1 62 62Z'
-            : 'M178 40c-20.65 0-38.73 8.88-50 23.89C116.73 48.88 98.65 40 78 40a62.07 62.07 0 0 0-62 62c0 70 103.79 126.66 108.21 129a8 8 0 0 0 7.58 0C136.21 228.66 240 172 240 102a62.07 62.07 0 0 0-62-62Zm-50 174.8C109.74 204.16 32 155.69 32 102a46.06 46.06 0 0 1 46-46c19.45 0 35.78 10.36 42.6 27a8 8 0 0 0 14.8 0c6.82-16.67 23.15-27 42.6-27a46.06 46.06 0 0 1 46 46c0 53.61-77.76 102.15-96 112.8Z'
-        }
-      />
-    </svg>
   );
 }
 

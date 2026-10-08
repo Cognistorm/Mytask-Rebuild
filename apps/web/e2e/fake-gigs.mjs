@@ -203,8 +203,11 @@ function gigFor(g, locale, viewer) {
   };
 }
 
-/** "You may also like" for gig 1 (three other cards); none for the others (the section is hidden). */
-function relatedFor(gigId, locale) {
+/**
+ * "You may also like" for gig 1 (three other cards); none for the others (the section is hidden). Card hearts
+ * (4.3.20b): null for guests; the other signed-in user has saved gig 6.
+ */
+function relatedFor(gigId, locale, viewer) {
   if (gigId !== id(1)) return [];
   return [5, 6, 7].map((n) => ({
     id: id(n),
@@ -218,7 +221,7 @@ function relatedFor(gigId, locale) {
     rating: { count: 0, averageTenths: null },
     seller: NINO,
     isFeatured: false,
-    isFavorite: false,
+    isFavorite: viewer === 'guest' ? null : viewer === 'viewer' && n === 6,
   }));
 }
 
@@ -226,7 +229,7 @@ export function gigRoute(url, req) {
   const related = url.pathname.match(/^\/api\/v1\/gigs\/([^/]+)\/related$/);
   if (related) {
     const locale = req.headers['accept-language'] === 'en' ? 'en' : 'ka';
-    return [200, { gigs: relatedFor(related[1], locale) }];
+    return [200, { gigs: relatedFor(related[1], locale, viewerOf(req)) }];
   }
   if (url.pathname !== '/api/v1/gigs/lookup') return undefined;
   const viewer = viewerOf(req);

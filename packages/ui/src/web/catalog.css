@@ -37,6 +37,15 @@
   object-fit: cover;
 }
 
+/* Favourite IconButton over the image, top-right (components.md §7.2); the button itself comes from the app. Above
+   the title link's card-wide hit area, like the seller link. */
+.mt-gig-card-favorite {
+  position: absolute;
+  z-index: var(--mt-z-index-raised);
+  inset-block-start: var(--mt-space-1);
+  inset-inline-end: var(--mt-space-1);
+}
+
 .mt-featured-badge {
   position: absolute;
   inset-block-start: var(--mt-space-2);

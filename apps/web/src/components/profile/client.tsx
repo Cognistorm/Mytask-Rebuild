@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import type { components } from '@mytask/types';
 import { Alert, Dialog, GigCard, GigGrid, Pill, TextArea } from '@mytask/ui/web';
 import { gigCardLabels, toGigCardData } from '../../lib/gig-card';
+import { CardFavorite } from '../catalog/card-favorite';
 import { href, splitErrors, useApi, useLocale, useT, type ApiErrorBody } from '../../lib/client';
 
 type PortfolioCard = components['schemas']['PortfolioItemCard'];
@@ -341,7 +342,14 @@ export function ProfileGigs(props: {
       <GigGrid label={t('t_gigs')}>
         {items.map((g) => (
           <li key={g.id}>
-            <GigCard gig={toGigCardData(locale, g)} labels={labels} Link={Link} />
+            <GigCard
+              gig={toGigCardData(locale, g)}
+              labels={labels}
+              Link={Link}
+              favorite={
+                <CardFavorite gigId={g.id} seller={g.seller.username} isFavorite={g.isFavorite} />
+              }
+            />
           </li>
         ))}
       </GigGrid>
