@@ -585,6 +585,29 @@ describe('owner emails EV-20, EV-21, EV-130 (spec 15; 4.3.8)', () => {
     expect(mail.text).toContain('Add real photos');
   });
 
+  it('EV-21 greets by the full name, by the username when none is set (legacy fullname ?: username, F-01)', () => {
+    const p = cases[1]!.params;
+    const named = renderEmail({
+      ...base,
+      fullName: 'ნინო ბერიძე',
+      locale: 'en',
+      event: 'EV-21',
+      params: p,
+    });
+    expect(named.text.split('\n')[0]).toBe('Hello ნინო ბერიძე');
+    const blank = renderEmail({ ...base, fullName: '  ', locale: 'en', event: 'EV-21', params: p });
+    expect(blank.text.split('\n')[0]).toBe('Hello nino');
+    // Other events keep the username greeting of their legacy classes.
+    const published = renderEmail({
+      ...base,
+      fullName: 'ნინო ბერიძე',
+      locale: 'en',
+      event: 'EV-20',
+      params,
+    });
+    expect(published.text).not.toContain('ნინო ბერიძე');
+  });
+
   it('EV-130 names the gig in the reader language, Georgian when there is no English title', () => {
     const ka = renderEmail({ ...base, locale: 'ka', event: 'EV-130', params });
     expect(ka.text).toContain('„ლოგოს დიზაინი“');

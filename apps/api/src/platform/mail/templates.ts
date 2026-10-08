@@ -13,6 +13,8 @@ export interface TemplateInput {
   event: string;
   locale: Locale;
   username: string;
+  /** Account full name; empty for an address-only recipient. Some legacy mails greet by it. */
+  fullName?: string;
   email: string;
   appUrl: string;
   adminUrl: string;
@@ -56,6 +58,8 @@ export function renderEmail(i: TemplateInput): RenderedEmail {
   const t = (key: string, params: Record<string, string | number> = {}) =>
     translate(key, i.locale, params);
   const hello = t('t_hello_username', { username: i.username });
+  // Legacy `fullname ?: username` greeting (e.g. YourGigNeedsChanges.php:40; QA 4.3.18b F-01).
+  const helloByName = t('t_hello_username', { username: i.fullName?.trim() || i.username });
   const q = (token: string | number | undefined) =>
     `?token=${encodeURIComponent(String(token ?? ''))}&email=${encodeURIComponent(i.email)}`;
   // Gig emails carry both titles; English readers get the English one when the gig has it (spec 04 R-5.4).
@@ -260,7 +264,7 @@ export function renderEmail(i: TemplateInput): RenderedEmail {
       return layout(
         i.locale,
         t('t_subject_freelancer_ur_gig_needs_changes'),
-        hello,
+        helloByName,
         [
           t('t_notification_the_following_gig_has_been_rejected'),
           gigTitle(),
