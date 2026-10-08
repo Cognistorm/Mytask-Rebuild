@@ -5,7 +5,11 @@ import { CreateBucketCommand, S3Client } from '@aws-sdk/client-s3';
 import { randomUUID } from 'node:crypto';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { loadEnv, type Env } from '../src/platform/config/env';
-import { ObjectChangedError, S3ObjectStorage } from '../src/platform/storage/storage';
+import {
+  attachmentDisposition,
+  ObjectChangedError,
+  S3ObjectStorage,
+} from '../src/platform/storage/storage';
 
 const enabled = process.env.S3_INTEGRATION === '1';
 
@@ -101,11 +105,18 @@ describe.skipIf(!enabled)('object storage (integration, ADR-017 §3)', () => {
 
     await storage.copy(
       { bucket: 'private', key: `quarantine/${id}`, ifMatch: stream!.etag },
-      { bucket: 'private', key: `files/${id}`, contentType: 'application/pdf' },
+      {
+        bucket: 'private',
+        key: `files/${id}`,
+        contentType: 'application/pdf',
+        contentDisposition: attachmentDisposition('ფასები.pdf'),
+      },
     );
+    // Stored with the object, so a plain GET (public media, review 10 SEC-80 (b)) is a download.
     expect(await storage.head('private', `files/${id}`)).toEqual({
       sizeBytes: bytes.length,
       contentType: 'application/pdf',
+      contentDisposition: attachmentDisposition('ფასები.pdf'),
     });
 
     const key = `images/${id}/thumb.webp`;

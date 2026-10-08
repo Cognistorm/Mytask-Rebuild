@@ -3,6 +3,7 @@
 import type { FileBucket } from '../src/generated/prisma/client';
 import { createHash } from 'node:crypto';
 import {
+  type CopyTarget,
   ObjectChangedError,
   ObjectStorage,
   type ObjectHead,
@@ -87,13 +88,17 @@ export class MemoryStorage extends ObjectStorage {
 
   copy(
     from: { bucket: FileBucket; key: string; ifMatch?: string | null },
-    to: { bucket: FileBucket; key: string; contentType: string },
+    to: CopyTarget,
   ): Promise<void> {
     const o = this.objects.get(this.id(from.bucket, from.key));
     if (!o) return Promise.reject(new Error('NoSuchKey'));
     if (from.ifMatch && from.ifMatch !== this.etag(o))
       return Promise.reject(new ObjectChangedError('precondition failed'));
-    this.objects.set(this.id(to.bucket, to.key), { ...o, contentType: to.contentType });
+    this.objects.set(this.id(to.bucket, to.key), {
+      ...o,
+      contentType: to.contentType,
+      contentDisposition: to.contentDisposition,
+    });
     const after = this.afterNextCopy;
     this.afterNextCopy = null;
     after?.(to);

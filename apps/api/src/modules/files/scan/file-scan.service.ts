@@ -12,6 +12,7 @@ import { PrismaService } from '../../../platform/db/prisma.service';
 import { VirusScanner } from '../../../platform/scanner/scanner';
 import { SettingsService } from '../../../platform/settings/settings.service';
 import {
+  attachmentDisposition,
   ObjectChangedError,
   ObjectStorage,
   type PutObjectInput,
@@ -100,7 +101,9 @@ export class FileScanService {
     if (!source) return this.reject(file, REJECT_REASONS.missing, null);
 
     const read = await this.readAndScan(file, source.body, policy.processing !== 'none');
-    const detected = sniff(read.head, read.sizeBytes <= SNIFF_BYTES);
+    const detected = sniff(read.head, read.sizeBytes <= SNIFF_BYTES, {
+      pdfAtStart: policy.finalBucket === 'public_media',
+    });
     if (read.infected) {
       this.logger.warn({ fileId, signature: read.infected }, 'upload rejected: virus found');
       return this.reject(file, REJECT_REASONS.virus, detected);
@@ -135,7 +138,14 @@ export class FileScanService {
       try {
         await this.storage.copy(
           { bucket: file.bucket, key: file.objectKey, ifMatch: source.etag },
-          { bucket: placement.bucket, key: placement.objectKey, contentType: detected },
+          {
+            bucket: placement.bucket,
+            key: placement.objectKey,
+            contentType: detected,
+            // Stored as a download, so no server or CDN in front of the bucket opens user bytes inline
+            // (ADR-009 §4, review 10 SEC-80 (b)).
+            contentDisposition: attachmentDisposition(file.originalName),
+          },
         );
       } catch (err) {
         if (!(err instanceof ObjectChangedError)) throw err;
