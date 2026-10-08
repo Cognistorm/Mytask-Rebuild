@@ -215,6 +215,22 @@ test('no gigs: the empty state with "Create a new gig"; phone width without side
   expect(overflow).toBe(false);
 });
 
+test('phone cards (390 px): the thumbnail keeps one place whatever the title length (N-14)', async ({
+  page,
+}) => {
+  await fakeApi(page, [
+    row(1, 'active', { title: 'Logo' }),
+    row(2, 'active', { title: 'A much longer gig title that wraps onto a second line on phones' }),
+    row(3, 'active', { thumbnail: null }),
+  ]);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/en/seller/gigs');
+  const thumbs = page.locator('.mt-my-gigs-gig > :first-child');
+  await expect(thumbs).toHaveCount(3);
+  const xs = await thumbs.evaluateAll((els) => els.map((e) => e.getBoundingClientRect().left));
+  expect(new Set(xs).size).toBe(1);
+});
+
 test('legacy /seller/gigs/edit/{uid} and /seller/gigs/analytics/{uid} answer 301 (url-map §5)', async ({
   page,
 }) => {

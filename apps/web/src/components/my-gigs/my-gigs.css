@@ -40,6 +40,14 @@
   object-fit: cover;
 }
 
+/* Phone cards put the label left and the value right (dashboard.css); the gig fills the rest of the row, so the
+   thumbnail keeps one place whatever the title length (QA N-14). */
+@media (max-width: 767px) {
+  .mt-my-gigs-gig {
+    flex: 1 1 0;
+  }
+}
+
 .mt-my-gigs-status {
   display: grid;
   justify-items: start;
