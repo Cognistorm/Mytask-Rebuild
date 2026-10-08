@@ -149,12 +149,14 @@ export default async function GigPage({ params }: Params) {
   });
 
   // AC-26: FAQ and Documents only when there are any; Reviews always (its list arrives with slice 7, `listReviews`).
+  // Each `content` carries a key: elements inside an array passed to a client component need one (QA BUG-06).
   const tabs: TabItem[] = [
     {
       id: 'gig-description',
       label: t('t_description'),
       content: (
         <div
+          key="gig-description"
           className="mt-gig-description"
           lang={lang}
           data-testid="gig-description"
@@ -170,6 +172,7 @@ export default async function GigPage({ params }: Params) {
             label: t('t_faq'),
             content: (
               <Accordion
+                key="gig-faq"
                 lang={lang}
                 testId="gig-faq"
                 items={gig.faqs.map((f) => ({ id: f.id, title: f.question, content: f.answer }))}
@@ -183,7 +186,7 @@ export default async function GigPage({ params }: Params) {
       label: t('t_reviews'),
       badge: gig.rating.count,
       content: (
-        <div className="mt-gig-reviews" data-testid="gig-reviews">
+        <div key="gig-reviews" className="mt-gig-reviews" data-testid="gig-reviews">
           {gigAverage === null ? (
             <p className="mt-gig-muted">{t('t_no_reviews_yet')}</p>
           ) : (
@@ -206,7 +209,12 @@ export default async function GigPage({ params }: Params) {
             label: t('t_documents'),
             content: (
               // Legacy kept document names out of search snippets.
-              <ul className="mt-gig-documents" data-testid="gig-documents" data-nosnippet>
+              <ul
+                key="gig-documents"
+                className="mt-gig-documents"
+                data-testid="gig-documents"
+                data-nosnippet
+              >
                 {gig.documents.map((d) => (
                   <li key={d.fileId}>
                     <span className="mt-gig-document-name">{d.fileName}</span>
